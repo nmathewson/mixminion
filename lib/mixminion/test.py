@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.45 2002/12/11 05:53:33 nickm Exp $
+# $Id: test.py,v 1.46 2002/12/11 06:58:55 nickm Exp $
 
 """mixminion.tests
 
@@ -841,7 +841,7 @@ class PacketTests(unittest.TestCase):
 
 
 #----------------------------------------------------------------------
-from mixminion.HashLog import HashLog
+from mixminion.server.HashLog import HashLog
 
 class HashLogTests(unittest.TestCase):
     def test_hashlog(self):
@@ -935,8 +935,8 @@ class HashLogTests(unittest.TestCase):
 
 #----------------------------------------------------------------------
 import mixminion.BuildMessage as BuildMessage
-import mixminion.Modules
-from mixminion.Modules import *
+import mixminion.server.Modules
+from mixminion.server.Modules import *
 
 # Dummy PRNG class that just returns 0-valued bytes.  We use this to make
 # generated padding predictable in our BuildMessage tests below.
@@ -1634,7 +1634,7 @@ class BuildMessageTests(unittest.TestCase):
 
 class PacketHandlerTests(unittest.TestCase):
     def setUp(self):
-        from mixminion.PacketHandler import PacketHandler
+        from mixminion.server.PacketHandler import PacketHandler
         self.pk1 = getRSAKey(0,1024)
         self.pk2 = getRSAKey(1,1024)
         self.pk3 = getRSAKey(2,1024)
@@ -1738,7 +1738,7 @@ class PacketHandlerTests(unittest.TestCase):
         bfm = BuildMessage.buildForwardMessage
         brm = BuildMessage.buildReplyMessage
         brbi = BuildMessage._buildReplyBlockImpl
-        from mixminion.PacketHandler import ContentError
+        from mixminion.server.PacketHandler import ContentError
 
         # A long intermediate header needs to fail.
         server1X = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
@@ -1859,7 +1859,7 @@ class PacketHandlerTests(unittest.TestCase):
 # QUEUE
 
 from mixminion.Common import waitForChildren
-from mixminion.Queue import *
+from mixminion.server.Queue import *
 
 class TestDeliveryQueue(DeliveryQueue):
     def __init__(self,d):
@@ -2275,7 +2275,7 @@ class FileParanoiaTests(unittest.TestCase):
 # MMTP
 # FFFF Write more tests
 
-import mixminion.MMTPServer
+import mixminion.server.MMTPServer
 import mixminion.MMTPClient
 
 # Run on a different port so we don't conflict with any actual servers
@@ -2324,7 +2324,7 @@ def _getMMTPServer():
     """Helper function: create a new MMTP server with a listener connection
        Return a tuple of AsyncServer, ListenerConnection, list of received
        messages, and keyid."""
-    server = mixminion.MMTPServer.AsyncServer()
+    server = mixminion.server.MMTPServer.AsyncServer()
     messagesIn = []
     def receivedHook(pkt,m=messagesIn):
 	m.append(pkt)
@@ -2332,9 +2332,9 @@ def _getMMTPServer():
 		   receiveMessage=receivedHook):
 	tls = context.sock(sock, serverMode=1)
 	sock.setblocking(0)
-	return mixminion.MMTPServer.MMTPServerConnection(sock,tls,
+	return mixminion.server.MMTPServer.MMTPServerConnection(sock,tls,
 							 receiveMessage)
-    listener = mixminion.MMTPServer.ListenConnection("127.0.0.1",
+    listener = mixminion.server.MMTPServer.ListenConnection("127.0.0.1",
 						 TEST_PORT, 5, conFactory)
     listener.register(server)
     pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), public=0)
@@ -2405,8 +2405,8 @@ class MMTPTests(unittest.TestCase):
         self.server = server
 
         messages = ["helloxxx"*4096, "helloyyy"*4096]
-        async = mixminion.MMTPServer.AsyncServer()
-        clientcon = mixminion.MMTPServer.MMTPClientConnection(
+        async = mixminion.server.MMTPServer.AsyncServer()
+        clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid, messages[:],
 	   [None, None], None)
         clientcon.register(async)
@@ -2428,7 +2428,7 @@ class MMTPTests(unittest.TestCase):
         self.failUnless(messagesIn == messages)
 
         # Again, with bad keyid.
-        clientcon = mixminion.MMTPServer.MMTPClientConnection(
+        clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, "Z"*20,
            messages[:], [None, None], None)
         clientcon.register(async)
@@ -2861,10 +2861,10 @@ IP: 192.168.0.99
 # Text of an example module that we load dynamically.
 EXAMPLE_MODULE_TEXT = \
 """
-import mixminion.Modules
+import mixminion.server.Modules
 from mixminion.Config import ConfigError
 
-class TestModule(mixminion.Modules.DeliveryModule):
+class TestModule(mixminion.server.Modules.DeliveryModule):
     def __init__(self):
 	self.processedMessages = []
 	self.processedAll = []
@@ -2896,11 +2896,11 @@ class TestModule(mixminion.Modules.DeliveryModule):
 	self.processedMessages.append(message)
 	self.processedAll.append( (message, tag, exitType, exitInfo) )
 	if exitInfo == 'fail?':
-	    return mixminion.Modules.DELIVER_FAIL_RETRY
+	    return mixminion.server.Modules.DELIVER_FAIL_RETRY
 	elif exitInfo == 'fail!':
-	    return mixminion.Modules.DELIVER_FAIL_NORETRY
+	    return mixminion.server.Modules.DELIVER_FAIL_NORETRY
 	else:
-	    return mixminion.Modules.DELIVER_OK
+	    return mixminion.server.Modules.DELIVER_OK
 """
 
 class ModuleManagerTests(unittest.TestCase):
@@ -2951,7 +2951,7 @@ IP: 1.0.0.1
 	queue = manager.queues['TestModule']
 	# Did the test module's delivery queue get the messages?
 	self.failUnless(isinstance(queue,
-			   mixminion.Modules.SimpleModuleDeliveryQueue))
+			   mixminion.server.Modules.SimpleModuleDeliveryQueue))
 	self.assertEquals(3, queue.count())
 	# Has it processed any yet? (No.)
 	self.assertEquals(exampleMod.processedMessages, [])
@@ -3049,8 +3049,8 @@ Foo: 100
 
     def testDecoding(self):
 	'test decoding and test encapsulation.'
-	em = mixminion.Modules._escapeMessage
-	eme = mixminion.Modules._escapeMessageForEmail
+	em = mixminion.server.Modules._escapeMessage
+	eme = mixminion.server.Modules._escapeMessageForEmail
 
 	message = "Somebody set up us the module!\n\n(What you say?)\n"
 	binmessage = hexread("00ADD1EDC0FFEED00DAD")*40
@@ -3126,7 +3126,7 @@ class ModuleTests(unittest.TestCase):
 	manager = self.getManager()
 
 	# Configure the module.
-	module = mixminion.Modules.MixmasterSMTPModule()
+	module = mixminion.server.Modules.MixmasterSMTPModule()
 	module.configure({"Delivery/SMTP-Via-Mixmaster" :
 			  {"Enabled":1, "Server": "nonesuch",
 			   "SubjectLine":'foobar', 
@@ -3170,7 +3170,7 @@ class ModuleTests(unittest.TestCase):
 	   with a stub function so that we don't actually send anything."""
         # Configure the module
 	manager = self.getManager()
-	module = mixminion.Modules.MBoxModule()	
+	module = mixminion.server.Modules.MBoxModule()	
 	addrfile = mix_mktemp()
 	writeFile(addrfile, MBOX_ADDRESS_SAMPLE)
 	module.configure({'Server':{'Nickname': "nickname"},
@@ -3188,8 +3188,8 @@ class ModuleTests(unittest.TestCase):
 			   module.addresses)
 	queue = manager.queues['MBOX']
 	# Stub out sendSMTPMessage.
-	replaceFunction(mixminion.Modules, 'sendSMTPMessage',
- 	         lambda *args: mixminion.Modules.DELIVER_OK)
+	replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
+ 	         lambda *args: mixminion.server.Modules.DELIVER_OK)
 	try:
 	    # Try queueing a message...
 	    queue.queueDeliveryMessage((MBOX_TYPE, 'mixdiddy', "x"*20),
@@ -3227,7 +3227,7 @@ class ModuleTests(unittest.TestCase):
     def testDirectoryDump(self):
 	"""Check out the DirectoryStoreModule that we use for testing on
 	   machines with unreliable/nonexistant SMTP."""
-	eme = mixminion.Modules._escapeMessageForEmail
+	eme = mixminion.server.Modules._escapeMessageForEmail
 	dir = mix_mktemp()
 	manager = self.getManager()
 	# Configure the module: disabled and enabled (queueless mode)
@@ -3311,7 +3311,7 @@ class ModuleTests(unittest.TestCase):
 	    resumeLog()
 
 #----------------------------------------------------------------------
-import mixminion.ServerMain
+import mixminion.server.ServerMain
 
 # Sample server configuration to test ServerMain.
 SERVERCFG = """
@@ -3338,7 +3338,7 @@ def _getServerKeyring():
 	conf = mixminion.Config.ServerConfig(string=cfg)
     finally:
 	resumeLog()
-    return mixminion.ServerMain.ServerKeyring(conf)
+    return mixminion.server.ServerMain.ServerKeyring(conf)
 
 class ServerMainTests(unittest.TestCase):
     def testServerKeyring(self):

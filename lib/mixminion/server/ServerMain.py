@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.19 2002/12/11 05:53:33 nickm Exp $
+# $Id: ServerMain.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -17,12 +17,16 @@ import bisect
 
 import mixminion._minionlib
 import mixminion.Crypto
-import mixminion.Queue
-import mixminion.MMTPServer
 from mixminion.ServerInfo import ServerKeyset, ServerInfo, \
      generateServerDescriptorAndKeys
 from mixminion.Common import LOG, MixFatalError, MixError, secureDelete, \
      createPrivateDir, previousMidnight, ceilDiv, formatDate, formatTime
+
+import mixminion.server.Queue
+import mixminion.server.MMTPServer
+import mixminion.server.Modules
+import mixminion.server.HashLog
+import mixminion.server.PacketHandler
 
 
 class ServerKeyring:
@@ -310,19 +314,19 @@ class ServerKeyring:
 	"""Create and return a PacketHandler from the currently live key."""
         keys = self.getServerKeyset()
 	packetKey = keys.getPacketKey()
-	hashlog = mixminion.HashLog.HashLog(keys.getHashLogFileName(),
+	hashlog = mixminion.server.HashLog.HashLog(keys.getHashLogFileName(),
 						 keys.getMMTPKeyID())
-        return mixminion.PacketHandler.PacketHandler(packetKey,
+        return mixminion.server.PacketHandler.PacketHandler(packetKey,
 						     hashlog)
 
-class IncomingQueue(mixminion.Queue.DeliveryQueue):
+class IncomingQueue(mixminion.server.Queue.DeliveryQueue):
     """A DeliveryQueue to accept messages from incoming MMTP connections,
        process them with a packet handler, and send them into a mix pool."""
 
     def __init__(self, location, packetHandler):
 	"""Create an IncomingQueue that stores its messages in <location>
 	   and processes them through <packetHandler>."""
-	mixminion.Queue.DeliveryQueue.__init__(self, location)
+	mixminion.server.Queue.DeliveryQueue.__init__(self, location)
 	self.packetHandler = packetHandler
 	self.mixPool = None
 
@@ -357,12 +361,12 @@ class IncomingQueue(mixminion.Queue.DeliveryQueue):
 	    except mixminion.Packet.ParseError, e:
 		LOG.warn("Malformed message dropped: %s", e)
 		self.deliveryFailed(handle)
-	    except mixminion.PacketHandler.ContentError, e:
+	    except mixminion.server.PacketHandler.ContentError, e:
 		LOG.warn("Discarding bad packet: %s", e)
 		self.deliveryFailed(handle)
 
 class MixPool:
-    """Wraps a mixminion.Queue.*MixQueue to send messages to an exit queue
+    """Wraps a mixminion.server.Queue.*MixQueue to send messages to an exit queue
        and a delivery queue."""
     def __init__(self, queue):
 	"""Create a new MixPool to wrap a given *MixQueue."""
@@ -405,12 +409,12 @@ class MixPool:
 		self.outgoingQueue.queueDeliveryMessage(ipv4, msg)
 	    self.queue.removeMessage(h)
 
-class OutgoingQueue(mixminion.Queue.DeliveryQueue):
+class OutgoingQueue(mixminion.server.Queue.DeliveryQueue):
     """DeliveryQueue to send messages via outgoing MMTP connections."""
     def __init__(self, location):
 	"""Create a new OutgoingQueue that stores its messages in a given
  	   location."""
-        mixminion.Queue.DeliveryQueue.__init__(self, location)
+        mixminion.server.Queue.DeliveryQueue.__init__(self, location)
 	self.server = None
 
     def connectQueues(self, server):
@@ -429,11 +433,11 @@ class OutgoingQueue(mixminion.Queue.DeliveryQueue):
 	    self.server.sendMessages(addr.ip, addr.port, addr.keyinfo,
 				     list(messages), list(handles))
 
-class _MMTPServer(mixminion.MMTPServer.MMTPAsyncServer):
-    """Implementation of mixminion.MMTPServer that knows about
+class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
+    """Implementation of mixminion.server.MMTPServer that knows about
        delivery queues."""
     def __init__(self, config, tls):
-        mixminion.MMTPServer.MMTPAsyncServer.__init__(self, config, tls)
+        mixminion.server.MMTPServer.MMTPAsyncServer.__init__(self, config, tls)
 
     def connectQueues(self, incoming, outgoing):
         self.incomingQueue = incoming
@@ -508,7 +512,7 @@ class MixminionServer:
 	mixDir = os.path.join(queueDir, "mix")
 	# FFFF The choice of mix algorithm should be configurable
 	LOG.trace("Initializing Mix pool")
-	self.mixPool = MixPool(mixminion.Queue.TimedMixQueue(mixDir, 60))
+	self.mixPool =MixPool(mixminion.server.Queue.TimedMixQueue(mixDir, 60))
 	LOG.trace("Found %d pending messages in Mix pool",
 		       self.mixPool.count())
 

@@ -1,7 +1,7 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.24 2002/12/11 05:53:33 nickm Exp $
+# $Id: Queue.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
 
-"""mixminion.Queue
+"""mixminion.server.Queue
 
    Facility for fairly secure, directory-based, unordered queues. 
    """

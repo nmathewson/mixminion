@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.9 2002/12/09 04:47:40 nickm Exp $
+# $Id: testSupport.py,v 1.10 2002/12/11 06:58:55 nickm Exp $
 
 """mixminion.testSupport
 
@@ -16,7 +16,7 @@ import mixminion.Crypto
 import mixminion.Common
 from mixminion.Common import waitForChildren, createPrivateDir, LOG
 from mixminion.Config import _parseBoolean, ConfigError
-from mixminion.Modules import DeliveryModule, ImmediateDeliveryQueue, \
+from mixminion.server.Modules import DeliveryModule, ImmediateDeliveryQueue, \
      SimpleModuleDeliveryQueue, DELIVER_OK, DELIVER_FAIL_RETRY, \
      DELIVER_FAIL_NORETRY, _escapeMessageForEmail
 

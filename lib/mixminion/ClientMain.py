@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.13 2002/12/11 05:53:33 nickm Exp $
+# $Id: ClientMain.py,v 1.14 2002/12/11 06:58:55 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -36,7 +36,6 @@ from mixminion.Common import LOG, floorDiv, createPrivateDir, MixError, \
 import mixminion.Crypto
 import mixminion.BuildMessage
 import mixminion.MMTPClient
-import mixminion.Modules
 from mixminion.ServerInfo import ServerInfo
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo, \

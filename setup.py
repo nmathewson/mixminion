@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.11 2002/12/11 05:57:04 nickm Exp $
+# $Id: setup.py,v 1.12 2002/12/11 06:58:55 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -84,5 +84,5 @@ setup(name='Mixminion',
       description="Mixminion: Python implementation of the Type III MIX protocol (ALPHA)",
       author="Nick Mathewson",
       package_dir={ '' : 'lib' },
-      packages=['mixminion'],
+      packages=['mixminion', 'mixminion.server'],
       ext_modules=[extmodule])

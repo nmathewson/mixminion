@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.20 2002/12/09 04:47:40 nickm Exp $
+# $Id: MMTPServer.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described

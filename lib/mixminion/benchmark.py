@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.16 2002/12/11 05:53:33 nickm Exp $
+# $Id: benchmark.py,v 1.17 2002/12/11 06:58:55 nickm Exp $
 
 """mixminion.benchmark
 
@@ -286,7 +286,7 @@ def hashlogTiming():
                     pass
 
 def _hashlogTiming(fname, load):
-    from mixminion.HashLog import HashLog
+    from mixminion.server.HashLog import HashLog
 
     # Try more realistic access patterns.
     prng = AESCounterPRNG("a"*16)
@@ -381,7 +381,7 @@ class DummyLog:
     def seenHash(self,h): return 0
     def logHash(self,h): pass
 
-from mixminion.PacketHandler import PacketHandler
+from mixminion.server.PacketHandler import PacketHandler
 from mixminion.Packet import SMTP_TYPE
 
 def serverProcessTiming():

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.24 2002/12/11 05:53:33 nickm Exp $
+# $Id: Config.py,v 1.25 2002/12/11 06:58:55 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -716,9 +716,9 @@ class ServerConfig(_ConfigFile):
 	# mess it up.
         self._syntax = SERVER_SYNTAX.copy()
 
-        import mixminion.Modules
+        import mixminion.server.Modules
 	if moduleManager is None:
-	    self.moduleManager = mixminion.Modules.ModuleManager()
+	    self.moduleManager = mixminion.server.Modules.ModuleManager()
 	else:
 	    self.moduleManager = moduleManager
         self._addCallback("Server", self.__loadModules)    

@@ -1,7 +1,7 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.24 2002/12/11 05:53:33 nickm Exp $
+# $Id: Modules.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
 
-"""mixminion.Modules
+"""mixminion.server.Modules
 
    Code to support pluggable exit module functionality; implementation
    for built-in modules.
@@ -22,11 +22,12 @@ import base64
 
 import mixminion.Config
 import mixminion.Packet
-import mixminion.Queue
 import mixminion.BuildMessage
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
      isPrintingAscii
+
+import mixminion.server.Queue
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -133,13 +134,13 @@ class ImmediateDeliveryQueue:
 	# We do nothing here; we already delivered the messages
 	pass
 
-class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
+class SimpleModuleDeliveryQueue(mixminion.server.Queue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
     ## Fields: 
     # module: the underlying module.
     def __init__(self, module, directory):
-	mixminion.Queue.DeliveryQueue.__init__(self, directory)
+	mixminion.server.Queue.DeliveryQueue.__init__(self, directory)
 	self.module = module
 
     def _deliverMessages(self, msgList):
@@ -565,7 +566,7 @@ class MixmasterSMTPModule(SMTPModule):
     def createDeliveryQueue(self, queueDir):
 	# We create a temporary queue so we can hold files there for a little
 	# while before passing their names to mixmaster.
-        self.tmpQueue = mixminion.Queue.Queue(queueDir+"_tmp", 1, 1)
+        self.tmpQueue = mixminion.server.Queue.Queue(queueDir+"_tmp", 1, 1)
         self.tmpQueue.removeAll()
         return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
 

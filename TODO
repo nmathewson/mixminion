@@ -30,7 +30,11 @@ FOR 0.0.1: (The first alpha)
 		  (non-state-carrying) and 'stateless' (state-carrying) to
 		  something less contradictory
 		o Fix all {XXXX/FFFF/????}001 
-		- Separate package for server code.
+		. Separate package for server code.
+			o Create new package.
+			o Move hashlog, mmtpserver, queue, modules,
+			  packetHandler, and servermain into new package.
+			- Split Config, ServerInfo.
 	. Final license
 	        o Apply LGPL
 		- Mark all files with note?
