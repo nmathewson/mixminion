@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.4 2004/03/22 23:44:34 weasel Exp $
+.\" $Id: mixminion.1,v 1.5 2004/03/23 00:20:52 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -356,8 +356,10 @@ for a passphrase.
 .Pp
 By default,
 .Nm mixminion Cm decode
-writes decoded messages to standard output;
-you can override this with the
+reads from standard input and writes decoded messages to standard output;
+you can override input with the
+.Fl i
+flag and output with the
 .Fl o
 flag.
 .It Cm generate-surb[s]

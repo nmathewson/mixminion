@@ -1156,7 +1156,7 @@ def runClient(cmd, args):
     if not options:
         sendUsageAndExit(cmd)
 
-    inFile = None
+    inFile = '-'
     h_subject = h_from = h_irt = h_references = None
     no_ss_fragment = 0
     for opt,val in options:
@@ -1196,7 +1196,7 @@ def runClient(cmd, args):
     except MixError, e:
         raise UIError("Invalid headers: %s"%e)
 
-    if inFile in (None, '-') and '-' in parser.replyBlockSources:
+    if inFile == '-' and '-' in parser.replyBlockSources:
         raise UIError(
             "Can't read both message and reply block from stdin")
 
@@ -1211,7 +1211,7 @@ def runClient(cmd, args):
     address.setHeaders(parseMessageAndHeaders(headerStr+"\n")[1])
 
     # Get our surb, if any.
-    if address.isReply and inFile in ('-', None):
+    if address.isReply and inFile == '-':
         # We check to make sure that we have a valid SURB before reading
         # from stdin.
         surblog = client.openSURBLog()
@@ -1224,15 +1224,12 @@ def runClient(cmd, args):
 
     # Read the message.
     # XXXX Clean up this ugly control structure.
-    if address and inFile is None and not address.hasPayload():
+    if address and inFile == '-' and not address.hasPayload():
         message = None
         LOG.info("Sending dummy message")
     else:
         if address and not address.hasPayload():
             raise UIError("Cannot send a message in a DROP packet")
-
-        if inFile is None:
-            inFile = "-"
 
         try:
             if inFile == '-':
@@ -1567,7 +1564,7 @@ def clientDecode(cmd, args):
            'output=', 'force', 'input=', 'passphrase-fd=',])
 
     outputFile = '-'
-    inputFile = None
+    inputFile = '-'
     force = 0
     for o,v in options:
         if o in ('-o', '--output'):
@@ -1590,9 +1587,6 @@ def clientDecode(cmd, args):
         if len(args) == 1:
             msg += " (Did you mean '-i %s'?)" % args[0]
         raise UIError(msg)
-
-    if not inputFile:
-        raise UIError("No input file specified")
 
     parser.init()
     client = parser.client
