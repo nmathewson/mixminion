@@ -1,6 +1,16 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.26 2003/07/10 20:01:31 nickm Exp $ */
+/* $Id: crypt.c,v 1.27 2003/07/14 15:38:50 nickm Exp $ */
 #include <Python.h>
+
+#ifdef MS_WINDOWS
+#define WIN32_WINNT 0x0400
+#define _WIN32_WINNT 0x0400
+#include <windows.h>
+#include <wincrypt.h>
+#ifndef ALG_CLASS_ANY
+#error no good
+#endif
+#endif
 
 #include <time.h>
 
@@ -23,6 +33,7 @@
 #include <pem.h>
 #include <evp.h>
 #endif
+
 #include "_minionlib.h"
 #include <assert.h>
 
@@ -279,16 +290,16 @@ mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
 }
 
 #ifdef MS_WINDOWS
-const char mm_openssl_seed_win32__doc__[]=
+const char mm_win32_openssl_seed__doc__[]=
   "openssl_seed_win32()\n\n"
   "DOCDOC\n";
 
 PyObject *
-mm_openssl_seed_win32(PyObject *self, PyObject *args, PyObject *kwdict)
+mm_win32_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
 {
         static char *kwlist[] = { NULL };
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwdict, ":openssl_seed_win32",
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict, ":win32_openssl_seed",
                                          kwlist))
                 return NULL;
 
@@ -298,6 +309,85 @@ mm_openssl_seed_win32(PyObject *self, PyObject *args, PyObject *kwdict)
 
         Py_INCREF(Py_None);
         return Py_None;
+}
+
+/* DOCDOC */
+static int provider_set = 0;
+static HCRYPTPROV provider;
+
+static HCRYPTPROV getProvider()
+{
+        if (provider_set)
+                return provider;
+
+        if (!CryptAcquireContext(&provider,
+                                 NULL,
+                                 NULL,
+                                 PROV_RSA_FULL,
+                                 0)) {
+                if (GetLastError() != NTE_BAD_KEYSET) {
+                        /* XXXX005 error */
+                        return 0;
+                }
+                if (!CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL,
+                                        CRYPT_NEWKEYSET)) {
+                        /* XXXX005 error */
+                        return 0;
+                }
+        }
+
+        provider_set =  1;
+
+        return provider;
+}
+
+const char mm_win32_get_random_bytes__doc__[]=
+  "win32_get_random_bytes(n)\n\n"
+  "DOCDOC";
+
+PyObject *
+mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+
+        static char *kwlist[] = { "n", NULL };
+        PyObject *result;
+        int n,r;
+        HCRYPTPROV p;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+                                         "i:win32_get_random_bytes",
+                                         kwlist, &n))
+                return NULL;
+
+        if (n<0) {
+                TYPE_ERR("n must be >= 0");
+                return NULL;
+        }
+
+        if (!(p = getProvider())) {
+                TYPE_ERR("XXXX005 internal error 2 ");
+                return NULL;
+        }
+
+
+        if (!(result = PyString_FromStringAndSize(NULL, n))) {
+                PyErr_NoMemory(); return NULL;
+        }
+
+                
+
+        Py_BEGIN_ALLOW_THREADS
+        r = CryptGenRandom(getProvider(), n, PyString_AS_STRING(result));
+        Py_END_ALLOW_THREADS
+        
+        if (!r) {
+               /*XXXX005 error */
+               Py_DECREF(result);
+               TYPE_ERR("XXXX005 internal error ");
+               return NULL;
+        }
+
+        return result;
 }
 #endif
 

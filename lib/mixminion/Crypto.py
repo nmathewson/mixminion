@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.48 2003/07/13 03:45:33 nickm Exp $
+# $Id: Crypto.py,v 1.49 2003/07/14 15:38:50 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -53,7 +53,7 @@ def init_crypto(config=None):
         raise
     except:
         info = sys.exc_info()
-        raise MixFatalError("Error initializing entropy source: %s", info[0])
+        raise MixFatalError("Error initializing entropy source: %s" % info[1])
     openssl_seed(40)
 
 def sha1(s):
@@ -691,7 +691,7 @@ def configure_trng(config):
         if file is None:
             continue
 
-        verbose = 1#(file == requestedFile)
+        verbose = (file == requestedFile)
         if not os.path.exists(file):
             if verbose:
                 LOG.error("No such file as %s", file)
@@ -707,9 +707,13 @@ def configure_trng(config):
 
     if randFile is None and _TRNG_FILENAME is None:
         if sys.platform == 'win32':
-            LOG.warn("Using bogus screen snapshot for entropy source: beware!") 
-            _ml.openssl_seed_win32()
-            _theTrueRNG = _OpensslRNG()
+            # We have two entropy sources on windows: openssl's built-in
+            # entropy generator that takes data from the screen, and
+            # Windows's CryptGenRandom function.  Because the former is
+            # insecure, and the latter is closed-source, we xor them.
+            _ml.win32_openssl_seed()
+            _ml.openssl_seed(_ml.win32_get_random_bytes(32))
+            _theTrueRNG = _XorRNG(_OpensslRNG(), _WinTrueRNG())
         else:
             LOG.fatal("No entropy source available")
             raise MixFatalError("No entropy source available")
@@ -752,6 +756,16 @@ class _TrueRNG(RNG):
         self.__lock.release()
         return b
 
+if hasattr(_ml, "win32_get_random_bytes"):
+    print "WAHOO!"
+    class _WinTrueRNG(RNG):
+        """DOCDOC"""
+        def __init__(self):
+            RNG.__init__(self, 1024)
+            self.getBytes(1)
+        def _prng(self,n):
+            return _ml.win32_get_random_bytes(n)
+
 class _OpensslRNG(RNG):
     """DOCDOC"""
     def __init__(self):
@@ -759,6 +773,15 @@ class _OpensslRNG(RNG):
         RNG.__init__(self, 1024)
     def _prng(self,n):
         return _ml.openssl_rand(n)
+
+class _XorRNG(RNG):
+    """DOCDOC"""
+    def __init__(self, base1, base2):
+        RNG.__init__(self, 1024)
+        self.base1 = base1
+        self.base2 = base2
+    def _prng(self, n):
+        return strxor(self.base1.getBytes(n), self.base2.getBytes(n))
 
 # Return the shared instance of the true RNG.
 def getTrueRNG():

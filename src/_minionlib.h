@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.17 2003/07/10 20:01:31 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.18 2003/07/14 15:38:50 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -68,7 +68,8 @@ FUNC_DOC(mm_aes_ctr128_crypt);
 FUNC_DOC(mm_strxor);
 FUNC_DOC(mm_openssl_seed);
 #ifdef MS_WINDOWS
-FUNC_DOC(mm_openssl_seed_win32);
+FUNC_DOC(mm_win32_openssl_seed);
+FUNC_DOC(mm_win32_get_random_bytes);
 #endif
 FUNC_DOC(mm_openssl_rand);
 FUNC_DOC(mm_add_oaep_padding);

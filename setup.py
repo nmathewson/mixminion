@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.70 2003/07/10 23:27:50 nickm Exp $
+# $Id: setup.py,v 1.71 2003/07/14 15:38:50 nickm Exp $
 import sys
 
 #
@@ -135,7 +135,7 @@ if USE_OPENSSL and sys.platform == 'win32':
     INCLUDE_DIRS.append("d:\\openssl\\include")
     LIBRARY_DIRS.append("D:\\openssl\\lib\\vc")
 
-    LIBRARIES = [ "ssleay32", "libeay32" ]
+    LIBRARIES = [ "ssleay32", "libeay32", "advapi32" ]
 
 elif USE_OPENSSL:
     # For now, we assume that openssl-0.9.7 isn't generally deployed, so we
