@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.76 2003/02/04 02:38:23 nickm Exp $
+# $Id: test.py,v 1.77 2003/02/05 05:34:55 nickm Exp $
 
 """mixminion.tests
 
@@ -1092,6 +1092,63 @@ class PacketTests(unittest.TestCase):
         self.failUnlessRaises(ParseError,parsePayload,bad_payload_1)
         self.failUnlessRaises(ParseError,parsePayload,bad_payload_2)
 
+    def testTextEncodedMessage(self):
+        tem = TextEncodedMessage
+        ptem = parseTextEncodedMessage
+        eq = self.assertEquals
+        start = "======= TYPE III ANONYMOUS MESSAGE BEGINS =======\n"
+        end =   "======== TYPE III ANONYMOUS MESSAGE ENDS ========\n"
+
+        # Test generation: text case
+        mt1 = tem("Hello, whirled","TXT")
+        eq(mt1.pack(), start+"Hello, whirled\n"+end)
+        mt2 = tem("Hello, whirled\n", "TXT")
+        eq(mt2.pack(), start+"Hello, whirled\n"+end)
+        mt3 = tem("Decoding-handle: gotcha!\nFoobar\n", "TXT")
+        eq(mt3.pack(), start+"\nDecoding-handle: gotcha!\nFoobar\n"+end)
+        # Text generation: binary case
+        v = hexread("00D1E50FED1F1CE5")*12
+        v64 = base64.encodestring(v)
+        mb1 = tem(v, "BIN")
+        eq(mb1.pack(), start+"""\
+Message-type: binary
+ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA
+0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzl
+"""+end)
+        eq(mb1.pack(), start+"Message-type: binary\n"+v64+end)
+        # Overcompressed
+        ml1 = tem(v, "LONG")
+        eq(ml1.pack(), start+"Message-type: overcompressed\n"+v64+end)
+        # Encoded
+        menc1 = tem(v, "ENC", "9"*20)
+        tag64 = base64.encodestring("9"*20).strip()
+        eq(menc1.pack(), start+"Decoding-handle: "+tag64+"\n"+v64+end)
+
+        # Test parsing: successful cases
+        p = ptem(mt1.pack())[0]
+        eq(p.pack(), mt1.pack())
+        eq(p.getContents(), "Hello, whirled\n")
+        eq(p.isText(), 1)
+        p = ptem("This message is a test of the emergent broadcast system?\n "
+                 +mt2.pack())[0]
+        eq(p.pack(), mt2.pack())
+        eq(p.getContents(), "Hello, whirled\n")
+        # Two concatenated message.
+        s = mb1.pack() + "\n\n" + ml1.pack()
+        p, i = ptem(s)
+        p2, _ = ptem(s, idx=i)
+        eq(p.pack(), mb1.pack())
+        eq(p.isBinary(), 1)
+        eq(p.getContents(), v)
+        eq(p2.pack(), ml1.pack())
+        eq(p2.isOvercompressed(), 1)
+        eq(p2.getContents(), v)
+        # An encoded message
+        p = ptem(menc1.pack())[0]
+        eq(p.pack(), menc1.pack())
+        eq(p.getContents(), v)
+        eq(p.isEncrypted(), 1)
+        eq(p.getTag(), "9"*20)
 
 #----------------------------------------------------------------------
 class HashLogTests(unittest.TestCase):
@@ -1710,9 +1767,9 @@ class BuildMessageTests(unittest.TestCase):
         self.assertEquals(reply.pack(), parseReplyBlock(reply.pack()).pack())
         txt = reply.packAsText()
         self.assert_(txt.startswith(
-            "======= BEGIN TYPE III REPLY BLOCK ========\nVersion: 0.1\n"))
+            "======= BEGIN TYPE III REPLY BLOCK =======\nVersion: 0.1\n"))
         self.assert_(txt.endswith(
-            "\n======== END TYPE III REPLY BLOCK =========\n"))
+            "\n======== END TYPE III REPLY BLOCK ========\n"))
         parsed = parseTextReplyBlocks(txt)
         self.assertEquals(1, len(parsed))
         self.assertEquals(reply.pack(), parsed[0].pack())
@@ -3886,10 +3943,10 @@ Foo: 100
         ####
         # Tests escapeMessageForEmail
         self.assert_(stringContains(eme(FDPFast('plain',message)), message))
-        expect = "BEGINS ========\nMessage-type: binary\n"+\
+        expect = "BEGINS =======\nMessage-type: binary\n"+\
                  base64.encodestring(binmessage)+"====="
         self.assert_(stringContains(eme(FDPFast('plain',binmessage)), expect))
-        expect = "BEGINS ========\nDecoding-handle: "+\
+        expect = "BEGINS =======\nDecoding-handle: "+\
                  base64.encodestring(tag)+\
                  base64.encodestring(binmessage)+"====="
         self.assert_(stringContains(eme(FDPFast('enc',binmessage,tag)),
@@ -3918,12 +3975,12 @@ and you will be removed.
 This message is not in plaintext.  It's either 1) a reply; 2) a forward
 message encrypted to you; or 3) junk.
 
-======= TYPE III ANONYMOUS MESSAGE BEGINS ========
+======= TYPE III ANONYMOUS MESSAGE BEGINS =======
 Decoding-handle: eHh4eHh4eHh4eHh4eHh4eHh4eHg=
 7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v
 +s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6
 zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3g==
-======== TYPE III ANONYMOUS MESSAGE ENDS =========
+======== TYPE III ANONYMOUS MESSAGE ENDS ========
 """
 
 EXAMPLE_ADDRESS_SET = """
@@ -4129,11 +4186,11 @@ Subject: Arr! This be a Type III Anonymous Message
 
 Avast ye mateys!  Prepare to be anonymized!
 
-======= TYPE III ANONYMOUS MESSAGE BEGINS ========
+======= TYPE III ANONYMOUS MESSAGE BEGINS =======
 Hidden, we are free
 Free to speak, to free ourselves
 Free to hide no more.
-======== TYPE III ANONYMOUS MESSAGE ENDS =========\n"""
+======== TYPE III ANONYMOUS MESSAGE ENDS ========\n"""
             d = findFirstDiff(EXPECTED_SMTP_PACKET, args[3])
             if d != -1:
                 print d, "near", repr(args[3][d-10:d+10])
@@ -5207,7 +5264,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(BuildMessageTests))
+        suite.addTest(tc(PacketTests))
         return suite
 
     suite.addTest(tc(MiscTests))

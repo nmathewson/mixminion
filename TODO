@@ -110,16 +110,19 @@ For 0.0.3:
                         o Recheck spec on external reply block format
                         o Implement external reply block format
                         o Test external reply block format
-                        . Generate a reply block
-                        - Send message to reply block
+                        o Generate a reply block
+                        o Read message from reply block
+                        o Send message to reply block
                         - Remember used reply blocks??
-                        - Read message from reply block
                         - Examine reply block
+                        - Refactor and document
                 . Read Base64-encoded messages and zbomb messages.
                         o Implement backend
-                        - Test backend
-                        - Implement frontend
+                        o Test backend
+                        o Implement frontend
+                        . Test frontend
                         - Refactor until clean
+                        - Document
                 - Client-side pooling.
                 - Make client code multiprocess-safe: locking on
                   cache (if needed!); locking on pool.

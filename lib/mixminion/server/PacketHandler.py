@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.6 2003/02/04 02:05:36 nickm Exp $
+# $Id: PacketHandler.py,v 1.7 2003/02/05 05:34:55 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -286,7 +286,7 @@ class DeliveryPacket:
     def getAsciiTag(self):
         return base64.encodestring(self.tag).strip()
 
-    def getAsciiEncodedMessage(self):
+    def getTextEncodedMessage(self):
         tag = None
         if self.isOvercompressed():
             tp = 'LONG'
@@ -300,4 +300,4 @@ class DeliveryPacket:
             assert self.isPlaintext()
             tp = 'BIN'
             
-        return Packet.AsciiEncodedMessage(self.contents, tp, tag)
+        return Packet.TextEncodedMessage(self.contents, tp, tag)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.37 2003/02/04 02:03:35 nickm Exp $
+# $Id: Config.py,v 1.38 2003/02/05 05:34:55 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -717,7 +717,7 @@ class ClientConfig(_ConfigFile):
         'User' : { 'UserDir' : ('ALLOW', None, "~/.mixminion" ) },
         'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
                        'SURBAddress' : ('ALLOW', None, None),
-                       'SURBPathLength' : ('ALLOW', _parseInt, "8"),
+                       'SURBPathLength' : ('ALLOW', _parseInt, "4"),
                        'SURBLifetime' : ('ALLOW', _parseInterval, "7 days") },
         'Network' : { 'ConnectionTimeout' : ('ALLOW', _parseInterval, None) }
         }

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.26 2003/02/04 02:05:02 nickm Exp $
+# $Id: Modules.py,v 1.27 2003/02/05 05:34:55 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -994,5 +994,5 @@ before sending it to you.\n\n"""
         assert packet.isPlaintext()
         junk_msg = ""
 
-    encMsg = packet.getAsciiEncodedMessage()
+    encMsg = packet.getTextEncodedMessage()
     return "%s%s"%(junk_msg, encMsg.pack())

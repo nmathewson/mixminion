@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.38 2003/02/04 02:08:37 nickm Exp $
+# $Id: Crypto.py,v 1.39 2003/02/05 05:34:55 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -587,7 +587,7 @@ class RNG:
                 return os.fdopen(fd, mode), base
             except OSError, e:
                 if e.errno != errno.EEXIST:
-                    raise
+                    raise e
                 # If the file exists (a rare event!) we pass through, and
                 # try again.  This paranoia is brought to you by user
                 # request. :)
