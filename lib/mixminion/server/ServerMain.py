@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.102 2003/11/25 02:15:14 nickm Exp $
+# $Id: ServerMain.py,v 1.103 2003/11/25 03:42:31 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -646,11 +646,19 @@ class MixminionServer(_Scheduler):
 
         # The pid/lock file.
         self.pidFile = config.getPidFile()
+        if not os.path.exists(os.path.split(self.pidFile)[0]):
+            # create parent if needed.
+            os.makedirs(os.path.split(self.pidFile)[0], 0700)
         self.lockFile = Lockfile(self.pidFile)
         try:
             self.lockFile.acquire(mode=0644)
         except LockfileLocked:
             raise UIError("Another server seems to be running.")
+
+        # Create directories as needed; homeDir already created.
+        createPrivateDir(config.getWorkDir())
+        createPrivateDir(config.getKeyDir())
+        createPrivateDir(config.getQueueDir())
 
         # Try to read the keyring.  If we have a pre-0.0.4 version of
         # mixminion, we might have some bad server descriptors lying
@@ -987,12 +995,17 @@ def configFromServerArgs(cmd, args, usage):
        Otherwise, find and parse the configuration file.
     """
     global _QUIET_OPT
-    options, args = getopt.getopt(args, "hQf:", ["help", "quiet", "config="])
+    options, args = getopt.getopt(args, "hQf:", 
+                                  ["help", "quiet", "config=",
+                                   "daemon", "nodaemon", "echo", "severity="])
     if args:
         print >>sys.stderr, "No arguments expected."
         print usage
         sys.exit(0)
     configFile = None
+    forceDaemon = None
+    echo = 0
+    severity = None
     for o,v in options:
         if o in ('-h', '--help'):
             print usage
@@ -1001,8 +1014,33 @@ def configFromServerArgs(cmd, args, usage):
             configFile = v
         elif o in ('-Q', '--quiet'):
             _QUIET_OPT = 1
+        elif o == '--nodaemon':
+            forceDaemon = 0
+        elif o == '--daemon':
+            forceDaemon = 1
+        elif o == '--echo':
+            echo = 1
+        elif o == '--severity':
+            try:
+                severity = mixminion.Config._parseSeverity(v)
+            except mixminion.Config.ConfigError, e:
+                raise UIError(str(e))
 
-    return readConfigFile(configFile)
+    #DOCDOC
+    config = readConfigFile(configFile)
+    if forceDaemon == 0 and not _QUIET_OPT:
+        echo = 1
+    if echo:
+        config['Server']['EchoMessages'] = 2#DOCDOC
+    elif _QUIET_OPT:
+        config['Server']['EchoMessages'] = 0
+    if forceDaemon is not None:
+        config['Server']['Daemon'] = forceDaemon
+    if severity is not None:
+        config['Server']['LogLevel'] = severity
+    
+    return config
+        
 
 def readConfigFile(configFile):
     """Given a filename from the command line (or None if the user didn't
@@ -1041,6 +1079,10 @@ Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than the default.
   -Q, --quiet                Suppress the verbose server startup.
+  --daemon                   Run in daemon mode, overriding the config file.
+  --nodaemon                 Run in nondaemon mode, overriding the config file.
+  --echo                     Write all log messages to stderr.
+  --severity=<level>         Override the configured log severity.
 """.strip()
 
 def runServer(cmd, args):

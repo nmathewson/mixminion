@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.10 2003/11/25 02:15:14 nickm Exp $
+# $Id: EventStats.py,v 1.11 2003/11/25 03:42:31 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -226,6 +226,7 @@ class EventLog(NilEventLog):
         LOG.debug("Flushing statistics log")
         if now is None: now = time()
 
+        #XXXX006 dump boilerplate when starting new file.
         f = open(self.historyFilename, 'a')
         self.dump(f, now)
         f.close()
@@ -305,6 +306,10 @@ def configureLog(config):
     if config['Server']['LogStats']:
         LOG.info("Enabling statistics logging")
         statsfile = config.getStatsFile()
+        if not os.path.exists(os.path.split(statsfile)[0]):
+            # create parent if needed.
+            os.makedirs(os.path.split(statsfile)[0], 0700)
+
         workfile = os.path.join(config.getWorkDir(), "stats.tmp")
         #XXXX006 ensure parent.
         log = EventLog(

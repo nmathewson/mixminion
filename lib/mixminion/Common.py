@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.118 2003/11/25 02:14:33 nickm Exp $
+# $Id: Common.py,v 1.119 2003/11/25 03:42:31 nickm Exp $
 
 """mixminion.Common
 
@@ -789,7 +789,7 @@ class _FileLogHandler:
         try:
             parent = os.path.split(self.fname)[0]
             if not os.path.exists(parent):
-                createPrivateDir(parent)
+                os.mkdirs(parent, 0700)
             self.file = open(self.fname, 'a')
         except OSError, e:
             self.file = None
@@ -867,8 +867,8 @@ class Log:
             self.setMinSeverity("WARN")
             self.addHandler(_ConsoleLogHandler(sys.stderr))
         else:
+            #DOCDOC
             self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
-            #XXXX006 ensure parent.
             logfile = config.getLogFile()
             self.addHandler(_ConsoleLogHandler(sys.stderr))
             if logfile:
@@ -876,7 +876,7 @@ class Log:
                     self.addHandler(_FileLogHandler(logfile))
                 except MixError, e:
                     self.error(str(e))
-                if keepStderr:
+                if keepStderr or config['Server'].get('EchoMessages',0)==2:
                     return
                 if (config['Server'].get('Daemon',0) or
                     not config['Server'].get('EchoMessages',0)):
