@@ -640,7 +640,10 @@ class ClientDirectory:
                 if addr in (desc.getIP(), desc.getHostname()):
                     if desc.getNickname() not in nicknames:
                         nicknames.append(desc.getNickname())
-            return "/".join(nicknames)
+            if nicknames:
+                return "/".join(nicknames)
+            else:
+                return None
         finally:
             self._lock.read_out()
 
@@ -657,7 +660,10 @@ class ClientDirectory:
             for (desc,_) in s:
                 if desc.getNickname() not in r:
                     r.append(desc.getNickname())
-            return "/".join(r)
+            if r:
+                return "/".join(r)
+            else:
+                return None
         finally:
             self._lock.read_out()
 
