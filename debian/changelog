@@ -1,9 +1,12 @@
-mixminion (0.0.7~cvs) unreleased; urgency=low
+mixminion (0.0.7-1) experimental; urgency=low
 
-  * - not release yet -
+  * New upstream release.
   * Add adduser to Depends:.
+  * Mention that Daemon is ignored in mixminiond.conf if the user
+    uses our init script (it passes --daemon to mixminion).
+  * Move manpages to usr/share/man, upstream has them in usr/man.
 
- -- Peter Palfrader <weasel@debian.org>  Thu, 15 Jan 2004 23:55:40 +0100
+ -- Peter Palfrader <weasel@debian.org>  Sun,  4 Apr 2004 22:10:47 +0200
 
 mixminion (0.0.6.2-1) experimental; urgency=low
 

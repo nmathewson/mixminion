@@ -1,0 +1,43 @@
+#! /bin/sh -e
+## 502_manpages_in_share.dpatch by  <weasel@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: No description.
+
+if [ $# -lt 1 ]; then
+    echo "`basename $0`: script expects -patch|-unpatch as argument" >&2
+    exit 1
+fi
+
+[ -f debian/patches/00patch-opts ] && . debian/patches/00patch-opts
+patch_opts="${patch_opts:--f --no-backup-if-mismatch} ${2:+-d $2}"
+
+case "$1" in
+    -patch) patch -p1 ${patch_opts} < $0;;
+    -unpatch) patch -R -p1 ${patch_opts} < $0;;
+    *)
+        echo "`basename $0`: script expects -patch|-unpatch as argument" >&2
+        exit 1;;
+esac
+
+exit 0
+
+@DPATCH@
+diff -urNad /home/weasel/projects/debian/debian/mixminion/Mixminion-0.0.7/setup.py Mixminion-0.0.7/setup.py
+--- /home/weasel/projects/debian/debian/mixminion/Mixminion-0.0.7/setup.py	2004-04-04 19:58:28.000000000 +0200
++++ Mixminion-0.0.7/setup.py	2004-04-04 22:08:30.000000000 +0200
+@@ -526,10 +526,10 @@
+         }
+ elif sys.platform != 'win32':
+     EXTRA = {
+-        'data_files' : [("man/man1", ["etc/mixminion.1"]),
+-                        ("man/man5", ["etc/mixminionrc.5",
+-                                      "etc/mixminiond.conf.5"]),
+-                        ("man/man8", ["etc/mixminiond.8"])]
++        'data_files' : [("share/man/man1", ["etc/mixminion.1"]),
++                        ("share/man/man5", ["etc/mixminionrc.5",
++                                            "etc/mixminiond.conf.5"]),
++                        ("share/man/man8", ["etc/mixminiond.8"])]
+         }
+ else:
+     EXTRA = {}

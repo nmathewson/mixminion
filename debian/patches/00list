@@ -1,1 +1,3 @@
 501_set_fhs_paths_in_mixminiond.conf.dpatch
+502_manpages_in_share.dpatch
+503_mention_daemon_is_ignored.dpatch
