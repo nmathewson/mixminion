@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.113 2004/01/08 22:33:33 nickm Exp $
+# $Id: ServerMain.py,v 1.114 2004/01/09 01:03:27 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -20,6 +20,7 @@
 #                        hash_2*     corresponding to key sets]
 #                          ...
 #               stats.tmp         [Cache of stats from latest period]
+#               dir/...           [Directory dowloaded from directory server.]
 #
 #    QUEUEDIR defaults to ${WORKDIR}/queues
 #    ${QUEUEDIR}/incoming/        [Queue of received,unprocessed pkts]
@@ -55,6 +56,7 @@ from types import *
 # ServerQueue.py)
 from mixminion.ThreadUtils import MessageQueue, ClearableQueue, QueueEmpty
 
+import mixminion.ClientDirectory
 import mixminion.Config
 import mixminion.Crypto
 import mixminion.Filestore
@@ -71,7 +73,7 @@ from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
      UIError, ceilDiv, createPrivateDir, disp64, formatTime, \
      installSIGCHLDHandler, Lockfile, LockfileLocked, readFile, secureDelete, \
-     tryUnlink, waitForChildren, writeFile
+     succeedingMidnight, tryUnlink, waitForChildren, writeFile
 
 # Version number for server home-directory.
 #
@@ -364,7 +366,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 for pending in packets ]
             LOG.trace("Delivering packets OUT:[%s] to %s",
                       " ".join([p.getHandle() for p in packets]),
-                      routing)
+                      mixminion.ServerInfo.displayServer(routing))
             self.server.sendPacketsByRouting(routing, deliverable)
 
 class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
@@ -716,6 +718,11 @@ class MixminionServer(_Scheduler):
         self.descriptorFile = os.path.join(homeDir, "current-desc")
         self.keyring.updateKeys(self.packetHandler, self.mmtpServer,
                                 self.descriptorFile)
+        LOG.debug("Initializing directory client")
+        self.dirClient = mixminion.ClientDirectory.ClientDirectory(
+            os.path.join(config.getWorkDir(),"dir"))
+        self.dirClient.updateDirectory()
+        self.dirClient._installAsKeyIDResolver()
 
         publishedIP, publishedPort, publishedKeyID = self.keyring.getAddress()
 
@@ -813,6 +820,18 @@ class MixminionServer(_Scheduler):
 
         self.processingThread.addJob(c)
 
+    def updateDirectoryClient(self):
+        def c(self=self):
+            self.dirClient.updateDirectory()
+            prng = mixminion.Crypto.getCommonPRNG()
+            nextUpdate = succeedingMidnight(time.time())
+            # Randomly retrieve the directory within an hour after midnight, to
+            # avoid hosing the server.
+            nextUpdate += prng.getInt(60)*60
+            self.scheduleOnce(nextUpdate, "UPDATE_DIR_CLIENT",
+                              self.updateDirectoryClient)
+        self.processingThread.addJob(c)
+
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         global GOT_HUP
@@ -852,6 +871,9 @@ class MixminionServer(_Scheduler):
         self.scheduleOnce(self.keyring.getNextKeygen(),
                           "KEY_GEN",
                           self.generateKeys)
+
+        # Makes next update get scheduled.
+        self.updateDirectoryClient()
 
         nextMix = self.mixPool.getNextMixTime(now)
         LOG.debug("First mix at %s", formatTime(nextMix,1))

@@ -305,7 +305,7 @@ class ClientDirectory:
                 continue
             mtime = os.stat(p)[stat.ST_MTIME]
             if mtime > s_lastModified:
-                s_lastModifed = mtime
+                s_lastModified = mtime
             s_serverList.append((info, "I:%s"%fn))
             s_fullServerList.append((info, "I:%s"%fn))
             s_digestMap[info.getDigest()] = "I:%s"%fn
