@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.12 2004/02/07 17:11:30 nickm Exp $
+# $Id: TLSConnection.py,v 1.13 2004/02/16 22:50:38 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -16,6 +16,8 @@ from mixminion.Common import LOG, stringContains
 _READLEN = 1024
 
 class _Closing(Exception):
+    """Helper class: exception raised by state functions that want the
+       TLS connection to be closed."""
     pass
 
 class TLSConnection:
@@ -57,6 +59,10 @@ class TLSConnection:
     #   the first time we called shutdown.
     # __readBlockedOnWrite, __writeBlockedOnRead -- flags: has a read/write
     #   operation blocked on the opposite event type?
+    # __blockedWriteLen -- if the last call to 'write' blocked, how much
+    #   did we try to write?  (OpenSSL requires that we retry using exactly
+    #   the same length as the time before.)  0 if the last write was
+    #   successful.
 
     def __init__(self, tls, sock, address):
         """Create a new TLSConnection."""
@@ -341,9 +347,13 @@ class TLSConnection:
         "Helper function: write as much data from self.outbuf as we can."
         self.__writeBlockedOnRead = 0
         while self.outbuf and cap > 0:
-            if self.__blockedWriteLen: #DOCDOC
+            if self.__blockedWriteLen:
+                # If the last write blocked, we must retry the exact same
+                # length, or else OpenSSL will give an error.
                 span = self.__blockedWriteLen
             else:
+                # Otherwise, we try to write as much of the first string on
+                # the output buffer as our bandwidth cap will allow.
                 span = min(len(self.outbuf[0]),cap)
             try:
                 n = self.tls.write(self.outbuf[0][:span])
@@ -398,7 +408,8 @@ class TLSConnection:
                     cap -= len(s)
                     if (not self.tls.pending()) and cap > 0:
                         # Only call onRead when we've got all the pending
-                        # data from self.tls. DOCDOC cap
+                        # data from self.tls, or we've just run out of
+                        # allocated bandwidth.
                         self.onRead()
             except _ml.TLSWantRead:
                 self.wantRead = 1
@@ -410,10 +421,10 @@ class TLSConnection:
 
     def process(self, r, w, x, maxBytes=None):
         """Given that we've received read/write events as indicated in r/w,
-           advance the state of the connection as much as possible.  Return
-           is as in 'getStatus'.
-
-           DOCDOC cap."""
+           advance the state of the connection as much as possible, but try to
+           use no more than 'maxBytes' bytes of bandwidth. Return
+           is as in 'getStatus', with an extra 'bandwidth used' field
+           appended."""
         if x and (self.sock is not None):
             self.__close(gotClose=1)
             return 0,0,0,0
@@ -444,7 +455,9 @@ class TLSConnection:
             else:
                 self.wantWrite = 1
         except _Closing:
-            #DOCDOC
+            # state functions that want to close the connection should
+            # raise '_Closing', so we can count the bytes used before we
+            # call 'close'.
             if self.tls is not None:
                 bytesNow = self.tls.get_num_bytes_raw()
             self.__close()
@@ -474,7 +487,6 @@ class TLSConnection:
 
     def getStatus(self):
         """Return a 3-tuple of wantRead, wantWrite, and isOpen."""
-        #DOCDOC
         return self.wantRead, self.wantWrite, (self.sock is not None)
 
     #####
@@ -498,7 +510,7 @@ class TLSConnection:
         raise NotImplemented()
 
     def onTimeout(self):
-        """DOCDOC"""
+        """Called when the connection gets timed out."""
         raise NotImplemented()
 
     def onClosed(self):

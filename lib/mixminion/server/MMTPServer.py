@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.79 2004/02/16 22:27:41 nickm Exp $
+# $Id: MMTPServer.py,v 1.80 2004/02/16 22:50:38 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -56,14 +56,25 @@ class SelectAsyncServer:
     # self.state: a map from fd to the latest wantRead,wantWrite tuples
     #    returned by the connection objects' process or getStatus methods.
 
-    TICK_INTERVAL = 1.0 #DOCDOC
+    # self.bandwidthPerTick: How many bytes of bandwidth do we use per tick,
+    #    on average?
+    # self.maxBucket: How many bytes of bandwidth are we willing to use in
+    #    a single 1-tick burst?
+    # self.bucket: How many bytes are we willing to use in the next tick?
+    #
+    #   (NOTE: if no bandwidth limitation is used, the 3 fields above are
+    #   set to None.)
+
+    # How many seconds pass between the 'ticks' at which we increment
+    # our bandwidth bucket?
+    TICK_INTERVAL = 1.0
 
     def __init__(self):
         """Create a new AsyncServer with no readers or writers."""
         self._timeout = None
         self.connections = {}
         self.state = {}
-        self.bandwidthPerTick = self.bucket = None #DOCDOC
+        self.bandwidthPerTick = self.bucket = self.maxBucket = None
 
     def process(self,timeout):
         """If any relevant file descriptors become available within
@@ -155,19 +166,26 @@ class SelectAsyncServer:
                 self.remove(con,fd)
 
     def setBandwidth(self, n, maxBucket=None):
-        """DOCDOC - n is bytes per second."""
+        """Set bandwidth limitations for this server
+              n -- maximum bytes-per-second to use, on average.
+              maxBucket -- maximum bytes to send in a single burst.  Defaults
+                 to n*5.
+
+           Setting n to None removes bandwidth limiting."""
         if n is None:
             self.bandwidthPerTick = None
             self.maxBucket = None
         else:
             self.bandwidthPerTick = int(n * self.TICK_INTERVAL)
             if maxBucket is None:
-                self.maxBucket = self.bandwidthPerTick*10
+                self.maxBucket = self.bandwidthPerTick*5
             else:
                 self.maxBucket = maxBucket
 
     def tick(self):
-        """DOCDOC"""
+        """Tell the server that one unit of time has passed, and the bandwidth
+           limitations can be readjusted.  This method must be called once
+           every TICK_INTERVAL seconds."""
         bwpt = self.bandwidthPerTick
         if bwpt is None:
             self.bucket = None
@@ -251,12 +269,12 @@ else:
 class Connection:
     "A connection is an abstract superclass for asynchronous channels"
     def process(self, r, w, x, cap):
-        """Invoked when there is data to read or write.  Must return a 3-tuple
-           of (wantRead, wantWrite, isOpen)."""
-        return 0,0,0,0#DOCDOC
+        """Invoked when there is data to read or write.  Must return a 4-tuple
+           of (wantRead, wantWrite, isOpen, bytesUsed)."""
+        return 0,0,0,0
     def getStatus(self):
-        """Returns the same 3-tuple as process."""
-        return 0,0,0#DOCDOC
+        """Returns the same 3-tuple as process, without bytesUsed."""
+        return 0,0,0
     def fileno(self):
         """Returns an integer file descriptor for this connection, or returns
            an object that can return such a descriptor."""
@@ -265,12 +283,6 @@ class Connection:
         """If this connection has seen no activity since 'cutoff', and it
            is subject to aging, shut it down."""
         pass
-    def resetMaxBandwidth(self, n):
-        """DOCDOC"""
-        pass
-    def getBytesTransferred(self):
-        """DOCDOC"""
-        return 0
 
 class ListenConnection(Connection):
     """A ListenConnection listens on a given port/ip combination, and calls
@@ -319,9 +331,6 @@ class ListenConnection(Connection):
 
     def fileno(self):
         return self.sock.fileno()
-
-    def resetMaxBandwidth(self, n):
-        pass
 
 class MMTPServerConnection(mixminion.TLSConnection.TLSConnection):
     """A TLSConnection that implements the server side of MMTP."""
@@ -502,7 +511,11 @@ class MMTPAsyncServer(AsyncServer):
     # msgQueue: An instance of MessageQueue to receive notification from DNS
     #     DNS threads.  See _queueSendablePackets for more information.
     # _lock: protects only serverContext.
-    # maxClientConnections: DOCDOC
+    # maxClientConnections: Number of client connections we're willing
+    #     to have outgoing at any time.  If we try to deliver packets
+    #     to a new server, but we already have this many open outgoing
+    #     connections, we put the packets in pendingPackets.
+    # pendingPackets: A list of tuples to serve as arguments for _sendPackets.
 
     def __init__(self, config, servercontext):
         AsyncServer.__init__(self)
@@ -553,7 +566,7 @@ class MMTPAsyncServer(AsyncServer):
         self.certificateCache = PeerCertificateCache()
         self.dnsCache = None
         self.msgQueue = MessageQueue()
-        self.pendingPackets = [] #DOCDOC
+        self.pendingPackets = []
 
     def connectDNSCache(self, dnsCache):
         """Use the DNSCache object 'DNSCache' to resolve DNS queries for

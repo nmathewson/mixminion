@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.69 2004/02/16 22:30:03 nickm Exp $
+# $Id: BuildMessage.py,v 1.70 2004/02/16 22:50:38 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -343,12 +343,12 @@ def decodePayload(payload, tag, key=None, userKeys=(), retNym=None):
                 SURB keys. For backward compatibility, 'userKeys' may also be
                 None (no SURBs known), a dict (from name to key), or a single
                 key (implied identity is "").
+           retNym: If present, and if the payload was a reply, we call
+                retNym.append(pseudonym)
 
        If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,
        we return None.  If the payload is corrupt, we raise MixError.
-
-       DOCDOC retNym
     """
     if userKeys is None:
         userKeys = []

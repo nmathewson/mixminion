@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.63 2004/01/03 07:35:22 nickm Exp $
+# $Id: Makefile,v 1.64 2004/02/16 22:50:38 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -281,9 +281,9 @@ xxxx:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
 	   | xargs -0 grep 'XXXX\|FFFF\|DOCDOC\|????'
 
-xxxx006:
+xxxx007:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
-	   | xargs -0 grep 'XXXX00[1-6]\|FFFF00[1-6]\|DOCDOC\|????00[1-6]'
+	   | xargs -0 grep 'XXXX00[1-7]\|FFFF00[1-7]\|DOCDOC\|????00[1-7]'
 
 eolspace:
 	perl -i.bak -pe 's/\s+\n$$/\1\n/;' ACKS HACKING LICENSE HISTORY \

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.54 2004/02/15 23:25:33 nickm Exp $
+# $Id: MMTPClient.py,v 1.55 2004/02/16 22:50:38 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -80,6 +80,8 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
     # _isConnected: flag: true if the TLS connection been completed,
     #   and no errors have been encountered.
     # _isFailed: flag: has this connection encountered any errors?
+    # _isAlive: flag: if we put another packet on this connection, will the
+    #   packet maybe get delivered?
 
     ####
     # External interface
@@ -126,7 +128,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         self.nPacketsSent = self.nPacketsAcked = self.nPacketsTotal =0
         self._isConnected = 0
         self._isFailed = 0
-        self._isAlive = 1 #DOCDOC
+        self._isAlive = 1
         EventStats.log.attemptedConnect()
         LOG.debug("Openining client connection to %s",self.address)
         self.beginConnecting()
