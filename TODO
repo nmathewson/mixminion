@@ -147,7 +147,8 @@ Required for "1.0":
                 - Tell ModuleManager about async code (as soon as needed)
                 - Real SMTP module
                         - Abuse prevention of some undetermined kind.
-                        - Support for setting 'Subject' and 'From' lines.????
+                        X Support for setting 'Subject' and 'From' lines.
+                        X Support for setting 'Subject' line.
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
                 - Incoming email gateway
