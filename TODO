@@ -18,11 +18,9 @@ FOR 0.0.1: (The first alpha)
 
 	. Server
 		o Fix bug: delivering self->self.
-		- More explicit overview of queues.
+		o More explicit overview of queues.
 		- Unit tests for modulemanger built-in decoding and delivery.
-		- Test code to start 3 or 4 servers on one machine and
-                  try sending some messages through.
-	*. CLI client
+	o CLI client
 		o Send a message
 		o Linkage from command line to helper class
 		o Design directory layout
@@ -34,7 +32,7 @@ FOR 0.0.1: (The first alpha)
 		o Check whether exit host supports delivery method
 		o Make address support 0xhex:string
 		o Unit tests for MixminionClient
-		- Document it all
+		o Document it all
 	. Build
 		- Marginal 'make install'
 		- Marginal 'make dist'
@@ -49,10 +47,10 @@ FOR 0.0.1: (The first alpha)
 		o Test
 		        o Unit tests
 			o Try it out
-	. SMTP-Via-Mixmaster module
+	o SMTP-Via-Mixmaster module
 		o Implement
 		o Implement address validation so we don't get into trouble.
-		- Document
+		o Document
 		o Test
 		        o Unit tests
 			o Try it out
@@ -62,7 +60,7 @@ FOR 0.0.1: (The first alpha)
 			o Implement.
 			o Tests for new members of subheader.
 		o Move decoding logic into ModuleManager from modules.
-		- Move exit types and addresses into Packet.py?
+		- Move exit types and addresses into Packet.py
 		- Disable 'non-state-carrying' reply blocks.  Rename 'stateful'
 		  (non-state-carrying) and 'stateless' (state-carrying) to
 		  something less contradictory
@@ -71,27 +69,6 @@ FOR 0.0.1: (The first alpha)
 		- Separate package for server code.
 	- Final license
 	- Documentation
-		. Document all modules, functions, fields, globals
-			o BuildMessage
-			- ClientMain
-			- Common
-			- Config
-			- Crypto
-			- HashLog
-			- MMTPClient
-			- MMTPServer
-			- Main
-			- Modules
-			- Packet
-			- PacketHandler
-			- Queue
-			- ServerInfo
-			- ServerMain
-			- __init__
-			- benchmark
-			- test
-			- testSupport
-		- Comment all tricky/long functions
 		- Contributor's guide
 		- Basic HOWTO
 		- Difference between XXXX FFFF ????
@@ -105,7 +82,8 @@ FOR 0.0.1: (The first alpha)
 Required for "1.0":
 	 [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
-          the first beta.]
+          the first beta.  The first three priorities are: replies,
+  	  DOS-preventiion, and directories.]
 
 	- Better CLIs
 		- Actual strategy for reporting exceptions vs
@@ -170,6 +148,9 @@ Required for "1.0":
 			. Understand differing server features
 			- Watch out for servers that are really the
 			  same server
+			- Notice servers that don't support MMTP, or
+			  don't relay.
+			- Notice Allow/Deny.
 		- Reply to reply block
 		- Examine reply block
 		- Send message to user with known key
@@ -180,7 +161,7 @@ Required for "1.0":
 		- Client-side pooling
 	- MMTP / async
 		- Make listen options configurable (backlog, IP)
-		- Code to send junk
+		- Code to send junk (connection padding)
 SPEC!!		- Timeout old connections
 		- Renegotiate connections
 		- (Make sure sender retries on bogus close)
@@ -231,6 +212,7 @@ Unspecified:
 
 	- Generate link padding
 	- Generate dummy messages
+	- IPv6 support.
 
 WHEN WE GET THE CHANCE:
 	[This stuff could be for any version 1.0 or later; it's not a
