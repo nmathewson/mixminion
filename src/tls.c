@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.16 2003/02/16 18:46:31 nickm Exp $ */
+/* $Id: tls.c,v 1.17 2003/02/16 18:49:55 nickm Exp $ */
 #include "_minionlib.h"
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
@@ -644,7 +644,7 @@ static const char mm_TLSSock_Type__doc__[] =
    "A single TLS connection.";
 
 PyTypeObject mm_TLSSock_Type = {
-        PyObject_HEAD_INIT(&PyType_Type)
+        PyObject_HEAD_INIT(/*&PyType_Type*/ 0)
         0,                                  /*ob_size*/
         "mixminion._minionlib.TLSSock",     /*tp_name*/
         sizeof(mm_TLSSock),                 /*tp_basicsize*/
