@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.5 2002/08/19 15:33:56 nickm Exp $
+# $Id: __init__.py,v 1.6 2002/11/21 19:46:11 nickm Exp $
 
 """mixminion
 
@@ -7,8 +7,8 @@
 
    XXXX write more on principal interfaces"""
 
-__version__ = "0.1"
-__all__ = [ "BuildMessage", "MMTPClient" ]
+__version__ = "0.0.1a0"
+__all__ = [ ]
 
 import mixminion.BuildMessage
 import mixminion.Crypto

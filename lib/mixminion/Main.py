@@ -1,19 +1,39 @@
 #!/usr/bin/python2
-"""Code to correct the python path, and multiplex between the various 
-   Mixminion CLIs.
+# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Main.py,v 1.7 2002/11/21 19:46:11 nickm Exp $
 
-   This is the command-line entry point for all of mixminion.
-   """
+#"""Code to correct the python path, and multiplex between the various
+#   Mixminion CLIs.
+#
+#   This is the command-line entry point for all of mixminion.
+#   """
+
+# NOTE: We're up to funny business here.  This file can't import any other
+#       mixminion modules until we've run correctPath() below.  Also, it
+#       needs to be _syntactically_ backwards compatible with all Python
+#       versions back to 1.0, so that we can exit gracefully when run
+#       with the wrong python version.  Thus: no multiline strings, no
+#       print>>, no automatic string concatenation and no import foo.bar.
 
 import sys
 import stat
 import os
 
+# Check: are we running a version earlier than 2.0?  If so, die.
+if not hasattr(sys,'version_info') or sys.version_info[0] < 2:
+    import string
+    _ver = sys.version[:string.find(sys.version,' ')]
+    sys.stderr.write((
+        "ERROR: Mixminion requires Python version 2.0 or higher.\n"+
+        "       You seem to be running version %s.\n")%_ver)
+    sys.exit(1)
+
 def filesAreSame(f1, f2):
-    """Return true if f1 and f2 are exactly the same file."""
+    "Return true if f1 and f2 are exactly the same file."
     if os.path.normpath(f1) == os.path.normpath(f2):
 	return 1
     try:
+        # FFFF what happens on systems that (shudder) lack inodes?
 	ino1 = os.stat(f1)[stat.ST_INO]
 	ino2 = os.stat(f2)[stat.ST_INO]
 	return ino1 and ino1 > 0 and ino1 == ino2
@@ -21,13 +41,10 @@ def filesAreSame(f1, f2):
 	return 0
 
 def correctPath(myself):
-    """Given a command file (taken from sys.argv[0]), try to adjust sys.path
-       so that 'import mixminion' will work.
-
-       (If the admin uses distutils to install Mixminion, the code will 
-       wind up somewhere appropriate on pythonpath.  This isn't good enough,
-       however: we want to run even when sysadmins don't understand distutils.)
-       """
+    "Given a command (sys.argv[0]), fix sys.path so 'import mixminion' works"
+    # (If the admin uses distutils to install Mixminion, the code will 
+    # wind up somewhere appropriate on pythonpath.  This isn't good enough,
+    # however: we want to run even when sysadmins don't understand distutils.)
 
     orig_cmd = myself
     # First, resolve all links.
@@ -39,9 +56,9 @@ def correctPath(myself):
     mydir = os.path.split(myself)[0]
     parentdir, miniondir = os.path.split(mydir)
     if not miniondir == 'mixminion':
-	print >>sys.stderr, ("Bad mixminion installation:\n"+
-	 " I resolved %s to %s, but expected to find ../mixminion/Main.py")%(
-	     orig_cmd, myself)
+        sys.stderr.write("Bad mixminion installation:\n"+
+	 " I resolved %s to %s, but expected to find ../mixminion/Main.py\n")%(
+	     orig_cmd, myself) 
 
     # Now we check whether there's already an entry in sys.path.  If not,
     # we add the directory we found.
@@ -56,15 +73,17 @@ def correctPath(myself):
 	    foundEntry = 1; break
 
     if not foundEntry:
-	print >>sys.stderr, "Adding %s to PYTHONPATH" % parentdir
+	sys.stderr.write("Adding %s to PYTHONPATH\n" % parentdir)
 	sys.path[0:0] = [ parentdir ]
 
     # Finally, we make sure it all works.
     try:
-	import mixminion.Main as _
+        # We use __import__ here instead of 'import' so that we can stay
+        #   parseable by Python 1.1.  You're welcome.
+	__import__('mixminion.Main')
     except ImportError, _:
-	print >>sys.stderr, _
-	print >>sys.stderr,"Unable to find correct path for mixminion."
+	sys.stderr.write(_+"\n")
+	sys.stderr.write("Unable to find correct path for mixminion.\n")
 	sys.exit(1)
 
 # Global map from command name to 2-tuples of (module_name, function_name).
@@ -73,6 +92,7 @@ def correctPath(myself):
 #   in module_name.  The function should take two arguments: a string to
 #   be used as command name in error messages, and a list of [arg1,arg2,arg3].
 _COMMANDS = {
+    "version" : ( 'mixminion.Main', 'printVersion'),
     "unittests" : ( 'mixminion.test', 'testAll' ),
     "benchmarks" : ( 'mixminion.benchmark', 'timeAll' ),
     "client" : ( 'mixminion.ClientMain', 'runClient' ),
@@ -80,11 +100,20 @@ _COMMANDS = {
     "server-keygen" : ( 'mixminion.ServerMain', 'runKeygen')
 }
 
+def printVersion(cmd,args):
+    import mixminion
+    print "Mixminion version %s" % mixminion.__version__
+    print ("Copyright 2002 Nick Mathewson.  "+
+           "See LICENSE for licensing information.")
+    print "Run '%s help' for more information." % cmd
+    sys.exit(0)
+
 def main(args):
-    """Given a list of strings in the same format as sys.argv, use args[0]
-       to correct sys.path; use args[1] to pick a command from _COMMANDS, and
-       use args[2:] as arguments.
-    """
+    "Use <args> to fix path, pick a command and pass it arguments."
+    # Specifically, args[0] is used to fix sys.path so we can import
+    # mixminion.*; args[1] is used to select a command name from _COMMANDS,
+    # and args[2:] are passed to the command we select.
+    
     correctPath(args[0])
 
     # Check whether we have a recognized command.
@@ -92,8 +121,8 @@ def main(args):
 	# FFFF we could do better in generating a usage message here.
 	cmds = _COMMANDS.keys()
 	cmds.sort()
-	print >>sys.stderr, "Usage: %s {%s} [arguments]" %(
-	    args[0], "|".join(cmds))
+	sys.stderr.write("Usage: %s {%s} [arguments]\n" %(
+	    args[0], "|".join(cmds)))
 	sys.exit(1)
 
     # Read the module and function.
@@ -106,7 +135,3 @@ def main(args):
 
 if __name__ == '__main__':
     main(sys.argv)
-
-
-
-
