@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.86 2004/05/02 18:45:15 nickm Exp $
+# $Id: Config.py,v 1.87 2004/05/18 02:55:14 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -384,25 +384,24 @@ def _parseDate(s):
         raise ConfigError("Invalid date %r"%s)
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
-# FFFF008 stop accepting YYYY/MM/DD
-# Regular expression to match YYYY/MM/DD HH:MM:SS
-_time_re = re.compile(r"^(\d\d\d\d)([/-])(\d\d)([/-])(\d\d)\s+"
+# Regular expression to match YYYY-MM-DD HH:MM:SS
+_time_re = re.compile(r"^(\d\d\d\d)-(\d\d)-(\d\d)\s+"
                       r"(\d\d):(\d\d):(\d\d)((?:\.\d\d\d)?)$")
 def _parseTime(s):
     """Validation function.  Converts from YYYY/MM/DD HH:MM:SS format
        to a (float) time value for GMT."""
     m = _time_re.match(s.strip())
-    if not m or m.group(2) != m.group(4):
-        raise ConfigError("Invalid time %r" % s)
+    if not m:
+        raise ConfigError("Invalid format for time")
 
     yyyy = int(m.group(1))
-    MM = int(m.group(3))
-    dd = int(m.group(5))
-    hh = int(m.group(6))
-    mm = int(m.group(7))
-    ss = int(m.group(8))
-    if m.group(9):
-        fsec = float(m.group(9))
+    MM = int(m.group(2))
+    dd = int(m.group(3))
+    hh = int(m.group(4))
+    mm = int(m.group(5))
+    ss = int(m.group(6))
+    if m.group(7):
+        fsec = float(m.group(7))
     else:
         fsec = 0.0
 

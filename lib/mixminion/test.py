@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.199 2004/05/17 22:39:17 nickm Exp $
+# $Id: test.py,v 1.200 2004/05/18 02:55:14 nickm Exp $
 
 """mixminion.tests
 
@@ -4507,7 +4507,7 @@ IntRS=5
         tm = C._parseDate("2000-05-03")
         self.assertEquals(time.gmtime(tm)[:6], (2000,5,3,0,0,0))
         # Time
-        tm = C._parseTime("2001/12/25 06:15:10")
+        tm = C._parseTime("2001-12-25 06:15:10")
         self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
         tm = C._parseTime("2001-12-25 06:15:10.623")
         self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
@@ -4577,12 +4577,12 @@ IntRS=5
         fails(C._parseDate, "2000/1/1")
         fails(C._parseDate, "2000/10-10")
         fails(C._parseDate, "2000-10/10")
-        fails(C._parseDate, "2000/50/01")
-        fails(C._parseDate, "2000/50/01 12:12:12")
-        fails(C._parseTime, "2000/50-01 12:12:12")
-        fails(C._parseDate, "2000-50/01 12:12:12")
+        fails(C._parseDate, "2000-50-01")
+        fails(C._parseDate, "2000/20/01 12:12:12")
+        fails(C._parseTime, "2000/50/01 12:12:12")
+        fails(C._parseDate, "2000/20/01 12:12:12")
         fails(C._parseDate, "2000-50-01 12:12:12.3")
-        fails(C._parseTime, "2000/50/01 12:12:99")
+        fails(C._parseTime, "2000-20-01 12:12:99")
         fails(C._parseNickname, "Mrs Premise")
         fails(C._parseNickname, "-Mrs-Premise")
         fails(C._parseNickname, "../../../AllYourBase")
