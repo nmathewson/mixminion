@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.134 2004/03/07 06:31:46 nickm Exp $
+# $Id: Common.py,v 1.135 2004/03/18 05:55:50 nickm Exp $
 
 """mixminion.Common
 
@@ -763,13 +763,13 @@ def secureDelete(fnames, blocking=0):
                 if os.path.exists(f):
                     _overwriteFile(f)
                     os.unlink(f)
-
-        if blocking:
-            try:
-                os.waitpid(pid, 0)
-            except OSError:
-                # sigchild handler might get to the pid first.
-                pass
+        else:
+            if blocking:
+                try:
+                    os.waitpid(pid, 0)
+                except OSError:
+                    # sigchild handler might get to the pid first.
+                    pass
 
 #----------------------------------------------------------------------
 # Logging
