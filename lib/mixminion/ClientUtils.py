@@ -39,6 +39,9 @@ class PasswordManager:
        abstract class."""
     ## Fields
     # passwords: map from password name to string value of the password.
+    # do_retry: static field: should we keep asking for a password until
+    #    one is correct?
+    do_retry = 1
     def __init__(self):
         """Create a new PasswordManager"""
         self.passwords = {}
@@ -83,6 +86,8 @@ class PasswordManager:
             if confirmFn(pwd):
                 self.passwords[name] = pwd
                 return pwd
+            if not self.do_retry:
+                break
             maxTries -= 1
             pmt = "Incorrect password. "+prompt
 
@@ -95,12 +100,36 @@ class PasswordManager:
 class CLIPasswordManager(PasswordManager):
     """Impementation of PasswordManager that asks for passwords from the
        command line."""
-    def __init__(self):
+    def __init__(self, password_fileno=None):
         PasswordManager.__init__(self)
     def _getPassword(self, name, prompt):
         return getPassword_term(prompt)
     def _getNewPassword(self, name, prompt):
         return getNewPassword_term(prompt)
+
+class FDPasswordManager(PasswordManager):
+    """Impementation of PasswordManager that asks for passwords from a
+       specified fileno."""
+    do_retry = 0
+    def __init__(self, password_fileno=None):
+        PasswordManager.__init__(self)
+        self.password_fileno = password_fileno
+    def _getPassword(self, name, prompt):
+        return getPassword_fd(self.password_fileno)
+    def _getNewPassword(self, name, prompt):
+        return getPassword_fd(self.password_fileno)
+
+def getPassword_fd(fileno):
+    """Read a password from a specified fileno."""
+    pw = ""
+    while 1:
+        chunk = os.read(fileno, 1024) # read from --password-fd filehandle
+        if not chunk:
+            break
+        pw += chunk
+    # Strip trailing endline from password, if any.  
+    if pw.endswith("\n"): pw = pw[:-1]
+    return pw
 
 def getPassword_term(prompt):
     """Read a password from the console, then return it.  Use the string

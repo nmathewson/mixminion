@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.66 2003/12/14 01:43:38 nickm Exp $
+# $Id: Main.py,v 1.67 2004/01/15 21:03:26 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -265,8 +265,8 @@ def main(args):
     if args[1] not in ('unittests', 'benchmarks', 'version') and \
        '--quiet' not in args and '-Q' not in args:
         import mixminion
-        print "Mixminion version %s" % mixminion.__version__
-        print "This software is for testing purposes only."\
+        print >>sys.stderr, "Mixminion version %s" % mixminion.__version__
+        print >>sys.stderr, "This software is for testing purposes only."\
               "  Anonymity is not guaranteed."
 
     # Read the 'common' module to get the UIError class.  To simplify

@@ -12,7 +12,7 @@ import getopt
 import os
 import sys
 import time
-from types import ListType
+from types import IntType, StringType
 
 import mixminion.BuildMessage
 import mixminion.ClientUtils
@@ -194,7 +194,7 @@ class MixminionClient:
     # keys: A ClientKeyring object.
     # queue: A ClientQueue object.
     # surbLogFilename: The filename used by the SURB log.
-    def __init__(self, conf):
+    def __init__(self, conf, password_fileno=None):
         """Create a new MixminionClient with a given configuration"""
         self.config = conf
 
@@ -202,7 +202,10 @@ class MixminionClient:
         userdir = self.config['User']['UserDir']
         createPrivateDir(userdir)
         keyDir = os.path.join(userdir, "keys")
-        self.pwdManager = mixminion.ClientUtils.CLIPasswordManager()
+        if password_fileno is None:
+            self.pwdManager = mixminion.ClientUtils.CLIPasswordManager()
+        else:
+            self.pwdManager = mixminion.ClientUtils.FDPasswordManager(password_fileno)
         self.keys = ClientKeyring(keyDir, self.pwdManager)
         self.surbLogFilename = os.path.join(userdir, "surbs", "log")
 
@@ -308,6 +311,8 @@ class MixminionClient:
         """
         #XXXX write unit tests
         key = self.keys.getSURBKey(name=name, create=1)
+        if not key:
+            raise UIError("unable to get SURB key")
         exitType, exitInfo, _ = address.getRouting()
 
         block = mixminion.BuildMessage.buildReplyBlock(
@@ -701,7 +706,7 @@ class CLIArgumentParser:
              -D | --download-directory : force/disable directory downloading.
           PATH-RELATED
              -t | --to : specify an exit address
-             -R | --reply-block : specify a reply block
+             -R | --reply-block | --reply-block-fd : specify a reply block
              -H | --hops : specify a path length
              -P | --path : specify a literal path.
           REPLY PATH ONLY
@@ -726,7 +731,7 @@ class CLIArgumentParser:
     #  nHops: number of hops, or None.
     #  address: exit address, or None.
     #  lifetime: SURB lifetime, or None.
-    #  replyBlockFiles: list of SURB filenames.
+    #  replyBlockFiles: list of SURB filenames. DOCDOC
     #  configFile: Filename of configuration file, or None.
     #  forceQueue: true if "--queue" is set.
     #  forceNoQueue: true if "--no-queue" is set.
@@ -781,12 +786,13 @@ class CLIArgumentParser:
         self.configFile = None
         self.verbose = 0
         self.download = None
+        self.password_fileno = None
 
         self.path = None
         self.nHops = None
         self.exitAddress = None
         self.lifetime = None
-        self.replyBlockFiles = []
+        self.replyBlockSources = [] #DOCDOC int is fd, str is filename
 
         self.forceQueue = None
         self.forceNoQueue = None
@@ -824,7 +830,12 @@ class CLIArgumentParser:
                     raise UsageError(str(e))
             elif o in ('-R', '--reply-block'):
                 assert wantForwardPath
-                self.replyBlockFiles.append(v)
+                self.replyBlockSources.append(v)
+            elif o == '--reply-block-fd':
+                try:
+                    self.replyBlockSources.append(int(v))
+                except ValueError:
+                    raise UIError("%s expects an integer"%o)
             elif o in ('-H', '--hops'):
                 assert wantForwardPath or wantReplyPath
                 if self.nHops is not None:
@@ -846,6 +857,12 @@ class CLIArgumentParser:
                     raise UIError("Multiple --lifetime arguments specified")
                 try:
                     self.lifetime = int(v)
+                except ValueError:
+                    raise UsageError("%s expects an integer"%o)
+            elif o in ('--passphrase-fd',):
+                #DOCDOC
+                try:
+                    self.password_fileno = int(v)
                 except ValueError:
                     raise UsageError("%s expects an integer"%o)
             elif o in ('--queue',):
@@ -890,7 +907,7 @@ class CLIArgumentParser:
         if self.wantClient:
             assert self.wantConfig
             LOG.debug("Configuring client")
-            self.client = MixminionClient(self.config)
+            self.client = MixminionClient(self.config, self.password_fileno)
 
         if self.wantClientDirectory:
             assert self.wantConfig
@@ -925,18 +942,25 @@ class CLIArgumentParser:
                 self.exitAddress = mixminion.ClientDirectory.parseAddress(address)
             except ParseError, e:
                 raise UIError("Error in SURBAddress: %s" % e)
-        elif self.exitAddress is None and self.replyBlockFiles == []:
+        elif self.exitAddress is None and self.replyBlockSources == []:
             raise UIError("No recipients specified; exiting. (Try using "
                           "-t <recipient-address>")
-        elif self.exitAddress is not None and self.replyBlockFiles:
+        elif self.exitAddress is not None and self.replyBlockSources:
             raise UIError("Cannot use both a recipient and a reply block")
-        elif self.replyBlockFiles:
+        elif self.replyBlockSources:
             useRB = 1
             surbs = []
-            for fn in self.replyBlockFiles:
-                if fn == '-':
+            for fn in self.replyBlockSources:
+                if isinstance(fn, IntType):
+                    f = os.fdopen(fn, 'rb')
+                    try:
+                        s = f.read()
+                    finally:
+                        f.close()
+                elif fn == '-':
                     s = sys.stdin.read()
                 else:
+                    assert isinstance(fn, StringType)
                     s = readFile(fn, 1)
                 try:
                     if stringContains(s,
@@ -1010,6 +1034,7 @@ Options:
                              packet, then deliver multiple fragmented packets
                              to the recipient instead of having the server
                              reassemble the message.
+  --reply-block-fd=<N>       DOCDOC
 %(extra)s
 
 EXAMPLES:
@@ -1076,10 +1101,10 @@ def runClient(cmd, args):
     # Parse and validate our options.
     options, args = getopt.getopt(args, "hvf:D:t:H:P:R:i:",
              ["help", "verbose", "config=", "download-directory=",
-              "to=", "hops=", "path=", "reply-block=",
+              "to=", "hops=", "path=", "reply-block=", "reply-block-fd=",
               "input=", "queue", "no-queue",
               "subject=", "from=", "in-reply-to=", "references=",
-              "deliver-fragments" ])
+              "deliver-fragments", ])
 
     if not options:
         sendUsageAndExit(cmd)
@@ -1124,7 +1149,7 @@ def runClient(cmd, args):
     except MixError, e:
         raise UIError("Invalid headers: %s"%e)
 
-    if inFile in (None, '-') and '-' in parser.replyBlockFiles:
+    if inFile in (None, '-') and '-' in parser.replyBlockSources:
         raise UIError(
             "Can't read both message and reply block from stdin")
 
@@ -1475,6 +1500,8 @@ Options:
                              overcompressed.
   -o <file>, --output=<file> Write the results to <file> rather than stdout.
   -i <file>, --input=<file>  Read the results from <file>.
+  --passphrase-fd=<N>        Read passphrase from file descriptor N instead
+                               of asking on the console.
 
 EXAMPLES:
   Decode message(s) stored in 'NewMail', writing the result to stdout.
@@ -1487,7 +1514,7 @@ def clientDecode(cmd, args):
     """[Entry point] Decode a message."""
     options, args = getopt.getopt(args, "hvf:o:Fi:",
           ['help', 'verbose', 'config=',
-           'output=', 'force', 'input='])
+           'output=', 'force', 'input=', 'passphrase-fd=',])
 
     outputFile = '-'
     inputFile = None
@@ -1564,6 +1591,8 @@ Options:
                                of ascii mode.
   -n <N>, --count=<N>        Generate <N> reply blocks. (Defaults to 1.)
   --identity=<name>          Specify a pseudonymous identity.
+  --passphrase-fd=<N>        Read passphrase from file descriptor N instead
+                               of asking on the console.
 
 EXAMPLES:
   Generate a reply block to deliver messages to the address given in
@@ -1591,7 +1620,7 @@ EXAMPLES:
 def generateSURB(cmd, args):
     options, args = getopt.getopt(args, "hvf:D:t:H:P:o:bn:",
           ['help', 'verbose', 'config=', 'download-directory=',
-           'to=', 'hops=', 'path=', 'lifetime=',
+           'to=', 'hops=', 'path=', 'lifetime=', 'passphrase-fd=',
            'output=', 'binary', 'count=', 'identity='])
 
     outputFile = '-'
