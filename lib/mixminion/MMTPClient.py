@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.15 2003/01/12 04:27:19 nickm Exp $
+# $Id: MMTPClient.py,v 1.16 2003/01/13 06:16:42 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -40,7 +40,10 @@ class BlockingClientConnection:
         """Open a new connection."""
         self.targetIP = targetIP
         self.targetPort = targetPort
-        self.targetKeyID = targetKeyID
+        if targetKeyID != '\x00' *20:
+            self.targetKeyID = targetKeyID
+        else:
+            self.targetKeyID = None #DOCDOC
         self.context = _ml.TLSContext_new()
         self.tls = None
         self.sock = None
