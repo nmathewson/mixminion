@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.19 2003/01/07 19:17:57 nickm Exp $
+# $Id: Modules.py,v 1.20 2003/01/08 03:43:21 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -626,7 +626,7 @@ class MBoxModule(DeliveryModule):
     def processMessage(self, message, tag, exitType, address):
         # Determine that message's address;
         assert exitType == mixminion.Packet.MBOX_TYPE
-        LOG.trace("Received MBOX message")
+        LOG.debug("Received MBOX message")
         info = mixminion.Packet.parseMBOXInfo(address)
         try:
             address = self.addresses[info.user]
@@ -733,7 +733,7 @@ class DirectSMTPModule(SMTPModule):
 
     def processMessage(self, message, tag, exitType, address):
         assert exitType == mixminion.Packet.SMTP_TYPE
-        LOG.trace("Received SMTP message")
+        LOG.debug("Received SMTP message")
         # parseSMTPInfo will raise a parse error if the mailbox is invalid.
         try:
             address = mixminion.Packet.parseSMTPInfo(address).email
