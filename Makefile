@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.12 2002/12/02 03:43:15 nickm Exp $
+# $Id: Makefile,v 1.13 2002/12/02 05:12:13 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -87,13 +87,16 @@ xxxx:
 #
 # Targets to make openssl get built properly.  
 #
-OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7-beta3.tar.gz
+OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7-beta4.tar.gz
+OPENSSL_FILE = openssl-0.9.7-beta4.tar.gz
 
 download-openssl:
-	@if [ -x `which wget 2>&1` ] ; then                               \
+	@if [ -x "`which wget 2>&1`" ] ; then                             \
 	  cd contrib; wget $(OPENSSL_URL);                                \
+        elif [ -x "`which curl 2>&1`" ] ; then                            \
+	  cd contrib; curl -o $(OPENSSL_FILE) $(OPENSSL_URL);             \
 	else                                                              \
-          echo "You don't seem to have wget.  I can't download openssl."; \
+          echo "I can't find wget or curl.  I can't download openssl.";   \
 	fi
 
 destroy-openssl:
@@ -123,13 +126,14 @@ unpack-openssl:
 	         "I'm afraid to delete it." ;                               \
 	    exit;                                                           \
 	fi;                                                                 \
-	TGZ=openssl-*.tar.gz ;                                              \
-	if [ ! -e $$TGZ ]; then                                             \
+	TGZ=`ls openssl-*.tar.gz` ;                                         \
+	if [ "x$$TGZ" = "x" ]; then                                         \
 	    echo "I didn't find any openssl-*.tar.gz in ./contrib/";        \
+	    echo "Try 'make download-openssl'.";                            \
 	    exit;                                                           \
 	fi;                                                                 \
 	for n in $$TGZ; do                                                  \
-	    if [ $$n != $$TGZ ]; then                                       \
+	    if [ $$n != "$$TGZ" ]; then                                     \
 	        echo "Found more than one openssl-*.tar.gz in ./contrib/";  \
 	        echo "(Remove all but the most recent.)";                   \
 		exit;                                                       \

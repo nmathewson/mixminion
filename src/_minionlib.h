@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.7 2002/07/25 15:52:57 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.8 2002/12/02 05:12:13 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -7,7 +7,7 @@
 #include <openssl/aes.h>
 #include <openssl/rsa.h>
 #include <openssl/opensslv.h>
-#if (OPENSSL_VERSION_NUMBER < 0x00907000L)
+#if (OPENSSL_VERSION_NUMBER < 0x00907003L)
 #error "Mixminion requires OpenSSL 0.9.7 (which might not have been released yet, but you can get snapshots from openssl.org)."
 #endif
 
