@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.66 2003/06/02 17:54:57 nickm Exp $
+# $Id: ServerMain.py,v 1.67 2003/06/02 17:56:34 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -89,8 +89,8 @@ def getHomedirVersion(config):
                 raise UIError("You don't have permission to read %s"%
                               versionFile)
             else:
-                raise UIError("Unexpected error while reading %s: %s",
-                              versionFile, e)
+                raise UIError("Unexpected error while reading %s: %s"%(
+                              versionFile, e))
 
     return dirVersion
 
