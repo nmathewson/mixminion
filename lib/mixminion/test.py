@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.208 2004/12/11 02:48:54 nickm Exp $
+# $Id: test.py,v 1.209 2004/12/11 18:00:41 nickm Exp $
 
 """mixminion.tests
 
@@ -7734,6 +7734,7 @@ class PingerTests(TestCase):
         P = mixminion.server.Pinger
         if not P.canRunPinger():
             print "[Skipping ping tests; old python or missing pysqlite]",
+            return
 
         d = mix_mktemp()
         os.mkdir(d)
