@@ -1989,7 +1989,7 @@ def reassemble(cmd, args):
             purge = 1
 
     if not args:
-        print "No message-IDs provided."
+        print "No message IDs provided."
         return
 
     parser.init()
@@ -1999,16 +1999,18 @@ def reassemble(cmd, args):
     if reassemble:
         out = sys.stdout
         if outfilename not in ('-',None):
-            out = open(outfilename, 'r')
+            out = open(outfilename, 'wb')
             closeoutfile = 1
 
     try:
         clientLock()
+        removed = []
         for msgid in args:
             if reassemble:
                 msg = client.pool.getMessage(msgid)
             if purge:
-                client.pool.removeMessage(msgid)
+                removed.append(msgid)
+        client.pool.removeMessages(removed)
         if reassemble:
             out.write(msg)
     finally:

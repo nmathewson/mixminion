@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.12 2004/02/16 22:30:03 nickm Exp $
+# $Id: Fragments.py,v 1.13 2004/03/02 07:06:14 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -10,7 +10,7 @@ import math
 import time
 import mixminion._minionlib
 import mixminion.Filestore
-from mixminion.Crypto import ceilDiv, getCommonPRNG, whiten, unwhiten
+from mixminion.Crypto import ceilDiv, getCommonPRNG, sha1, whiten, unwhiten
 from mixminion.Common import disp64, LOG, previousMidnight, MixError, \
      MixFatalError
 from mixminion.Packet import ENC_FWD_OVERHEAD, PAYLOAD_LEN, \
@@ -183,7 +183,8 @@ class FragmentPool:
                                  chunkNum=None,
                                  overhead=fragmentPacket.getOverhead(),
                                  insertedDate=today,
-                                 nym=nym)
+                                 nym=nym, 
+                                 digest=sha1(fragmentPacket.data))
         # ... and allocate or find the MessageState for this message.
         state = self._getState(meta)
         try:
@@ -195,19 +196,19 @@ class FragmentPool:
             # And *now* update the message state.
             state.addFragment(h, meta)
             say("Stored fragment %s of message %s",
-                fragmentPacket.index, disp64(fragmentPacket.msgID,12))
+                fragmentPacket.index+1, disp64(fragmentPacket.msgID,12))
             return fragmentPacket.msgID
         except MismatchedFragment, s:
             # Remove the other fragments, mark msgid as bad.
             LOG.warn("Found inconsistent fragment %s in message %s: %s",
-                     fragmentPacket.index, disp64(fragmentPacket.msgID,12),
+                     fragmentPacket.index+1, disp64(fragmentPacket.msgID,12),
                      s)
             self._deleteMessageIDs({ meta.messageid : 1}, "REJECTED", now)
             return None
         except UnneededFragment:
             # Discard this fragment; we don't need it.
-            LOG.debug("Dropping unneeded fragment %s of message %s",
-                      fragmentPacket.index, disp64(fragmentPacket.msgID,12))
+            say("Dropping unneeded fragment %s of message %s",
+                fragmentPacket.index+1, disp64(fragmentPacket.msgID,12))
             return None
 
     def getReadyMessage(self, msgid):
@@ -337,8 +338,17 @@ class FragmentPool:
         else:
             LOG.debug("Removing messages by IDs: %s",
                       messageIDSet.keys())
+
         for mid in messageIDSet.keys():
-            self.db.markStatus(mid, why, today)
+            if why == "?":
+                state = self.states[mid]
+                if state.isDone: 
+                    whythis = "COMPLETED"
+                else:
+                    whythis = "REJECTED"
+            else:
+                whythis = why
+            self.db.markStatus(mid, whythis, today)
             try:
                 del self.states[mid]
             except KeyError:
@@ -417,8 +427,9 @@ class FragmentMetadata:
     #    ENC_FWD_OVERHEAD.
     # insertedDate -- Midnight GMT before the day this fragment was received.
     # nym -- name of the identity that received this fragment.
+    # digest -- digest of the fragment/chunk; None for pre-0.0.7
     def __init__(self, messageid, idx, size, isChunk, chunkNum, overhead,
-                 insertedDate, nym):
+                 insertedDate, nym, digest):
         self.messageid = messageid
         self.idx = idx
         self.size = size
@@ -427,17 +438,23 @@ class FragmentMetadata:
         self.overhead = overhead
         self.insertedDate = insertedDate
         self.nym = nym
+        self.digest = digest
 
     def __getstate__(self):
-        return ("V0", self.messageid, self.idx, self.size,
+        return ("V1", self.messageid, self.idx, self.size,
                 self.isChunk, self.chunkNum, self.overhead, self.insertedDate,
-                self.nym)
+                self.nym, self.digest)
 
     def __setstate__(self, state):
         if state[0] == 'V0':
             (_, self.messageid, self.idx, self.size,
              self.isChunk, self.chunkNum, self.overhead, self.insertedDate,
              self.nym) = state
+            self.digest = None
+        elif state[0] == 'V1':
+            (_, self.messageid, self.idx, self.size,
+             self.isChunk, self.chunkNum, self.overhead, self.insertedDate,
+             self.nym,self.digest) = state
         else:
             raise MixFatalError("Unrecognized fragment state")
 
@@ -458,7 +475,7 @@ class MessageState:
     # params -- an instance of FragmentationParams for this message.
     # chunks -- a map from chunk number to tuples of (handle within the pool,
     #     FragmentMetadata object).  For completed chunks.
-    # fragmentsByChunk -- a map from chunk number to maps from
+    # fragmentsByChunk -- a list mapping chunk number to maps from
     #     index-within-chunk to (handle,FragmentMetadata)
     # readyChunks -- a map whose keys are the numbers of chunks that
     #     are ready for reconstruction, but haven't been reconstructed
@@ -495,7 +512,7 @@ class MessageState:
         """(have,need) DOCDOC"""
         need = self.params.k * self.params.nChunks
         have = self.params.k * len(self.chunks)
-        for d in self.fragmentsByChunk.values():
+        for d in self.fragmentsByChunk:
             have += min(len(d),self.params.k)
         return have, need
 
@@ -550,7 +567,11 @@ class MessageState:
             raise UnneededFragment
 
         if self.fragmentsByChunk[chunkNum].has_key(pos):
-            raise MismatchedFragment("multiple fragments for one position")
+            previous = self.fragmentsByChunk[chunkNum][pos]
+            if previous.digest is None or previous.digest == fm.digest:
+                raise UnneededFragment("already seen this fragment")
+            else:
+                raise MismatchedFragment("multiple fragments for one position")
 
         if noop:
             return
@@ -585,7 +606,8 @@ class MessageState:
                                    idx=chunkno, size=self.params.length,
                                    isChunk=1, chunkNum=chunkno,
                                    overhead=self.overhead,
-                                   insertedDate=minDate, nym=self.nym)
+                                   insertedDate=minDate, nym=self.nym,
+                                   digest=sha1(chunkText))
             # Queue the chunk.
             h2 = store.queueMessageAndMetadata(chunkText, fm2)
             del chunkText

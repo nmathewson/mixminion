@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.131 2004/02/21 00:02:09 nickm Exp $
+# $Id: Common.py,v 1.132 2004/03/02 07:06:14 nickm Exp $
 
 """mixminion.Common
 
@@ -318,7 +318,7 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
         if base64:
             try:
                 if stringContains(s[idx:endIdx], "\n[...]\n"):
-                    raise ValueError("Value seems to be truncated by a Mixminion-Mixmaster gateway")
+                    raise UIError("Corrupted data: value seems to be truncated by a Mixminion/Mixmaster gateway")
                 value = binascii.a2b_base64(s[idx:endIdx])
             except (TypeError, binascii.Incomplete, binascii.Error), e:
                 raise ValueError(str(e))

@@ -25,7 +25,7 @@ import mixminion.Packet
 
 from mixminion.Common import LOG, MixError, UIError, ceilDiv, \
      createPrivateDir, floorDiv, previousMidnight, readFile, \
-     succeedingMidnight, writeFile, armorText, unarmorText
+     succeedingMidnight, writeFile, armorText, unarmorText, MixFatalError
 from mixminion.Crypto import sha1, ctr_crypt, DIGEST_LEN, AES_KEY_LEN, \
      getCommonPRNG, trng
 
@@ -869,7 +869,7 @@ class ClientFragmentPool:
     def __getPool(self):
         if self.pool is None:
             import mixminion.Fragments
-            self.pool = mixminion.Fragments.FragmentPool(self.directory)
+            self.pool = mixminion.Fragments.FragmentPool(self.dir)
         return self.pool
 
     def close(self):
@@ -886,12 +886,14 @@ class ClientFragmentPool:
                 fragment = mixminion.Packet.parsePayload(fragment)
             except ParseError, s:
                 raise UIError("Corrupted fragment payload: %s"%s)
-            if not fragment.isFragment():
+            if fragment.isSingleton():
                 raise UIError("Non-fragment payload marked as a fragment.")
 
         assert isinstance(fragment, mixminion.Packet.FragmentPayload)
 
-        return pool.addFragment(fragment, nym=nym, verbose=1)
+        r = pool.addFragment(fragment, nym=nym, verbose=1)
+        pool.unchunkMessages(); print "UNCHUNK"
+        return r
 
     def process(self):
         pool = self.__getPool()
@@ -905,24 +907,28 @@ class ClientFragmentPool:
 
     def getMessage(self, msgid):
         pool = self.__getPool()
-        msg = pool.getReadyMessage(msgid)
+        state = pool.getStateByMsgID(msgid)
+        msg = pool.getReadyMessage(state.messageid)
         if msg is not None:
             return msg
 
-        state = pool.getStateByMsgID(msgid)
         if state is None:
             raise UIError("No such message as '%s'" % msgid)
         elif not state.isDone():
             raise UIError("Message '%s' is still missing fragments."%msgid)
         else:
-            raise MixFatalError("Can't decode message %s; I don't know why!")
+            raise MixFatalError("Can't decode message %s; I don't know why!"
+                                %msgid)
 
     def removeMessages(self, msgids):
         pool = self.__getPool()
+        idSet = {}
         for i in msgids:
-            if pool.getStateByMsgID(m) is None:
+            state = pool.getStateByMsgID(i) 
+            if state is None:
                 raise UIError("No such message as %s")
-        pool._deleteMessageIDs(msgids, "?")
+            idSet[state.messageid] = 1
+        pool._deleteMessageIDs(idSet, "?")
         pool.cleanQueue()
 
     def listMessages(self):
