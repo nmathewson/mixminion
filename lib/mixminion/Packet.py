@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.76 2004/05/14 23:44:09 nickm Exp $
+# $Id: Packet.py,v 1.77 2004/05/17 21:22:17 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -618,7 +618,7 @@ class IPV4Info:
                            self.port, self.keyinfo)
 
     def __str__(self):
-        return "IP:%s:%s:%s"(self.ip,self.port,formatBase64(self.keyinfo))
+        return "IP:%s:%s:%s"%(self.ip,self.port,formatBase64(self.keyinfo))
 
     def __repr__(self):
         return "IPV4Info(%r, %r, %r)"%(self.ip, self.port, self.keyinfo)
@@ -673,7 +673,7 @@ class MMTPHostInfo:
         return struct.pack(MMTP_HOST_PAT,self.port,self.keyinfo)+self.hostname
 
     def __str__(self):
-        return "%s:%s:%s"(self.hostname,self.port,formatBase64(self.keyinfo))
+        return "%s:%s:%s"%(self.hostname,self.port,formatBase64(self.keyinfo))
 
     def __repr__(self):
         return "MMTPHostInfo(%r, %r, %r)"%(
