@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.19 2003/01/03 08:25:47 nickm Exp $
+# $Id: ClientMain.py,v 1.20 2003/01/03 08:47:27 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -25,7 +25,6 @@ import os
 import stat
 import sys
 import time
-import types
 import urllib
 
 import mixminion.BuildMessage
@@ -33,7 +32,7 @@ import mixminion.Crypto
 import mixminion.MMTPClient
 from mixminion.Common import IntervalSet, LOG, floorDiv, MixError, \
      MixFatalError, ceilDiv, createPrivateDir, isSMTPMailbox, formatDate, \
-     formatFnameTime
+     formatFnameTime, readPossiblyGzippedFile
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
 from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo, \
@@ -74,10 +73,9 @@ class ClientKeystore:
         """Download a new directory from the network, validate it, and 
            rescan its servers."""
         # Start downloading the directory.
-        opener = URLopener()
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
-        infile = FancyURLopener().open(url)
+        infile = urllib.FancyURLopener().open(url)
         # Open a temporary output file.
         if url.endswith(".gz"):
             fname = os.path.join(self.dir, "dir_new.gz")
@@ -105,7 +103,7 @@ class ClientKeystore:
         # Make sure that the identity is as expected.
         identity = directory['Signature']['DirectoryIdentity']
         fp = MIXMINION_DIRECTORY_FINGERPRINT
-        if fp and pk_fingerprint(identity) != fp:
+        if fp and mixminion.Crypto.pk_fingerprint(identity) != fp:
             raise MixFatalError("Bad identity key on directory")
 
         try:
@@ -133,7 +131,6 @@ class ClientKeystore:
         # Read the servers from the directory.
         gzipFile = os.path.join(self.dir, "dir.gz")
         dirFile = os.path.join(self.dir, "dir")
-        f = None
         for fname in gzipFile, dirFile:
             if not os.path.exists(fname): continue
             self.lastDownload = self.lastModified = \
@@ -143,7 +140,7 @@ class ClientKeystore:
             except ConfigError:
                 LOG.warn("Ignoring invalid directory (!)")
                 continue
-            f.close()
+
             for s in directory.getServers():
                 self.serverList.append((s, 'D'))
             break
@@ -153,7 +150,7 @@ class ClientKeystore:
         createPrivateDir(serverDir)
         for fn in os.listdir(serverDir):
             # Try to read a file: is it a server descriptor?
-            p = os.path.join(self.directory, fn)
+            p = os.path.join(serverDir, fn)
             try:
                 info = ServerInfo(fname=p, assumeValid=0)
             except ConfigError:
@@ -208,7 +205,8 @@ class ClientKeystore:
         # Make sure that the identity key is consistent with what we know.
         for s, _ in self.serverList:
             if s.getNickname() == nickname:
-                if not pk_same_public_key(identity, s.getIdentity()):
+                if not mixminion.Crypto.pk_same_public_key(identity,
+                                                           s.getIdentity()):
                     raise MixError("Identity key changed for server %s in %s",
                                    nickname, filename)
         
@@ -236,9 +234,10 @@ class ClientKeystore:
                 continue
             n += 1
             try:
+                fn = source[2:]
                 os.unlink(os.path.join(self.dir, "servers", fn))
             except OSError, e:
-                Log.error("Couldn't remove %s", fn)
+                LOG.error("Couldn't remove %s: %s", fn, e)
 
         self.serverList = newList
         # Recreate cache if needed.
@@ -441,7 +440,7 @@ class ClientKeystore:
             # ... and pick one.
             LOG.info("Choosing from among %s %s servers",
                      len(endList), endCap)
-            endServers = [ self.prng.pick(endList) ]
+            endServers = [ prng.pick(endList) ]
             LOG.debug("Chose %s", endServers[0].getNickname())
             nNeeded -= 1
 
@@ -508,9 +507,9 @@ class ClientKeystore:
             raise MixError("No relays known")
         
         LOG.info("Chose path: [%s][%s][%s]",
-                 " ".join([s.getNickname() for n in startServers]),
-                 " ".join([s.getNickname() for n in midServers]),
-                 " ".join([s.getNickname() for n in endServers]))
+                 " ".join([s.getNickname() for s in startServers]),
+                 " ".join([s.getNickname() for s in midServers]),
+                 " ".join([s.getNickname() for s in endServers]))
 
         return startServers + midServers + endServers
 
@@ -998,7 +997,7 @@ def readConfigFile(configFile):
 def usageAndExit(cmd, error=None):
     #XXXX002 correct this.
     if error:
-        print >>stderr, "ERROR: %s"%error
+        print >>sys.stderr, "ERROR: %s"%error
     print >>sys.stderr, """\
 Usage: %s [-h] [-v] [-f configfile] [-i inputfile]
           [--path1=server1,server2,...]
@@ -1014,7 +1013,6 @@ def runClient(cmd, args):
                                    "to=", "hops=", "swap-at=", "path",
                                   ])
     configFile = '~/.mixminionrc'
-    usage = 0
     inFile = "-"
     verbose = 0
     path = None
@@ -1045,7 +1043,7 @@ def runClient(cmd, args):
         elif opt in ('-t', '--to'):
             address = parseAddress(val)
     if args:
-        usageEndExit(cmd,"Unexpected options")
+        usageAndExit(cmd,"Unexpected options")
     if address is None:
         usageAndExit(cmd,"No recipient specified")
 
@@ -1091,7 +1089,7 @@ def listServers(cmd, args):
     userdir = os.path.expanduser(config['User']['UserDir'])
     createPrivateDir(os.path.join(userdir, 'servers'))
 
-    keystore = TrivialKeystore(os.path.join(userdir,"servers"))
+    keystore = ClientKeystore(os.path.expanduser(config['User']['UserDir']))
         
     for line in keystore.listServers():
         print line

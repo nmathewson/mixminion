@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.27 2002/12/31 17:47:41 nickm Exp $
+# $Id: BuildMessage.py,v 1.28 2003/01/03 08:47:27 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -664,7 +664,7 @@ def uncompressData(payload, maxLength=None):
         except zlibutil.TooBigError:
             raise CompressedDataTooLong()
         except zlibutil.DecompressError, e:
-            raise ParseError("Error in compressed data")
+            raise ParseError("Error in compressed data: %s"%e)
     
     try:
         # We can't just call zlib.decompress(payload), since we may

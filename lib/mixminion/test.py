@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.54 2003/01/03 08:25:47 nickm Exp $
+# $Id: test.py,v 1.55 2003/01/03 08:47:27 nickm Exp $
 
 """mixminion.tests
 
@@ -3274,9 +3274,6 @@ IP: 192.168.0.99
         identity = Crypto.pk_generate(2048)
 
         now = time.time()
-        hourLater = now + 60*60
-        oneDay = 60*60*24
-        hours23 = 60*60*23
         dayLater = now + 60*60*24
         # Try a couple of simple inserts
         lst.importServerInfo(examples["Fred"][1]) # from day -9 through day 0.

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.3 2003/01/03 08:25:48 nickm Exp $
+# $Id: ServerList.py,v 1.4 2003/01/03 08:47:28 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -90,7 +90,7 @@ class ServerList:
         if stringContains(server, "[Server]"):
             contents = server
         else:
-            contents = readPossiblyGzippedFile(fname)
+            contents = readPossiblyGzippedFile(server)
 
         server = ServerInfo(string=contents, assumeValid=0)
 
