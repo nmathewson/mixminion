@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.124 2003/06/26 03:19:29 nickm Exp $
+# $Id: test.py,v 1.125 2003/06/26 17:43:27 nickm Exp $
 
 """mixminion.tests
 
@@ -4971,8 +4971,10 @@ class ServerKeysTests(unittest.TestCase):
         self.assertEquals(vu, keyring.getNextKeyRotation())
 
         # Check the second key we created.
-        key2time = vu+3600
-        va, vu, curKey = keyring._getLiveKeys(key2time)[0]
+        key2time = vu+3600*48
+        live = keyring._getLiveKeys(key2time)
+        self.assertEquals(len(live),1)
+        va, vu, curKey = live[0]
         self.assertEquals(va, finish)
         self.assertEquals(vu, mixminion.Common.previousMidnight(
             finish+10*24*60*60+60))
@@ -5015,7 +5017,7 @@ class ServerKeysTests(unittest.TestCase):
         # In case we started very close to midnight, remove keys as if it
         # were a little in the future; otherwise, we won't remove the
         # just-expired keys.
-        keyring.removeDeadKeys(now+360)
+        keyring.removeDeadKeys(now+24*60*60)
         self.assertEquals(3, len(keyring.keySets))
 
         if USE_SLOW_MODE:
@@ -5875,7 +5877,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(ServerKeysTests))
         return suite
 
     suite.addTest(tc(MiscTests))

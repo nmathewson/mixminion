@@ -1095,6 +1095,8 @@ def installDefaultConfig(fname):
 #ShredCommand: rm -f
 ## Use this option to specify a nonstandard entropy source.
 #EntropySource: /dev/urandom
+## Set this option to 'no' to disable permission checking
+#FileParanoia: yes
 
 [DirectoryServers]
 # Not yet implemented

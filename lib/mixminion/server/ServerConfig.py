@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.33 2003/06/05 18:41:40 nickm Exp $
+# $Id: ServerConfig.py,v 1.34 2003/06/26 17:43:27 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -57,8 +57,10 @@ class ServerConfig(mixminion.Config._ConfigFile):
             LOG.warn("Encrypted private keys not yet implemented")
         if server['PublicKeyLifetime'].getSeconds() < 24*60*60:
             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
-        if server['PublicKeyOverlap'].getSeconds() > 6*60*60:
-            raise ConfigError("PublicKeyOverlap must be <= 6 hours")
+        if server['PublicKeyOverlap'].getSeconds() < 6*60*60:
+            raise ConfigError("PublicKeyOverlap must be >= 6 hours")
+        if server['PublicKeyOverlap'].getSeconds() > 72*60*60:
+            raise ConfigError("PublicKeyOverlap must be <= 72 hours")
 
         if _haveEntry(self, 'Server', 'Mode'):
             LOG.warn("Mode specification is not yet supported.")
@@ -246,7 +248,7 @@ SERVER_SYNTAX =  {
                      'PublicKeyLifetime' : ('ALLOW', C._parseInterval,
                                             "30 days"),
                      'PublicKeyOverlap': ('ALLOW', C._parseInterval,
-                                          "5 minutes"),
+                                          "24 hours"),
                      'EncryptPrivateKey' : ('ALLOW', C._parseBoolean, "no"),
                      'Mode' : ('REQUIRE', C._parseServerMode, "local"),
                      'Nickname': ('REQUIRE', C._parseNickname, None),

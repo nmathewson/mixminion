@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.49 2003/06/25 17:03:11 arma Exp $
+# $Id: Config.py,v 1.50 2003/06/26 17:43:27 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -56,6 +56,11 @@ import binascii
 import os
 import re
 import socket # for inet_aton and error
+try:
+    import pwd
+except ImportError:
+    pwd = None
+
 from cStringIO import StringIO
 
 import mixminion.Common
@@ -368,6 +373,17 @@ def _parseFilename(s):
         s = s[1:-1]
 
     return os.path.expanduser(s)
+
+def _parseUser(s):
+    """Validation function.  Matches a username or UID.  Returns a UID."""
+    s = s.strip()
+    try:
+        return pwd.getpwnam(s)[2]
+    except (KeyError,AttributeError):
+        try:
+            return _parseInt(s)
+        except ConfigError:
+            raise ConfigError("Expected a user name or UID, but got %r",s)
 
 #----------------------------------------------------------------------
 
@@ -724,7 +740,8 @@ class ClientConfig(_ConfigFile):
         'Host' : { '__SECTION__' : ('ALLOW', None, None),
                    'ShredCommand': ('ALLOW', _parseCommand, None),
                    'EntropySource': ('ALLOW', _parseFilename, "/dev/urandom"),
-                   'TrustedUser': ('ALLOW*', None, None),
+                   'TrustedUser': ('ALLOW*', _parseUser, None),
+                   'FileParanoia': ('Allow', _parseBoolean, "yes"),
                    },
         'DirectoryServers' :
                    { '__SECTION__' : ('REQUIRE', None, None),

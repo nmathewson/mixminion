@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.51 2003/06/26 03:23:53 nickm Exp $
+# $Id: Main.py,v 1.52 2003/06/26 17:43:27 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -225,6 +225,7 @@ def main(args):
     # command implementation code, we catch all UIError exceptions here.
     commonModule = __import__('mixminion.Common', {}, {}, ['UIError'])
     uiErrorClass = getattr(commonModule, 'UIError')
+    filePermissionErrorClass = getattr(commonModule, 'MixFilePermissionError')
 
     # Read the module and function.
     command_module, command_fn = _COMMANDS[args[1]]
@@ -242,6 +243,12 @@ def main(args):
         func(commandStr, ["--help"])
     except uiErrorClass, e:
         e.dumpAndExit()
+    except filePermissionErrorClass, e:
+        print str(e)
+        print "(You can disable file permission checking by setting",
+        print "the MM_NO_FILE_PARANOIA"
+        print "environment variable."
+        sys.exit(1)
     except KeyboardInterrupt:
         print "Interrupted."
     except ImportError, e:

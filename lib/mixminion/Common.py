@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.92 2003/06/26 03:23:53 nickm Exp $
+# $Id: Common.py,v 1.93 2003/06/26 17:43:27 nickm Exp $
 
 """mixminion.Common
 
@@ -30,6 +30,7 @@ import re
 import signal
 import stat
 import statvfs
+import string
 import sys
 import threading
 import time
@@ -41,6 +42,11 @@ MessageQueue = Queue
 QueueEmpty = Empty
 del Queue
 del Empty
+
+try:
+    import pwd, grp
+except ImportError:
+    pwd = grp = None
 
 from types import StringType
 
@@ -62,6 +68,10 @@ class MixProtocolReject(MixProtocolError):
 
 class MixProtocolBadAuth(MixProtocolError):
     """Exception class for failed authentication to a server."""
+    pass
+
+class MixFilePermissionError(MixFatalError):
+    """Exception raised when a file has the wrong owner or permissions."""
     pass
 
 class UIError(MixError):
@@ -160,6 +170,31 @@ def encodeBase64(s, lineWidth=64, oneline=0):
         return "".join([ s.strip() for s in pieces ])
     else:
         return "".join(pieces)
+
+def englishSequence(lst, empty="none"):
+    """Given a sequence of items, return the sequence formatted
+       according to ordinary English conventions of punctuation.
+
+       If the list is empty, the value of 'empty' will be returned."""
+
+    if len(lst) == 0:
+        return empty
+    elif len(lst) == 1:
+        return lst[0]
+
+    punc = ", "
+    for item in lst:
+        if "," in item or stringContains(item, " and "):
+            punc = "; "
+            break
+
+    if len(lst) == 2:
+        if punc == ", ":
+            return "%s and %s" % tuple(lst)
+        else:
+            return "%s; and %s" % tuple(lst)
+    else:
+        return "%s%sand %s" % (punc.join(lst[0:-1]), punc, lst[-1])
 
 #----------------------------------------------------------------------
 # Functions to generate and parse OpenPGP-style ASCII armor
@@ -266,6 +301,46 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
     raise MixFatalError("Unreachable code somehow reached.")
 
 #----------------------------------------------------------------------
+
+#----------------------------------------------------------------------
+
+# A set of directories we've issued warnings about -- we won't check
+# them again.
+_WARNED_DIRECTORIES = {}
+# A set of directories that have checked out -- we won't check them again.
+_VALID_DIRECTORIES = {}
+# A list of user IDs
+_TRUSTED_UIDS = [ 0 ]
+
+# Flags: what standard Unix access controls should we check for?
+_CHECK_UID = 1
+_CHECK_GID = 1
+_CHECK_MODE = 1
+
+if sys.platform in ('cygwin', 'win32'):
+    # Under windows, we can't do anything sensible with permissions AFAICT.
+    _CHECK_UID = _CHECK_GID = _CHECK_MODE = 0
+elif os.environ.get("MM_NO_FILE_PARANOIA"):
+    _CHECK_UID = _CHECK_GID = _CHECK_MODE = 0
+
+def _uidToName(uid):
+    """Helper function: given a uid, return a username or descriptive
+       string."""
+    try:
+        return pwd.getpwuid(uid)[0]
+    except (KeyError, AttributeError):
+        # KeyError: no such pwent.  AttributeError: pwd module not loaded.
+        return "user %s"%uid
+
+def _gidToName(gid):
+    """Helper function: given a gid, return a groupname or descriptive string
+       """
+    try:
+        return grp.getgrgid(gid)[0]
+    except (KeyError, AttributeError):
+        # KeyError: no such grpent.  AttributeError: grp module not loaded.
+        return "group %s"%gid
+ 
 def checkPrivateFile(fn, fix=1):
     """Checks whether f is a file owned by this uid, set to mode 0600 or
        0700, and all its parents pass checkPrivateDir.  Raises MixFatalError
@@ -285,12 +360,17 @@ def checkPrivateFile(fn, fix=1):
     if not os.path.isfile(fn):
         raise MixFatalError("%s is not a regular file" % fn)
     me = os.getuid()
-    if st[stat.ST_UID] != me:
-        raise MixFatalError("File %s must have owner %s" % (fn, me))
+    if _CHECK_UID and st[stat.ST_UID] != me:
+        ownerName = _uidToName( st[stat.ST_UID])
+        myName = _uidToName(me)
+        raise MixFilePermissionError(
+            "File %s is owned by %s, but Mixminion is running as %s" 
+            % (fn, ownrerName, myName))
     mode = st[stat.ST_MODE] & 0777
-    if mode not in (0700, 0600):
+    if _CHECK_MODE and mode not in (0700, 0600):
         if not fix:
-            raise MixFatalError("Bad mode %o on file %s" % (mode & 0777, fn))
+            raise MixFilePermissionError("Bad mode %o on file %s" 
+                                         % (mode & 0777, fn))
         newmode = {0:0600,0100:0700}[(mode & 0100)]
         LOG.warn("Repairing permissions on file %s" % fn)
         os.chmod(fn, newmode)
@@ -304,13 +384,10 @@ def createPrivateDir(d, nocreate=0):
         try:
             os.makedirs(d, 0700)
         except OSError, e:
-            raise MixFatalError("Unable to create directory %s: %s" % (d, e))
+            raise MixFatalError(
+                "Unable to create directory %s: %s" % (d, e))
 
     checkPrivateDir(d)
-
-_WARNED_DIRECTORIES = {}
-_VALID_DIRECTORIES = {}
-_TRUSTED_UIDS = [ 0 ]
 
 def checkPrivateDir(d, recurse=1):
     """Check whether d is a directory owned by this uid, set to mode
@@ -330,11 +407,15 @@ def checkPrivateDir(d, recurse=1):
 
     st = os.stat(d)
     # check permissions
-    if st[stat.ST_MODE] & 0777 != 0700:
-        raise MixFatalError("Directory %s must be mode 0700" % d)
+    if _CHECK_MODE and st[stat.ST_MODE] & 0777 != 0700:
+        raise MixFilePermissionError("Directory %s must be mode 0700" % d)
 
-    if st[stat.ST_UID] != me:
-        raise MixFatalError("Directory %s has must have owner %s" %(d, me))
+    if _CHECK_UID and st[stat.ST_UID] != me:
+        ownerName = _uidToName( st[stat.ST_UID])
+        myName = _uidToName(me)
+        raise MixFilePermissionError(
+            "Directory %s is owned by %s, but Mixminion is running as %s"
+            %(d,ownerName,myName))
 
     if not recurse:
         return
@@ -351,35 +432,34 @@ def checkPrivateDir(d, recurse=1):
         st = os.stat(d)
         mode = st[stat.ST_MODE]
         owner = st[stat.ST_UID]
-        if owner not in trusted_uids:
-            raise MixFatalError("Bad owner (uid=%s) on directory %s"
-                                % (owner, d))
-        if (mode & 02) and not (mode & stat.S_ISVTX):
-            raise MixFatalError("Bad mode (%o) on directory %s" %
-                                (mode&0777, d))
+        if _CHECK_UID and owner not in trusted_uids:
+            ownerName = _uidToName(owner)
+            trustedNames = map(_uidToName,trusted_uids)
+            raise MixFilePermissionError(
+                "Directory %s is owned by %s, but I only trust %s"
+                % (d, ownerName, englishSequence(trustedNames, "(nobody)")))
+        if _CHECK_MODE and (mode & 02) and not (mode & stat.S_ISVTX):
+            raise MixFilePermissionError(
+                "Bad permissions (mode %o) on directory %s" %
+                (mode&0777, d))
 
-        if (mode & 020) and not (mode & stat.S_ISVTX):
+        if _CHECK_MODE and (mode & 020) and not (mode & stat.S_ISVTX):
             # FFFF We may want to give an even stronger error here.
-            if not _WARNED_DIRECTORIES.has_key(d):
+            if _CHECK_GID and not _WARNED_DIRECTORIES.has_key(d):
                 group = grp.getgrgid(st[stat.ST_GID])[0]
+                groupName = _gidToName(group)
                 LOG.warn("Directory %s is writable by group %s (mode %o)",
-                         d, group, mode&0777)
-            _WARNED_DIRECTORIES[d] = 1
+                         d, groupName, mode&0777)
+                _WARNED_DIRECTORIES[d] = 1
 
 def configureTrustedUsers(config):
     users = config['Host']['TrustedUser']
     if not users:
         return
+    if not _CHECK_UID:
+        return
 
-    for u in users:
-        u = u.strip()
-        try:
-            ent = pwd.getpwnam(u)
-        except KeyError:
-            LOG.warn("TrustedUser: No such user as %s", u)
-            continue
-
-        uid = ent[2]
+    for uid in users:
         _TRUSTED_UIDS.append(uid)
 
 #----------------------------------------------------------------------
