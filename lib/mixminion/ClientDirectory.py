@@ -112,7 +112,13 @@ class ClientDirectory:
         if timeout: mixminion.NetUtils.setGlobalTimeout(timeout)
         try:
             try:
-                infile = urllib2.urlopen(url)
+                # Tell HTTP proxies and their ilk not to cache the directory.
+                # Really, the directory server should set an Expires header 
+                # in its response, but that's harder.
+                request = urllib2.Request(url, 
+                          headers={ 'Pragma' : 'no-cache',
+                                    'Cache-Control' : 'no-cache', })
+                infile = urllib2.urlopen(request)
             except IOError, e:
                 raise UIError(
                     ("Couldn't connect to directory server: %s.\n"
