@@ -15,7 +15,7 @@ WARNING!  Don't use this release if you require strong anonymity.  It has
 known deficiencies, including some that make it possible for an adversary
 to trace your message through the system.
 
-IN THIS VERSION: 
+IN THIS VERSION:
    - You can run a rudimentary server that can deliver to other Mixminion
      servers, that can use Mixmaster to deliver to any external address,
      or that sends SMTP directly to a preconfigured set of addresses.
@@ -65,7 +65,7 @@ HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
      correctly on your system.  Go read contrib/openssl/INSTALL, and make
      OpenSSL build.
 
-  5) Run "make".  If you get any errors, please report them to 
+  5) Run "make".  If you get any errors, please report them to
      <nickm@freehaven.net>.
 
   6) Run "make test" to run Mixminion's unit tests.  If you get any errors,
@@ -83,9 +83,9 @@ HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
 
 HOW TO SEND AN EMAIL MESSAGE VIA MIXMINION:
  [First time only. These steps won't be necessary once v0.0.2 is out.]
-   1) Download the latest directory from 
+   1) Download the latest directory from
          http://www.mixminion.net/miniondir.tar.gz
-   2) Unpack it into your homedir; it will create the directory 
+   2) Unpack it into your homedir; it will create the directory
          "~/.mixminion/servers/".
 
  [All subsequent times. The first two steps won't be necessary once v0.0.2 is
@@ -95,7 +95,7 @@ HOW TO SEND AN EMAIL MESSAGE VIA MIXMINION:
       separated list of servers.  The last server in the second part of the
       path must support smtp.  All intermediate servers must support 'relay'.
    3) Run (type this as a single line):
-         mixminion client -t <email address> 
+         mixminion client -t <email address>
               --path1=<first part of your path>
               --path2=<second part of your path>
               -i <filename to send, or - to read from stdin>.
@@ -112,12 +112,12 @@ HOW TO RUN YOUR OWN MIXMINION SERVER:
         "mixminion server -f <path to mixminiond.conf>"
    4) {This step will change in future version once directories are supported.}
 
-      For clients to use your server, they'll need a copy of your server 
+      For clients to use your server, they'll need a copy of your server
       descriptor, which should be stored in $SERVER_HOME/keys/key_*/ServerDesc.
       For example, if your mixminiond.conf contains the following line:
            Homedir: /home/mixminion/spool
-      
-      Then your first server descriptor will be stored in 
+
+      Then your first server descriptor will be stored in
             "/home/mixminion/spool/keys/key_0001/ServerDesc".
 
       Clients should place a copy of this file, named whatever you like,

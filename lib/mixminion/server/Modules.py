@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.11 2003/01/05 01:32:45 nickm Exp $
+# $Id: Modules.py,v 1.12 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -96,10 +96,10 @@ class DeliveryModule:
            accept a tuple of: (exitType, address, tag).  If 'tag' is None,
            the message has been decrypted; if 'tag' is 'err', the message is
            corrupt; if 'tag' is 'long', the message has been decrypted, and
-           looks like a possible Zlib bomb. 
-           
+           looks like a possible Zlib bomb.
+
            Otherwise, the message is either a reply or an encrypted
-           forward message.  
+           forward message.
            """
         return SimpleModuleDeliveryQueue(self, queueDir)
 
@@ -146,7 +146,7 @@ class ImmediateDeliveryQueue:
     def cleanQueue(self):
         # There is no underlying queue to worry about here; do nothing.
         pass
-        
+
 class SimpleModuleDeliveryQueue(mixminion.server.Queue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
@@ -505,7 +505,7 @@ class EmailAddressSet:
 
         # Then it must be okay.
         return 0
-                
+
 #----------------------------------------------------------------------
 class MBoxModule(DeliveryModule):
     """Implementation for MBOX delivery: sends messages, via SMTP, to
@@ -677,13 +677,13 @@ class DirectSMTPModule(SMTPModule):
     def getConfigSyntax(self):
         return { "Delivery/SMTP" :
                  { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-                   'BlacklistFile' : ('ALLOW', None, None), 
+                   'BlacklistFile' : ('ALLOW', None, None),
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
                    'Message' : ('ALLOW', None, ""),
                    'ReturnAddress': ('ALLOW', None, None), #Required on e
                    'SubjectLine' : ('ALLOW', None,
                                     'Type-III Anonymous Message'),
-                   
+
                    }
                  }
 
@@ -720,7 +720,7 @@ class DirectSMTPModule(SMTPModule):
             self.returnAddress, subject, message)
 
         manager.enableModule(self)
-        
+
     def processMessage(self, message, tag, exitType, address):
         assert exitType == mixminion.Packet.SMTP_TYPE
         LOG.trace("Received SMTP message")
@@ -846,7 +846,7 @@ def sendSMTPMessage(server, toList, fromAddr, message):
     # FFFF local MTA.
 
     # FFFF We should leave the connection open if we're going to send many
-    # FFFF messages in a row.    
+    # FFFF messages in a row.
     LOG.trace("Sending message via SMTP host %s to %s", server, toList)
     con = smtplib.SMTP(server)
     try:
@@ -900,9 +900,9 @@ it, but it was compressed by more than a factor of 20, which makes me nervous.
 
     if msg and msg[-1] != '\n':
         extra_newline = "\n"
-    else:        
+    else:
         extra_newline = ""
-        
+
     return """\
 %s======= TYPE III ANONYMOUS MESSAGE BEGINS ========
 %s%s%s======== TYPE III ANONYMOUS MESSAGE ENDS =========

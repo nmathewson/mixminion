@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.30 2003/01/03 08:25:47 nickm Exp $
+# $Id: Config.py,v 1.31 2003/01/05 06:49:25 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -278,7 +278,7 @@ def _parseTime(s):
     m = _time_re.match(s.strip())
     if not m:
         raise ConfigError("Invalid time %r" % s)
-    
+
     yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
     if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
             (1970 <= yyyy)  and (0 <= hh < 24) and
@@ -367,7 +367,7 @@ def _readConfigFile(contents):
                 raise ConfigError("Unknown section at line %s" % lineno)
 
     return sections
-    
+
 def _readRestrictedConfigFile(contents):
     # List of (heading, [(key, val, lineno), ...])
     sections = []
@@ -399,13 +399,13 @@ def _readRestrictedConfigFile(contents):
             colonIdx = line.find(':')
             if colonIdx >= 1:
                 try:
-                    curSection.append( (line[:colonIdx].strip(), 
+                    curSection.append( (line[:colonIdx].strip(),
                                         line[colonIdx+1:].strip(), lineno) )
                 except AttributeError:
                     raise ConfigError("Unknown section at line %s" % lineno)
             else:
                 raise ConfigError("Bad Entry at line %s" % lineno)
-        
+
     return sections
 
 def _formatEntry(key,val,w=79,ind=4):
@@ -590,7 +590,7 @@ class _ConfigFile:
                     if rule in ('REQUIRE', 'REQUIRE*'):
                         raise ConfigError("Missing entry %s from section %s"
                                           % (k, secName))
-                    else:                   
+                    else:
                         if parseFn is None or default is None:
                             if rule == 'ALLOW*':
                                 section[k] = []

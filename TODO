@@ -19,7 +19,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		o Tests for SMTP module
 		o Actually try it out.
 	D Interface for reply blocks
-	. Minimal directory support
+	o Minimal directory support
 		o Make everything resistant to newline corruption
 		       o Signatures are independent of newline style
 		       o Config files are read independent of newline style.
@@ -39,11 +39,12 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Tests for CLI support
 			o Test CLI
 		o Server-side directory generation (not automated;
-	          still no automatic rotation.)	
+	          still no automatic rotation.)
 		  	o Backend
 			o CLI
 			o Tests for backend
 			o Test CLI
+		- Retest CLI one last time before shipping
 	o Path selection
 		o Implement
 		o Test backend
@@ -77,8 +78,9 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 	o Balance =-signs on "==ANONYMOUS MESSAGE BEGINS"
 	. Acknowledgments
 	o Triage XXXX'S for 002.
-	- Fix all XXXX002's.
+	. Fix all XXXX002's.
 	. Document everything
+	- Clean whitespace
 	o Make __version__ get set automatically, from only one place.
 	- Write a "whatsnew" as a part of the README.
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.23 2003/01/05 05:51:49 nickm Exp $
+# $Id: benchmark.py,v 1.24 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.benchmark
 
@@ -260,7 +260,7 @@ def cryptoTiming():
     asn1 = rsa.encode_key(1)
     print "RSA from ASN1 (public)", \
           timeit(lambda asn1=asn1: pk_decode_public_key(asn1), 10000)
-          
+
     print "RSA generate (1024 bit,e=65535)", timeit((lambda: pk_generate(1024,
                                                                   65535)),10)
     rsa = pk_generate()
@@ -356,7 +356,7 @@ def _hashlogTiming(fname, load):
         size += os.stat(fname+suffix)[stat.ST_SIZE]
 
     print "File size (%s entries)"%load, spacestr(size)
-    
+
 #----------------------------------------------------------------------
 def directoryTiming():
     print "#========== DESCRIPTORS AND DIRECTORIES =============="
@@ -384,7 +384,7 @@ IP: 1.1.1.1
 ##     for _ in xrange(2000):
 ##         ServerInfo(string=desc, assumeValid=0)
 ##     if 1: return
-    
+
     print "Parse server descriptor (no validation)", \
           timeit(lambda desc=desc: ServerInfo(string=desc,assumeValid=1),
                  400)
@@ -398,7 +398,7 @@ IP: 1.1.1.1
     dtxt = cPickle.dumps(info, 0)
     print "Unpickle text-pickled descriptor (%s/%s)"%(len(dtxt),len(desc)), \
           timeit(lambda dtxt=dtxt: cPickle.loads(dtxt), 400)
-    
+
 #----------------------------------------------------------------------
 
 def buildMessageTiming():
@@ -423,7 +423,7 @@ def buildMessageTiming():
     compressed = compressData("Hello!!!"*(128*28))
     print "Unompress (28K, 28K max)", \
           timeit(lambda c=compressed: uncompressData(c, 28<<10), 1000)
-    
+
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
     serverinfo = [FakeServerInfo("127.0.0.1", 48099, pk,"x"*20)
                   ] * 16
@@ -458,7 +458,7 @@ def buildMessageTiming():
     bm(8,1,40)
     bm(8,8,20)
     bm(16,16,10)
-    
+
 #----------------------------------------------------------------------
 class DummyLog:
     def seenHash(self,h): return 0

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.32 2003/01/05 04:29:11 nickm Exp $
+# $Id: ServerInfo.py,v 1.33 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -86,7 +86,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
              <string>.
 
            If assumeValid is true, don't bother to validate it.
-           
+
            If the (computed) digest of this descriptor is a key of the dict
               validatedDigests, assume we have already validated it, and
               pass it along.
@@ -101,7 +101,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def validate(self, sections, entries, lines, contents):
         ####
-        # Check 'Server' section.               
+        # Check 'Server' section.
         server = sections['Server']
         if server['Descriptor-Version'] != '0.1':
             raise ConfigError("Unrecognized descriptor version %r",
@@ -143,7 +143,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
             signedDigest = pk_check_signature(server['Signature'], identityKey)
         except CryptoError:
             raise ConfigError("Invalid signature")
-        
+
         if digest != signedDigest:
             raise ConfigError("Signed digest is incorrect")
 
@@ -177,7 +177,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """Returns the declared (not computed) digest of this server
            descriptor."""
         return self['Server']['Digest']
-    
+
     def getAddr(self):
         """Returns this server's IP address"""
         return self['Server']['IP']
@@ -241,7 +241,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         assert startAt < endAt
         return (self['Server']['Valid-After'] <= startAt and
                 endAt <= self['Server']['Valid-Until'])
-    
+
     def isValidAtPartOf(self, startAt, endAt):
         """Return true iff this ServerInfo is valid at some time between
            'startAt' and 'endAt'."""
@@ -293,7 +293,7 @@ class ServerDirectory:
            If validatedDigests is provided, it must be a dict whose keys
            are the digests of already-validated descriptors.  Any descriptor
            whose (calculated) digest matches doesn't need to be validated
-           again.           
+           again.
         """
         if string:
             contents = string
@@ -304,7 +304,7 @@ class ServerDirectory:
 
         # First, get the digest.  Then we can break everything up.
         digest = _getDirectoryDigestImpl(contents)
-        
+
         # This isn't a good way to do this, but what the hey.
         sections = _server_header_re.split(contents)
         del contents
@@ -365,13 +365,13 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
         identityBytes = identityKey.get_modulus_bytes()
         if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):
             raise ConfigError("Invalid length on identity key")
-        
+
         # Now, at last, we check the digest
         if self.expectedDigest != sig['DirectoryDigest']:
             raise ConfigError("Invalid digest")
 
         try:
-            signedDigest = pk_check_signature(sig['DirectorySignature'], 
+            signedDigest = pk_check_signature(sig['DirectorySignature'],
                                               identityKey)
         except CryptoError:
             raise ConfigError("Invalid signature")
@@ -427,7 +427,7 @@ def _getDigestImpl(info, regex, digestField=None, sigField=None, rsa=None):
 
     if rsa is None:
         return digest
-    
+
     signature = mixminion.Crypto.pk_sign(digest,rsa)
     digest = formatBase64(digest)
     signature = formatBase64(signature)
@@ -448,5 +448,5 @@ def _getServerInfoDigestImpl(info, rsa=None):
 
 _dir_special_line_re = re.compile(r'^Directory(?:Digest|Signature):.*$', re.M)
 def _getDirectoryDigestImpl(directory, rsa=None):
-    return _getDigestImpl(directory, _dir_special_line_re, 
+    return _getDigestImpl(directory, _dir_special_line_re,
                           "DirectoryDigest", "DirectorySignature", rsa)

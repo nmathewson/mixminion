@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.60 2003/01/05 04:29:11 nickm Exp $
+# $Id: test.py,v 1.61 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.tests
 
@@ -282,7 +282,7 @@ class MiscTests(unittest.TestCase):
                 [(1,4),(5,8),(9,21),(25,55)])
         checkEq(fromPrimeToPrime+fromFibToFib,
                 [(2,3),(5,8),(11,21),(23,29),(34,55)])
-        
+
         # Now, subtraction!
         #  1. Involving nil.
         checkEq(nil-nil, nil, [])
@@ -316,7 +316,7 @@ class MiscTests(unittest.TestCase):
             for b in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib, nil):
                 checkEq(a-b+b, a+b)
                 checkEq(a+b-b, a-b)
-        
+
         ## Test intersection
         # 1. With nil
         checkEq(nil*nil, nil*fromFibToFib, oneToTen*nil, nil, [])
@@ -333,7 +333,7 @@ class MiscTests(unittest.TestCase):
         checkEq(oneToTen*oneToTwenty, oneToTwenty*oneToTen, oneToTen)
         checkEq(tenToTwenty*oneToTwenty, oneToTwenty*tenToTwenty, tenToTwenty)
         # 7. A and B overlap without containment.
-        checkEq(fifteenToFifty*oneToTwenty, oneToTwenty*fifteenToFifty, 
+        checkEq(fifteenToFifty*oneToTwenty, oneToTwenty*fifteenToFifty,
                 [(15,20)])
         # 8. Tricky cases
         checkEq(fromPrimeToPrime*fromSquareToSquare,
@@ -349,7 +349,7 @@ class MiscTests(unittest.TestCase):
         for a in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib, oneToTen,
                   fifteenToFifty, nil):
             self.assert_((not a) == a.isEmpty() == (a == nil))
-            for b in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib, 
+            for b in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib,
                       oneToTen, fifteenToFifty, nil):
                 checkEq(a*b,b*a)
                 checkEq(a-b, a*(a-b), (a-b)*a)
@@ -578,7 +578,7 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.assert_(pk_same_public_key(p, p))
         self.assert_(not pk_same_public_key(p, getRSAKey(2,1024)))
         self.assert_(len(pk_fingerprint(p))==40)
-        self.assertNotEquals(pk_fingerprint(p), 
+        self.assertNotEquals(pk_fingerprint(p),
                              pk_fingerprint(getRSAKey(2,1024)))
         ####
         # Test key encoding
@@ -1842,7 +1842,7 @@ class BuildMessageTests(unittest.TestCase):
         nils = "\x00"*(25*1024)
         overcompressed_payload = \
              BuildMessage._encodePayload(nils, 0, AESCounterPRNG())
-        self.failUnlessRaises(BuildMessage.CompressedDataTooLong, 
+        self.failUnlessRaises(BuildMessage.CompressedDataTooLong,
              BuildMessage.decodePayload, overcompressed_payload, "X"*20)
 
         # And now the cases that fail hard.  This can only happen on:
@@ -2632,7 +2632,7 @@ class MMTPTests(unittest.TestCase):
 
         for _ in xrange(3):
             server.process(0.1)
-        
+
         self.failUnless(messagesIn == messages)
 
         # Now, with bad keyid.
@@ -2672,8 +2672,8 @@ class MMTPTests(unittest.TestCase):
         t.start()
         while len(messagesIn) < 2:
             if c is None and len(server.readers) > 1:
-                c = [ c for c in server.readers.values() if 
-                      isinstance(c, tlscon) ] 
+                c = [ c for c in server.readers.values() if
+                      isinstance(c, tlscon) ]
             server.process(0.1)
         while t.isAlive():
             server.process(0.1)
@@ -2781,7 +2781,7 @@ class MMTPTests(unittest.TestCase):
         self.assert_(isinstance(excList[0][1], _ml.TLSClosed))
 
         for _ in xrange(3):
-            server.process(0.1)        
+            server.process(0.1)
 
 #----------------------------------------------------------------------
 # Config files
@@ -3007,7 +3007,7 @@ IntRS=5
         self.assert_(floatEq(SC._parseFraction("0%"), 0))
         # Mix algorithms
         self.assertEquals(SC._parseMixRule(" Cottrell"), "CottrellMixQueue")
-        self.assertEquals(SC._parseMixRule("binomialCottrell"), 
+        self.assertEquals(SC._parseMixRule("binomialCottrell"),
                           "BinomialCottrellMixQueue")
         self.assertEquals(SC._parseMixRule("TIMED"), "TimedMixQueue")
 
@@ -3177,25 +3177,25 @@ class ServerInfoTests(unittest.TestCase):
         self.assert_(not info.isValidAt(time.time()+24*60*60*30))
 
         self.assert_(info.isValidFrom(time.time(), time.time()+60*60))
-        self.assert_(not info.isValidFrom(time.time()-25*60*60, 
+        self.assert_(not info.isValidFrom(time.time()-25*60*60,
                                           time.time()+60*60))
-        self.assert_(not info.isValidFrom(time.time()-25*60*60, 
+        self.assert_(not info.isValidFrom(time.time()-25*60*60,
                                           time.time()+24*60*60*30))
-        self.assert_(not info.isValidFrom(time.time(), 
+        self.assert_(not info.isValidFrom(time.time(),
                                           time.time()+24*60*60*30))
-        self.assert_(not info.isValidFrom(time.time()-25*60*60, 
+        self.assert_(not info.isValidFrom(time.time()-25*60*60,
                                           time.time()-23*60*60))
         self.assert_(not info.isValidFrom(time.time()+24*60*60*30,
                                           time.time()+24*60*60*31))
-        
+
         self.assert_(info.isValidAtPartOf(time.time(), time.time()+60*60))
-        self.assert_(info.isValidAtPartOf(time.time()-25*60*60, 
+        self.assert_(info.isValidAtPartOf(time.time()-25*60*60,
                                           time.time()+60*60))
-        self.assert_(info.isValidAtPartOf(time.time()-25*60*60, 
+        self.assert_(info.isValidAtPartOf(time.time()-25*60*60,
                                           time.time()+24*60*60*30))
-        self.assert_(info.isValidAtPartOf(time.time(), 
+        self.assert_(info.isValidAtPartOf(time.time(),
                                           time.time()+24*60*60*30))
-        self.assert_(not info.isValidAtPartOf(time.time()-40*60*60, 
+        self.assert_(not info.isValidAtPartOf(time.time()-40*60*60,
                                               time.time()-39*60*60))
         self.assert_(not info.isValidAtPartOf(time.time()+24*60*60*30,
                                               time.time()+24*60*60*31))
@@ -3211,7 +3211,7 @@ class ServerInfoTests(unittest.TestCase):
         inf2 = inf2.replace("b.c\n", "b.c\r\n")
         inf2 = inf2.replace("0.1\n", "0.1  \n")
         mixminion.ServerInfo.ServerInfo(string=inf2)
-        
+
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
         eq(inf, readFile(os.path.join(keydir, "ServerDesc")))
@@ -3295,7 +3295,7 @@ IP: 192.168.0.99
         baseDir = mix_mktemp()
         dirArchiveDir = os.path.join(baseDir, "dirArchive")
         lst = ServerList(baseDir)
-        
+
         identity = Crypto.pk_generate(2048)
 
         now = time.time()
@@ -3367,12 +3367,12 @@ IP: 192.168.0.99
 
         # Now try cleaning servers.   First, make sure we can't insert
         # an expired server.
-        self.failUnlessRaises(MixError, 
+        self.failUnlessRaises(MixError,
                               lst.importServerInfo, examples["Fred"][0])
         # Now, make sure we can't insert a superseded server.
         lst.importServerInfo(examples["Bob"][3])
         lst.importServerInfo(examples["Bob"][4])
-        self.failUnlessRaises(MixError, 
+        self.failUnlessRaises(MixError,
                               lst.importServerInfo, examples["Bob"][1])
         # Now, start with a fresh list, so we can try superceding bob later.
         baseDir = mix_mktemp()
@@ -3402,7 +3402,7 @@ IP: 192.168.0.99
         self.failUnlessRaises(MixError, lst.importServerInfo,
                               examples["Bob"][0], 1)
 
-        ### Now test the removal of superceded servers.  
+        ### Now test the removal of superceded servers.
         # Clean out archiveDir first so we can see what gets removed.
         os.unlink(os.path.join(archiveDir, os.listdir(archiveDir)[0]))
         # Add a bunch of unconflicting Bobs.
@@ -3593,7 +3593,7 @@ IP: 1.0.0.1
         # (first, erase the pending message.)
         manager.queues[exampleMod.getName()].removeAll()
         manager.queues[exampleMod.getName()]._rescan()
-        
+
         p = "For whom is the funhouse fun?"*8192
         msg = mixminion.BuildMessage._encodePayload(
             p, 0, Crypto.getCommonPRNG())
@@ -3602,7 +3602,7 @@ IP: 1.0.0.1
         self.assertEquals(len(exampleMod.processedAll), 0)
         manager.sendReadyMessages()
         self.assertEquals(len(exampleMod.processedAll), 1)
-        self.assertEquals(exampleMod.processedAll[0], 
+        self.assertEquals(exampleMod.processedAll[0],
             (BuildMessage.compressData(p), 'long', 1234, "Buenas noches"))
 
         # Check serverinfo generation.
@@ -3744,7 +3744,7 @@ class ModuleTests(unittest.TestCase):
         def hasNo(set, item, self=self):
             self.assert_(isSMTPMailbox(item), "Invalid address "+item)
             self.failIf(set.contains(item), "Set should not contain "+item)
-            
+
         # Basic functionality: Match what we're supposed to match
         set = EmailAddressSet(string=EXAMPLE_ADDRESS_SET)
         for _ in 1,2:
@@ -3807,7 +3807,7 @@ class ModuleTests(unittest.TestCase):
         bad("user")
         bad("pattern")
         bad("subdomains")
-    
+
     def testMixmasterSMTP(self):
         """Check out the SMTP-Via-Mixmaster module.  (We temporarily relace
            os.spawnl with a stub function so that we don't actually send
@@ -3859,24 +3859,24 @@ class ModuleTests(unittest.TestCase):
            with a stub function so that we don't actually send anything.)"""
         blacklistFile = mix_mktemp()
         writeFile(blacklistFile, "Domain wangafu.net\nUser fred\n")
-        
+
         manager = self.getManager("""[Delivery/SMTP]
 Enabled: yes
 SMTPServer: nowhere
 BlacklistFile: %s
-Message: Avast ye mateys!  Prepare to be anonymized!  
+Message: Avast ye mateys!  Prepare to be anonymized!
 ReturnAddress: yo.ho.ho@bottle.of.rum
 SubjectLine: Arr! This be a Type-III Anonymous Message
         """ % blacklistFile)
-        
+
         module = manager.nameToModule["SMTP"]
         queue = manager.queues["SMTP"]
         queueMessage = queue.queueDeliveryMessage
-                        
+
 
         # Make sure blacklist got read.
         self.assert_(module.blacklist.contains("nobody@wangafu.net"))
-        
+
         # Stub out sendSMTPMessage.
         replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
                         lambda *args: mixminion.server.Modules.DELIVER_OK)
@@ -3884,7 +3884,7 @@ SubjectLine: Arr! This be a Type-III Anonymous Message
             haiku = ("Hidden, we are free\n"+
                      "Free to speak, to free ourselves\n"+
                      "Free to hide no more.")
-            
+
             # Try queueing a valild message and sending it.
             queueMessage((SMTP_TYPE, "users@everywhere", None), haiku)
             self.assertEquals(getReplacedFunctionCallLog(), [])
@@ -4207,12 +4207,12 @@ class ServerMainTests(unittest.TestCase):
 
         # Test pool configuration
         pool = MixPool(configTimed, mixDir)
-        self.assert_(isinstance(pool.queue, 
+        self.assert_(isinstance(pool.queue,
                                 mixminion.server.Queue.TimedMixQueue))
         self.assertEquals(pool.getNextMixTime(100), 100+2*60*60)
 
         pool = MixPool(configCottrell, mixDir)
-        self.assert_(isinstance(pool.queue, 
+        self.assert_(isinstance(pool.queue,
                                 mixminion.server.Queue.CottrellMixQueue))
         self.assertEquals(pool.getNextMixTime(100), 100+12*60*60)
         self.assertEquals(pool.queue.minPool, 10)
@@ -4220,13 +4220,13 @@ class ServerMainTests(unittest.TestCase):
         self.assert_(floatEq(pool.queue.sendRate, .4))
 
         pool = MixPool(configBCottrell, mixDir)
-        self.assert_(isinstance(pool.queue, 
+        self.assert_(isinstance(pool.queue,
                              mixminion.server.Queue.BinomialCottrellMixQueue))
         self.assertEquals(pool.getNextMixTime(100), 100+6*60*60)
         self.assertEquals(pool.queue.minPool, 10)
         self.assertEquals(pool.queue.minSend, 1)
         self.assert_(floatEq(pool.queue.sendRate, .4))
-        
+
         # FFFF test other mix pool behavior
 
 #----------------------------------------------------------------------
@@ -4416,7 +4416,7 @@ class ClientMainTests(unittest.TestCase):
             [os.path.join(impdirname, s) for s in
              ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
               "Bob3", "Bob4", "Lisa1") ], identity)
-        
+
         # Replace the real URL and fingerprint with the ones we have; for
         # unit testing purposes, we can't rely on an http server.
         mixminion.ClientMain.MIXMINION_DIRECTORY_URL = "file://%s"%fname
@@ -4542,7 +4542,7 @@ class ClientMainTests(unittest.TestCase):
             ks2.importFromFile(os.path.join(impdirname, "Alice0"))
             ks2.importFromFile(os.path.join(impdirname, "Lisa1"))
             ks2.importFromFile(os.path.join(impdirname, "Bob0"))
-            
+
             p = ks2.getPath(length=9)
             eq(9, len(p))
             self.failIf(nRuns([s.getNickname() for s in p]))
@@ -4563,7 +4563,7 @@ class ClientMainTests(unittest.TestCase):
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(7, len(p))
             self.assertSameSD(joe[0], p[-1])
-            
+
             # 2c. With 2 servers
             ks2.expungeByNickname("Alice")
             ks2.expungeByNickname("Bob")
@@ -4611,11 +4611,11 @@ class ClientMainTests(unittest.TestCase):
         eq(5, len(p))
         self.assertSameSD(p[-1], lola[1]) # Only Lola has MBOX
         self.assertSameSD(p[0], alice[0])
-        
+
         p = ks.getPath(length=5, endCap="mbox", midCap="relay",
                        endServers=("Alice",))
         eq(5, len(p))
-        self.assertSameSD(p[-1], alice[0]) # We ignore endCap with endServers 
+        self.assertSameSD(p[-1], alice[0]) # We ignore endCap with endServers
 
         ### Now try parsePath.  This should exercise resolvePath as well.
         ppath = mixminion.ClientMain.parsePath
@@ -4623,7 +4623,7 @@ class ClientMainTests(unittest.TestCase):
         email = paddr("smtp:lloyd@dobler.com")
         mboxWithServer = paddr("mbox:Granola@Lola")
         mboxWithoutServer = paddr("mbox:Granola")
-        
+
         alice = ks.getServerInfo("Alice")
         fred = ks.getServerInfo("Fred")
         bob = ks.getServerInfo("Bob")
@@ -4670,7 +4670,7 @@ class ClientMainTests(unittest.TestCase):
         pathIs((p1,p2), ((alice,fred),(bob,lola)))
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob", mboxWithServer, nSwap=0)
         pathIs((p1,p2), ((alice,),(fred,bob,lola)))
-                      
+
         # 1b. Colon, no star
         p1,p2 = ppath(ks, None, "Alice:Fred,Joe", email)
         pathIs((p1,p2), ((alice,),(fred,joe)))
@@ -4686,7 +4686,7 @@ class ClientMainTests(unittest.TestCase):
         pathIs((p1,p2), ((alice,bob,fred),(joe,lola)))
         p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Lola", mboxWithoutServer)
         pathIs((p1,p2), ((alice,bob,fred),(lola,)))
-        
+
         # 1c. Star, no colon
         p1,p2 = ppath(ks, None, 'Alice,*,Joe', email, nHops=5)
         self.assert_(allUnique([s.getNickname() for s in p1+p2]))
@@ -4702,7 +4702,7 @@ class ClientMainTests(unittest.TestCase):
         self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p1[1],p2[-1]), (alice, bob, joe))
         eq((len(p1),len(p2)), (3,3))
-        
+
         p1,p2 = ppath(ks, None, '*,Bob,Joe', email) #default nHops=6
         self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p2[-2],p2[-1]), (bob, joe))
@@ -4717,18 +4717,18 @@ class ClientMainTests(unittest.TestCase):
         self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (3,3))
-        
+
         # 1d. Star and colon
         p1,p2 = ppath(ks, None, 'Bob:*,Alice', mboxWithServer)
         self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (1,5))
-        
+
         p1,p2 = ppath(ks, None, 'Bob,*:Alice', mboxWithServer)
         self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (4,2))
-        
+
         p1,p2 = ppath(ks, None, 'Bob,*,Joe:Alice', mboxWithServer)
         self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p1[-1],p2[-2],p2[-1]), (bob, joe, alice, lola))
@@ -4772,7 +4772,7 @@ class ClientMainTests(unittest.TestCase):
         raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=4)
         # Nonexistant file
         raises(MixError, ppath, ks, None, "./Pierre:Alice,*", email)
-        
+
         ## Try 'expungeByNickname'.
         # Zapping 'Lisa' does nothing, since she's in the directory...
         ks.expungeByNickname("Lisa")

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.3 2003/01/05 04:29:11 nickm Exp $
+# $Id: DirMain.py,v 1.4 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -19,7 +19,7 @@ from mixminion.Crypto import init_crypto, pk_fingerprint, pk_generate, \
      pk_PEM_load, pk_PEM_save
 from mixminion.directory.ServerList import ServerList
 
-USAGE = """%s -d <directory> command 
+USAGE = """%s -d <directory> command
    Where 'command' is one of:
       import <serverinfo>      [Import a descriptor for a known server]
       import-new <serverinfo>  [Import a descriptor for a new server]
@@ -41,7 +41,7 @@ def getIdentity(baseDir):
         return key
     else:
         return pk_PEM_load(fname)
-    
+
 def usageAndExit(cmd):
     """Print a usage message and exit"""
     print >>sys.stderr, USAGE%cmd
@@ -63,7 +63,7 @@ def cmd_generate(cmd, base, rest):
     if len(rest) != 0: usageAndExit(cmd)
     lst = ServerList(base)
     key = getIdentity(base)
-    # XXXX Until we have support for automatic directory generation, we 
+    # XXXX Until we have support for automatic directory generation, we
     # XXXX set the validity time to be pretty long: 2 months.
     now = time.time()
     twoMonthsLater = now + 60*60*24*30*2
@@ -95,7 +95,7 @@ def cmd_export(cmd, base, rest):
         shutil.copy(fname, rest[0])
         print >>sys.stderr, "Exported."
 
-def cmd_remove(cmd, base, rest): 
+def cmd_remove(cmd, base, rest):
     if len(rest) != 1: usageAndExit(cmd)
     lst = ServerList(base)
     lst.expungeServersByNickname(rest[0])

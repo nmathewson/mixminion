@@ -1,10 +1,10 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.5 2003/01/04 04:12:51 nickm Exp $
+# $Id: ServerList.py,v 1.6 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.directory.ServerList
 
    Implements a store of sererinfos for a diectory.
-   
+
    FFFF Right now, this is about maximally slow.  There are a lot of tricks
    FFFF we could do to speed it up: not revalidating servers in our cache;
    FFFF pickling serverinfo objects for easy access, and so on.  But
@@ -21,7 +21,7 @@ import time
 from mixminion.Crypto import pk_encode_public_key, pk_same_public_key
 from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
      formatBase64, formatDate, formatFnameTime, formatTime, openUnique, \
-     previousMidnight, readPossiblyGzippedFile, stringContains     
+     previousMidnight, readPossiblyGzippedFile, stringContains
 from mixminion.Config import ConfigError
 from mixminion.ServerInfo import ServerDirectory, ServerInfo, \
      _getDirectoryDigestImpl
@@ -36,7 +36,7 @@ class ServerList:
           -- it is inconsistent (We already know a descriptor for this
              nickname, with a different identity key.)
              [FFFF This check will become stricter in the future.]
-          
+
        This implementation isn't terribly optimized, but there's no need to
        optimize it until we have far more descriptors to worry about.
     """
@@ -76,17 +76,17 @@ class ServerList:
         createPrivateDir(self.archiveDir)
         createPrivateDir(self.dirArchiveDir)
         self.rescan()
-        
+
     def importServerInfo(self, server, knownOnly=0):
         """Insert a ServerInfo into the list.  If the server is expired, or
-           superseded, or inconsistent, raise a MixError. 
-           
+           superseded, or inconsistent, raise a MixError.
+
            server -- a string containing the descriptor, or the name of a
                file containing the descriptor (possibly gzip'd)
            knownOnly -- if true, raise MixError is we don't already have
                a descriptor with this nickname.
         """
-        # Raises ConfigError, MixError, 
+        # Raises ConfigError, MixError,
         if stringContains(server, "[Server]"):
             contents = server
         else:
@@ -119,7 +119,7 @@ class ServerList:
             if server.isSupersededBy(
                [ self.servers[fn] for fn in self.serversByNickname[nickname]]):
                 raise MixError("Server descriptor is superseded")
-        
+
         newFile = nickname+"-"+formatFnameTime()
         f, newFile = openUnique(os.path.join(self.serverDir, newFile))
         newFile = os.path.split(newFile)[1]
@@ -172,7 +172,7 @@ class ServerList:
             f = open(os.path.join(self.serverDir, fn), 'r')
             contents.append(f.read())
             f.close()
-        
+
         #FFFF Support for multiple signatures
         header = """\
         [Directory]
@@ -184,8 +184,8 @@ class ServerList:
         DirectoryIdentity: %s
         DirectoryDigest:
         DirectorySignature:
-        """ % (formatTime(publicationTime), 
-               formatDate(startAt), 
+        """ % (formatTime(publicationTime),
+               formatDate(startAt),
                formatDate(endAt),
                formatBase64(pk_encode_public_key(identityKey)))
 
@@ -203,7 +203,7 @@ class ServerList:
             for s in parsed.getServers():
                 foundDigests[s['Server']['Digest']] = 1
             assert foundDigests == includedDigests
-            
+
         f = open(os.path.join(self.baseDir, "directory"), 'w')
         f.write(directory)
         f.close()
@@ -228,7 +228,7 @@ class ServerList:
         removed = {} # Map from filename->whyRemoved
         # Find all superseded servers
         for name, servers in self.serversByNickname.items():
-            servers = [ (self.servers[fn]['Server']['Published'], 
+            servers = [ (self.servers[fn]['Server']['Published'],
                         fn, self.servers[fn]) for fn in servers ]
             servers.sort()
             fns = [ fn for _, fn, _ in servers]
@@ -245,7 +245,7 @@ class ServerList:
                 # The descriptor is expired.
                 name = s.getNickname()
                 removed[fn] = "expired"
-       
+
         # This is a kinda nasty hack: we never remove the last descriptor for
         # a given nickname.  If we did, we would lose track of the server's
         # identity key.
@@ -253,16 +253,16 @@ class ServerList:
             nRemoved = len([fn for fn in fns if removed.has_key(fn)])
             if nRemoved < len(fns):
                 continue
-            # We're about to remove all the descriptors--that's bad! 
-            # We find the most recent one, and remove it from but 
-            servers = [ (self.servers[fn]['Server']['Published'], 
+            # We're about to remove all the descriptors--that's bad!
+            # We find the most recent one, and remove it from but
+            servers = [ (self.servers[fn]['Server']['Published'],
                          fn, self.servers[fn]) for fn in fns ]
             servers.sort()
             fn = servers[-1][1]
             LOG.info("Retaining %s descriptor %s -- it's the last one for %s",
                      removed[fn], fn, name)
             del removed[fn]
- 
+
         # Now, do the actual removing.
         for fn, why in removed.items():
             LOG.info("Removing %s descriptor %s", why, fn)
@@ -271,8 +271,8 @@ class ServerList:
 
             del self.servers[fn]
 
-        self.__buildNicknameMap()        
-    
+        self.__buildNicknameMap()
+
     def rescan(self):
         """Reconstruct this ServerList object's internal state."""
         self.servers = {}

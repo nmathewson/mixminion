@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.24 2003/01/05 05:15:03 nickm Exp $
+# $Id: ClientMain.py,v 1.25 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -67,9 +67,9 @@ class ClientKeystore:
     # DIR/imported/: A directory of server descriptors.
 
     MAGIC = "ClientKeystore-0"
-    # 
+    #
     DEFAULT_REQUIRED_LIFETIME = 3600
-    
+
     def __init__(self, directory):
         """Create a new ClientKeystore to keep directories and descriptors
            under <directory>."""
@@ -81,7 +81,7 @@ class ClientKeystore:
         self.__load()
         self.clean()
 
-        # Mixminion 0.0.1 used an obsolete directory-full-of-servers in 
+        # Mixminion 0.0.1 used an obsolete directory-full-of-servers in
         #   DIR/servers.  If there's nothing there, we remove it.  Otherwise,
         #   we warn.
         sdir = os.path.join(self.dir,"servers")
@@ -106,9 +106,9 @@ class ClientKeystore:
             self.downloadDirectory()
         else:
             LOG.debug("Directory is up to date.")
-        
+
     def downloadDirectory(self):
-        """Download a new directory from the network, validate it, and 
+        """Download a new directory from the network, validate it, and
            rescan its servers."""
         # Start downloading the directory.
         url = MIXMINION_DIRECTORY_URL
@@ -156,11 +156,11 @@ class ClientKeystore:
         else:
             os.rename(fname, os.path.join(self.dir, "dir"))
 
-        # And regenerate the cache. 
+        # And regenerate the cache.
         self.rescan()
         # FFFF Actually, we could be a bit more clever here, and same some
         # FFFF time. But that's for later.
-        
+
     def rescan(self, force=None, now=None):
         """Regenerate the cache based on files on the disk."""
         self.lastModified = self.lastDownload = -1
@@ -235,7 +235,7 @@ class ClientKeystore:
         if self.__scanning:
             raise MixFatalError("Recursive error while regenerating cache")
         self.rescan()
-        
+
     def __save(self):
         """Helper method. Recreate the cache on disk."""
         fname = os.path.join(self.dir, "cache.new")
@@ -253,7 +253,7 @@ class ClientKeystore:
 
     def importFromFile(self, filename):
         """Import a new server descriptor stored in 'filename'"""
-        
+
         contents = readPossiblyGzippedFile(filename)
         info = ServerInfo(string=contents, validatedDigests=self.digestMap)
 
@@ -279,7 +279,7 @@ class ClientKeystore:
         if self.byNickname.has_key(nickname):
             if info.isSupersededBy([s for s, _ in self.byNickname[nickname]]):
                 raise MixError("Server descriptor is superseded")
-        
+
         # Copy the server into DIR/servers.
         fnshort = "%s-%s"%(nickname, formatFnameTime())
         fname = os.path.join(self.dir, "imported", fnshort)
@@ -324,7 +324,7 @@ class ClientKeystore:
         """
         self.byNickname = {}
         self.allServers = []
-        self.byCapability = { 'mbox': [], 
+        self.byCapability = { 'mbox': [],
                               'smtp': [],
                               'relay': [],
                               None: self.allServers }
@@ -372,7 +372,7 @@ class ClientKeystore:
     def __find(self, lst, startAt, endAt):
         """Helper method.  Given a list of (ServerInfo, where), return all
            elements that are valid for all time between startAt and endAt.
-           
+
            Only one element is returned for each nickname; if multiple
            elements with a given nickname are valid over the given time
            interval, the most-recently-published one is included.
@@ -413,7 +413,7 @@ class ClientKeystore:
                     LOG.info("Couldn't remove %s: %s", where[2:], e)
             else:
                 # Don't scratch non-superseded, non-expired servers.
-                newServers.append((info, where))            
+                newServers.append((info, where))
 
         if len(self.serverList) != len(newServers):
             self.serverList = newServers
@@ -421,10 +421,10 @@ class ClientKeystore:
             self.__rebuildTables()
 
     def getServerInfo(self, name, startAt=None, endAt=None, strict=0):
-        """Return the most-recently-published ServerInfo for a given 
-           'name' valid over a given time range.  If strict, and no 
+        """Return the most-recently-published ServerInfo for a given
+           'name' valid over a given time range.  If strict, and no
            such server is found, return None.
-           
+
            name -- A ServerInfo object, a nickname, or a filename.
            """
 
@@ -465,13 +465,13 @@ class ClientKeystore:
            >= 'length' hops, path, beginning with startServers and ending with
            endServers.  If more servers are required to make up 'length' hops,
            they are selected at random.
-          
+
            All servers are chosen to be valid continuously from startAt to
            endAt.  All newly-selected servers except the last are required to
            have 'midCap' (typically 'relay'); the last server (if endServers
            is not set) is selected to have 'endCap' (typically 'mbox' or
            'smtp').
-           
+
            The path selection algorithm is a little complicated, but gets
            more reasonable as we know about more servers.
         """
@@ -481,9 +481,9 @@ class ClientKeystore:
             endAt = startAt + self.DEFAULT_REQUIRED_LIFETIME
         if prng is None:
             prng = mixminion.Crypto.getCommonPRNG()
-        
+
         # Look up the manditory servers.
-        startServers = [ self.getServerInfo(name,startAt,endAt,1) 
+        startServers = [ self.getServerInfo(name,startAt,endAt,1)
                          for name in startServers ]
         endServers = [ self.getServerInfo(name,startAt,endAt,1)
                        for name in endServers ]
@@ -492,7 +492,7 @@ class ClientKeystore:
         nNeeded = 0
         if length:
             nNeeded = length - len(startServers) - len(endServers)
-        
+
         if nNeeded <= 0:
             return startServers + endServers
 
@@ -504,7 +504,7 @@ class ClientKeystore:
                 raise MixError("No %s servers known" % endCap)
             # ... and pick one that hasn't been used, if possible.
             used = [ info.getNickname() for info in startServers ]
-            unusedEndList = [ info for info in endList 
+            unusedEndList = [ info for info in endList
                               if info.getNickname() not in used ]
             if unusedEndList:
                 endServers = [ prng.pick(unusedEndList) ]
@@ -520,20 +520,20 @@ class ClientKeystore:
         # This is hard.  We need to find a number of relay servers for
         # the midddle of the list.  If len(candidates) > length, we should
         # remove all servers that already appear, and shuffle from the
-        # rest.  Otherwise, if len(candidates) >= 3, we pick one-by-one from 
+        # rest.  Otherwise, if len(candidates) >= 3, we pick one-by-one from
         # the list of possibilities, just making sure not to get 2 in a row.
         # Otherwise, len(candidates) <= 3, so we just wing it.
         #
         # FFFF This algorithm is far from ideal, but the answer is to
         # FFFF get more servers deployed.
-        
+
         # Find our candidate servers.
         midList = self.__find(self.byCapability[midCap],startAt,endAt)
         # Which of them are we using now?
-        used = [ info.getNickname() 
+        used = [ info.getNickname()
                  for info in list(startServers)+list(endServers) ]
         # Which are left?
-        unusedMidList = [ info for info in midList 
+        unusedMidList = [ info for info in midList
                           if info.getNickname() not in used ]
         if len(unusedMidList) >= nNeeded:
             # We have enough enough servers to choose without replacement.
@@ -554,7 +554,7 @@ class ClientKeystore:
             else:
                 endNickname = " (impossible nickname) "
 
-            while nNeeded: 
+            while nNeeded:
                 info = prng.pick(midList)
                 n = info.getNickname()
                 if n != prevNickname and (nNeeded > 1 or n != endNickname):
@@ -562,7 +562,7 @@ class ClientKeystore:
                     prevNickname = n
                     nNeeded -= 1
         elif len(midList) == 2:
-            # We have enough servers to concoct a path that at least 
+            # We have enough servers to concoct a path that at least
             # _sometimes_ doesn't go to the same server twice in a row.
             LOG.warn("Not enough relays to avoid same-server hops")
             midList = prng.shuffle(midList)
@@ -608,11 +608,11 @@ def resolvePath(keystore, address, enterPath, exitPath,
     else:
         exitCap = None
 
-    # We have a normally-specified path. 
+    # We have a normally-specified path.
     if exitNode is not None:
         exitPath = exitPath[:]
         exitPath.append(exitNode)
-        
+
     path = keystore.getPath(length=nHops,
                             startServers=enterPath,
                             endServers=exitPath,
@@ -626,7 +626,7 @@ def resolvePath(keystore, address, enterPath, exitPath,
     if exitCap and exitCap not in path[-1].getCaps():
         raise MixError("Server %s does not support %s"
                        % (path[-1].getNickname(), exitCap))
- 
+
     if nSwap is None:
         nSwap = ceilDiv(len(path),2)-1
 
@@ -635,11 +635,11 @@ def resolvePath(keystore, address, enterPath, exitPath,
         raise MixError("Each leg of the path must have at least 1 hop")
     return path1, path2
 
-def parsePath(keystore, config, path, address, nHops=None, 
+def parsePath(keystore, config, path, address, nHops=None,
               nSwap=None, startAt=None, endAt=None):
     """Resolve a path as specified on the command line.  Returns a
        (path-leg-1, path-leg-2) tuple.
-       
+
        keystore -- the keystore to use.
        config -- unused for now.
        path -- the path, in a format described below.  If the path is
@@ -658,9 +658,9 @@ def parsePath(keystore, config, path, address, nHops=None,
        You can use a colon as a separator to divides the first leg of the path
        from the second:
              'foo,bar:baz,quux'.
-       If nSwap and a colon are both used, they must match, or MixError is 
+       If nSwap and a colon are both used, they must match, or MixError is
        raised.
-       
+
        You can use a star to specify a fill point where randomly-selected
        servers will be added:
              'foo,bar,*,quux'.
@@ -672,7 +672,7 @@ def parsePath(keystore, config, path, address, nHops=None,
     """
     if not path:
         path = '*'
-        
+
     # Turn 'path' into a list of server names, '*', and '*swap*'.
     #  (* is not a valid nickname character, so we're safe.)
     path = path.replace(":", ",*swap*,").split(",")
@@ -698,7 +698,7 @@ def parsePath(keystore, config, path, address, nHops=None,
             swapPos = idx
         else:
             cur.append(ent)
-    
+
     # Now, we set the variables myNHops and myNSwap to the values of
     # nHops and nSwap (if any) implicit in the parsed path.
     if starPos is None:
@@ -710,7 +710,7 @@ def parsePath(keystore, config, path, address, nHops=None,
             myNHops = config['Security'].get("PathLength", 6)
         else:
             myNHops = 6
-            
+
 
     if swapPos is None:
         # a,b,c,d or a,b,*,c
@@ -807,7 +807,7 @@ class MixminionClient:
                the path, respectively."""
 
         message, firstHop = \
-                 self.generateForwardMessage(address, payload, 
+                 self.generateForwardMessage(address, payload,
                                              servers1, servers2)
 
         self.sendMessages([message], firstHop)
@@ -915,7 +915,7 @@ def readConfigFile(configFile):
     configFile = os.path.expanduser(configFile)
 
     if not os.path.exists(configFile):
-        installDefaultConfig(configFile)    
+        installDefaultConfig(configFile)
 
     try:
         return ClientConfig(fname=configFile)
@@ -1006,10 +1006,11 @@ def runClient(cmd, args):
     mixminion.Common.configureShredCommand(config)
     mixminion.Crypto.init_crypto(config)
 
-    keystore = ClientKeystore(os.path.expanduser(config['User']['UserDir']))
+    userdir = os.path.expanduser(config['User']['UserDir'])
+    keystore = ClientKeystore(userdir)
     if download != 0:
         keystore.updateDirectory(forceDownload=download)
-    
+
     try:
         path1, path2 = parsePath(keystore, config, path, address, nHops, nSwap)
         LOG.info("Chose path: [%s][%s]",
@@ -1044,7 +1045,7 @@ def importServer(cmd, args):
 
     config = readConfigFile(configFile)
     userdir = os.path.expanduser(config['User']['UserDir'])
-    keystore = ClientKeystore(os.path.expanduser(config['User']['UserDir']))
+    keystore = ClientKeystore(userdir)
 
     for filename in args:
         print "Importing from", filename
@@ -1066,9 +1067,9 @@ def listServers(cmd, args):
             configFile = v
 
     config = readConfigFile(configFile)
-    userdir = os.path.expanduser(config['User']['UserDir'])
 
-    keystore = ClientKeystore(os.path.expanduser(config['User']['UserDir']))
-        
+    userdir = os.path.expanduser(config['User']['UserDir'])
+    keystore = ClientKeystore(userdir)
+
     for line in keystore.listServers():
         print line

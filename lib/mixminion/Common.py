@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.44 2003/01/05 04:29:11 nickm Exp $
+# $Id: Common.py,v 1.45 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.Common
 
@@ -509,7 +509,7 @@ LOG = Log('WARN')
 class LogStream:
     """Replacement for stdout or stderr when running in daemon mode;
        sends all output to log.
-       
+
        We don't actually want to use these; but they keep us from dropping
        prints on the floor.
        """
@@ -616,7 +616,7 @@ class IntervalSet:
         depth = 0
         newEdges = [ ('X', 'X') ] #marker value; will be removed.
         for t, e in edges:
-            # Traverse the edges in order; keep track of how many more 
+            # Traverse the edges in order; keep track of how many more
             # +'s we have seen than -'s.  Whenever that number increases
             # above nMin, add a +.  Whenever that number drops below nMin,
             # add a - ... but if the new edge would cancel out the most
@@ -666,7 +666,7 @@ class IntervalSet:
     def isEmpty(self):
         """Return true iff this set contains no points"""
         return len(self.edges) == 0
-    
+
     def __nonzero__(self):
         """Return true iff this set contains some points"""
         return len(self.edges) != 0
@@ -674,7 +674,7 @@ class IntervalSet:
     def __repr__(self):
         s = [ "(%s,%s)"%(start,end) for start, end in self.getIntervals() ]
         return "IntervalSet([%s])"%",".join(s)
-    
+
     def getIntervals(self):
         """Returns a list of (start,end) tuples for a the intervals in this
            set."""
@@ -682,9 +682,9 @@ class IntervalSet:
         for i in range(0, len(self.edges), 2):
             s.append((self.edges[i][0], self.edges[i+1][0]))
         return s
-            
+
     def _checkRep(self):
-        """Helper function: raises AssertionError if this set's data is 
+        """Helper function: raises AssertionError if this set's data is
            corrupted."""
         assert (len(self.edges) % 2) == 0
         for i in range(0, len(self.edges), 2):
@@ -704,7 +704,7 @@ class IntervalSet:
     def end(self):
         """Return the last point contained in this interval."""
         return self.edges[-1][0]
-        
+
 #----------------------------------------------------------------------
 # SMTP address functionality
 
@@ -814,7 +814,7 @@ def installSignalHandlers(child=1,hup=1,term=1):
 # File helpers.
 
 def readPossiblyGzippedFile(fname, mode='r'):
-    """Read the contents of the file <fname>.  If <fname> ends with ".gz", 
+    """Read the contents of the file <fname>.  If <fname> ends with ".gz",
        treat it as a gzipped file."""
     f = None
     try:

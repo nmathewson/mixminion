@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.21 2003/01/03 15:56:30 nickm Exp $
+# $Id: setup.py,v 1.22 2003/01/05 06:49:24 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -50,7 +50,7 @@ if initCorrected != initFile:
     f = open("lib/mixminion/__init__.py", 'w')
     f.write(initCorrected)
     f.close()
-    
+
 #======================================================================
 # Install unittest if python doesn't provide it. (This is a 2.0 issue)
 try:
@@ -136,12 +136,12 @@ class runMMCommand(Command):
 
     def initialize_options(self):
         self.subcommand = "unittests"
-        
+
     def finalize_options(self):
         build = self.get_finalized_command('build')
         self.build_purelib = build.build_purelib
         self.build_platlib = build.build_platlib
-        
+
     def run(self):
         self.run_command('build')
         old_path = sys.path
@@ -151,7 +151,7 @@ class runMMCommand(Command):
             minion.Main.main(["mixminion.Main", self.subcommand])
         finally:
             sys.path = old_path
-        
+
 #======================================================================
 # Now, tell setup.py how to cope.
 import distutils.core

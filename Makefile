@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.26 2003/01/05 04:16:49 nickm Exp $
+# $Id: Makefile,v 1.27 2003/01/05 06:49:24 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -33,7 +33,7 @@ FINDPYTHON = \
 	   echo "WARNING: $$PYTHON doesn't seem to be version 2 or later.";  \
 	   echo ' If this fails, please set the PYTHON environment variable.';\
 	fi                                                                   \
-   fi 
+   fi
 
 #
 # Here are the real make targets.
@@ -181,6 +181,11 @@ xxxx:
 xxxx002:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
 	   | xargs -0 grep 'XXXX00[12]\|FFFF00[12]\|DOCDOC\|????00[12]'
+
+eolspace:
+	perl -i.bak -pe 's/\s*\n$$/\n/;' ACKS HACKING LICENSE MANIFEST.in \
+		Makefile README TODO pycheckrc setup.py src/*.[ch] \
+		lib/mixminion/*.py lib/mixminion/*/*.py
 
 longlines:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \

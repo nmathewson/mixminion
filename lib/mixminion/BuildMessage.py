@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.30 2003/01/05 01:27:12 nickm Exp $
+# $Id: BuildMessage.py,v 1.31 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -33,7 +33,7 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 
         Neither path1 nor path2 may be empty.  If one is, MixError is raised.
     """
-    if paddingPRNG is None: 
+    if paddingPRNG is None:
         paddingPRNG = Crypto.getCommonPRNG()
     if not path1:
         raise MixError("First leg of path is empty")
@@ -68,7 +68,7 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
             paddingPRNG: random number generator used to generate padding.
                   If None, a new PRNG is initialized.
     """
-    if paddingPRNG is None: 
+    if paddingPRNG is None:
         paddingPRNG = Crypto.getCommonPRNG()
     if secretRNG is None: secretRNG = paddingPRNG
 
@@ -202,7 +202,7 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
        block that stored its secrets on disk, and used an arbitrary tag to
        determine
        """
-    if secretRNG is None: 
+    if secretRNG is None:
         secretRNG = Crypto.getCommonPRNG()
 
     # We need to pick the seed to generate our keys.  To make the decoding
@@ -561,7 +561,7 @@ def _encodePayload(payload, overhead, paddingPRNG):
     origLength = len(payload)
     payload = compressData(payload)
     length = len(payload)
-    
+
     if length > 1024 and length*20 <= origLength:
         LOG.warn("Message is very compressible and will look like a zlib bomb")
 
@@ -661,11 +661,11 @@ def uncompressData(payload, maxLength=None):
             raise CompressedDataTooLong()
         except zlibutil.DecompressError, e:
             raise ParseError("Error in compressed data: %s"%e)
-    
+
     try:
         # We can't just call zlib.decompress(payload), since we may
         # want to limit the output size.
-        
+
         zobj = zlib.decompressobj(zlib.MAX_WBITS)
         # Decompress the payload.
         if maxLength is None:
@@ -676,7 +676,7 @@ def uncompressData(payload, maxLength=None):
             d = zobj.decompress(payload, maxLength)
             if zobj.unconsumed_tail:
                 raise CompressedDataTooLong()
-            
+
         # Get any leftovers, which shouldn't exist.
         nil = zobj.flush()
         if nil != '':

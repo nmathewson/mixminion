@@ -25,7 +25,7 @@ CODING STYLE:
     - Also see PEP-0257 for documentation; we're not there yet, but it's
       happening. (http://www.python.org/peps/pep-0257.html)
     - Magic strings:
-         "XXXX" indicates a defect in the code. 
+         "XXXX" indicates a defect in the code.
          "FFFF" indicates a missing feature.
          "????" indicates an untested or iffy block.
          "DOCDOC" indicates missing documentation.
@@ -46,13 +46,13 @@ PORTABILITY NOTES:
            support OAEP, but we've already got an implementation of that
            in Python.
 
-      So for now, it's OpenSSL.  I'll accept any patches that make us 
+      So for now, it's OpenSSL.  I'll accept any patches that make us
       run under gnutls/libgcrypt as well, but I think in the long term
       we should migrate to libnss entirely.
 
 PORTING TO NON-LINUX PLATFORMS:
-    - If you need to run on a system without an acceptable /dev/*random, 
-      you'll need to write an acceptable fallback for mixminion.Crypto.trng() 
+    - If you need to run on a system without an acceptable /dev/*random,
+      you'll need to write an acceptable fallback for mixminion.Crypto.trng()
       to use.
 
 CAVEATS:
@@ -82,7 +82,7 @@ FINDING YOUR WAY AROUND THE CODE.
              I       V
              I   ... and delivered to other Mixminion servers via MMTPServer
              V
-             ---Others are queued and delivered by other exit methods, 
+             ---Others are queued and delivered by other exit methods,
                 implemented and selected by ModuleManager.
 
 CONTRIBUTING PATCHES:

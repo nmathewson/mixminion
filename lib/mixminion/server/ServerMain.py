@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.15 2003/01/05 04:29:11 nickm Exp $
+# $Id: ServerMain.py,v 1.16 2003/01/05 06:49:25 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -89,12 +89,12 @@ class MixPool:
                 location=queueDir, interval=interval)
         elif server['MixAlgorithm'] == 'CottrellMixQueue':
             self.queue = mixminion.server.Queue.CottrellMixQueue(
-                location=queueDir, interval=interval, 
+                location=queueDir, interval=interval,
                 minPool=server.get("MixPoolMinSize", 5),
                 sendRate=server.get("MixPoolRate", 0.6))
         elif server['MixAlgorithm'] == 'BinomialCottrellMixQueue':
             self.queue = mixminion.server.Queue.BinomialCottrellMixQueue(
-                location=queueDir, interval=interval, 
+                location=queueDir, interval=interval,
                 minPool=server.get("MixPoolMinSize", 5),
                 sendRate=server.get("MixPoolRate", 0.6))
         else:
@@ -226,7 +226,7 @@ class MixminionServer:
 
         # The pid file.
         self.pidFile = os.path.join(homeDir, "pid")
-        
+
         self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
         if self.keyring._getLiveKey() is None:
             LOG.info("Generating a month's worth of keys.")
@@ -302,7 +302,7 @@ class MixminionServer:
 
         # FFFF Support for automatic key rotation.
 
-        # ???? Our cuurent approach can make the server unresponsive when 
+        # ???? Our cuurent approach can make the server unresponsive when
         # ???? mixing many messages at once: We stop answering requests, and
         # ???? don't start again until we've delivered all the pending
         # ???? messages!  Also, we process every packet as soon as it arrives,

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.6 2002/12/29 20:31:57 nickm Exp $
+# $Id: MMTPServer.py,v 1.7 2003/01/05 06:49:25 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -257,7 +257,7 @@ class SimpleTLSConnection(Connection):
            serverMode -- If true, we start with a server-side negotatiation.
                          otherwise, we start with a client-side negotatiation.
         """
-        self.__sock = sock            
+        self.__sock = sock
         self.__con = tls
         self.fd = self.__con.fileno()
         self.lastActivity = time.time()
@@ -400,7 +400,7 @@ class SimpleTLSConnection(Connection):
     def tryTimeout(self, cutoff):
         if self.lastActivity <= cutoff:
             warn("Socket %s to %s timed out", self.fd, self.address)
-            # ????     I'm not sure this is right.  Instead of just killing 
+            # ????     I'm not sure this is right.  Instead of just killing
             # ???? the socket, should we shut down the SSL too?
             # ????     Also, should we handle timeout as a separate kind of
             # ???? error from a hooks point of view.

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.9 2003/01/05 04:29:11 nickm Exp $
+# $Id: ServerConfig.py,v 1.10 2003/01/05 06:49:25 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -127,7 +127,7 @@ def _parseMixRule(s):
     return v
 
 def _parseFraction(frac):
-    """Validation function.  Converts a percentage or a number into a 
+    """Validation function.  Converts a percentage or a number into a
        number between 0 and 1."""
     s = frac.strip().lower()
     try:
@@ -167,7 +167,7 @@ SERVER_SYNTAX =  {
                      'Comments': ('ALLOW', None, None),
                      'ModulePath': ('ALLOW', None, None),
                      'Module': ('ALLOW*', None, None),
-                     
+
 ##                      'MixAlgorithm' : ('ALLOW', _parseMixRule, "Cottrell"),
 ##                      'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
 ##                      'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
@@ -187,7 +187,7 @@ SERVER_SYNTAX =  {
                             'IP' : ('ALLOW', C._parseIP, "0.0.0.0"),
                             'Port' : ('ALLOW', C._parseInt, "48099"),
 			  'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
-                          'Deny' : ('ALLOW*', C._parseAddressSet_deny, None) 
+                          'Deny' : ('ALLOW*', C._parseAddressSet_deny, None)
 			 },
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', C._parseBoolean, "no"),
                           'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
