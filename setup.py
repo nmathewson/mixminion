@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.38 2003/01/10 20:12:04 nickm Exp $
+# $Id: setup.py,v 1.39 2003/02/03 22:00:50 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -143,7 +143,7 @@ try:
 except ImportError:
     print "Uh oh.  You have Python installed, but I didn't find the distutils"
     print "module, which is supposed to come with the standard library."
-    if os.path.exits("/etc/debian_version"):
+    if os.path.exists("/etc/debian_version"):
         v = sys.version[:3]
         print "Debian may expect you to install python%s-dev"%v
     elif os.path.exists("/etc/redhat-release"):
