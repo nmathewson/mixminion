@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.27 2002/12/16 02:42:31 nickm Exp $
+# $Id: Config.py,v 1.28 2002/12/29 20:46:54 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -17,6 +17,9 @@
    headers.  Comments are permitted on lines beginning with a '#'.
 
    All identifiers are case-sensitive.
+
+   Because of cross-platform stupidity, we recognize any sequence of [\r\n]
+   as a newline, and who's to tell us we can't?
 
    Example:
 
@@ -48,6 +51,7 @@
 
 __all__ = [ 'ConfigError', 'ClientConfig' ]
 
+import calendar
 import binascii
 import os
 import re
@@ -222,9 +226,9 @@ def _parseCommand(command):
 def _parseBase64(s,_hexmode=0):
     """Validation function.  Converts a base-64 encoded config value into
        its original. Raises ConfigError on failure."""
-    s = stripSpace(s)
     try:
         if _hexmode:
+            s = stripSpace(s)
             return binascii.a2b_hex(s)
         else:
             return binascii.a2b_base64(s)
@@ -238,7 +242,7 @@ def _parseHex(s):
 
 def _parsePublicKey(s):
     """Validate function.  Converts a Base-64 encoding of an ASN.1
-       represented RSA public key with modulus 65535 into an RSA
+       represented RSA public key with modulus 65537 into an RSA
        object."""
     asn1 = _parseBase64(s)
     if len(asn1) > 550:
@@ -247,91 +251,52 @@ def _parsePublicKey(s):
         key = mixminion.Crypto.pk_decode_public_key(asn1)
     except mixminion.Crypto.CryptoError:
         raise ConfigError("Invalid public key")
-    if key.get_public_key()[1] != 65537:
+    if key.get_exponent() != 65537:
         raise ConfigError("Invalid exponent on public key")
     return key
 
 # Regular expression to match YYYY/MM/DD
 _date_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d)")
-# Regular expression to match YYYY/MM/DD HH:MM:SS
-_time_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)")
-def _parseDate(s,_timeMode=0):
+def _parseDate(s):
     """Validation function.  Converts from YYYY/MM/DD format to a (long)
        time value for midnight on that date."""
-    # If _timeMode is true, convert from YYYY/MM/DD HH:MM:SS instead.
-    s = s.strip()
-    r = (_date_re, _time_re)[_timeMode]
-    m = r.match(s)
-    if not m:
-        raise ConfigError("Invalid %s %r" % (("date", "time")[_timeMode],s))
-    if _timeMode:
-        yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
-    else:
+    m = _date_re.match(s.strip())
+    try:
         yyyy, MM, dd = map(int, m.groups())
-        hh, mm, ss = 0, 0, 0
-
+    except (ValueError,AttributeError):
+        raise ConfigError("Invalid date %r"%s)
     if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
-            (1970 <= yyyy)  and (0 <= hh < 24) and
-            (0 <= mm < 60)  and (0 <= ss <= 61)):
-        raise ConfigError("Invalid %s %r" % (("date","time")[_timeMode],s))
+            (1970 <= yyyy)):
+        raise ConfigError("Invalid date %s"%s)
+    return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
-    return mixminion.Common.mkgmtime(yyyy, MM, dd, hh, mm, ss)
-
+# Regular expression to match YYYY/MM/DD HH:MM:SS
+_time_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)")
 def _parseTime(s):
     """Validation function.  Converts from YYYY/MM/DD HH:MM:SS format
        to a (float) time value for GMT."""
-    return _parseDate(s,1)
+    m = _time_re.match(s.strip())
+    if not m:
+        raise ConfigError("Invalid time %r" % s)
+    
+    yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
+    if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
+            (1970 <= yyyy)  and (0 <= hh < 24) and
+            (0 <= mm < 60)  and (0 <= ss <= 61)):
+        raise ConfigError("Invalid time %r" % s)
+
+    return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))
 
 #----------------------------------------------------------------------
 
 # Regular expression to match a section header.
-_section_re = re.compile(r'\[([^\]]+)\]')
+_section_re = re.compile(r'\[\s*([^\s\]]+)\s*\]')
 # Regular expression to match the first line of an entry
 _entry_re = re.compile(r'([^:= \t]+)(?:\s*[:=]|[ \t])\s*(.*)')
-# Regular expression to match an entry from a restricted file.
-_restricted_entry_re = re.compile(r'([^:= \t]+): (.*)')
-def _readConfigLine(line, restrict=0):
-    """Helper function.  Given a line of a configuration file, return
-       a (TYPE, VALUE) pair, where TYPE is one of the following:
+# Regular expression to match bogus line endings.
+_abnormal_line_ending_re = re.compile(r'\r\n?')
 
-         None: The line is empty or a comment.
-         'ERR': The line is incorrectly formatted. VALUE is an error message.
-         'SEC': The line is a section header. VALUE is the section's name.
-         'ENT': The line is the first line of an entry. VALUE is a (K,V) pair.
-         'MORE': The line is a continuation line of an entry. VALUE is the
-                 contents of the line.
-
-       If 'restrict'  is true, only accept 'ENT' lines of the format "K: V"
-    """
-
-    if line == '':
-        return None, None
-
-    space = line[0] and line[0] in ' \t'
-    line = line.strip()
-    # If we have an all-space line, or comment, we have no data.
-    if line == '' or line[0] == '#':
-        return None, None
-    # If the line starts with space, it's a continuation.
-    elif space:
-        return "MORE", line
-    # If the line starts with '[', we've probably got a section heading.
-    elif line[0] == '[' and not space:
-        m = _section_re.match(line)
-        if not m:
-            return "ERR", "Bad section declaration"
-        return 'SEC', m.group(1).strip()
-    else:
-        # Now try to parse the line.
-        if restrict:
-            m = _restricted_entry_re.match(line)
-        else:
-            m = _entry_re.match(line)
-        if not m:
-            return "ERR", "Bad entry"
-        return "ENT", (m.group(1), m.group(2))
-
-def _readConfigFile(contents, restrict=0):
+def _readConfigFile(contents):
     """Helper function. Given the string contents of a configuration
        file, returns a list of (SECTION-NAME, SECTION) tuples, where
        each SECTION is a list of (KEY, VALUE, LINENO) tuples.
@@ -356,29 +321,72 @@ def _readConfigFile(contents, restrict=0):
 
     for line in fileLines:
         lineno += 1
-        type, val = _readConfigLine(line, restrict)
-        if type == 'ERR':
-            raise ConfigError("%s at line %s" % (val, lineno))
-        elif type == 'SEC':
-            curSection = [ ]
-            sections.append( (val, curSection) )
-        elif type == 'ENT':
-            key,val = val
-            if curSection is None:
-                raise ConfigError("Unknown section at line %s" %lineno)
-            curSection.append( (key, val, lineno) )
-        elif type == 'MORE':
-            if restrict:
-                raise ConfigError("Continuation not allowed at line %s"%lineno)
-            if not curSection:
+        if line == '':
+            continue
+        space = line[0] and line[0] in ' \t'
+        line = line.strip()
+        if line == '' or line[0] == '#':
+            continue
+        elif space:
+            try:
+                lastLine = curSection[-1]
+                curSection[-1] = (lastLine[0],
+                                  "%s %s" % (lastLine[1], line),lastLine[2])
+            except (IndexError, TypeError):
                 raise ConfigError("Unexpected indentation at line %s" %lineno)
-            lastLine = curSection[-1]
-            curSection[-1] = (lastLine[0],
-                              "%s %s" % (lastLine[1], val),lastLine[2])
+        elif line[0] == '[':
+            m = _section_re.match(line)
+            curSection = [ ]
+            sections.append( (m.group(1), curSection) )
         else:
-            assert type is None
-            if restrict:
-                raise ConfigError("Empty line not allowed at line %s"%lineno)
+            m = _entry_re.match(line)
+            if not m:
+                raise ConfigError("Bad entry at line %s"%lineno)
+            try:
+                curSection.append( (m.group(1), m.group(2), lineno) )
+            except AttributeError:
+                raise ConfigError("Unknown section at line %s" % lineno)
+
+    return sections
+    
+def _readRestrictedConfigFile(contents):
+    # List of (heading, [(key, val, lineno), ...])
+    sections = []
+    # [(key, val, lineno)] for the current section.
+    curSection = None
+    # Current line number
+    lineno = 0
+
+    # Make sure all characters in the file are ASCII.
+    if not isPrintingAscii(contents):
+        raise ConfigError("Invalid characters in file")
+
+    fileLines = contents.split("\n")
+    if fileLines[-1] == '':
+        del fileLines[-1]
+
+    for line in fileLines:
+        lineno += 1
+        line = line.strip()
+        if line == '' or line[0] == '#':
+            raise ConfigError("Empty line not allowed at line %s"%lineno)
+        elif line[0] == '[':
+            m = _section_re.match(line)
+            if not m:
+                raise ConfigError("Bad section declaration at line %s"%lineno)
+            curSection = [ ]
+            sections.append( (m.group(1), curSection) )
+        else:
+            colonIdx = line.find(':')
+            if colonIdx >= 1:
+                try:
+                    curSection.append( (line[:colonIdx].strip(), 
+                                        line[colonIdx+1:].strip(), lineno) )
+                except AttributeError:
+                    raise ConfigError("Unknown section at line %s" % lineno)
+            else:
+                raise ConfigError("Bad Entry at line %s" % lineno)
+        
     return sections
 
 def _formatEntry(key,val,w=79,ind=4):
@@ -458,11 +466,7 @@ class _ConfigFile:
         if filename:
             self.reload()
         elif string:
-            cs = StringIO(string)
-            try:
-                self.__reload(cs)
-            finally:
-                cs.close()
+            self.__reload(None, string)
         else:
             self.clear()
 
@@ -480,14 +484,22 @@ class _ConfigFile:
             return
         f = open(self.fname, 'r')
         try:
-            self.__reload(f)
+            self.__reload(f, None)
         finally:
             f.close()
 
-    def __reload(self, file):
-        """As in .reload(), but takes an open file object."""
-        fileContents = file.read()
-        sections = _readConfigFile(fileContents, self._restrictFormat)
+    def __reload(self, file, fileContents):
+        """As in .reload(), but takes an open file object _or_ a string."""
+        if fileContents is None:
+            fileContents = file.read()
+            file.close()
+
+        fileContents = _abnormal_line_ending_re.sub("\n", fileContents)
+
+        if self._restrictFormat:
+            sections = _readRestrictedConfigFile(fileContents)
+        else:
+            sections = _readConfigFile(fileContents)
 
         # These will become self.(_sections,_sectionEntries,_sectionNames)
         # if we are successful.
@@ -518,8 +530,9 @@ class _ConfigFile:
             # Set entries from the section, searching for bad entries
             # as we go.
             for k,v,line in secEntries:
-                rule, parseFn, default = secConfig.get(k, (None,None,None))
-                if not rule:
+                try:
+                    rule, parseFn, default = secConfig[k]
+                except KeyError:
                     raise ConfigError("Unrecognized key %s on line %s" %
                                       (k, line))
 
@@ -535,38 +548,39 @@ class _ConfigFile:
                 entryLines.append(line)
 
                 # Insert the entry, checking for impermissible duplicates.
-                if rule in ('REQUIRE*','ALLOW*'):
-                    if section.has_key(k):
-                        section[k].append(v)
-                    else:
-                        section[k] = [v]
-                else:
-                    assert rule in ('REQUIRE', 'ALLOW')
+                if rule in ('REQUIRE', 'ALLOW'):
                     if section.has_key(k):
                         raise ConfigError("Duplicate entry for %s at line %s"
                                           % (k, line))
                     else:
                         section[k] = v
+                else:
+                    assert rule in ('REQUIRE*','ALLOW*')
+                    try:
+                        section[k].append(v)
+                    except KeyError:
+                        section[k] = [v]
 
             # Check for missing entries, setting defaults and detecting
             # missing requirements as we go.
             for k, (rule, parseFn, default) in secConfig.items():
                 if k == '__SECTION__':
                     continue
-                if rule in ('REQUIRE', 'REQUIRE*') and not section.has_key(k):
-                    raise ConfigError("Missing entry %s from section %s"
-                                      % (k, secName))
                 elif not section.has_key(k):
-                    if parseFn is None or default is None:
-                        if rule == 'ALLOW*':
-                            section[k] = []
+                    if rule in ('REQUIRE', 'REQUIRE*'):
+                        raise ConfigError("Missing entry %s from section %s"
+                                          % (k, secName))
+                    else:                   
+                        if parseFn is None or default is None:
+                            if rule == 'ALLOW*':
+                                section[k] = []
+                            else:
+                                section[k] = default
+                        elif rule == 'ALLOW':
+                            section[k] = parseFn(default)
                         else:
-                            section[k] = default
-                    elif rule == 'ALLOW':
-                        section[k] = parseFn(default)
-                    else:
-                        assert rule == 'ALLOW*'
-                        section[k] = map(parseFn,default)
+                            assert rule == 'ALLOW*'
+                            section[k] = map(parseFn,default)
 
             cb = self._callbacks.get(secName, None)
             if cb:

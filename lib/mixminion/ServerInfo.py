@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.26 2002/12/16 02:40:11 nickm Exp $
+# $Id: ServerInfo.py,v 1.27 2002/12/29 20:46:54 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -9,6 +9,8 @@
    """
 
 __all__ = [ 'ServerInfo' ]
+
+import re
 
 import mixminion.Config
 import mixminion.Crypto
@@ -170,6 +172,8 @@ def signServerInfo(info, rsa):
        no values."""
     return _getServerInfoDigestImpl(info, rsa)
 
+_trailing_whitespace_re = re.compile(r'[ \t]+$', re.M)
+_special_line_re = re.compile(r'^(?:Digest|Signature):.*$', re.M)
 def _getServerInfoDigestImpl(info, rsa=None):
     """Helper method.  Calculates the correct digest of a server descriptor
        (as provided in a string).  If rsa is provided, signs the digest and
@@ -177,25 +181,15 @@ def _getServerInfoDigestImpl(info, rsa=None):
 
     # The algorithm's pretty easy.  We just find the Digest and Signature
     # lines, replace each with an 'Empty' version, and calculate the digest.
-    infoLines = info.split("\n")
-    if not infoLines[0] == "[Server]":
+    info = _trailing_whitespace_re.sub("", info)
+    if not info.startswith("[Server]"):
         raise ConfigError("Must begin with server section")
-    digestLine = None
-    signatureLine = None
-    infoLines = info.split("\n")
-    for lineNo in range(len(infoLines)):
-        line = infoLines[lineNo]
-        if line.startswith("Digest:") and digestLine is None:
-            digestLine = lineNo
-        elif line.startswith("Signature:") and signatureLine is None:
-            signatureLine = lineNo
-
-    assert digestLine is not None and signatureLine is not None
-
-    infoLines[digestLine] = 'Digest:'
-    infoLines[signatureLine] = 'Signature:'
-    info = "\n".join(infoLines)
-
+    def replaceFn(s):
+        if s.group(0)[0] == 'D':
+            return "Digest:"
+        else:
+            return "Signature:"
+    info = _special_line_re.sub(replaceFn, info)
     digest = mixminion.Crypto.sha1(info)
 
     if rsa is None:
@@ -205,8 +199,11 @@ def _getServerInfoDigestImpl(info, rsa=None):
     signature = mixminion.Crypto.pk_sign(digest,rsa)
     digest = formatBase64(digest)
     signature = formatBase64(signature)
-    infoLines[digestLine] = 'Digest: '+digest
-    infoLines[signatureLine] = 'Signature: '+signature
+    def replaceFn2(s, digest=digest, signature=signature):
+        if s.group(0)[0] == 'D':
+            return "Digest: "+digest
+        else:
+            return "Signature: "+signature
 
-    return "\n".join(infoLines)
-
+    info = _special_line_re.sub(replaceFn2, info)
+    return info

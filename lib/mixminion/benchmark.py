@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.19 2002/12/16 02:40:11 nickm Exp $
+# $Id: benchmark.py,v 1.20 2002/12/29 20:46:54 nickm Exp $
 
 """mixminion.benchmark
 
@@ -13,21 +13,23 @@
 __pychecker__ = 'no-funcdoc no-reimport'
 __all__ = [ 'timeAll', 'testLeaks1', 'testLeaks2' ]
 
-
 import os
 import stat
+import cPickle
 from time import time
 
 import mixminion._minionlib as _ml
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage
 from mixminion.Common import secureDelete, installSignalHandlers, \
-     waitForChildren
+     waitForChildren, formatBase64
 from mixminion.Crypto import *
 from mixminion.Crypto import OAEP_PARAMETER
 from mixminion.Crypto import _add_oaep_padding, _check_oaep_padding
 from mixminion.Packet import SMTP_TYPE
+from mixminion.ServerInfo import ServerInfo
 from mixminion.server.HashLog import HashLog
 from mixminion.server.PacketHandler import PacketHandler
+from mixminion.server.ServerConfig import ServerConfig
 from mixminion.test import FakeServerInfo
 from mixminion.testSupport import mix_mktemp
 
@@ -244,7 +246,20 @@ def cryptoTiming():
     print "Pad+RSA private decrypt", \
           timeit((lambda enc=enc,rsa=rsa: pk_decrypt(enc, rsa)),100)
 
-
+    print "RSA.get_public_key", timeit(rsa.get_public_key, 100)
+    print "RSA.get_exponent", timeit(rsa.get_exponent, 100)
+    print "RSA.get_modulus_bytes", timeit(rsa.get_modulus_bytes, 10000)
+    print "RSA.encode_key(public)", \
+          timeit(lambda rsa=rsa: rsa.encode_key(1), 100)
+    print "RSA.encode_key(private)", \
+          timeit(lambda rsa=rsa: rsa.encode_key(0), 100)
+    modulus = rsa.get_public_key()[0]
+    print "RSA from modulus", \
+          timeit(lambda modulus=modulus: pk_from_modulus(modulus), 10000)
+    asn1 = rsa.encode_key(1)
+    print "RSA from ASN1 (public)", \
+          timeit(lambda asn1=asn1: pk_decode_public_key(asn1), 10000)
+          
     print "RSA generate (1024 bit,e=65535)", timeit((lambda: pk_generate(1024,
                                                                   65535)),10)
     rsa = pk_generate()
@@ -340,11 +355,55 @@ def _hashlogTiming(fname, load):
         size += os.stat(fname+suffix)[stat.ST_SIZE]
 
     print "File size (%s entries)"%load, spacestr(size)
-
+    
+#----------------------------------------------------------------------
+def directoryTiming():
+    print "#========== DESCRIPTORS AND DIRECTORIES =============="
+    from mixminion.server.ServerKeys import ServerKeyring, \
+         generateServerDescriptorAndKeys
+    gen = generateServerDescriptorAndKeys
+    homedir = mix_mktemp()
+    confStr = """
+[Server]
+EncryptIdentityKey: no
+PublicKeyLifetime: 1 day
+EncryptPrivateKey: no
+Homedir: %s
+Mode: relay
+Nickname: The Server
+Contact-Email: a@b.c
+[Incoming/MMTP]
+Enabled: yes
+IP: 1.1.1.1
+""" % mix_mktemp()
+    config = ServerConfig(string=confStr)
+    keyring = ServerKeyring(config)
+    keyring.getIdentityKey()
+    print "Create and sign server descriptor", timeit(keyring.createKeys, 10)
+    liveKey = keyring.getServerKeyset()
+    descFile = liveKey.getDescriptorFileName()
+    desc = open(descFile).read()
+##     for _ in xrange(2000):
+##         ServerInfo(string=desc, assumeValid=0)
+##     if 1: return
+    
+    print "Parse server descriptor (no validation)", \
+          timeit(lambda desc=desc: ServerInfo(string=desc,assumeValid=1),
+                 400)
+    print "Parse server descriptor (full validation)", \
+          timeit(lambda desc=desc: ServerInfo(string=desc,assumeValid=0),
+                 400)
+    info = ServerInfo(string=desc)
+    dbin = cPickle.dumps(info, 1)
+    print "Unpickle binary-pickled descriptor (%s/%s)"%(len(dbin),len(desc)), \
+          timeit(lambda dbin=dbin: cPickle.loads(dbin), 400)
+    dtxt = cPickle.dumps(info, 0)
+    print "Unpickle text-pickled descriptor (%s/%s)"%(len(dtxt),len(desc)), \
+          timeit(lambda dtxt=dtxt: cPickle.loads(dtxt), 400)
+    
 #----------------------------------------------------------------------
 
 def buildMessageTiming():
-
     print "#================= BUILD MESSAGE ====================="
     pk = pk_generate()
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
@@ -589,11 +648,17 @@ def testLeaks2():
             _ml.rsa_make_public_key(n,e)
 
 #----------------------------------------------------------------------
+import base64
+import binascii
 
 def timeAll(name, args):
     cryptoTiming()
     buildMessageTiming()
-    hashlogTiming()
+    directoryTiming()
     fileOpsTiming()
     serverProcessTiming()
+    hashlogTiming()
     timeEfficiency()
+    #import profile
+    #profile.run("import mixminion.benchmark; mixminion.benchmark.directoryTiming()")
+
