@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.75 2004/01/09 00:46:12 nickm Exp $
+# $Id: ServerInfo.py,v 1.76 2004/01/17 04:24:57 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -325,7 +325,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return self['Server']['Packet-Key']
 
     def getKeyDigest(self):
-        """Returns a hash of this server's MMTP key"""
+        """Returns a hash of this server's identity key."""
         return sha1(pk_encode_public_key(self['Server']['Identity']))
 
     def getIPV4Info(self):

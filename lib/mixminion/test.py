@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.177 2004/01/08 23:07:31 nickm Exp $
+# $Id: test.py,v 1.178 2004/01/17 04:24:57 nickm Exp $
 
 """mixminion.tests
 
@@ -6502,7 +6502,7 @@ class ClientUtilTests(TestCase):
         p2 = mixminion.Crypto.getCommonPRNG().getBytes(32*1024)
         ipv4 = mixminion.Packet.IPV4Info("10.20.30.40",48099,"KZ"*10)
         host = mixminion.Packet.MMTPHostInfo("bliznerty.potrzebie",48099,
-                                             "KZ"*10)
+                                             "KL"*10)
         self.assertEquals(cq.getHandles(), [])
         self.assert_(not cq.packetExists("Z"))
         h1 = cq.queuePacket(p1, ipv4, now)
@@ -6517,7 +6517,26 @@ class ClientUtilTests(TestCase):
         v = cq.getPacket(h2)
         self.assertEquals((host,previousMidnight(now-24*60*60*10)), v[1:])
         self.assertLongStringEq(v[0], p2)
-        cq.cleanQueue(maxAge=24*60*60,now=now)
+
+        class FakeDir:
+            def getKeyIDByNickname(self, n):
+                if n == 'nerty': return "KL"*10
+                return None
+        D = FakeDir()
+        self.assertEquals([h1],
+                       cq.getHandlesByDestAndAge(["10.20.30.40"], None, None))
+        self.assertEquals([h1],
+                       cq.getHandlesByDestAndAge(["10.20.30.40"], D, None))
+        self.assertEquals([h2],
+                cq.getHandlesByDestAndAge(["bliznerty.potrzebie"], D, None))
+        self.assertEquals([h2],
+                cq.getHandlesByDestAndAge(["nerty"], D, None))
+        self.assertUnorderedEq([h1,h2],
+                cq.getHandlesByDestAndAge(["nerty", "10.20.30.40"], D, None))
+        self.assertEquals([h2], cq.getHandlesByAge(now-24*60*60))
+        cq.removePacket(h2)
+
+        cq.cleanQueue()
         self.assertEquals([h1], cq.getHandles())
         v = cq.getPacket(h1)
         self.assertEquals((ipv4,previousMidnight(now)), v[1:])
@@ -7515,7 +7534,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientDirectoryTests))
+        suite.addTest(tc(ClientUtilTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

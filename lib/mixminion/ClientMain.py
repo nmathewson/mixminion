@@ -377,7 +377,6 @@ class MixminionClient:
         """Generate a reply message, but do not send it.  Returns
            a tuple of (packet body, ServerInfo for the first hop.)
 
-
             directory -- an instance of ClientDirectory; used to generate
                paths.
             address -- an instance of ExitAddress, used to tell where to
@@ -530,10 +529,12 @@ class MixminionClient:
         finally:
                 clientUnlock()
 
-    def flushQueue(self, maxPackets=None):
+    def flushQueue(self, maxPackets=None, handles=None):
         """Try to send packets in the queue to their destinations.  Do not try
            to send more than maxPackets packets.  If not all packets will be
            sent, choose the ones to try at random.
+
+           DOCDOC nicknames
         """
         #XXXX write unit tests
         class PacketProxy:
@@ -550,8 +551,9 @@ class MixminionClient:
         LOG.info("Flushing packet queue")
         clientLock()
         try:
-            handles = self.queue.getHandles()
-            LOG.info("Found %s pending packets", len(handles))
+            if handles is None:
+                handles = self.queue.getHandles()
+                LOG.info("Found %s pending packets", len(handles))
             if maxPackets is not None:
                 handles = mixminion.Crypto.getCommonPRNG().shuffle(handles,
                                                                maxPackets)
@@ -586,12 +588,23 @@ class MixminionClient:
         else:
             LOG.info("No packets delivered")
 
-    def cleanQueue(self, maxAge, now=None):
+    def cleanQueue(self, handles):
         """Remove all packets older than maxAge seconds from the
            client queue."""
         try:
             clientLock()
-            self.queue.cleanQueue(maxAge, now)
+            byRouting = self._sortPackets(
+                [ (h, self.queue.getRouting(h)) for h in handles ],
+                shuffle = 0)
+            byName = [ (displayServer(ri), lst) for ri,lst in byRouting ]
+            byName.sort()
+            if not byName:
+                LOG.info("No packets removed.")
+            for name, lst in byName:
+                LOG.info("Removing %s packets for %s", len(lst), name)
+                for h in lst:
+                    self.queue.removePacket(h)
+            self.queue.cleanQueue()
         finally:
             clientUnlock()
 
@@ -1738,6 +1751,7 @@ Usage: %(cmd)s [options]
 EXAMPLES:
   Try to send all currently queued packets.
       %(cmd)s
+DOCDOC
 """.strip()
 
 def flushQueue(cmd, args):
@@ -1753,7 +1767,8 @@ def flushQueue(cmd, args):
                 sys.exit(1)
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
-                                   wantClient=1)
+                                   wantClient=1,
+                                   wantClientDirectory=len(args))
     except UsageError, e:
         e.dump()
         print _FLUSH_QUEUE_USAGE % { 'cmd' : cmd }
@@ -1762,10 +1777,16 @@ def flushQueue(cmd, args):
     parser.init()
     client = parser.client
 
-    client.flushQueue(count)
+    if args:
+        handles = parser.client.queue.getHandlesByDestAndAge(
+            args,parser.directory, None)
+    else:
+        handles = None
+
+    client.flushQueue(count, handles)
 
 _CLEAN_QUEUE_USAGE = """\
-Usage: %(cmd)s <-d n|--days=n> [options]
+Usage: %(cmd)s  [options] [servername...]
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
@@ -1775,12 +1796,13 @@ Usage: %(cmd)s <-d n|--days=n> [options]
 EXAMPLES:
   Remove all pending packets older than one week.
       %(cmd)s -d 7
+DOCDODC
 """.strip()
 
 def cleanQueue(cmd, args):
     options, args = getopt.getopt(args, "hvf:d:",
              ["help", "verbose", "config=", "days=",])
-    days = None
+    days = 60
     for o,v in options:
         if o in ('-d','--days'):
             try:
@@ -1789,10 +1811,9 @@ def cleanQueue(cmd, args):
                 print "ERROR: %s expects an integer" % o
                 sys.exit(1)
     try:
-        if days is None:
-            raise UsageError()
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
-                                   wantClient=1)
+                                   wantClient=1,
+                                   wantClientDirectory=len(args))
     except UsageError, e:
         e.dump()
         print _CLEAN_QUEUE_USAGE % { 'cmd' : cmd }
@@ -1800,7 +1821,14 @@ def cleanQueue(cmd, args):
 
     parser.init()
     client = parser.client
-    client.cleanQueue(days*24*60*60)
+    notAfter = time.time() - days*24*60*60
+    if args:
+        handles = parser.client.queue.getHandlesByDestAndAge(
+            args, parser.directory, notAfter)
+    else:
+        handles = parser.client.queue.getHandlesByAge(notAfter)
+
+    client.cleanQueue(handles)
 
 _LIST_QUEUE_USAGE = """\
 Usage: %(cmd)s [options]

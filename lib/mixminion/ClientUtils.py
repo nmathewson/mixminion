@@ -555,7 +555,6 @@ class Keyring(_LazyEncryptedStore):
             del self._now
 
 # ----------------------------------------------------------------------
-
 class SURBLog(mixminion.Filestore.DBBase):
     """A SURBLog manipulates a database on disk to remember which SURBs we've
        used, so we don't reuse them accidentally.
@@ -723,10 +722,66 @@ class ClientQueue:
         finally:
             mixminion.ClientMain.clientUnlock()
 
+    def getHandlesByAge(self, notAfter):
+        self.loadMetadata()
+        result = []
+        for h in self.store.getAllMessages():
+            _,_,when = self.store.getMetadata(h)
+            if when <= notAfter: result.append(h)
+        return result
+
+    def getHandlesByDestAndAge(self, destList, directory, notAfter=None,
+                               warnUnused=1):
+        """DOCDOC destset: set of hostnames, ips, or keyids"""
+        destSet = {}
+        reverse = {}
+        for d in destList:
+            if directory:
+                keyid = directory.getKeyIDByNickname(d)
+                if keyid:
+                    destSet[keyid] = 1
+                    reverse[keyid] = d
+                    continue
+            destSet[d] = 1
+
+        self.loadMetadata()
+        result = []
+        foundAny = {}
+        foundMatch = {}
+        for h in self.store.getAllMessages():
+            _, r, when = self.store.getMetadata(h)
+            if (destSet.has_key(r.keyinfo) or
+                (hasattr(r, 'hostname') and destSet.has_key(r.hostname)) or
+                (hasattr(r, 'ip') and destSet.has_key(r.ip))):
+
+                keys = [ getattr(r, 'hostname', None),
+                         getattr(r, 'ip', None),
+                         reverse.get(r.keyinfo, None),
+                         r.keyinfo ]
+                for k in keys: foundAny[k]=1
+                if notAfter and when > notAfter:
+                    continue
+                for k in keys: foundMatch[k]=1
+                result.append(h)
+        if warnUnused:
+            for d in destList:
+                if foundMatch.get(d):
+                    continue
+                elif foundAny.get(d):
+                    LOG.warn("No expired packets found for %r", d)
+                else:
+                    LOG.warn("No pending packets found for %r", d)
+        return result
+
     def getRouting(self, handle):
         """Return the routing information associated with the given handle."""
         self.loadMetadata()
         return self.store.getMetadata(handle)[1]
+
+    def getDate(self, handle):
+        """Return the date a given handle was inserted."""
+        self.loadMetadata()
+        return self.store.getMetadata(handle)[2]
 
     def getPacket(self, handle):
         """Given a handle, return a 3-tuple of the corresponding
@@ -777,24 +832,8 @@ class ClientQueue:
             res[s] = (count, oldest)
         return res
 
-    def cleanQueue(self, maxAge=None, now=None):
+    def cleanQueue(self):
         """Remove all packets older than maxAge seconds from this queue."""
-        if now is None:
-            now = time.time()
-        if maxAge is not None:
-            cutoff = now - maxAge
-            remove = []
-            self.loadMetadata()
-            for h in self.getHandles():
-                try:
-                    when = self.store.getMetadata(h)[2]
-                except mixminion.Filestore.CorruptedFile:
-                    continue
-                if when < cutoff:
-                    remove.append(h)
-            LOG.info("Removing %s old packets from queue", len(remove))
-            for h in remove:
-                self.store.removeMessage(h)
         self.store.cleanQueue()
         self.store.cleanMetadata()
 
@@ -808,6 +847,10 @@ class ClientQueue:
             packet, routing, when = self.getPacket(h)
             return "V0", routing, when
 
-        self.store.loadAllMetadata(fixupHandle)
+        mixminion.ClientMain.clientLock()
+        try:
+            self.store.loadAllMetadata(fixupHandle)
+        finally:
+            mixminion.ClientMain.clientUnlock()
 
         self.metadataLoaded = 1

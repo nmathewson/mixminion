@@ -17,12 +17,12 @@ For 0.0.7:
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
                 o Clear up specification for multiple addrs on MAIL
-        - Infrastructure -- high level
+        . Infrastructure -- high level
                 o Servers need to download and use directories
                 . Servers should use downloaded directories to print useful
                   nicknames for other servers rather than just IP addresses.
                         o For outgoing connections
-                        - For incoming connections 
+                        - For incoming connections
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
                 D Make processing thread and module thread general
@@ -33,14 +33,14 @@ For 0.0.7:
         o Performance
                 o Do a setsockopt(IP_TOS, IPTOS_THROUGHPUT), unless on
                   cygwin, dgux, sni-sysv.
-        - UI improvements
+        . UI improvements
                 o Use feature values instead of raw configuration values in
                   the [Testing]/Configuration entry.
-                - Allow 'mixminion ping' to take addr:port as argument.
+                o Allow 'mixminion ping' to take addr:port as argument.
                 - RFC822 interface and maildir-style exit module to help
                   integrators.
-                - Flush messages to a single mix, or set of mixes.
-                - Clean messages for a single mix, or set of mixes.
+                . Flush messages to a single mix, or set of mixes.
+                . Clean messages for a single mix, or set of mixes.
                 - Support to remove servers from imported set, or to block
                   servers from directory.
         . MMTP
