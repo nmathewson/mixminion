@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.27 2003/05/29 01:46:45 nickm Exp $
+# $Id: ServerConfig.py,v 1.28 2003/05/29 05:46:35 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -59,9 +59,6 @@ class ServerConfig(mixminion.Config._ConfigFile):
             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
         if server['PublicKeyOverlap'].getSeconds() > 6*60*60:
             raise ConfigError("PublicKeyOverlap must be <= 6 hours")
-
-        if _haveEntry(self, 'Server', 'NoDaemon'):
-            LOG.warn("The NoDaemon option is obsolete.  Use Daemon instead.")
 
         if _haveEntry(self, 'Server', 'Mode'):
             LOG.warn("Mode specification is not yet supported.")
@@ -239,8 +236,6 @@ SERVER_SYNTAX =  {
                      'LogLevel' : ('ALLOW', C._parseSeverity, "WARN"),
                      'EchoMessages' : ('ALLOW', C._parseBoolean, "no"),
                      'Daemon' : ('ALLOW', C._parseBoolean, "no"),
-                     # Deprecated.
-                     'NoDaemon' : ('ALLOW', C._parseBoolean, None),
                      'LogStats' : ('ALLOW', C._parseBoolean, 'yes'),
                      'StatsInterval' : ('ALLOW', C._parseInterval,
                                         "1 day"),
