@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.18 2003/02/20 16:57:40 nickm Exp $ */
+/* $Id: tls.c,v 1.18.2.1 2003/04/09 22:38:09 nickm Exp $ */
 #include "_minionlib.h"
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
@@ -144,6 +144,8 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
         if (!err && certfile &&
             !SSL_CTX_use_certificate_file(ctx,certfile,SSL_FILETYPE_PEM))
                 err = 1;
+        if (!err)
+                SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
         if (!err && rsa) {
                 if (!(_rsa = RSAPrivateKey_dup(rsa->rsa)) ||
                     !(pkey = EVP_PKEY_new()))

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.66 2003/02/20 16:57:39 nickm Exp $
+# $Id: Common.py,v 1.66.2.1 2003/04/09 22:38:08 nickm Exp $
 
 """mixminion.Common
 
@@ -852,7 +852,7 @@ def waitForChildren(onceOnly=0, blocking=1):
     while 1:
         try:
             # WIN32 This won't work on Windows.  What to do?
-            pid, status = os.waitpid(0, options)
+            pid, status = os.waitpid(-1, options)
         except OSError, e:
             break
         except e:
@@ -869,7 +869,7 @@ def _sigChldHandler(signal_num, _):
     while 1:
         try:
             # WIN32 This waitpid call won't work on Windows.  What to do?
-            pid, status = os.waitpid(0, os.WNOHANG)
+            pid, status = os.waitpid(-1, os.WNOHANG)
             if pid == 0:
                 break
         except OSError:
