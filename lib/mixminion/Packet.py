@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.16 2002/12/02 03:30:07 nickm Exp $
+# $Id: Packet.py,v 1.17 2002/12/02 10:20:18 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -480,6 +480,8 @@ class SMTPInfo:
 
 def parseMBOXInfo(s):
     """Convert the encoding of an MBOX exitinfo into an MBOXInfo address"""
+    if not s:
+        raise ParseError("Empty mbox")
     return MBOXInfo(s)
 
 class MBOXInfo:
