@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.89 2003/02/14 02:00:55 nickm Exp $
+# $Id: test.py,v 1.90 2003/02/14 17:51:57 nickm Exp $
 
 """mixminion.tests
 
@@ -494,22 +494,25 @@ class MiscTests(unittest.TestCase):
         #         happily on *BSD.  (The issue is that a blocking
         #         flock seems to block _all_ the threads in this
         #         process, not just this one.)
-##         # Now try a blocking lock.
-##         released=[0]
-##         def threadBody(LF2=LF2,released=released):
-##             LF2.acquire("LF2",blocking=1)
-##             if not released[0]:
-##                 released[0] = 'BAD'
-##             else:
-##                 released[0] = 'GOOD'
-        
-##         t = threading.Thread(None, threadBody)
-##         t.start()
-##         time.sleep(.1)
-##         released[0] = 1
-##         LF1.release()
-##         t.join()
-##         self.assertEquals("GOOD", released[0])
+
+        # Now try a blocking lock.  We need to block in another process
+        # because of some platforms' implementations of threading.
+        releasedFile = mix_mktemp()
+        writeFile(releasedFile, "nobody")
+        pid = os.fork()
+        if pid == 0: # child
+            LF2.acquire("LF2", blocking=1)
+            if readFile(releasedFile) == 'parent':
+                writeFile(releasedFile, "GOOD")
+            else:
+                writeFile(releasedFile, "BAD")
+            os._exit(0)
+
+        time.sleep(.1)
+        writeFile(releasedFile, 'parent')
+        LF1.release()
+        os.waitpid(pid, 0)
+        self.assertEquals("GOOD", readFile(releasedFile))
 
     def _intervalEq(self, a, *others):
         eq = self.assertEquals
