@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.21 2002/09/04 00:38:15 arma Exp $
+# $Id: Common.py,v 1.22 2002/09/16 15:30:02 nickm Exp $
 
 """mixminion.Common
 
@@ -15,6 +15,7 @@ import sys
 import time
 import stat
 import traceback
+import calendar
 from types import StringType
 
 class MixError(Exception):
@@ -129,7 +130,7 @@ def configureShredCommand(conf):
 
     if cmd is None:
         if os.path.exists("/usr/bin/shred"):
-            cmd, opts = "/usr/bin/shred/", ["-uz"]
+            cmd, opts = "/usr/bin/shred", ["-uz"]
         else:
             getLog().warn("Files will not be securely deleted.")
             cmd, opts = None, None
@@ -170,7 +171,8 @@ def secureDelete(fnames, blocking=0):
         mode = os.P_NOWAIT
 
     if _SHRED_CMD:
-        return os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+fnames))
+        code = os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+fnames))
+	return code
     else:
         for f in fnames:
             os.unlink(f)
@@ -369,13 +371,15 @@ def mkgmtime(yyyy,MM,dd,hh,mm,ss):
     
     # we set the DST flag to zero so that subtracting time.timezone always
     # gives us gmt.
-    return time.mktime((yyyy,MM,dd,hh,mm,ss,0,0,0))-time.timezone
+    #return time.mktime((yyyy,MM,dd,hh,mm,ss,0,0,0))-time.timezone
+
+    return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))
 
 def previousMidnight(when):
     """Given a time_t 'when', return the greatest time_t <= when that falls
        on midnight, GMT."""
     yyyy,MM,dd = time.gmtime(when)[0:3]
-    return mkgmtime(yyyy,MM,dd,0,0,0)
+    return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
 #----------------------------------------------------------------------
 # Signal handling

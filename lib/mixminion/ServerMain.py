@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.9 2002/09/10 14:45:31 nickm Exp $
+# $Id: ServerMain.py,v 1.10 2002/09/16 15:30:02 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -216,7 +216,7 @@ class ServerKeyring:
 	    if when < self.nextKeyRotation:
 		return self.liveKey
 
-	idx = bisect.bisect_right(self.keyIntervals, (when, None, None))-1
+	idx = bisect.bisect(self.keyIntervals, (when, None, None))-1
 	k = self.keyIntervals[idx]
 	if w is None:
 	    self.liveKey = k

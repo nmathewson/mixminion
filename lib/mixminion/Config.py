@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.16 2002/09/10 20:06:25 nickm Exp $
+# $Id: Config.py,v 1.17 2002/09/16 15:30:02 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -566,7 +566,7 @@ class _ConfigFile:
                 raise ConfigError("Section [%s] not found." %secName)
             elif not self_sections.has_key(secName):
                 self_sections[secName] = {}
-                self_sectionEntries[secName] = {}
+                self_sectionEntries[secName] = []
                 
         if not self.assumeValid:
             # Call our validation hook.
