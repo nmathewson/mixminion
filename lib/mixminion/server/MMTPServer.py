@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.70 2004/01/11 07:38:27 nickm Exp $
+# $Id: MMTPServer.py,v 1.71 2004/01/12 00:49:00 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -111,9 +111,10 @@ class SelectAsyncServer:
         self.connections[fd] = c
         self.state[fd] = (wr,ww)
 
-    def remove(self, c):
+    def remove(self, c, fd=None):
         """Remove a connection from this server."""
-        fd = c.fileno()
+        if fd is None:
+            fd = c.fileno()
         del self.connections[fd]
         del self.state[fd]
 
@@ -128,7 +129,8 @@ class SelectAsyncServer:
         # Maintain a set of filenos for connections we've checked, so we don't
         # check any more than once.
         for fd, con in self.connections.items():
-            con.tryTimeout(cutoff)
+            if con.tryTimeout(cutoff):
+                self.remove(con,fd)
 
 class PollAsyncServer(SelectAsyncServer):
     """Subclass of SelectAsyncServer that uses 'poll' where available.  This
@@ -165,8 +167,9 @@ class PollAsyncServer(SelectAsyncServer):
         self.connections[fd] = c
         mask = self.EVENT_MASK[(wr,ww)]
         self.poll.register(fd, mask)
-    def remove(self,c):
-        fd = c.fileno()
+    def remove(self,c,fd=None):
+        if fd is None:
+            fd = c.fileno()
         self.poll.unregister(fd)
         del self.connections[fd]
 

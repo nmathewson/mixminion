@@ -31,7 +31,7 @@ For 0.0.7:
                 o Make sure we skip descriptors that don't support our
                   current Packet-Version.
         o Performance
-                D Do a setsockopt(IP_TOS, IPTOS_THROUGHPUT), unless on
+                o Do a setsockopt(IP_TOS, IPTOS_THROUGHPUT), unless on
                   cygwin, dgux, sni-sysv.
         - UI improvements
                 o Use feature values instead of raw configuration values in

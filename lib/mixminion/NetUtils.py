@@ -13,8 +13,10 @@ import select
 import signal
 import socket
 import string
+import sys
 import time
 from mixminion.Common import LOG, TimeoutError, _ALLCHARS
+import mixminion._minionlib
 
 #======================================================================
 # Global vars
@@ -25,10 +27,7 @@ PREFER_INET4 = 1  # For now, _always_ prefer IPv4
 # Local copies of socket.AF_INET4 and socket.AF_INET6.  (AF_INET6 may be
 #  unsupported.)
 AF_INET = socket.AF_INET
-try:
-    AF_INET6 = socket.AF_INET6
-except AttributeError:
-    AF_INET6 = "<Sorry, no IP6>"
+AF_INET6 = getattr(socket, "AF_INET6", "<Sorry, no IP6>")
 
 # For windows -- list of errno values that we can expect when blocking IO
 # blocks on a connect.
@@ -36,6 +35,20 @@ IN_PROGRESS_ERRNOS = [ getattr(errno, ename)
    for ename in [ "EINPROGRESS", "WSAEWOULDBLOCK"]
    if hasattr(errno,ename) ]
 del ename
+
+IPTOS_THROUGHPUT = getattr(mixminion._minionlib, "IPTOS_THROUGHPUT", None)
+
+#======================================================================
+def optimizeThroughput(sock):
+    """DOCDOC"""
+    if not IPTOS_THROUGHPUT: 
+        return
+    if sys.platform in ('cygwin', 'dgux', 'sni-sysv'):
+        # According to rumor, these platforms handle socket.IP_TOS
+        # incorrectly.  I'm too chicken to take the chance until
+        # I hear differetly.
+        return
+    sock.setsockopt(socket.SOL_IP, socket.IP_TOS, IPTOS_THROUGHPUT)
 
 #======================================================================
 if hasattr(socket, 'getaddrinfo'):

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.48 2004/01/11 07:38:27 nickm Exp $
+# $Id: MMTPClient.py,v 1.49 2004/01/12 00:49:00 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -266,6 +266,9 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         LOG.debug("MMTP protocol negotaiated with %s: version %s",
                   self.address, self.protocol)
 
+        # Now that we're connected, optimize for throughput.
+        mixminion.NetUtils.optimizeThroughput(self.sock)
+
         self.onRead = self.onDataRead
         self.onWrite = self.onDataWritten
         self.beginReading()
@@ -445,7 +448,8 @@ def sendPackets(routing, packetList, timeout=300, callback=None):
         now = time.time()
         wr,ww,isopen=con.process(fd in rfds, fd in wfds)
         if isopen:
-            con.tryTimeout(now-timeout)
+            if con.tryTimeout(now-timeout):
+                isopen = 0
 
     # If anything wasn't delivered, raise MixProtocolError.
     for d in deliverables:
@@ -457,7 +461,7 @@ def sendPackets(routing, packetList, timeout=300, callback=None):
     if con._isFailed:
         raise MixProtocolError("Error occurred on connection to %s"%serverName)
 
-def pingServer(routing, timeout=5):
+def pingServer(routing, timeout=60):
     """Try to connect to a server and send a junk packet.
 
        May raise MixProtocolBadAuth, or other MixProtocolError if server

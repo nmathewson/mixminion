@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.20 2003/10/02 21:46:23 nickm Exp $ */
+/* $Id: main.c,v 1.21 2004/01/12 00:49:01 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -17,6 +17,18 @@
 #include <ssl.h>
 #include <err.h>
 #include <rsa.h>
+#endif
+
+#ifdef MS_WINDOWS
+#if _MSC_VER >= 1300
+#include <winsock2.h>
+#else
+#include <winsock.h>
+#endif
+#else /* not windows */
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/ip.h>
 #endif
 
 /* Macros to declare function tables for Python. */
@@ -150,6 +162,19 @@ init_minionlib(void)
         if (PyDict_SetItemString(d, "FEC",
                                  (PyObject*)&mm_FEC_Type) < 0)
                 return;
+
+
+        /* For some reason, Python's socket module doesn't export
+         * IPTOS_*.  IPTOS_THROUGHPUT should always be "0x08" on any
+         * sane sockets implementation, but life is always more complicated 
+         * than that.
+        */
+#ifdef IPTOS_THROUGHPUT
+        if (PyDict_SetItemString(d, "IPTOS_THROUGHPUT",
+                                 PyInt_FromLong(IPTOS_THROUGHPUT)))
+                return;        
+#endif
+        
 }
 
 /*
