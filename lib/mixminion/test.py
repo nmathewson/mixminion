@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.85 2003/02/13 06:30:23 nickm Exp $
+# $Id: test.py,v 1.86 2003/02/13 07:40:26 nickm Exp $
 
 """mixminion.tests
 
@@ -186,6 +186,43 @@ class MiscTests(unittest.TestCase):
         self.assertEquals(ceilDiv(-1,2), 0)
         self.assertEquals(ceilDiv(-10,3), -3)
         self.assertEquals(ceilDiv(-10,-3), 4)
+
+    def testVersions(self):
+        vstr = mixminion.version_tuple_to_string
+        parse = mixminion.parse_version_string
+        cmp = mixminion.cmp_versions
+        last = None
+        for t,s,c in [((1,0,0,100,-1),   "1.0.0",       None),
+                      ((0,0,3,0,-1),     "0.0.3alpha",  '<'),
+                      ((0,5,22,50,6),    "0.5.22beta6", '>'),
+                      ((0,5,22,99,6),    "0.5.22rc6",   '>'),
+                      ((0,5,22,99,6),    "0.5.22rc6",   '='),
+                      ((0,0,3,100,9),    "0.0.3p9",     '<'),
+                      ((0,0,3,66,9),     "0.0.3(66)9",  '<'),
+                      ((0,0,3,66,-1),    "0.0.3(66)",   '<'),
+                      ((0,0,3,66,0),     "0.0.3(66)0",  '>'),
+                      ((0,0,3,'fred',-1),"0.0.3fred",   'EX'),
+                      ((0,0,3,'fred',8), "0.0.3fred8",  '<'),
+                      ((0,0,3,'fred',0), "0.0.3fred0",  '>'),
+                      ((0,0,3,'code',0), "0.0.3code0",  "EX"),
+                      ]:
+            self.assertEquals(vstr(t), s)
+            self.assertEquals(parse(s), t)
+            if not last:
+                continue
+
+            if c == 'EX':
+                self.assertRaises(ValueError, cmp, last, t)
+            elif c == '<':
+                self.assertEquals(cmp(last,t), -1)
+            elif c == '=':
+                self.assertEquals(cmp(last,t), 0)
+            elif c == '>':
+                self.assertEquals(cmp(last,t), 1)
+            else:
+                print "Huh?"
+
+            last = t
 
     def testTimeFns(self):
         # This isn't a very good test.
@@ -5344,7 +5381,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(MiscTests))
         return suite
 
     suite.addTest(tc(MiscTests))

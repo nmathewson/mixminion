@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.25 2003/02/13 06:30:23 nickm Exp $
+# $Id: __init__.py,v 1.26 2003/02/13 07:40:26 nickm Exp $
 
 """mixminion
 
@@ -15,35 +15,83 @@ __version__ = "0.0.3alpha"
 #         99 for release candidate
 #        100 for release.
 # The 5th is a patchlevel.  If -1, it is suppressed.
-# Either the 4th or 5th number may be a string.  If so, it is not meant to
+# The 4th or 5th number may be a string.  If so, it is not meant to
 #   succeed or preceed any other sub-version with the same a.b.c version
 #   number.
 version_info = (0, 0, 3, 0, -1)
 __all__ = [ 'server', 'directory' ]
 
-#XXXX003 MOVE THIS TO COMMON!
 def version_tuple_to_string(t):
     assert len(t) == 5
-    if t[3] == 0:
+    major, minor, sub, status, patch = t
+    if status == 0:
         s1 = "alpha"
-    elif t[3] == 50:
+    elif status == 50:
         s1 = "beta"
-    elif t[3] == 99:
+    elif status == 99:
         s1 = "rc"
-    elif t[3] == 100:
+    elif status == 100:
         s1 = ""
+    elif type(status) == type(1):
+        s1 = "(%s)"%status
     else:
-        s1 = "(%s)"%t[3]
-    if t[4] > -1:
-        if s1:
-            s2 = "p%s"%t[4]
+        s1 = status
+    if patch != -1:
+        if not s1:
+            s2 = "p%s"%patch
         else:
-            s2 = str(t[4])
+            s2 = str(patch)
     else:
         s2 = ""
     return "%s.%s.%s%s%s" % (t[0],t[1],t[2],s1,s2)
 
+def parse_version_string(s):
+    import re
+    r = re.compile(r'(\d+)\.(\d+)\.(\d+)(?:([^\d\(]+|\(\d+\))(\d+)?)?')
+    m = r.match(s)
+    major, minor, sub, status, patch = m.groups()
+    if not status or status in ('.', 'p'):
+        status = 100
+    elif status == 'rc':
+        status = 99
+    elif status == 'beta':
+        status = 50
+    elif status == 'alpha':
+        status = 0
+    elif status[0] == '(' and status[-1] == ')':
+        try:
+            status = int(status[1:-1])
+        except ValueError:
+            status = status
+    else:
+        status = status
+    if not patch:
+        patch = -1
+    else:
+        try:
+            patch = int(patch)
+        except ValueError:
+            pass
+    return (int(major), int(minor), int(sub), status, patch)
+
+def cmp_versions(a,b):
+    r = cmp(a[0],b[0])
+    if r: return r
+    r = cmp(a[1],b[1])
+    if r: return r
+    r = cmp(a[2],b[2])
+    if r: return r
+    if type(a[3]) == type(b[3]) == type(1):
+        r = cmp(a[3],b[3])
+        if r: return r
+    elif a[3] != b[3]:
+        raise ValueError, "Can't compare versions"
+
+    return cmp(a[4],b[4])
+    
 assert __version__ == version_tuple_to_string(version_info)
+assert parse_version_string(__version__) == version_info
+assert cmp_versions(version_info, version_info) == 0
 
 ## This next segment keeps pychecker from making spurious complaints.
 import sys
