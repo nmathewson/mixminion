@@ -5,7 +5,7 @@ import mmUtils
 
 import sys
 import os
-import pwd
+# import pwd
 import errno
 import getopt
 import time
@@ -47,6 +47,12 @@ class IMAPproxy(pop3d.POP3Server):
         # Get the IMAP messages
         try:
             M = imaplib.IMAP4(self.__server)
+        except:
+            print "Wrond server name %s" % self.__server
+            return []
+        
+        try:
+            
             M.login(user, passd)
             M.select()
             # Filter for anonymous messages 

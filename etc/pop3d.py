@@ -27,7 +27,7 @@
 
 import sys
 import os
-import pwd
+# import pwd
 import errno
 import getopt
 import time

@@ -6,7 +6,10 @@ import re
 # it returns what appeared in the std output.
 # PRIVATE: DO NOT CALL FROM OUTSIDE THIS MODULE!!!
 def mm_command(cmd, in_str = None, show_stderr = 1):
-    c = cmd
+    # c = cmd
+
+    c = reduce(lambda x,y: x+" "+y, cmd)
+    print c
 
     if show_stderr == 1:
         (sout,sin) = os.popen4(c)
@@ -23,7 +26,7 @@ def mm_command(cmd, in_str = None, show_stderr = 1):
 # provides a single use reply block
 # If an error occus it return an empty list '[]'
 def getSURB(addrs,login,passwd):
-    rs = mm_command(['mixminion','generate-surb','--identity=%s'%login,'-t',addrs], passwd)
+    rs = mm_command(['mixminion','generate-surb','--identity=\"%s\"'%login,'-t',addrs], passwd)
     surbPat = re.compile('-----BEGIN TYPE III REPLY BLOCK-----[^\-]*-----END TYPE III REPLY BLOCK-----',re.S)
     rs = surbPat.findall(rs)
     return rs
@@ -73,6 +76,6 @@ def reply(msg,surb,cmd):
 if __name__ == '__main__':
     import getpass
     sb = getSURB('gd216@cl.cam.ac.uk',getpass.getpass())
-    reply('Hello world\nThis is my message\n',sb[0])
+    # reply('Hello world\nThis is my message\n',sb[0])
 
 # print rs

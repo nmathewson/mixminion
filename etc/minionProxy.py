@@ -58,7 +58,7 @@ if __name__ == '__main__':
     # -h, --help      - gives some help
     try:
         opts, args = getopt.getopt(
-            sys.argv[1:], 'VhHPSL',
+            sys.argv[1:], 'VhH:P:S:L:',
             ['version', 'help','host','pop3port','smtpport','localhost'])
     except getopt.error, e:
         print e
@@ -67,6 +67,7 @@ if __name__ == '__main__':
     for opt, arg in opts:
         if opt in ('-H', '--host'):
             imap_address = arg
+            print opt,arg,imap_address
         elif opt in ('-I', '--imapport'):
             try:
                 imap_port = int(arg)

@@ -109,6 +109,7 @@ class minionSMTP(smtpd.SMTPServer):
 
         if retaddrs != None:
             surb = mmUtils.getSURB(retaddrs,nickname,self.__passwd)
+            print surb,retaddrs,nickname,self.__passwd
             body = body +'\n'+surb[0]
 
         # Base mixminion command
@@ -116,10 +117,10 @@ class minionSMTP(smtpd.SMTPServer):
         
         # Augment the command with a nickname
         if nickname != '':
-            cmd.append('--from=%s' % nickname)
+            cmd.append('--from=\"%s\"' % nickname)
 
         if subject != '':
-            cmd.append('--subject=%s' % subject)
+            cmd.append('--subject=\"%s\"' % subject)
 
         for address in rcpttos:
             taz = re.findall('([^@]*)@nym.taz',address)
