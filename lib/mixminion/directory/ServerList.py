@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.49 2003/12/23 23:12:08 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ServerList.py,v 1.50 2004/01/12 04:48:16 nickm Exp $
 
 """mixminion.directory.ServerList
 

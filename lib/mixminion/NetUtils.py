@@ -1,4 +1,4 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
 # Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.NetUtils

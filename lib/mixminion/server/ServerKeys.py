@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.62 2004/01/07 02:50:09 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ServerKeys.py,v 1.63 2004/01/12 04:48:16 nickm Exp $
 
 """mixminion.ServerKeys
 

@@ -1,5 +1,5 @@
-/* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.21 2004/01/12 00:49:01 nickm Exp $ */
+/* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information */
+/* $Id: main.c,v 1.22 2004/01/12 04:48:16 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
