@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.29 2003/05/28 08:41:04 nickm Exp $
+# $Id: ServerKeys.py,v 1.30 2003/05/28 17:26:53 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -520,7 +520,8 @@ class ServerKeyset:
                  self.mmtpKeyFile,
                  self.certFile,
                  self.descFile,
-                 self.publishedFile]
+                 self.publishedFile,
+                 self.hashlogFile ]
         files = [f for f in files if os.path.exists(f)]
         hashdir, name = os.path.split(self.hashlogFile)
         if os.path.exists(hashdir):
@@ -695,7 +696,8 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         warn("Mismatched contacts: %s in configuration; %s published.",
              config_s['Contact-Email'], info_s['Contact'])
 
-    if info_s['Software'] and info_s['Software'] != mixminion.__version__:
+    if info_s['Software'] and info_s['Software'] != (
+        "Mixminion %s" % mixminion.__version__):
         warn("Mismatched versions: running %s; %s published.",
              mixminion.__version__, info_s['Software'])
 

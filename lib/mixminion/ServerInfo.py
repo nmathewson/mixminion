@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.43 2003/05/28 07:36:24 nickm Exp $
+# $Id: ServerInfo.py,v 1.44 2003/05/28 17:26:53 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -105,9 +105,6 @@ class ServerInfo(mixminion.Config._ConfigFile):
         self._validatedDigests = validatedDigests
         mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
         del self._validatedDigests
-        LOG.trace("Reading server descriptor %s from %s",
-                       self['Server']['Nickname'],
-                       fname or "<string>")
 
     def prevalidate(self, contents):
         for name, ents in contents:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.13 2003/05/28 07:54:08 nickm Exp $
+# $Id: DirMain.py,v 1.14 2003/05/28 17:26:53 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -115,7 +115,7 @@ def cmd_generate(args):
 
     badServers = config['Directory'].get('BadServer', [])
     location = config['Publishing']['Location']
-    print >>sys.stderr, "(Bad servers==%r)"%badServers
+    print "(Bad servers==%r)"%badServers
 
     now = time.time()
     tomorrow = now+60*60*24
@@ -125,7 +125,7 @@ def cmd_generate(args):
                                  extraTime=twoWeeks,
                                  identityKey=key,
                                  badServers=badServers)
-    print >>sys.stderr, "Directory generated; publishing."
+    print "Directory generated; publishing."
 
     fname = serverList.getDirectoryFilename()
 
@@ -138,7 +138,7 @@ def cmd_generate(args):
     else:
         shutil.copy(fname, location)
 
-    print >>sys.stderr, "Published."
+    print "Published."
 
 def cmd_fingerprint(args):
     if args:
@@ -161,7 +161,7 @@ def main(cmd, args):
     command = args[0]
     args = args[1:]
     if not SUBCOMMANDS.has_key(command):
-        print >>sys.stderr, "Unknown command", command
+        print "Unknown command", command
         usageAndExit()
     init_crypto()
     LOG.setMinSeverity("INFO")
