@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.81 2003/05/28 07:36:24 nickm Exp $
+# $Id: Common.py,v 1.82 2003/05/28 08:08:19 nickm Exp $
 
 """mixminion.Common
 
@@ -1205,8 +1205,9 @@ def openUnique(fname, mode='w', perms=0600):
         try:
             fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL, perms)
             return os.fdopen(fd, mode), fname
-        except OSError:
-            pass
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise
         idx += 1
         fname = os.path.join(base, "%s.%s"%(rest,idx))
 
