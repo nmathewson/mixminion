@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.16 2003/01/03 05:14:47 nickm Exp $
+# $Id: Main.py,v 1.17 2003/01/05 01:28:27 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -144,8 +144,10 @@ def main(args):
         # FFFF we could do better in generating a usage message here.
         cmds = _COMMANDS.keys()
         cmds.sort()
-        sys.stderr.write("Usage: %s {%s} [arguments]\n" %(
-            args[0], "|".join(cmds)))
+        sys.stderr.write("Usage: %s <command> [arguments]\n" %args[0])
+        sys.stderr.write("Where <command> is one of:\n")
+        for c in cmds:
+            sys.stderr.write("     %s\n"%c)
         sys.exit(1)
 
     # Read the module and function.
