@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.132 2004/07/27 04:42:33 nickm Exp $
+# $Id: ServerMain.py,v 1.133 2004/07/27 23:12:16 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -878,7 +878,7 @@ class MixminionServer(_Scheduler):
             LOG.debug("Initializing ping log")
             pingerDir = os.path.join(config.getWorkDir(), "pinger")
             pingerLogDir = os.path.join(pingerDir, "log")
-            self.pingLog = mixminion.server.Pinger.PingLog(pingerLogDir)
+            self.pingLog = mixminion.server.Pinger.PingStatusLog(pingerLogDir)
             self.pingLog.startup()
 
             LOG.debug("Initializing ping generator")
@@ -1034,6 +1034,11 @@ class MixminionServer(_Scheduler):
                 now+self.pingLog.HEARTBEAT_INTERVAL,
                 self.pingLog.heartbeat,
                 self.pingLog.HEARTBEAT_INTERVAL))
+            self.scheduleEvent(RecurringBackgroundEvent(
+                now+3*60,
+                self.processingThread.addJob,
+                self.pingLog.calculateStatistics,
+                27*60*60))
 
         # Makes next update get scheduled.
         nextUpdate = self.updateDirectoryClient()
