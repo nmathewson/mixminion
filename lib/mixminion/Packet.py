@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.55 2003/08/18 05:11:55 nickm Exp $
+# $Id: Packet.py,v 1.56 2003/08/21 21:34:02 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -15,13 +15,13 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_TYPE', 'FragmentPayload',
             'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
             'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
-            'MIN_SUBHEADER_LEN', 'Message',
+            'MIN_SUBHEADER_LEN', 'Packet',
             'OAEP_OVERHEAD', 'PAYLOAD_LEN', 'ParseError', 'ReplyBlock',
             'ReplyBlock', 'SECRET_LEN', 'SINGLETON_PAYLOAD_OVERHEAD',
             'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_TYPE', 'SingletonPayload',
             'Subheader', 'TAG_LEN', 'TextEncodedMessage',
             'parseHeader', 'parseIPV4Info',
-            'parseMBOXInfo', 'parseMessage', 'parseMessageAndHeaders',
+            'parseMBOXInfo', 'parsePacket', 'parseMessageAndHeaders',
             'parsePayload', 'parseReplyBlock',
             'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
             'parseTextEncodedMessages', 'parseTextReplyBlocks', 
@@ -86,6 +86,9 @@ NEWS_TYPE      = 0x0102  # Post the message to some ngs, and maybe mail it too
 FRAGMENT_TYPE  = 0x0103  # Find the actual deliver info in the message payload 
 MAX_EXIT_TYPE  = 0xFFFF
 
+#DOCDOC
+_TYPES_WITHOUT_TAGS = { FRAGMENT_TYPE : 1 }
+
 class ParseError(MixError):
     """Thrown when a message or portion thereof is incorrectly formatted."""
     pass
@@ -93,17 +96,17 @@ class ParseError(MixError):
 #----------------------------------------------------------------------
 # PACKET-LEVEL STRUCTURES
 
-def parseMessage(s):
-    """Given a 32K string, returns a Message object that breaks it into
+def parsePacket(s):
+    """Given a 32K string, returns a Packet object that breaks it into
        two headers and a payload."""
     if len(s) != MESSAGE_LEN:
         raise ParseError("Bad message length")
 
-    return Message(s[:HEADER_LEN],
+    return Packet(s[:HEADER_LEN],
                    s[HEADER_LEN:HEADER_LEN*2],
                    s[HEADER_LEN*2:])
 
-class Message:
+class Packet:
     """Represents a complete Mixminion packet
 
        Fields: header1, header2, payload"""
@@ -145,7 +148,7 @@ def parseSubheader(s):
     underflow = ""
     if rlen < len(ri):
         ri, underflow = ri[:rlen], ri[rlen:]
-    if rt >= MIN_EXIT_TYPE and rlen < 20:
+    if rt >= MIN_EXIT_TYPE and not _TYPES_WITHOUT_TAGS.get(rt) and rlen < 20:
         raise ParseError("Subheader missing tag")
     return Subheader(major,minor,secret,digest,rt,ri,rlen,underflow)
 
@@ -189,15 +192,21 @@ class Subheader:
         """Return the part of the routingInfo that contains the delivery
            address.  (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
-        assert len(self.routinginfo) >= TAG_LEN
-        return self.routinginfo[TAG_LEN:]
+        if _TYPES_WITHOUT_TAGS.get(self.routingtype):
+            return self.routinginfo
+        else:
+            assert len(self.routinginfo) >= TAG_LEN            
+            return self.routinginfo[TAG_LEN:]
 
     def getTag(self):
         """Return the part of the routingInfo that contains the decoding
            tag. (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
-        assert len(self.routinginfo) >= TAG_LEN
-        return self.routinginfo[:TAG_LEN]
+        if _TYPES_WITHOUT_TAGS.get(self.routingtype):
+            return ""
+        else:
+            assert len(self.routinginfo) >= TAG_LEN
+            return self.routinginfo[:TAG_LEN]
 
     def setRoutingInfo(self, info):
         """Change the routinginfo, and the routinglength to correspond."""
@@ -314,6 +323,17 @@ class SingletonPayload(_Payload):
         """Returns the non-padding portion of this payload's data"""
         return self.data[:self.size]
 
+    def getUncompressedContents(self, force=None):
+        """Return the original message from this payload's data, removing
+           compression.  Raise CompressedDataTooLong if the data is too
+           long, and force is not true."""
+        d = self.data[:self.size]
+        if force:
+            return uncompressData(d)
+        else:
+            maxLen = max(20*1024, 20*len(d))
+            return uncompressData(d, maxLen)
+
     def pack(self):
         """Check for reasonable values of fields, and return a packed payload.
         """
@@ -365,8 +385,32 @@ class FragmentPayload(_Payload):
     def getOverhead(self):
         return PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)
 
-    
+#----------------------------------------------------------------------
+#DOCDOC
 
+SSF_UNPACK_PATTERN = "!HH"
+SSF_PREFIX_LEN = 4
+
+def parseServerSideFragmentedMessage(s):
+    if len(s) < SSF_PREFIX_LEN:
+        raise ParseError("Server-side fragmented message too short")
+    
+    rt, rl = struct.unpack(SSF_UNPACK_PATTERN, s[:SSF_PREFIX_LEN])
+    if len(s) < SSF_PREFIX_LEN + rl:
+        raise ParseError("Server-side fragmented message too short")
+    ri = s[SSF_PREFIX_LEN:SSF_PREFIX_LEN+rl]
+    comp = s[SSF_PREFIX_LEN+rl:]
+    return ServerSideFragmentedMessage(rt, ri, comp)
+
+class ServerSideFragmentedMessage:
+    """DOCDOC"""
+    def __init__(self, routingtype, routinginfo, compressedContents):
+        self.routingtype = routingtype
+        self.routinginfo = routinginfo
+        self.compressedContents = compressedContents
+    def pack(self):
+        return struct.pack(SSF_UNPACK_PATTERN, self.routingtype,
+                           len(self.routinginfo)) + self.compressedContents
 
 #----------------------------------------------------------------------
 # REPLY BLOCKS
@@ -592,7 +636,6 @@ class MBOXInfo:
 MESSAGE_ARMOR_NAME = "TYPE III ANONYMOUS MESSAGE"
  
 def parseTextEncodedMessages(msg,force=0):
-
     """Given a text-encoded Type III packet, return a list of
        TextEncodedMessage objects or raise ParseError.
        
@@ -620,6 +663,8 @@ def parseTextEncodedMessages(msg,force=0):
             msgType = "BIN"
         elif d['Message-type'] == 'encrypted':
             msgType = "ENC"
+        elif d['Message-type'] == 'fragment':
+            msgType = "FRAG"
         else:
             raise ParseError("Unknown message type: %r"%d["Message-type"])
 
@@ -630,7 +675,7 @@ def parseTextEncodedMessages(msg,force=0):
         if msgType == 'LONG' and force:
             msg = uncompressData(msg)
             
-        if msgType in ('TXT','BIN','LONG'):
+        if msgType in ('TXT','BIN','LONG','FRAG'):
             res.append(TextEncodedMessage(val, msgType))
         else:
             assert msgType == 'ENC'
@@ -650,8 +695,10 @@ class TextEncodedMessage:
     def __init__(self, contents, messageType, tag=None):
         """Create a new TextEncodedMessage given a set of contents, a
            messageType ('TXT', 'ENC', 'LONG', or 'BIN'), and optionally
-           a tag."""
-        assert messageType in ('TXT', 'ENC', 'LONG', 'BIN')
+           a tag.
+           DOCDOC FRAG
+           """
+        assert messageType in ('TXT', 'ENC', 'LONG', 'BIN', 'FRAG')
         assert tag is None or (messageType == 'ENC' and len(tag) == 20)
         self.contents = contents
         self.messageType = messageType
@@ -668,6 +715,9 @@ class TextEncodedMessage:
     def isOvercompressed(self):
         """Return true iff this is an overcompressed plaintext packet."""
         return self.messageType == 'LONG'
+    def isFragment(self):
+        """DOCDOC"""
+        return self.messageType == 'FRAG'
     def getContents(self):
         """Return the (unencoded) contents of this packet."""
         return self.contents
@@ -681,7 +731,8 @@ class TextEncodedMessage:
                    { 'TXT' : "plaintext",
                      'LONG' : "overcompressed",
                      'BIN' : "binary",
-                     'ENC' : "encrypted" }[self.messageType]),
+                     'ENC' : "encrypted",
+                     'FRAG' : 'fragment' }[self.messageType]),
                   ]
         if self.messageType == 'ENC':
             fields.append(("Decoding-handle",
@@ -693,14 +744,20 @@ class TextEncodedMessage:
 #----------------------------------------------------------------------
 # Header encoding
 
+#DOCDOC
+MAX_HEADER_LEN = 900
+
 def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
                       references=None):
-    """DOCDOC"""
-    #XXXX005 check values
+    """DOCDOC.  Raise MixError on failure."""
     headers = {}
     if subject:
         headers['SUBJECT'] = subject
     if fromAddr:
+        for badchar in '"[]:':
+            if badchar in fromAddr:
+                raise MixError("Forbidden character %r in from address"%
+                               badchar)
         headers['FROM'] = fromAddr
     if inReplyTo:
         headers['IN-REPLY-TO'] = inReplyTo
@@ -709,7 +766,7 @@ def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
     return encodeMessageHeaders(headers)
 
 def encodeMessageHeaders(headers):
-    """DOCDOC dict
+    """DOCDOC dict, max size
 
        Requires that headers are in acceptable format.
     """
@@ -720,6 +777,8 @@ def encodeMessageHeaders(headers):
         item = "%s:%s\n"%(k,v)
         if not HEADER_RE.match(item) or "\n" in k or "\n" in v:
             raise ParseError("Invalid value for %s header"%k)
+        if len(v) > 900:
+            raise ParseError("The %s header is too long"%k.lower())
         items.append(item)
     items.append("\n")
     return "".join(items)
@@ -736,7 +795,7 @@ def parseMessageAndHeaders(message):
         m = HEADER_RE.match(msg)
         if m:
             k,v = m.groups()
-            if len(v) > 900:
+            if len(v) > MAX_HEADER_LEN:
                 LOG.warn("Rejecting overlong exit header %r:%r...",k,v[:30])
             else:
                 headers[k] = v

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.53 2003/07/30 22:38:03 nickm Exp $
+# $Id: Config.py,v 1.54 2003/08/21 21:34:02 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -106,7 +106,7 @@ def _parseServerMode(mode):
 
 # re to match strings of the form '9 seconds', '1 month', etc.
 _interval_re = re.compile(r'''^(\d+\.?\d*|\.\d+)\s+
-                     (sec|second|min|minute|hour|day|week|mon|month|year)s?$''',
+                   (sec|second|min|minute|hour|day|week|mon|month|year)s?$''',
                           re.X)
 _seconds_per_unit = {
     'second': 1,
@@ -172,6 +172,25 @@ def _parseInt(integer):
         return int(i)
     except ValueError:
         raise ConfigError("Expected an integer but got %r" % (integer))
+
+# regular expression to match a size.
+_size_re = re.compile(r'^(\d+\.?\d*|\.\d+)\s*(k|kb|m|mb|b|byte|octet|)s?')
+_size_name_map = { '' : 1L, 'b' : 1L, 'byte' : 1L, 'octet' : 1L,
+                   'k' : 1L<<10, 'kb' : 1L<<10,
+                   'm' : 1L<<20, 'mb' : 1L<<20,
+                   'g' : 1L<<30, 'gb' : 1L<<30 }
+def _parseSize(size):
+    """Validation function.  Converts a config value to a size in octets.
+       Raises ConfigError on failure."""
+    s = size.strip().lower()
+    m = _size_re.match(s)
+    if not m: raise ConfigError("Invalid size %r"%size)
+    val = m.group(1)
+    unit = _size_name_map[m.group(2)]
+    if '.' in val:
+        return long(float(val)*unit)
+    else:
+        return long(val)*unit
 
 # Regular expression to match a dotted quad.
 _ip_re = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
@@ -773,7 +792,21 @@ class ClientConfig(_ConfigFile):
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
 
-    #XXXX005 Make  prevalidate check to make sure there's no 'Server' section.
+
+
+    def prevalidate(self, contents):
+        # See if we've been passed a server configuration.
+        foundServer = 0
+        foundUser = 0
+        for s, _ in contents:
+            if s == 'Server':
+                foundServer = 1
+            elif s == 'User':
+                foundUser = 1
+        if foundServer and not foundUser:
+            raise ConfigError("Got a server configuration (mixminiond.conf), but expected a client configuration (.mixminionrc)")
+
+        return contents
 
     def validate(self, lines, contents):
         _validateHostSection(self['Host'])

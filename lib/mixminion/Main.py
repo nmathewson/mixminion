@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.55 2003/07/24 18:01:29 nickm Exp $
+# $Id: Main.py,v 1.56 2003/08/21 21:34:02 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -288,7 +288,7 @@ def main(args):
         print str(e)
         print "(You can disable file permission checking by setting",
         print "the MM_NO_FILE_PARANOIA"
-        print "environment variable."
+        print "environment variable.)"
         sys.exit(1)
     except KeyboardInterrupt:
         print "Interrupted."

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.52 2003/07/30 22:38:03 nickm Exp $
+# $Id: ServerInfo.py,v 1.53 2003/08/21 21:34:02 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -85,9 +85,17 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Delivery/MBOX" : {
                      "Version": ("REQUIRE", None, None),
+                     # XXXX006 change to 'REQUIRE'
+                     "Maximum-Size": ("ALLOW", C._parseInt, "32"),
                      },
         "Delivery/SMTP" : {
                      "Version": ("REQUIRE", None, None),
+                     # XXXX006 change to 'REQUIRE'
+                     "Maximum-Size": ("ALLOW", C._parseInt, "32"),
+                     },
+        "Delivery/Fragmented" : {
+                     "Version": ("REQUIRE", None, None),
+                     "Maximum-Fragments": ("REQUIRE", C._parseInt, None),
                      },
         # We never read these values, except to see whether we should
         # regenerate them.  Depending on these options would violate
@@ -244,6 +252,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         # XXXX This next check is highly bogus.
         if self['Outgoing/MMTP'].get('Version'):
             caps.append('relay')
+        if self['Delivery/Fragmented'].get('Version'):
+            caps.append('frag')
         return caps
 
     def isValidated(self):

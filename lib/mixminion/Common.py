@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.104 2003/08/09 02:53:31 nickm Exp $
+# $Id: Common.py,v 1.105 2003/08/21 21:34:02 nickm Exp $
 
 """mixminion.Common
 
@@ -292,6 +292,8 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
 
         if base64:
             try:
+                if stringContains(s[idx:endIdx], "\n[...]\n"):
+                    raise ValueError("Value seems to be truncated by a Mixminion-Mixmaster gateway")
                 value = binascii.a2b_base64(s[idx:endIdx])
             except (TypeError, binascii.Incomplete, binascii.Error), e:
                 raise ValueError(str(e))
@@ -379,7 +381,7 @@ def checkPrivateFile(fn, fix=1):
     mode = st[stat.ST_MODE] & 0777
     if _CHECK_MODE and mode not in (0700, 0600):
         if not fix:
-            raise MixFilePermissionError("Bad mode %o on file %s" 
+            raise MixFilePermissionError("Bad permissions (mode %o) on file %s"
                                          % (mode & 0777, fn))
         newmode = {0:0600,0100:0700}[(mode & 0100)]
         LOG.warn("Repairing permissions on file %s" % fn)

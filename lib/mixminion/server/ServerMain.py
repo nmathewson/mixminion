@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.87 2003/07/24 17:37:16 nickm Exp $
+# $Id: ServerMain.py,v 1.88 2003/08/21 21:34:03 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -624,7 +624,7 @@ class MixminionServer(_Scheduler):
         try:
             self.lockFile.acquire()
         except LockfileLocked:
-            raise MixFatalError("Another server seems to be running.")
+            raise UIError("Another server seems to be running.")
 
         # The pid file.
         self.pidFile = os.path.join(homeDir, "pid")
@@ -734,25 +734,6 @@ The original error message was '%s'."""%e)
             return self.keyring.getNextKeyRotation()
         finally:
             if lock: self.keyring.unlock()
-
-    def scheduleRecurringComplexBackground(self, first, name, cb):
-        """DOCDOC"""
-        #????005 Is this worth it?
-        backgroundJob = [None]
-        scheduler = [None]
-        
-        def _bg(cb=cb, self=self, scheduler=scheduler, name=name):
-            next = cb()
-            if next is not None:
-                self.scheduleOnce(next, name, scheduler[0])
-
-        def _scheduler(backgroundJob=backgroundJob, self=self):
-            self.processingThread.addJob(backgroundJob[0])
-
-        backgroundJob[0] = _bg
-        scheduler[0] = _scheduler
-
-        self.scheduleOnce(first,name,_scheduler)
 
     def generateKeys(self):
         """Callback used to schedule key-generation"""

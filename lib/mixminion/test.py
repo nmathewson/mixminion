@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.146 2003/08/18 05:11:55 nickm Exp $
+# $Id: test.py,v 1.147 2003/08/21 21:34:03 nickm Exp $
 
 """mixminion.tests
 
@@ -619,6 +619,13 @@ World!
                     self.assertEquals(b.strip(), inp.strip())
                     if not mode:
                         self.assertEndsWith(b, "\n")
+
+        # Test unarmor and [...]
+        enc = armorText(inp2*50, "MUNGED", [], base64=1)
+        enc = enc.split("\n")
+        enc[-10:-5] = [ "[...]" ]
+        enc = "\n".join(enc)
+        self.assertRaises(ValueError, unarmorText, enc, ["MUNGED"], 1)
 
         # Test base64fn and concatenation.
         enc1 = armorText(inp2, "THIS THAT", [("H-64", "0")], 0)
@@ -1262,13 +1269,13 @@ class PacketTests(TestCase):
         # correctly.
         # (Generate a nice random string to make sure we're slicing right.)
         m = Crypto.prng("HappyFunAESKey!!", 32768)
-        msg = parseMessage(m)
+        msg = parsePacket(m)
         self.assert_(msg.pack() == m)
         self.assert_(msg.header1 == m[:2048])
         self.assert_(msg.header2 == m[2048:4096])
         self.assert_(msg.payload == m[4096:])
-        self.failUnlessRaises(ParseError, parseMessage, m[:-1])
-        self.failUnlessRaises(ParseError, parseMessage, m+"x")
+        self.failUnlessRaises(ParseError, parsePacket, m[:-1])
+        self.failUnlessRaises(ParseError, parsePacket, m+"x")
 
     def test_ipv4info(self):
         # Check the IPV4Info structure used to hold the addresses for the
@@ -1454,33 +1461,47 @@ ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzl
 
     def testHeaders(self):
         emh = encodeMessageHeaders
+        eMh = encodeMailHeaders
         pmh = parseMessageAndHeaders
         eq = self.assertEquals
 
+        # Nil headers
         eq(emh({}), "\n")
 
+        # Parse and unparse headers
         encoded = emh({"ABC": "x y zzy", "X": "<42>"}) + "Hello whirled"
         eq(encoded, "ABC:x y zzy\nX:<42>\n\nHello whirled")
         m,h = pmh(encoded)
         eq(m, "Hello whirled")
         eq(h, {"ABC": "x y zzy", "X": "<42>"})
 
+        # Handle leading newlines properly
         encoded = emh({}) + "A short message"
         eq(encoded, "\nA short message")
         eq(("A short message", {}), pmh(encoded))
         eq(("\nA short message", {}), pmh("\n"+encoded))
 
+        # Parse headers with problems.
         try:
             suspendLog()
             m,h = pmh("A message that doesn't start with a header")
             eq(m, "A message that doesn't start with a header")
             eq(h, {})
+            # Over-long header gets skipped.
             encoded = "X:"+("Y"*1000)+"\nY:X\n\nZ"
             m,h = pmh(encoded)
             eq(h, {"Y": "X"})
             eq(m, "Z")
         finally:
             resumeLog()
+
+        eq("\n", eMh())
+        eq("SUBJECT:foo\n\n", eMh(subject='foo'))
+        eq("FROM:fred@bluto\n\n", eMh(fromAddr='fred@bluto'))
+        eq("FROM:a\nIN-REPLY-TO:b\nREFERENCES:c\nSUBJECT:d\n\n",
+           eMh(fromAddr='a',inReplyTo='b',references='c',subject='d'))
+        self.assertRaises(MixError, eMh, fromAddr='fred"')
+        self.assertRaises(MixError, eMh, subject=("X"*910))
 
 #----------------------------------------------------------------------
 class HashLogTests(TestCase):
@@ -1638,6 +1659,7 @@ class BuildMessageTests(TestCase):
 
     def test_payload_helpers(self):
         "test helpers for payload encoding"
+        
         p = AESCounterPRNG()
         for _ in xrange(10):
             t = BuildMessage._getRandomTag(p)
@@ -1649,7 +1671,7 @@ class BuildMessageTests(TestCase):
 
         for m in (p.getBytes(3000), p.getBytes(10000), "", "q", "blznerty"):
             for ov in 0, 42-20+16: # encrypted forward overhead
-                plds = BuildMessage.encodeMessage(m,ov,p)
+                plds = BuildMessage.encodeMessage(m,ov,"",p)
                 assert len(plds) == 1
                 pld = plds[0]
                 self.assertEquals(28*1024, len(pld)+ov)
@@ -1659,18 +1681,15 @@ class BuildMessageTests(TestCase):
                 self.assert_(BuildMessage._checkPayload(pld))
                 self.assertEquals(len(comp), ord(pld[0])*256+ord(pld[1]))
                 self.assertEquals(0, ord(pld[0])&0x80)
-                self.assertEquals(m, BuildMessage._decodePayloadImpl(pld))
+                py = mixminion.Packet.parsePayload(pld)
+                self.assertEquals(m, py.getUncompressedContents())
 
-        self.failUnlessRaises(MixError, BuildMessage._decodePayloadImpl, b)
-
-        # Check fragments (not yet supported)
-        pldFrag = chr(ord(pld[0])|0x80)+pld[1:]
-        self.failUnlessRaises(MixError,BuildMessage._decodePayloadImpl,pldFrag)
+        self.failUnlessRaises(MixError, BuildMessage._decodeForwardPayload, b)
 
         # Check impossibly long messages
         pldSize = "\x7f\xff"+pld[2:] #sha1(pld[22:])+pld[22:]
         self.failUnlessRaises(ParseError,
-                              BuildMessage._decodePayloadImpl,pldSize)
+                              BuildMessage._decodeForwardPayload,pldSize)
 
     def test_buildheader_1hop(self):
         bhead = BuildMessage._buildHeader
@@ -1848,7 +1867,7 @@ class BuildMessageTests(TestCase):
         message = consMsg(secrets1, secrets2, h1, h2, pld)
 
         self.assertEquals(len(message), mixminion.Packet.MESSAGE_LEN)
-        msg = mixminion.Packet.parseMessage(message)
+        msg = mixminion.Packet.parsePacket(message)
         head1, head2, payload = msg.header1, msg.header2, msg.payload
         self.assert_(h1 == head1)
 
@@ -1875,7 +1894,7 @@ class BuildMessageTests(TestCase):
         ### Reply case
         message = consMsg(secrets1, None, h1, h2, pld)
         self.assertEquals(len(message), mixminion.Packet.MESSAGE_LEN)
-        msg = mixminion.Packet.parseMessage(message)
+        msg = mixminion.Packet.parsePacket(message)
         head1, head2, payload = msg.header1, msg.header2, msg.payload
         self.assert_(h1 == head1)
 
@@ -1929,13 +1948,14 @@ class BuildMessageTests(TestCase):
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
 
         if decoder is None:
-            p = BuildMessage._decodeForwardPayload(p)
+            p = BuildMessage._decodeForwardPayload(p).getUncompressedContents()
         else:
             p = decoder(p, tag)
 
         self.assertEquals(payload, p[:len(payload)])
 
     def test_build_fwd_message(self):
+        
         bfm = BuildMessage.buildForwardMessage
         befm = BuildMessage.buildEncryptedForwardMessage
         payload = "Hello!!!!"
@@ -1954,14 +1974,13 @@ class BuildMessageTests(TestCase):
                                (self.server2.getRoutingInfo().pack(),
                                 "Goodbye") ),
                              "Hello!!!!")
-
         m = bfm(payload, 500, "Goodbye", [self.server1], [self.server3])
-
+        
         messages = {}
 
         def decoder0(p,t,messages=messages):
             messages['fwd'] = (p,t)
-            return BuildMessage._decodeForwardPayload(p)
+            return BuildMessage._decodeForwardPayload(p).getUncompressedContents()
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
@@ -1972,7 +1991,7 @@ class BuildMessageTests(TestCase):
                                ("Goodbye",) ),
                              "Hello!!!!",
                              decoder=decoder0)
-
+        
         # Drop message gets no tag, random payload
         m = bfm(payload, DROP_TYPE, "", [self.server1], [self.server3])
 
@@ -2002,8 +2021,8 @@ class BuildMessageTests(TestCase):
                      rsakey)
             def decoder(p,t,key=rsakey,messages=messages):
                 messages['efwd'+str(key.get_modulus_bytes())] = (p,t)
-                return BuildMessage._decodeEncryptedForwardPayload(p,t,key)
-
+                payload = BuildMessage._decodeEncryptedForwardPayload(p,t,key)
+                return payload.getUncompressedContents()
             self.do_message_test(m,
                                  ( (self.pk1, self.pk2), None,
                                    (FWD_TYPE, SWAP_FWD_TYPE),
@@ -2015,7 +2034,7 @@ class BuildMessageTests(TestCase):
                                     "Phello") ),
                                  payload,
                                  decoder=decoder)
-
+            
         # Now do more tests on final messages: is the format as expected?
         p,t = messages['fwd']
         self.assertEquals(20, len(t))
@@ -2069,7 +2088,8 @@ class BuildMessageTests(TestCase):
         messages = {}
         def decoder(p,t,secrets=secrets_1,messages=messages):
             messages['repl'] = p,t
-            return BuildMessage._decodeReplyPayload(p,secrets)
+            payload = BuildMessage._decodeReplyPayload(p,secrets)
+            return payload.getUncompressedContents()
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
@@ -2145,8 +2165,10 @@ class BuildMessageTests(TestCase):
 
         def decoder2(p,t,messages=messages):
             messages['srepl'] = p,t
-            return BuildMessage._decodeStatelessReplyPayload(p,t,
+            payload = BuildMessage._decodeStatelessReplyPayload(p,t,
                                                          "Tyrone Slothrop")
+            return payload.getUncompressedContents()
+        
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
                               (FWD_TYPE,SWAP_FWD_TYPE),
@@ -2183,6 +2205,13 @@ class BuildMessageTests(TestCase):
         self.assertStartsWith(p[22:], comp)
         self.assertEquals(sha1(p[22:]), p[2:22])
 
+    def assertPayloadDecodesTo(self, decoded, encoded, tag, key, userKeys):
+        p = BuildMessage.decodePayload(encoded, tag, key, userKeys)
+        if p is None:
+            self.assertEquals(decoded, p)
+        else:
+            self.assertEquals(decoded, p.getUncompressedContents())
+
     def test_decoding(self):
         # Now we create a bunch of fake payloads and try to decode them.
 
@@ -2195,8 +2224,10 @@ class BuildMessageTests(TestCase):
         self.assertEquals(len(comp), 109)
         encoded1 = (comp+ "RWE/HGW"*4096)[:28*1024-22]
         encoded1 = '\x00\x6D'+sha1(encoded1)+encoded1
+
         # Forward message.
-        self.assertEquals(payload, BuildMessage._decodeForwardPayload(encoded1))
+        self.assertEquals(payload,
+                          BuildMessage._decodeForwardPayload(encoded1).getUncompressedContents())
         # Encoded forward message
         efwd = (comp+"RWE/HGW"*4096)[:28*1024-22-38]
         efwd = '\x00\x6D'+sha1(efwd)+efwd
@@ -2207,7 +2238,7 @@ class BuildMessageTests(TestCase):
         efwd_t = efwd_rsa[:20]
         efwd_p = efwd_rsa[20:]+efwd_lioness
         self.assertEquals(payload,
-             BuildMessage._decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1))
+             BuildMessage._decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1).getUncompressedContents())
 
 ##      # Stateful reply
 ##      secrets = [ "Is that you, Des","troyer?Rinehart?" ]
@@ -2232,7 +2263,7 @@ class BuildMessageTests(TestCase):
             key = Keyset(k).getLionessKeys(PAYLOAD_ENCRYPT_MODE)
             m = lioness_decrypt(m,key)
         self.assertEquals(payload,
-                     BuildMessage._decodeStatelessReplyPayload(m,tag,passwd))
+                     BuildMessage._decodeStatelessReplyPayload(m,tag,passwd).getUncompressedContents())
         repl2, repl2tag = m, tag
 
         # Okay, now let's try out 'decodePayload' (and thereby test its
@@ -2245,51 +2276,46 @@ class BuildMessageTests(TestCase):
             ##for d in (sdict, None): # stateful replies disabled.
                 for p in (passwd, None):
                     for tag in ("zzzz"*5, "pzzz"*5):
-                        self.assertEquals(payload,
-                                          decodePayload(encoded1, tag, pk, p))
+                        self.assertPayloadDecodesTo(payload,
+                                                    encoded1, tag, pk, p)
 
         # efwd
         ##for d in (sdict, None): # stateful replies disabled
         if 1:
             for p in (passwd, None):
-                self.assertEquals(payload,
-                        decodePayload(efwd_p, efwd_t, rsa1, p))
-                self.assertEquals(None,
-                        decodePayload(efwd_p, efwd_t, None, p))
-                self.assertEquals(None,
-                        decodePayload(efwd_p, efwd_t, self.pk2, p))
+                self.assertPayloadDecodesTo(payload, efwd_p, efwd_t, rsa1, p)
+                self.assertPayloadDecodesTo(None, efwd_p, efwd_t, None, p)
+                self.assertPayloadDecodesTo(None, efwd_p, efwd_t, self.pk2, p)
 
         # Stateful replies are disabled.
 
         # repl (stateless)
         for pk in (self.pk1, None):
             #for sd in (sdict, None): #Stateful replies are disabled
-                self.assertEquals(payload,
-                            decodePayload(repl2, repl2tag, pk, passwd))
+                self.assertPayloadDecodesTo(payload,
+                                            repl2, repl2tag, pk, passwd)
                 try:
                     suspendLog("INFO")
-                    self.assertEquals(payload,
-                                      decodePayload(repl2, repl2tag, pk,
-                                     userKeys={ "Fred": passwd, "": "z"*20 }))
+                    self.assertPayloadDecodesTo(payload, repl2, repl2tag, pk,
+                                     userKeys={ "Fred": passwd, "": "z"*20 })
                 finally:
                     s = resumeLog()
                 self.assert_(stringContains(s,
                                "Decoded reply message to identity 'Fred'"))
-                self.assertEquals(None,
-                            decodePayload(repl2, repl2tag, pk, "Bliznerty"))
-                self.assertEquals(None,
-                            decodePayload(repl2, repl2tag, pk,
-                                   userKeys={ "Fred":"Bliznerty", "":"z"*20}))
-                self.assertEquals(None,
-                            decodePayload(repl2, repl2tag, pk, None))
+                self.assertPayloadDecodesTo(None,
+                                            repl2, repl2tag, pk, "Bliznerty")
+                self.assertPayloadDecodesTo(None, repl2, repl2tag, pk,
+                                   userKeys={ "Fred":"Bliznerty", "":"z"*20})
+                self.assertPayloadDecodesTo(None, repl2, repl2tag, pk, None)
 
         # Try decoding a payload that looks like a zlib bomb.  An easy way to
         # get such a payload is to compress 25K of zeroes.
         nils = "\x00"*(25*1024)
         overcompressed_payload = \
-             BuildMessage.encodeMessage(nils, 0, AESCounterPRNG())[0]
+             BuildMessage.encodeMessage(nils, 0)[0]
+        p = BuildMessage.decodePayload(overcompressed_payload, "X"*20)
         self.failUnlessRaises(CompressedDataTooLong,
-             BuildMessage.decodePayload, overcompressed_payload, "X"*20)
+                              p.getUncompressedContents)
 
         # And now the cases that fail hard.  This can only happen on:
         #   1) *: Hash checks out, but zlib or size is wrong.  Already tested.
@@ -2306,13 +2332,11 @@ class BuildMessageTests(TestCase):
         for p in (passwd, None):
             self.failUnlessRaises(MixError, decodePayload,
                                   efwd_pbad, efwd_t, rsa1, p)
-            self.assertEquals(None,
-                      decodePayload(efwd_pbad, efwd_t, self.pk2, p))
+            self.assertPayloadDecodesTo(None, efwd_pbad, efwd_t, self.pk2, p)
 
         # Bad repl
         repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
-        self.assertEquals(None,
-                  decodePayload(repl2_bad, repl2tag, None, passwd))
+        self.assertPayloadDecodesTo(None, repl2_bad, repl2tag, None, passwd)
 
 #----------------------------------------------------------------------
 # Having tested BuildMessage without using PacketHandler, we can now use
@@ -3922,6 +3946,14 @@ IntRS=5
         self.assert_(int(h2) == int(m120) == 7200)
         m120.reduce()
         self.assertEquals(str(m120), "2 hours")
+        # size
+        self.assertEquals(C._parseSize(" 30 bytes"), 30L)
+        self.assertEquals(C._parseSize(" 3000 b"), 3000L)
+        self.assertEquals(C._parseSize("50k"), 50*1024L)
+        self.assertEquals(C._parseSize("50k "), 50*1024L)
+        self.assertEquals(C._parseSize("50 "), 50L)
+        self.assertEquals(C._parseSize("50"), 50L)
+        self.assertEquals(C._parseSize("12.3M"), long(12.3*(1<<20L)))
         # IntervalList
         self.assertEquals(C._parseIntervalList(" 5 sec, 1 min, 2 hours"),
                           [ 5, 60, 7200 ])
@@ -5008,7 +5040,9 @@ class ModuleTests(TestCase):
                            "Retry": [0,0,0,0],
                            "SubjectLine":'foobar',
                            "FromTag" : '[NotReally]',
-                           'MixCommand' : ('ls', ['-z'])}},
+                           'MixCommand' : ('ls', ['-z']),
+                           "MaximumSize" : 32*1024,
+                           }},
                          manager)
         queue = manager.queues['SMTP_MIX2']
         replaceFunction(os, "spawnl")
@@ -5210,7 +5244,9 @@ Free to hide no more.
                            "ReturnAddress": "returnaddress@x",
                            "RemoveContact": "removeaddress@x",
                            "Retry": [0,0,0,3],
-                           "SMTPServer" : "foo.bar.baz"}}, manager)
+                           "SMTPServer" : "foo.bar.baz",
+                           "MaximumSize" : 32*1024,
+                           }}, manager)
         # Check that the address file was read correctly.
         self.assertEquals({'mix-minion': 'mixminion@thishost',
                            'mixdaddy':   'mixminion@thathost',
@@ -6230,8 +6266,8 @@ class ClientMainTests(TestCase):
 
             for fn, args, kwargs in getCalls():
                 self.assertEquals(fn, "buildForwardMessage")
-                self.assertEquals(args[0:3],
-                                  (payload, SMTP_TYPE, "joe@cledonism.net"))
+                self.assertEquals(args[1:3],
+                                  (SMTP_TYPE, "joe@cledonism.net"))
                 self.assert_(len(args[3]) == len(args[4]) == 2)
                 self.assertEquals(["Lola", "Joe", "Alice", "Joe"],
                      [x['Server']['Nickname'] for x in args[3]+args[4]])
@@ -6399,17 +6435,11 @@ class FragmentTests(TestCase):
         em = mixminion.BuildMessage.encodeMessage
         pp = mixminion.Packet.parsePayload
         M1 = Crypto.getCommonPRNG().getBytes(1024*30)
-        M2 = Crypto.getCommonPRNG().getBytes(1024*150)
-        M3 = Crypto.getCommonPRNG().getBytes(1024*200)
-        M4 = Crypto.getCommonPRNG().getBytes(1024*900)
-        M5 = Crypto.getCommonPRNG().getBytes(1024*900)
+        M2 = Crypto.getCommonPRNG().getBytes(1024*900)
         pkts1 = [ pp(x) for x in em(M1,0) ]
-        pkts2 = [ pp(x) for x in em(M2,38) ]
-        pkts3 = [ pp(x) for x in em(M3,0) ]
-        pkts4 = [ pp(x) for x in em(M4,0) ]
-        pkts5 = [ pp(x) for x in em(M5,0) ]
-        self.assertEquals(map(len, [pkts1,pkts2,pkts3,pkts4,pkts5]),
-                          [3, 11, 11, 66, 66])
+        pkts2 = [ pp(x) for x in em(M2,0) ]
+        self.assertEquals(map(len, [pkts1,pkts2]),
+                          [3, 66])
         
         loc = mix_mktemp()
         pool = mixminion.Fragments.FragmentPool(loc)
@@ -6444,39 +6474,72 @@ class FragmentTests(TestCase):
         # Reconstruct: large message, stop half-way, reload, finish.
         ####
         # enough for chunk1 -- 17 messages
-        for p in pkts4[5:22]: pool.addFragment(p)
+        for p in pkts2[5:22]: pool.addFragment(p)
         # enough for half of chunk2: 8 messages
-        for p in pkts4[22:30]: pool.addFragment(p)
+        for p in pkts2[22:30]: pool.addFragment(p)
         pool.unchunkMessages()
         # close and re-open messages
         pool.close()
         pool = mixminion.Fragments.FragmentPool(loc)
         # Enough for the rest of message 4...  8 from 2, 17 from 3.
-        for p in pkts4[36:44]+pkts4[49:66]:
+        for p in pkts2[36:44]+pkts2[49:66]:
             pool.addFragment(p)
             pool.unchunkMessages()
         self.assertEquals(len(pool.listReadyMessages()), 1)
         mid = pool.listReadyMessages()[0]
-        self.assertLongStringEq(M4, uncompressData(pool.getReadyMessage(mid)))
+        self.assertLongStringEq(M2, uncompressData(pool.getReadyMessage(mid)))
         pool.markMessageCompleted(mid)
         pool.close()
         pool = mixminion.Fragments.FragmentPool(loc)
-        pool.addFragment(pkts4[48])
+        pool.addFragment(pkts2[48])
         self.assertEquals([], pool.store.getAllMessages())
 
         # free some RAM
-        del M4
-        del M1
-        del pkts4
-        del pkts1
+        M1 = M2 = None
+        pkts1 = pkts2 = None
 
         ####
         # Try an interleaved case with two smallish msgs and one big one.
         # Provoke an error in the big one part way through.
         ####
-        
+        M1 = Crypto.getCommonPRNG().getBytes(1024*150)
+        M2 = Crypto.getCommonPRNG().getBytes(1024*200) 
+        M3 = Crypto.getCommonPRNG().getBytes(1024*900)
+        pkts1 = [ pp(x) for x in em(M1,38) ]
+        pkts2 = [ pp(x) for x in em(M2,0) ]
+        pkts3 = [ pp(x) for x in em(M3,0) ]
+        self.assertEquals(map(len,[pkts1,pkts2,pkts3]),
+                          [11,11,66])
+        for i in xrange(7,11):
+            pool.addFragment(pkts1[i])
+            pool.addFragment(pkts2[11-i])
+        for i in xrange(26):
+            pool.addFragment(pkts3[i])
+        pool.unchunkMessages()
+        self.assertEquals(pool.store.count(), 4+4+1+4)
+        # Change index of message to impossible value, make sure m3 gets
+        # dropped.
+        pkts3[60].index = 66
+        pool.addFragment(pkts3[60])
+        self.assertEquals(pool.store.count(), 4+4)
+        for i in xrange(40,55):
+            pool.addFragment(pkts3[i])
+        self.assertEquals(pool.store.count(), 4+4)
 
-        
+        for i in xrange(1,5):
+            pool.addFragment(pkts1[i])
+            pool.addFragment(pkts2[11-i])
+        pool.unchunkMessages()
+        msgids = pool.listReadyMessages()
+        self.assertUnorderedEq([pkts1[0].msgID, pkts2[0].msgID],
+                               msgids)
+        self.assertLongStringEq(M1,
+                 uncompressData(pool.getReadyMessage(pkts1[0].msgID)))
+        pool.markMessageCompleted(pkts1[0].msgID)
+
+        # Force pkts2 to rejected by expiring it.
+        pool.expireMessages(time.time()+48*60*60)
+        self.assertEquals(pool.listReadyMessages(), [])
         
 #----------------------------------------------------------------------
 def testSuite():
@@ -6485,34 +6548,37 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 1:
+    if 0:
         suite.addTest(tc(FragmentTests))
         return suite
+    testClasses = [MiscTests,
+                   MinionlibCryptoTests,
+                   MinionlibFECTests,
+                   CryptoTests,
+                   PacketTests,
+                   LogTests,
+                   FileParanoiaTests,
+                   ConfigFileTests,
+                   HashLogTests,
+                   BuildMessageTests,
+                   PacketHandlerTests,
+                   FilestoreTests,
+                   FragmentTests,
+                   QueueTests,
+                   EventStatsTests,
+                   ModuleTests,
 
-    suite.addTest(tc(MiscTests))
-    suite.addTest(tc(MinionlibCryptoTests))
-    suite.addTest(tc(MinionlibFECTests))
-    suite.addTest(tc(CryptoTests))
-    suite.addTest(tc(PacketTests))
-    suite.addTest(tc(LogTests))
-    suite.addTest(tc(FileParanoiaTests))
-    suite.addTest(tc(ConfigFileTests))
-    suite.addTest(tc(HashLogTests))
-    suite.addTest(tc(BuildMessageTests))
-    suite.addTest(tc(PacketHandlerTests))
-    suite.addTest(tc(FilestoreTests))
-    suite.addTest(tc(QueueTests))
-    suite.addTest(tc(EventStatsTests))
-    suite.addTest(tc(ModuleTests))
+                   ClientMainTests,
+                   ServerKeysTests,
+                   ServerMainTests,
 
-    suite.addTest(tc(ClientMainTests))
-    suite.addTest(tc(ServerKeysTests))
-    suite.addTest(tc(ServerMainTests))
+                   # These tests are slowest, so we do them last.
+                   ModuleManagerTests,
+                   ServerInfoTests,
+                   MMTPTests]
 
-    # These tests are slowest, so we do them last.
-    suite.addTest(tc(ModuleManagerTests))
-    suite.addTest(tc(ServerInfoTests))
-    suite.addTest(tc(MMTPTests))
+    for cl in testClasses:
+        suite.addTest(tc(cl))
 
     return suite
 

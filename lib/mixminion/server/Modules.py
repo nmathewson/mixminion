@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.49 2003/07/24 17:37:16 nickm Exp $
+# $Id: Modules.py,v 1.50 2003/08/21 21:34:03 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -19,6 +19,7 @@ import sys
 import smtplib
 import socket
 import threading
+import time
 
 if sys.version_info[:2] >= (2,3):
     import textwrap
@@ -28,15 +29,18 @@ else:
 import mixminion.BuildMessage
 import mixminion.Config
 import mixminion.Filestore
+import mixminion.Fragments
 import mixminion.Packet
 import mixminion.server.ServerQueue
 import mixminion.server.ServerConfig
 import mixminion.server.EventStats as EventStats
+import mixminion.server.PacketHandler
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand, \
-     _parseIntervalList
-from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
-     isPrintingAscii, readFile, waitForChildren
-from mixminion.Packet import ParseError, CompressedDataTooLong
+     _parseInterval, _parseIntervalList, _parseSize
+from mixminion.Common import LOG, MixError, ceilDiv, createPrivateDir, \
+     encodeBase64, isPrintingAscii, isSMTPMailbox, previousMidnight, \
+     readFile, waitForChildren
+from mixminion.Packet import ParseError, CompressedDataTooLong, uncompressData
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -123,6 +127,13 @@ class DeliveryModule:
             a nonstandard delivery queue, you don't need to implement this.)"""
         raise NotImplementedError("processMessage")
 
+    def sync(self):
+        """DOCDOC"""
+
+    def close(self):
+        """DOCDOC"""
+        pass
+
 class ImmediateDeliveryQueue:
     """Helper class usable as delivery queue for modules that don't
        actually want a queue.  Such modules should have very speedy
@@ -149,7 +160,7 @@ class ImmediateDeliveryQueue:
         except:
             LOG.error_exc(sys.exc_info(),
                                "Exception delivering message")
-            EventStats.log.unretriableDeliery() #FFFF
+            EventStats.log.unretriableDelivery() #FFFF
 
         return "<nil>"
 
@@ -232,6 +243,7 @@ class DeliveryThread(threading.Thread):
                 stop = self.__stoppingevent.isSet()
                 if stop:
                     LOG.info("Delivery thread shutting down.")
+                    self.moduleManager.close()
                     return
                 self.moduleManager._sendReadyMessages()
                 waitForChildren(blocking=0)
@@ -447,8 +459,21 @@ class ModuleManager:
             queue.sendReadyMessages()
 
     def getServerInfoBlocks(self):
+        """DOCDOC"""
         return [ m.getServerInfoBlock() for m in self.modules
                        if self.enabled.get(m.getName(),0) ]
+
+    def close(self):
+        """DOCDOC"""
+        #XXXX005 this method must be called on shutdown!
+        for module in self.enabled:
+            module.close()
+
+    def sync(self):
+        """DOCDOC"""
+        #XXXX005 this method must be called on reset!
+        for module in self.enabled:
+            module.sync()
 
 #----------------------------------------------------------------------
 class DropModule(DeliveryModule):
@@ -471,6 +496,158 @@ class DropModule(DeliveryModule):
         LOG.debug("Dropping padding message")
         return DELIVER_OK
 
+#----------------------------------------------------------------------
+class FragmentModule(DeliveryModule):
+    """DOCDOC"""
+    def __init__(self):
+        DeliveryModule.__init__(self)
+        self._queue = None
+        self.manager = None
+        self.maxMessageSize = None
+        self.maxInterval = None
+        self.maxFragments = None
+    def getConfigSyntax(self):
+        return { "Delivery/Fragmented" :
+                 { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
+                   'MaximumSize' : ('REQUIRE', _parseSize, None),
+                   'MaximumInterval' : ('ALLOW', _parseInterval, "2 days" )
+                   } }
+    def getRetrySchedule(self):
+        return [ ]
+    def configure(self, config, manager):
+        sec = config['Delivery/Fragmented']
+        if not sec.get("Enabled"):
+            manager.disableModule(self)
+            self.close()
+            return
+        self.maxMessageSize = sec['MaximumSize']
+        self.maxInterval = sec['MaximumInterval']
+        # How many packets could it take to encode a max-size message?
+        fp = mixminion.Fragments.FragmentParams(self.maxMessageSize, 0)
+        self.maxFragments = fp.nChunks * fp.n
+        self.manager = manager
+    def getServerInfoBlock(self):
+        return """[Delivery/Fragmented]
+                  Version: 0.1
+                  Maximum-Fragments: %s
+               """ % self.maxFragments
+    def getName(self):
+        return "FRAGMENT"
+    def getExitTypes(self):
+        return [ mixminion.Packet.FRAGMENT_TYPE ]
+    def createDeliveryQueue(self, queueDir):
+        self.close()
+        self._queue = FragmentDeliveryQueue(self, queueDir, self.manager)
+        return self._queue
+    def sync(self):
+        self._queue.pool.sync()
+    def close(self):
+        if self._queue:
+            self._queue.pool.close()
+            self._queue = None
+    
+class FragmentDeliveryQueue:
+    def __init__(self, module, directory, manager):
+        self.module = module
+        self.directory = directory
+        self.manager = manager
+        self.pool = mixminion.Fragments.FragmentPool(self.directory)
+
+    def queueDeliveryMessage(self, packet, retry=0, lastAttempt=0):
+        if not packet.isFragment():
+            LOG.warn("Dropping FRAGMENT packet with non-fragment payload.")
+            return
+        if packet.getAddress():
+            LOG.warn("Dropping FRAGMENT packet with spurious addressing info.")
+            return
+        # Should be instance of FragmentPayload.
+        payload = packet.getDecodedPayload()
+        assert payload is not None
+        self.pool.addFragment(payload)
+
+    def sendReadyMessages(self):
+        self.pool.unchunkMessages()
+        ready = self.pool.listReadyMessages()
+        for msgid in ready:
+            msg = self.pool.getReadyMessage(msgid)
+            try:
+                ssfm = mixminion.Packet.parseServerSideFragmentedMessage(msg)
+                del msg
+            except ParseError:
+                LOG.warn("Dropping malformed server-side fragmented message")
+                self.pool.markMessageCompleted(msgid, rejected=1)
+                continue
+            if len(ssfm.compressedContents) > self.module.maxMessageSize:
+                LOG.warn("Dropping over-long fragmented message")
+                self.pool.markMessageCompleted(msgid, rejected=1)
+                continue
+            
+            fm = _FragmentedDeliveryMessage(ssfm)
+            self.manager.queueDecodedMessage(fm)
+            self.pool.markMessageCompleted(msgid)
+
+        cutoff = previousMidnight(time.time()) - self.module.maxInterval
+        self.pool.expireMessages(cutoff)
+        
+
+class _FragmentedDeliveryMessage:
+    def __init__(self, ssfm):
+        self.m = ssfm
+        self.contents = None
+    def __getstate__(self):
+        return ( self.m , )
+    def __setstate__(self, s):
+        self.m = s[0]
+        self.contents = None
+    def isDelivery(self): return 1
+    def getExitType(self): return self.m.routingtype
+    def getAddress(self): return self.m.exitinfo
+    def getContents(self):
+        if self.contents is None: self.decode()
+        return self.contents
+    def isPlaintext(self): return 1
+    def isFragment(self): return 0
+    def isEncrypted(self): return 0
+    def isError(self):
+        if self.contents is None: self.decode()
+        return self.isError
+    def isOvercompressed(self):
+        if self.contents is None: self.decode()
+        return self.isOvercompressed
+    def isPrintingAscii(self):
+        if self.contents is None: self.decode()
+        return isPrintingAscii(self.contents, allowISO=1)
+    def getAsciiContents(self):
+        if self.contents is None: self.decode()
+        if isPrintingAscii(self.contents, allowISO=1):
+            return self.contents
+        else:
+            return encodeBase64(self.contents)
+    def getHeaders(self):
+        """DOCDOC"""
+        if self.contents is None:
+            self.decode()
+        assert self.headers is not None
+        return self.headers
+    def getTextEncodedMessage(self):
+        if self.isOvercompressed():
+            tp = 'LONG'
+        elif self.isPrintingAscii():
+            tp = 'TXT'
+        else:
+            tp = 'BIN'
+        return mixminion.Packet.TextEncodedMessage(self.contents, tp, None)
+    def decode(self):
+        maxLen = 20*len(self.m.compressedContents)
+        try:
+            c = uncompressData(self.m.uncompressedContents, maxLen)
+        except CompressedDataTooLong:
+            self.contents = self.m.uncompressedContents
+            self.headers = {}
+            return
+        self.contents, self.headers = \
+                       mixminion.Packet.parseMessageAndHeaders(c)
+        
 #----------------------------------------------------------------------
 class EmailAddressSet:
     """A set of email addresses stored on disk, for use in blacklisting email
@@ -606,7 +783,12 @@ class MailBase:
     def _formatEmailMessage(self, address, packet):
         """DOCDOC"""
         #DOCDOC implied fields
-        #   subject, fromTag, returnAddress, header
+        #   subject, fromTag, returnAddress, header, maxMessageSize
+
+        if len(packet.getContents()) > self.maxMessageSize:
+            LOG.warn("Dropping over-long message (message is %sb; max is %sb)",
+                     len(packet.getContents()), self.maxMessageSize)
+            return None
 
         headers = packet.getHeaders()
         subject = headers.get("SUBJECT", self.subject)
@@ -622,6 +804,9 @@ class MailBase:
             morelines.append("In-Reply-To: %s\n" % headers['IN-REPLY-TO'])
         if headers.has_key("REFERENCES"):
             morelines.append("References: %s\n" % headers['REFERENCES'])
+        #FFFF In the long run, we may want to reject messages with
+        #FFFF unrecognized headers.  But while we're in alpha, it'd
+        #FFFF be too much of a headache.
 
         # Decode and escape the message, and get ready to send it.
         msg = _escapeMessageForEmail(packet)
@@ -652,6 +837,7 @@ class MBoxModule(DeliveryModule, MailBase):
     #   addr: our IP address, or "<Unknown IP>": for use in our boilerplate.
     def __init__(self):
         DeliveryModule.__init__(self)
+        self.maxMessageSize = None
         self.addresses = {}
 
     def getRetrySchedule(self):
@@ -669,7 +855,9 @@ class MBoxModule(DeliveryModule, MailBase):
                    'AddressFile' : ('ALLOW', None, None),
                    'ReturnAddress' : ('ALLOW', None, None),
                    'RemoveContact' : ('ALLOW', None, None),
-                   'SMTPServer' : ('ALLOW', None, 'localhost') }
+                   'SMTPServer' : ('ALLOW', None, 'localhost'),
+                   'MaximumSize' : ('ALLOW', _parseSize, "100K"),
+                   }
                  }
 
     def validateConfig(self, config, lines, contents):
@@ -709,6 +897,10 @@ class MBoxModule(DeliveryModule, MailBase):
         if not self.nickname:
             self.nickname = socket.gethostname()
         self.addr = config['Incoming/MMTP'].get('IP', "<Unknown IP>")
+        self.maxMessageSize = sec['MaximumSize']
+        if self.maxMessageSize < 32*1024:
+            LOG.warn("Ignoring low maximum message sze")
+            self.maxMessageSize = 32*1024
 
         # These fields are needed by MailBase
         self.subject = "Type III Anonymous Message"
@@ -772,6 +964,8 @@ and you will be removed.""" %(self.nickname, self.addr, self.contact)
 
         # Generate the boilerplate (FFFF Make this more configurable)
         msg = self._formatEmailMessage(address, packet)
+        if not msg:
+            return DELIVER_FAIL_NORETRY
 
         # Deliver the message
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
@@ -779,11 +973,12 @@ and you will be removed.""" %(self.nickname, self.addr, self.contact)
 #----------------------------------------------------------------------
 class SMTPModule(DeliveryModule, MailBase):
     """Placeholder for real exit node implementation.
-       For now, use MixmasterSMTPModule"""
+       For now, use MixmasterSMTPModule DOCDOC"""
     def __init__(self):
         DeliveryModule.__init__(self)
     def getServerInfoBlock(self):
-        return "[Delivery/SMTP]\nVersion: 0.1\n"
+        return "[Delivery/SMTP]\nVersion: 0.1\nMaximum-Size: %s\n" % (
+            ceilDiv(self.maxMessageSize,1024) )
     def getName(self):
         return "SMTP"
     def getExitTypes(self):
@@ -821,7 +1016,7 @@ class DirectSMTPModule(SMTPModule):
                    'FromTag' : ('ALLOW', None, "[Anon]"),
                    'SubjectLine' : ('ALLOW', None,
                                     'Type III Anonymous Message'),
-
+                   'MaximumSize' : ('ALLOW', _parseSize, "100K"),
                    }
                  }
 
@@ -862,6 +1057,11 @@ class DirectSMTPModule(SMTPModule):
         else:
             self.header = "X-Anonymous: yes"
 
+        self.maxMessageSize = sec['MaximumSize']
+        if self.maxMessageSize < 32*1024:
+            LOG.warn("Ignoring low maximum message sze")
+            self.maxMessageSize = 32*1024
+
         manager.enableModule(self)
 
     def processMessage(self, packet):
@@ -881,6 +1081,9 @@ class DirectSMTPModule(SMTPModule):
             return DELIVER_FAIL_NORETRY
 
         msg = self._formatEmailMessage(address, packet)
+        if not msg:
+            return DELIVER_FAIL_NORETRY
+
         # Send the message.
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
@@ -918,6 +1121,7 @@ class MixmasterSMTPModule(SMTPModule):
                    'FromTag' : ('ALLOW', None, "[Anon]"),
                    'SubjectLine' : ('ALLOW', None,
                                     'Type III Anonymous Message'),
+                   'MaximumSize' : ('ALLOW', _parseSize, "100K"),
                    }
                  }
 
@@ -942,6 +1146,10 @@ class MixmasterSMTPModule(SMTPModule):
         self.options = tuple(cmd[1]) + ("-l", self.server)
         self.returnAddress = "nobody"
         self.header = "X-Anonymous: yes"
+        self.maxMessageSize = sec['MaximumSize']
+        if self.maxMessageSize < 32*1024:
+            LOG.warn("Ignoring low maximum message sze")
+            self.maxMessageSize = 32*1024
         manager.enableModule(self)
 
     def getName(self):
@@ -966,6 +1174,9 @@ class MixmasterSMTPModule(SMTPModule):
             return DELIVER_FAIL_NORETRY
 
         msg = self._formatEmailMessage(info.email, packet)
+        if not msg:
+            return DELIVER_FAIL_NORETRY
+
         handle = self.tmpQueue.queueMessage(msg)
 
         cmd = self.command
@@ -1032,7 +1243,7 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 #----------------------------------------------------------------------
 
 def _escapeMessageForEmail(packet):
-    """Helper function: Given a message and tag, escape the message if
+    """Helper function: Given a DeliveryPacket, escape the message if
        it is not plaintext ascii, and wrap it in some standard
        boilerplate.  Add a disclaimer if the message is not ascii.
        Extracts headers if possible.  Returns a 2-tuple of message/headers.

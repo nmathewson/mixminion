@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.6 2003/08/17 21:09:56 nickm Exp $
+# $Id: Filestore.py,v 1.7 2003/08/21 21:34:02 nickm Exp $
 
 """mixminion.Filestore
 
@@ -195,8 +195,10 @@ class BaseStore:
         """Returns (file, handle) tuple to create a new message.  Once
            you're done writing, you must call finishMessage to
            commit your changes, or abortMessage to reject them."""
-        file, handle = getCommonPRNG().openNewFile(self.dir, "inp_", 1)
-        return file, handle
+        while 1:
+            file, handle = getCommonPRNG().openNewFile(self.dir, "inp_", 1,
+                                                       "msg_")
+            return file, handle
 
     def finishMessage(self, f, handle, _ismeta=0):
         """Given a file and a corresponding handle, closes the file
@@ -307,11 +309,18 @@ class ObjectStoreMixin:
     def __init__(self): pass
     def getObject(self, handle):
         """Given a message handle, read and unpickle the contents of the
-           corresponding message."""
+           corresponding message.  In rare error cases, defaults to 'None'.
+           """
         try:
             self._lock.acquire()
             f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
-            res = cPickle.load(f)
+            try:
+                res = cPickle.load(f)
+            except cpickle.UnpicklingError, e:
+                LOG.error("Found damaged object %s in filestore %s: %s",
+                          handle, self.dir, str(e))
+                self.removeMessage(handle)
+                res = None
             f.close()
             return res
         finally:
@@ -394,7 +403,13 @@ class BaseMetadataStore(BaseStore):
             except KeyError:
                 pass
             f = open(fname, 'rb')
-            res = cPickle.load(f)
+            try:
+                res = cPickle.load(f)
+            except cpickle.UnpicklingError, e:
+                LOG.error("Found damaged metadata for %s in filestore %s: %s",
+                          handle, self.dir, str(e))
+                self.removeMessage(handle)
+                return None
             f.close()
             self._metadata_cache[handle] = res
             return res
@@ -720,7 +735,20 @@ class JournaledDBBase(DBBase):
             self._lock.release()
 
     def delItem(self, k):
-        raise NotImplemented
+        deletedOne = 0
+        try:
+            del self.journal[k]
+            self.sync()
+            deletedOne = 1
+        except KeyError:
+            pass
+        try:
+            del self.log[k]
+            deletedOne = 1
+        except KeyError:
+            pass
+        if not deletedOne:
+            raise KeyError
 
     def sync(self):
         self._lock.acquire()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.4 2003/08/18 05:11:55 nickm Exp $
+# $Id: Fragments.py,v 1.5 2003/08/21 21:34:02 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -171,7 +171,7 @@ class FragmentPool:
                                  isChunk=0,
                                  chunkNum=None,
                                  overhead=fragmentPacket.getOverhead(),
-                                 insertedDate=previousMidnight(now),
+                                 insertedDate=today,
                                  nym=nym)
         # ... and allocate or find the MessageState for this message.
         state = self._getState(meta)
@@ -249,7 +249,7 @@ class FragmentPool:
         # Delete all internal state; reload FragmentMetadatas from disk.
         self.store.loadAllMetadata(lambda: None)
         meta = self.store._metadata_cache
-        self.states = states = {}
+        self.states = {}
         badMessageIDs = {} # map from bad messageID to 1
         unneededHandles = [] # list of handles that aren't needed.
         for h, fm in meta.items():
@@ -422,7 +422,7 @@ class MessageState:
         # chunkno -> idxwithinchunk -> (handle,fragmentmeta)
         self.fragmentsByChunk = []
         self.params = FragmentationParams(length, overhead)
-        for i in xrange(self.params.nChunks):
+        for _ in xrange(self.params.nChunks):
             self.fragmentsByChunk.append({})
         # chunkset: ready chunk num -> 1
         self.readyChunks = {}

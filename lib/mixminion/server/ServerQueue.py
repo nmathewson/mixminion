@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.30 2003/08/14 19:37:25 nickm Exp $
+# $Id: ServerQueue.py,v 1.31 2003/08/21 21:34:03 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -186,6 +186,8 @@ class PendingMessage:
            it from disk if necessary."""
         if self.message is None:
             self.message = self.queue.store.getObject(self.handle)
+            #XXXX There's an error case where getObject returns none
+            #XXXX if the data is corrupt on disk.
         return self.message
 
 class DeliveryQueue:
@@ -363,7 +365,9 @@ class DeliveryQueue:
             messages = []
             for h in self.store._metadata_cache.keys():
                 state = self.store.getMetadata(h)
-                if state.isPending():
+                if state is None:
+                    continue
+                elif state.isPending():
                     LOG.trace("     [%s] is pending delivery", h)
                     continue
                 elif state and state.isRemovable():
@@ -439,6 +443,9 @@ class DeliveryQueue:
             try:
                 ds = self.store.getMetadata(handle)
             except KeyError:
+                ds = None
+
+            if ds is None:
                 # This should never happen
                 LOG.error_exc(sys.exc_info(),
                               "Handle %s had no state", handle)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.46 2003/08/14 19:37:24 nickm Exp $
+# $Id: benchmark.py,v 1.47 2003/08/21 21:34:03 nickm Exp $
 
 """mixminion.benchmark
 
@@ -24,7 +24,7 @@ import mixminion._minionlib as _ml
 import mixminion.server.ServerQueue
 
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
-     compressData, uncompressData, encodePayloads, decodePayload
+     compressData, uncompressData, encodeMessage, decodePayload
 from mixminion.Common import secureDelete, installSIGCHLDHandler, \
      waitForChildren, formatBase64, Lockfile
 from mixminion.Crypto import *
@@ -569,23 +569,27 @@ def encodingTiming():
     print "#=============== END-TO-END ENCODING =================="
     shortP = "hello world"
     prng = AESCounterPRNG()
-    p = encodePayloads(shortP, 0, prng)[0]
+    p = encodeMessage(shortP, 0, prng)[0]
     t = prng.getBytes(20)
-    print "Decode short payload", timeit(
+    print "Check short payload", timeit(
+        lambda p=p: mixminion.BuildMessage._checkPayload(p), 1000)
+    print "Decode without uncompress", timeit(
         lambda p=p,t=t: decodePayload(p, t), 1000)
+    print "Decode short payload", timeit(
+        lambda p=p,t=t: decodePayload(p, t).getUncompressedContents(), 1000)
 
     k20 = prng.getBytes(20*1024)
-    p = encodePayloads(k20, 0, prng)[0]
+    p = encodeMessage(k20, 0, prng)[0]
     t = prng.getBytes(20)
     print "Decode 20K payload", timeit(
-        lambda p=p,t=t: decodePayload(p, t), 1000)
+        lambda p=p,t=t: decodePayload(p, t).getUncompressedContents(), 1000)
 
     comp = "x"*(20*1024)
-    p = encodePayloads(comp, 0, prng)[0]
+    p = encodeMessage(comp, 0, prng)[0]
     t = prng.getBytes(20)
     def decode(p=p,t=t):
         try:
-            decodePayload(p,t)
+            decodePayload(p,t).getUncompressedContents()
         except CompressedDataTooLong:
             pass
     print "Decode overcompressed payload", timeit(decode, 1000)
@@ -1001,7 +1005,7 @@ def testLeaks_FEC():
 #----------------------------------------------------------------------
 def timeAll(name, args):
     if 0:
-        testLeaks_FEC()
+        timeEfficiency()
         return
     fecTiming()    
     cryptoTiming()

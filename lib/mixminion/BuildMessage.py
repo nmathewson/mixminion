@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.54 2003/08/18 00:41:10 nickm Exp $
+# $Id: BuildMessage.py,v 1.55 2003/08/21 21:34:02 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -23,16 +23,18 @@ __all__ = ['buildForwardMessage', 'buildEncryptedMessage',
            'buildReplyMessage', 'buildReplyBlock', 'checkPathLength',
            'encodeMessage', 'decodePayload' ]
 
-def encodeMessage(message, overhead, paddingPRNG=None):
+def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
+                  paddingPRNG=None):
     """Given a message, compress it, fragment it into individual payloads,
        and add extra fields (size, hash, etc) as appropriate.  Return a list
        of strings, each of which is a message payload suitable for use in
        build*Message.
-
-       payload: the initial payload
+ 
+              payload: the initial payload
               overhead: number of bytes to omit from each payload,
                         given the type ofthe message encoding.
                         (0 or ENC_FWD_OVERHEAD)
+              uncompressedFragmentPrefix: DOCDOC 
               paddingPRNG: generator for padding.
 
        Note: If multiple strings are returned, be sure to shuffle them
@@ -59,6 +61,9 @@ def encodeMessage(message, overhead, paddingPRNG=None):
         p.computeHash()
         return [ p.pack() ]
 
+    if uncompressedFragmentPrefix:
+        payload = uncompressedFragmentPrefix+payload
+
     # DOCDOC
     messageid = Crypto.getCommonPRNG().getBytes(20)
     p = mixminion.Fragments.FragmentationParams(len(payload), overhead)
@@ -71,12 +76,16 @@ def encodeMessage(message, overhead, paddingPRNG=None):
         rawFragments[i] = None
     return fragments
 
+#XXXX006 Most of the build*Message functions here should be 'build*Packet'.
+#XXXX006 All of the build*Message functions should be replaced with their
+#XXXX006 _build*Message variants.
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
                         paddingPRNG=None):
     # Compress, pad, and checksum the payload.
     if payload is not None and exitType != DROP_TYPE:
-        payloads = encodeMessage(payload, 0, paddingPRNG)
-        assert len(payloads) == 1
+        payloads = encodeMessage(payload, 0, "", paddingPRNG)
+        if len(payloads) != 1:
+            raise MixError("buildForwardMessage does not support fragmented payloads")
         payload = payloads[0]
         LOG.debug("Encoding forward message for %s-byte payload",len(payload))
     else:
@@ -127,8 +136,9 @@ def _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 
 def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
                                  key, paddingPRNG=None, secretRNG=None):
-    payloads = encodeMessage(payload, ENC_FWD_OVERHEAD, paddingPRNG)
-    assert len(payloads) == 1
+    payloads = encodeMessage(payload, ENC_FWD_OVERHEAD, "", paddingPRNG)
+    if len(payloads) != 1:
+        raise UIError("No support yet for fragmented encrypted messages")
     return _buildEncryptedForwardMessage(payloads[0], exitType, exitInfo,
                                          path1, path2, key, paddingPRNG,
                                          secretRNG)
@@ -194,8 +204,9 @@ def _buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
 
 def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
-    payloads = encodeMessage(payload, 0, paddingPRNG)
-    assert len(payloads) == 1
+    payloads = encodeMessage(payload, 0, "", paddingPRNG)
+    if len(payloads) != 1:
+        raise UIError("No support yet for fragmented reply messages")
     return _buildReplyMessage(payloads[0], path1, replyBlock, paddingPRNG)
 
 def _buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
@@ -337,11 +348,10 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     
 #----------------------------------------------------------------------
 # MESSAGE DECODING
-
-def decodePayload(payload, tag, key=None,
-                  userKeys=None):
-    """Given a 28K payload and a 20-byte decoding tag, attempt to decode and
-       decompress the original message.
+def decodePayload(payload, tag, key=None, userKeys=None):
+    """Given a 28K payload and a 20-byte decoding tag, attempt to decode the
+       original message.  Returns either a SingletonPayload instance, a
+       FragmentPayload instance, or None.
 
            key: an RSA key to decode encrypted forward messages, or None
            userKeys: a map from identity names to keys for reply blocks,
@@ -362,7 +372,7 @@ def decodePayload(payload, tag, key=None,
     # If the payload already contains a valid checksum, it's a forward
     # message.
     if _checkPayload(payload):
-        return _decodeForwardPayload(payload)
+        return parsePayload(payload)
 
     # If H(tag|userKey|"Validate") ends with 0, then the message _might_
     # be a reply message using H(tag|userKey|"Generate") as the seed for
@@ -391,7 +401,10 @@ def decodePayload(payload, tag, key=None,
 def _decodeForwardPayload(payload):
     """Helper function: decode a non-encrypted forward payload. Return values
        are the same as decodePayload."""
-    return _decodePayloadImpl(payload)
+    if not _checkPayload(payload):
+        raise MixError("Hash doesn't match")
+
+    return parsePayload(payload)
 
 def _decodeEncryptedForwardPayload(payload, tag, key):
     """Helper function: decode an encrypted forward payload.  Return values
@@ -417,7 +430,10 @@ def _decodeEncryptedForwardPayload(payload, tag, key):
     rest = rsaPart[SECRET_LEN:] + Crypto.lioness_decrypt(rest, k)
 
     # ... and then, check the checksum and continue.
-    return _decodePayloadImpl(rest)
+    if not _checkPayload(rest):
+        raise MixError("Invalid checksum on encrypted forward payload")
+
+    return parsePayload(rest)
 
 def _decodeReplyPayload(payload, secrets, check=0):
     """Helper function: decode a reply payload, given a known list of packet
@@ -431,10 +447,14 @@ def _decodeReplyPayload(payload, secrets, check=0):
         k = Crypto.Keyset(sec).getLionessKeys(Crypto.PAYLOAD_ENCRYPT_MODE)
         payload = Crypto.lioness_encrypt(payload, k)
         if check and _checkPayload(payload):
-            break
+            return parsePayload(payload)
 
-    # ... and then, check the checksum and continue.
-    return _decodePayloadImpl(payload)
+    # If 'check' is false, then we might still have a good payload.  If
+    # 'check' is true, we don't.
+    if check or not _checkPayload(payload):
+        raise MixError("Invalid checksum on reply payload")
+    
+    return parsePayload(payload)
 
 def _decodeStatelessReplyPayload(payload, tag, userKey):
     """Decode a (state-carrying) reply payload."""
@@ -663,38 +683,15 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
         header2 = Crypto.lioness_encrypt(header2,hkey)
         payload = Crypto.lioness_encrypt(payload,pkey)
 
-    return Message(header1, header2, payload).pack()
+    return Packet(header1, header2, payload).pack()
 
 #----------------------------------------------------------------------
 # Payload-related helpers
-
 
 def _getRandomTag(rng):
     "Helper: Return a 20-byte string with the MSB of byte 0 set to 0."
     b = ord(rng.getBytes(1)) & 0x7f
     return chr(b) + rng.getBytes(TAG_LEN-1)
-
-def _decodePayloadImpl(payload):
-    """Helper: try to decode an encoded payload: checks only encoding,
-       not encryption."""
-    # Is the hash ok?
-    if not _checkPayload(payload):
-        raise MixError("Hash doesn't match")
-
-    # Parse the payload into its size, checksum, and body.
-    payload = parsePayload(payload)
-
-    if not payload.isSingleton():
-        raise MixError("Message fragments not yet supported")
-
-    # Uncompress the body.
-    contents = payload.getContents()
-    # If the payload would expand to be more than 20K long, and the
-    # compression factor is greater than 20, we warn of a possible zlib
-    # bomb.
-    maxLen = max(20*1024, 20*len(contents))
-
-    return uncompressData(contents, maxLength=maxLen)
 
 def _checkPayload(payload):
     'Return true iff the hash on the given payload seems valid'

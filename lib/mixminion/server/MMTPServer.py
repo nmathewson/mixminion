@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.46 2003/07/15 04:41:18 nickm Exp $
+# $Id: MMTPServer.py,v 1.47 2003/08/21 21:34:03 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -278,6 +278,7 @@ class SimpleTLSConnection(Connection):
         self.__failed = 0
         self.__inbuf = []
         self.__inbuflen = 0
+        self.__awaitingShutdown = 0
 
         if serverMode:
             self.__connecting = 0
@@ -352,27 +353,44 @@ class SimpleTLSConnection(Connection):
         # back... but we don't want to keep retrying indefinitely, or
         # else we can deadlock on a connection from ourself to
         # ourself.
-        if self.__con.shutdown() == 1: #may throw want*
-            #trace("Got a 1 on shutdown (fd %s)", self.fd)
-            self.__sock.close()
-            self.__state = None
-            self.shutdownFinished()
-            return
 
-        # If we don't get any response on shutdown, stop blocking; the other
-        # side may be hostile, confused, or deadlocking.
-        #trace("Got a 0 on shutdown (fd %s)", self.fd)
-        # ???? Is 'wantread' always correct?
-        # ???? Rather than waiting for a read, should we use a timer or
-        # ????       something?
-        raise _ml.TLSWantRead()
+        #DOCDOC this insanity.
+        while 1:
+            done = self.__con.shutdown() # may throw want*
+            if not done and self.__awaitingShutdown:
+                error("Shutdown returned zero twice from %s -- bailing",
+                      self.address)
+                done = 1
+            if done:
+                debug("Got a completed shutdown from %s", self.address)
+                self.__sock.close()
+                self.__state = None
+                self.shutdownFinished()
+                return
+            else:
+                trace("Shutdown returned zero -- entering read mode")
+                self.__awaitingShutdown = 1
+                #DODOC is this right?
+                if 1:
+                    self.finished = self.__readTooMuch
+                    self.expectRead(128)
+                raise _ml.TLSWantRead()
+
+    def __readTooMuch(self):
+        """DOCDOC"""
+        print "AAAARGH."
+        self.__sock.close()
+        self.state = None
 
     def __readFn(self):
         """Hook to implement read"""
         while 1:
             r = self.__con.read(1024) #may throw want*
             if r == 0:
-                trace("read returned 0 -- shutting down (fd %s)", self.fd)
+                if self.__awaitingShutdown:
+                    debug("read returned 0: shutdown complete (fd %s)",self.fd)
+                else:
+                    debug("read returned 0: shutting down (fd %s)", self.fd)
                 self.shutdown(err=0)
                 return
             else:
@@ -477,8 +495,8 @@ class SimpleTLSConnection(Connection):
                 self.handleFail(retriable=1)
             self.remove()
         except _ml.TLSError, e:
-            if self.__state != self.__shutdownFn:
-                warn("Unexpected error: %s. Closing connection to %s.",
+            if self.__state != self.__shutdownFn and (not self.__awaitingShutdown):
+                warn("Unexpected TLS error: %s. Closing connection to %s.",
                      e, self.address)
                 self.shutdown(err=1, retriable=1)
                 self.__handleAll() # Try another round of the loop.
@@ -990,7 +1008,7 @@ class MMTPClientConnection(SimpleTLSConnection):
                 statFn()
             except AttributeError:
                 pass
-        self._messageList = []
+        self.messageList = []
         self._curMessage = self._curHandle = None
 
     def shutdown(self, err=0, retriable=0):
@@ -1103,7 +1121,7 @@ class MMTPAsyncServer(AsyncServer):
             LOG.error("Unexpected socket error connecting to %s:%s: %s",
                       ip, port, e)
             EventStats.log.failedConnect() #FFFF addr
-            for m in self.messageList:
+            for m in con.messageList:
                 try:
                     m.failed(1)
                 except AttributeError:
@@ -1120,5 +1138,3 @@ class MMTPAsyncServer(AsyncServer):
     def onMessageReceived(self, msg):
         """Abstract function.  Called when we get a message"""
         pass
-
-

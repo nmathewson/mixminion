@@ -19,6 +19,7 @@ import re
 import signal
 import socket
 import stat
+import struct
 import sys
 import time
 import urllib2
@@ -159,7 +160,7 @@ class ClientDirectory:
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
 
-        # XXXX005 refactor download logic.
+        # XXXX Refactor download logic.
 
         if hasattr(signal, 'alarm'):
             def sigalrmHandler(sig, _):
@@ -486,6 +487,24 @@ class ClientDirectory:
             u[n] = info
 
         return u.values()
+
+    def findByExitTypeAndSize(self, exitType, size, nPackets):
+        #XXXX006 remove this method.  It's not really a good interface,
+        #XXXX006 and only gets used by the kludgy choose-a-new-last-hop logic
+        """Return a server that supports exitType 'exittype' (currently must be
+           SMTP_TYPE), and messages of size 'size' bytes."""
+        assert exitType == SMTP_TYPE
+        servers = self.__find(self.byCapability['smtp'], time.time(),
+                              time.time()+24*60*60)
+        servers = servers[:]
+        mixminion.Crypto.getCommonPRNG().shuffle(servers)
+        for s in servers:
+            maxSize = s['Delivery/SMTP']['Maximum-Size'] * 1024
+            maxPackets = s['Delivery/Fragmented'].get('Maximum-Fragments',1)
+            if maxSize >= size and maxPackets >= packets:
+                return s
+
+        return None
 
     def clean(self, now=None):
         """Remove all expired or superseded descriptors from DIR/servers."""
@@ -1391,123 +1410,6 @@ class ClientQueue:
             self.store.removeMessage(h)
         self.store.cleanQueue()
 
-## class ClientQueue:
-##     """A ClientQueue holds packets that have been scheduled for delivery
-##        but not yet delivered.  As a matter of policy, we queue messages if
-##        the user tells us to, or if deliver has failed and the user didn't
-##        tell us not to."""
-##     ## Fields:
-##     # dir -- a directory to store packets in.
-##     # prng -- an instance of mixminion.Crypto.RNG.
-##     ## Format:
-##     # The directory holds files with names of the form pkt_<handle>.
-##     # Each file holds pickled tuple containing:
-##     #           ("PACKET-0",
-##     #             a 32K string (the packet),
-##     #             an instance of IPV4Info (the first hop),
-##     #             the latest midnight preceding the time when this
-##     #                 packet was inserted into the queue
-##     #           )
-##     # XXXX change this to be OO; add nicknames.
-
-##     # XXXX write unit tests
-
-##     def __init__(self, directory, prng=None):
-##         """Create a new ClientQueue object, storing packets in 'directory'
-##            and generating random filenames using 'prng'."""
-##         self.dir = directory
-##         createPrivateDir(directory)
-##         if prng is not None:
-##             self.prng = prng
-##         else:
-##             self.prng = mixminion.Crypto.getCommonPRNG()
-
-##     def queuePacket(self, message, routing):
-##         """Insert the 32K packet 'message' (to be delivered to 'routing')
-##            into the queue.  Return the handle of the newly inserted packet."""
-##         clientLock()
-##         try:
-##             f, handle = self.prng.openNewFile(self.dir, "pkt_", 1)
-##             cPickle.dump(("PACKET-0", message, routing,
-##                           previousMidnight(time.time())), f, 1)
-##             f.close()
-##             return handle
-##         finally:
-##             clientUnlock()
-
-##     def getHandles(self):
-##         """Return a list of the handles of all messages currently in the
-##            queue."""
-##         clientLock()
-##         try:
-##             fnames = os.listdir(self.dir)
-##             handles = []
-##             for fname in fnames:
-##                 if fname.startswith("pkt_"):
-##                     handles.append(fname[4:])
-##             return handles
-##         finally:
-##             clientUnlock()
-
-##     def getPacket(self, handle):
-##         """Given a handle, return a 3-tuple of the corresponding
-##            32K packet, IPV4Info, and time of first queueing.  (The time
-##            is rounded down to the closest midnight GMT.)"""
-##         fname = os.path.join(self.dir, "pkt_"+handle)
-##         magic, message, routing, when = readPickled(fname)
-##         if magic != "PACKET-0":
-##             LOG.error("Unrecognized packet format for %s",handle)
-##             return None
-##         return message, routing, when
-
-##     def packetExists(self, handle):
-##         """Return true iff the queue contains a packet with the handle
-##            'handle'."""
-##         fname = os.path.join(self.dir, "pkt_"+handle)
-##         return os.path.exists(fname)
-
-##     def removePacket(self, handle):
-##         """Remove the packet named with the handle 'handle'."""
-##         fname = os.path.join(self.dir, "pkt_"+handle)
-##         secureDelete(fname, blocking=1)
-
-##     def inspectQueue(self, now=None):
-##         """Print a message describing how many messages in the queue are headed
-##            to which addresses."""
-##         if now is None:
-##             now = time.time()
-##         handles = self.getHandles()
-##         if not handles:
-##             print "[Queue is empty.]"
-##             return
-##         timesByServer = {}
-##         for h in handles:
-##             _, routing, when = self.getPacket(h)
-##             timesByServer.setdefault(routing, []).append(when)
-##         for s in timesByServer.keys():
-##             count = len(timesByServer[s])
-##             oldest = min(timesByServer[s])
-##             days = floorDiv(now - oldest, 24*60*60)
-##             if days < 1:
-##                 days = "<1"
-##             print "%2d messages for server at %s:%s (oldest is %s days old)"%(
-##                 count, s.ip, s.port, days)
-
-##     def cleanQueue(self, maxAge, now=None):
-##         """Remove all messages older than maxAge seconds from this
-##            queue."""
-##         if now is None:
-##             now = time.time()
-##         cutoff = now - maxAge
-##         remove = []
-##         for h in self.getHandles():
-##             when = self.getPacket(h)[2]
-##             if when < cutoff:
-##                 remove.append(h)
-##         LOG.info("Removing %s old messages from queue", len(remove))
-##         for h in remove:
-##             self.removePacket(h)
-
 class MixminionClient:
     """Access point for client functionality."""
     ## Fields:
@@ -1544,16 +1446,15 @@ class MixminionClient:
                fails."""
         assert not (forceQueue and forceNoQueue)
 
-        message, firstHop = \
-                 self.generateForwardMessage(address, payload,
-                                             servers1, servers2)
+        for packet, firstHop in self.generateForwardMessage(
+            address, payload, servers1, servers2):
 
-        routing = firstHop.getRoutingInfo()
+            routing = firstHop.getRoutingInfo()
 
-        if forceQueue:
-            self.queueMessages([message], routing)
-        else:
-            self.sendMessages([message], routing, noQueue=forceNoQueue)
+            if forceQueue:
+                self.queueMessages([packet], routing)
+            else:
+                self.sendMessages([packet], routing, noQueue=forceNoQueue)
 
     def sendReplyMessage(self, payload, servers, surbList, forceQueue=0,
                          forceNoQueue=0):
@@ -1594,21 +1495,42 @@ class MixminionClient:
 
         return block
 
-    def generateForwardMessage(self, address, payload, servers1, servers2):
-        """Generate a forward message, but do not send it.  Returns
-           a tuple of (the message body, a ServerInfo for the first hop.)
+    def generateForwardMessage(self, address, message, servers1, servers2):
+        """Generate a forward message, but do not send it.  Returns a
+           list of tuples of (the packet body, a ServerInfo for the
+           first hop.)
 
             address -- the results of a parseAddress call
-            payload -- the contents of the message to send  (None for DROP
+            message -- the contents of the message to send  (None for DROP
               messages)
             servers1,servers2 -- lists of ServerInfo.
             """
         routingType, routingInfo, _ = address.getRouting()
-        LOG.info("Generating payload...")
-        msg = mixminion.BuildMessage.buildForwardMessage(
-            payload, routingType, routingInfo, servers1, servers2,
-            self.prng)
-        return msg, servers1[0]
+
+        #XXXX006 we need to factor this long-message logic out to the
+        #XXXX006 common code.  For now, this is a temporary measure.
+        
+        # DOCDOC
+        fragmentedMessagePrefix = struct.pack("!HH", routingType,
+                                               len(routingInfo))+routingInfo
+        LOG.info("Generating payload(s)...")
+        r = []
+        payloads = mixminion.BuildMessage.encodeMessage(message, 0,
+                            fragmentedMessagePrefix)
+        if len(payloads) > 1:
+            routingType = mixminion.Packet.FRAGMENT_TYPE
+            routingInfo = ""
+            if servers2[-1]['Delivery/Fragmented'].get('Maximum-Fragments',1) < len(payloads):
+                raise UIError("Oops; %s won't reassable a message this large.",
+                              servers2.getNickname())
+
+        #XXXX006 don't use the same path for all the packets!
+        for p in payloads:
+            msg = mixminion.BuildMessage._buildForwardMessage(
+                p, routingType, routingInfo, servers1, servers2,
+                self.prng)
+            r.append( (msg, servers1[0]) )
+        return r
 
     def generateReplyMessage(self, payload, servers, surbList, now=None):
         """Generate a forward message, but do not send it.  Returns
@@ -1813,15 +1735,19 @@ class MixminionClient:
         for msg in parseTextEncodedMessages(s, force=force):
             if msg.isOvercompressed() and not force:
                 LOG.warn("Message is a possible zlib bomb; not uncompressing")
-            if not msg.isEncrypted():
+            if msg.isFragment:
+                raise UIError("Sorry -- no support yet for client-side defragmentation.")
+            elif not msg.isEncrypted():
                 results.append(msg.getContents())
             else:
                 surbKeys = self.keys.getSURBKeys()
                 p = mixminion.BuildMessage.decodePayload(msg.getContents(),
                                                          tag=msg.getTag(),
                                                          userKeys=surbKeys)
-                if p:
-                    results.append(p)
+                if p and p.isSingleton():
+                    results.append(p.getUncompressedContents())
+                elif p:
+                    raise UIError("Sorry; no support yet for client-side defragmentation.")
                 else:
                     raise UIError("Unable to decode message")
         if isatty and not force:
@@ -2353,8 +2279,11 @@ def runClient(cmd, args):
 
     # Encode the headers early so that we die before reading the message if
     # they won't work.
-    headerStr = encodeMailHeaders(subject=h_subject, fromAddr=h_from,
-                                  inReplyTo=h_irt, references=h_references)
+    try:
+        headerStr = encodeMailHeaders(subject=h_subject, fromAddr=h_from,
+                                      inReplyTo=h_irt, references=h_references)
+    except MixError, e:
+        raise UIError("Invalid headers: %s"%e)
 
     if inFile in (None, '-') and '-' in parser.replyBlockFiles:
         raise UIError(
@@ -2367,10 +2296,21 @@ def runClient(cmd, args):
     parser.init()
     client = parser.client
 
+    #XXXX006 the logic here is wrong for large messages.  Instead of
+    #XXXX006 [parse pathspec, parse address, generate path, read message,
+    #XXXX006 encode message, build packets, send packets], it should be
+    #XXXX006 [parse pathspec, parse address, check pathspec, read message,
+    #XXXX006 encode message, generate paths, build packets, send packets].
     parser.parsePath()
 
     path1, path2 = parser.getForwardPath()
     address = parser.address
+
+    #XXXX006 remove this ad hoc check.
+    if not parser.usingSURBList and len(headerStr) > 2:
+        sware = path2[-1]['Server'].get('Software', "")
+        if sware.startswith("Mixminion 0.0.4") or sware.startswith("Mixminion 0.0.5alpha1"):
+            LOG.warn("Exit server %s is running old software that may not support headers correctly.", path2[-1].getNickname())
 
     # Get our surb, if any.
     if parser.usingSURBList and inFile in ('-', None):
@@ -2386,11 +2326,11 @@ def runClient(cmd, args):
 
     # XXXX Clean up this ugly control structure.
     if address and inFile is None and address.getRouting()[0] == DROP_TYPE:
-        payload = None
+        message = None
         LOG.info("Sending dummy message")
     else:
         if address and address.getRouting()[0] == DROP_TYPE:
-            raise UIError("Cannot send a payload with a DROP message.")
+            raise UIError("Cannot send a message in a DROP packet")
 
         if inFile is None:
             inFile = "-"
@@ -2399,21 +2339,50 @@ def runClient(cmd, args):
             if inFile == '-':
                 print "Enter your message now.  Type %s when you are done."%(
                         EOF_STR)
-                payload = sys.stdin.read()
+                message = sys.stdin.read()
             else:
-                payload = readFile(inFile)
+                message = readFile(inFile)
         except KeyboardInterrupt:
             print "Interrupted.  Message not sent."
             sys.exit(1)
 
-    payload = "%s%s" % (headerStr, payload)
+    message = "%s%s" % (headerStr, message)
 
     if parser.usingSURBList:
         assert isinstance(path2, ListType)
-        client.sendReplyMessage(payload, path1, path2,
+        client.sendReplyMessage(message, path1, path2,
                                 forceQueue, forceNoQueue)
     else:
-        client.sendForwardMessage(address, payload, path1, path2,
+        # If our message is too large for the exit node to reconstruct,
+        # either choose a new exit node (for SMTP) or bail (for MBOX or
+        # other).
+        #
+        #XXXX006 This logic is wrong; when we refactor paths again, it'll
+        #XXXX006 have to be fixed.  
+        if message:
+            msgLen = len(message)
+            if address.exitType == SMTP_TYPE:
+                maxlen = path2[-1]["Delivery/SMTP"]["Maximum-Size"] * 1024
+                if msgLen > maxLen:
+                    LOG.warn("Message is too long for server %s--looking for another..."
+                             % path2[-1].getNickname())
+                    LOG.warn("(This behavior is a hack, and will go away in 0.0.6.)")
+                    server = parser.directory.findByExitTypeAndSize(SMTP_TYPE, msgLen, 1)
+                    if not server:
+                        raise UIError("No such server found")
+                    LOG.warn("Replacing %s with %s",
+                             path2[-1].getNickname(),
+                             server.getNickname())
+                    path2[-1] = server
+            elif address.exitType == MBOX_TYPE:
+                maxlen = path2[-1]["Delivery/MBOX"]["Maximum-Size"] * 1024
+                if msgLen > maxLen:
+                    raise UIError("Message is too long for MBOX server %s, and client-side reconstruction is not yet supported"
+                                  % path2[-1].getNickname())
+            elif msgLen > 32*1024:
+                LOG.warn("Delivering long message via unrecognized delivery type")
+        
+        client.sendForwardMessage(address, message, path1, path2,
                                   forceQueue, forceNoQueue)
 
 _PING_USAGE = """\

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.20 2003/07/24 18:01:29 nickm Exp $
+# $Id: PacketHandler.py,v 1.21 2003/08/21 21:34:03 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -108,8 +108,8 @@ class PacketHandler:
            forwarded messages.  You must prevent timing attacks elsewhere."""
 
         # Break into headers and payload
-        msg = Packet.parseMessage(msg)
-        header1 = Packet.parseHeader(msg.header1)
+        pkt = Packet.parsePacket(msg)
+        header1 = Packet.parseHeader(pkt.header1)
         encSubh = header1[:Packet.ENC_SUBHEADER_LEN]
         header1 = header1[Packet.ENC_SUBHEADER_LEN:]
 
@@ -182,7 +182,7 @@ class PacketHandler:
         header1 = subh.underflow + header1
 
         # Decrypt the payload.
-        payload = Crypto.lioness_decrypt(msg.payload,
+        payload = Crypto.lioness_decrypt(pkt.payload,
                               keys.getLionessKeys(Crypto.PAYLOAD_ENCRYPT_MODE))
 
         # If we're an exit node, there's no need to process the headers
@@ -198,7 +198,7 @@ class PacketHandler:
             raise ContentError("Unrecognized Mixminion routing type")
 
         # Decrypt header 2.
-        header2 = Crypto.lioness_decrypt(msg.header2,
+        header2 = Crypto.lioness_decrypt(pkt.header2,
                            keys.getLionessKeys(Crypto.HEADER_ENCRYPT_MODE))
 
         # If we're the swap node, (1) decrypt the payload with a hash of
@@ -217,9 +217,9 @@ class PacketHandler:
         address = Packet.parseIPV4Info(subh.routinginfo)
 
         # Construct the message for the next hop.
-        msg = Packet.Message(header1, header2, payload).pack()
+        pkt = Packet.Packet(header1, header2, payload).pack()
 
-        return RelayedPacket(address, msg)
+        return RelayedPacket(address, pkt)
 
 class RelayedPacket:
     """A packet that is to be relayed to another server; returned by
@@ -262,6 +262,8 @@ class DeliveryPacket:
     # type -- until decode is called, None.  After decode is called,
     #     one of 'plain' (plaintext message), 'long' (overcompressed message),
     #     'enc' (encrypted message), or 'err' (malformed message).
+    # isfrag -- DOCDOC
+    # dPayload -- DOCDOC
     def __init__(self, routingType, routingInfo, applicationKey,
                  tag, payload):
         """Construct a new DeliveryPacket."""
@@ -277,6 +279,8 @@ class DeliveryPacket:
         self.contents = None
         self.type = None
         self.headers = None#DOCDOC
+        self.isfrag = 0
+        self.dPayload = None
 
     def isDelivery(self):
         """Return true iff this packet is a delivery (non-relay) packet."""
@@ -293,6 +297,11 @@ class DeliveryPacket:
         if self.type is None: self.decode()
         return self.contents
 
+    def getDecodedPayload(self):
+        """DOCDOC"""
+        if self.type is None: self.decode()
+        return self.dPayload
+
     def isPlaintext(self):
         """Return true iff this packet is a plaintext, forward packet."""
         if self.type is None: self.decode()
@@ -303,6 +312,11 @@ class DeliveryPacket:
            packet."""
         if self.type is None: self.decode()
         return self.type == 'long'
+
+    def isFragment(self):
+        """DOCDOC"""
+        if self.type is None: self.decode()
+        return self.isfrag
 
     def isEncrypted(self):
         """Return true iff this packet may be an encrypted forward or
@@ -328,18 +342,25 @@ class DeliveryPacket:
         message = self.payload
         self.contents = None
         try:
-            self.contents = mixminion.BuildMessage.decodePayload(message,
+            self.dPayload = mixminion.BuildMessage.decodePayload(message,
                                                                  self.tag)
-            if self.contents is None:
+            if self.dPayload is None:
                 # encrypted message
                 self.type = 'enc'
                 self.contents = message
                 self.headers = {}
-            else:
-                # forward message
+            elif self.dPayload.isSingleton():
+                # forward message, singleton.
                 self.type = 'plain'
+                body = self.dPayload.getUncompressedContents()
                 self.contents, self.headers = \
-                               Packet.parseMessageAndHeaders(self.contents)
+                               Packet.parseMessageAndHeaders(body)
+            else:
+                # forward message, fragment.
+                self.isfrag = 1
+                self.type = 'plain'
+                self.contents = message
+                self.headers = {}
         except Packet.CompressedDataTooLong, _:
             self.contents = Packet.parsePayload(message).getContents()
             self.type = 'long'
@@ -384,6 +405,9 @@ class DeliveryPacket:
         elif self.isPrintingAscii():
             assert self.isPlaintext()
             tp = 'TXT'
+        elif self.isFragment():
+            assert self.isPlaintext()
+            tp = 'FRAG'
         else:
             assert self.isPlaintext()
             tp = 'BIN'

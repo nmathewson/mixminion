@@ -56,24 +56,11 @@ For 0.0.5:
         o Change descriptors to accept YYYY-MM-DD.
                 o Implement
                 o Test
-        . Initial support for email headers (client side)
+        o Initial support for email headers (client side)
                 o Implement
-                - Give error messages on bad headers
-                - Test
-        . Support for large messages and K-of-N in fwd messages
-                o fec backend code
-                o Tests and timing for fec backend
-                . Common fragment-pool code
-                        o Implement
-                        o Test fragmentation
-                        - Test reassembly
-                - Fragment genration code for client
-                - Fragment-pool logic for server
-                - FRAG routing type
-                - Advertise fragment reassembly in server descriptors
-                - Check server descriptors when fragmenting
-                - Tests
-        . UI improvements:
+                o Give error messages on bad headers
+                o Test
+        o UI improvements:
                 o If we can't read serverdescs on startup, suggest a
                   server-DELKEYS.
                 o Quiet server startup; should be by default if daemon
@@ -82,44 +69,78 @@ For 0.0.5:
                          o Implement
                          o Test
                 o Generate random-length paths.
-                - Give a reasonable error when client is passed
+                o 'Iffy mode' messages are confusing.
+                o Give a reasonable error when client is passed
                   server configuration.
-                - Audit exceptions: which should be UIError?
-                - 'Iffy mode' messages are confusing.
-                - SSL's "Unexpected error: wrong version number"
-                  message is confusing.
-        - Tests
-                - Tests for online key rotation
-                - Tests for ServerInbox and Directory.py
-                - Tests for checkConsistency
-                - What happens when Overlap > Lifetime?
+                o Audit exceptions: which should be UIError?
+        . Support for large messages and K-of-N in fwd messages
+                o fec backend code
+                o Tests and timing for fec backend
+                o FRAGMENT routing type
+                o Common fragment-pool code
+                        o Implement
+                        o Test fragmentation
+                        o Test reassembly
+                o Minimal fragment generation code for client
+                o Fragment-pool logic for server
+                o Advertise fragment reassembly in server descriptors
+                o Check server descriptors when fragmenting
+                - Tests
+                        - Client-side fragmentation
+                        - Server-side reassembly in pools
+                        - Message-size maxima
+                        - Cleaning out dead messages
         . Bugfixes
                 o Make AttemptedRelay ~~ SuccessfulRelay+FailedRelay.
+                o Solve CPU infinite loop bug
+                o Notice [...]s in test encoded messages
+                o Handle corrupt pickled data
                 - Handle server time moving backward
-                - Solve CPU infinite loop bug
+        - Installer and distribution
+                - Include man page.
+        - Release
+                - Fix all XXXX005 and DOCDOC comments
+                - Redact E2E-spec.txt
+                - Update README
+                - Manually test all new functionality
+                - Manually test all old functionality
+                - Test old servers with new client code
+                - Test old clients with new servers
 
 For 0.0.6:
-        - Dummies and pinging
-        - Rudimentary MIME support (content-type, content-encoding
-          only.)
+        - Infrastructure -- low level
+                - Generic 'encrypted storage' abstraction for
+                  singleton pickled objects.
+        - Infrastructure -- high level
+                - Servers need to download and use directories
+                - Refactor ClientMain to use a standard ClientAPI module.
+                        - Port ClientAPI from C API document.
+                - Rewrite ClientMain path generation to do the right
+                  thing with multi-packet messages
         . UI improvements:
                 - Notice when out of disk space, die more cleanly.
                   (support max-disk-usage).
+                - Separate 'mixminiond' wrapper; 'mixminiond' confuses folk.
                 - List servers by nickname, not by IP.
-        - Refactor ClientMain to use a standard ClientAPI module.
-        - Servers need to download and use directories
-        - Servers redirect to latest IP if old IP is down.  (Dynamic
-          IP support, after a fashion)
-        - Large replies and efwd messages
-                - Relay non-FRAG fragment messages
+                - RFC822 interface and maildir-style exit module to help
+                  integrators.
+                - SSL's "Unexpected error: wrong version number"
+                  message is confusing.
+        - Dummies and pinging
+        - Large reply messages and efwd messages
+                - Relay non-FRAGMENT fragment messages
                 - Send logic for client
                 - Fragment-pool logic for client
-        - Full Windows client-side support
+        - Full windows client-side support
                 - Address everything on Itamar's non-blocking
                   incompatibility list.
                 - Installer
                 - Instructions
-        - RFC822 interface and maildir-style exit module to help integrators
+        - Rudimentary MIME support (content-type, content-encoding only.)
+        - Dynamic IP support
+                - Change IPv4/IPv6 delivery methods to use DNS if desired.
+                - Servers redirect to latest IP if old IP is down.  (Dynamic
+                  IP support, after a fashion)
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
                 - SIGHUP should reconfigure everything:
                         - Logs
@@ -142,6 +163,11 @@ For 0.0.6:
                   in a row.
                 - Change pathgen to avoid using same node for entry
                   and exit?
+        - Delayed Tests
+                - Tests for online key rotation
+                - Tests for ServerInbox and Directory.py
+                - Tests for checkConsistency
+                - What happens when Overlap > Lifetime?
 
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
@@ -166,8 +192,6 @@ not yet ready to replace type I.]
                 - Real SMTP module
                         - Abuse prevention of some undetermined kind.
                         X Support for setting 'Subject' and 'From' lines.
-                        - Support for setting 'Subject' line.  (Maybe
-                          content-type, too?)
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
         - End-to-end issues
@@ -185,6 +209,8 @@ not yet ready to replace type I.]
                 . Full validation function for server
                 - No support for non-clique topologies
         - Client support
+                - Automatically remove old messages from client queue.
+                - Flush messages to a single mix.   
                 - Support to remove servers from imported set, or to block
                   servers from directory.
                 - Avoid timing distinguishability attack related to
@@ -265,6 +291,8 @@ Other features for "1.0" (no research required):
                 - Servers should use downloaded directories to print useful
                   nicknames for other servers rather than just IP addresses.
         - Port to Twisted, if reasonable (see HACKING)
+        - Send/receive large messages without having to suck them all
+          into RAM at once.
         - MMTP / async
                - Make MMTP bursty
                - Tests for all cases:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.48 2003/07/13 03:45:35 nickm Exp $
+# $Id: ServerKeys.py,v 1.49 2003/08/21 21:34:03 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -32,7 +32,7 @@ from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
 from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
      ceilDiv, createPrivateDir, checkPrivateFile, formatBase64, formatDate, \
      formatTime, previousMidnight, readFile, secureDelete, tryUnlink, \
-     writeFile
+     UIError, writeFile
 
 #----------------------------------------------------------------------
 
@@ -941,7 +941,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
             LOG.warn("No IP configured; guessing %s",fields['IP'])
         except IPGuessError, e:
             LOG.error("Can't guess IP: %s", str(e))
-            raise MixError("Can't guess IP: %s" % str(e))
+            raise UIError("Can't guess IP: %s" % str(e))
 
     # Fill in a stock server descriptor.  Note the empty Digest: and
     # Signature: lines.
