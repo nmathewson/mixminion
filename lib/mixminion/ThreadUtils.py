@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.3 2004/05/02 18:45:15 nickm Exp $
+# $Id: ThreadUtils.py,v 1.4 2004/07/27 03:10:55 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -234,6 +234,7 @@ class RWLock:
             if not self.writer:
                 raise ValueError, \
                       '.write_to_read() invoked without an active writer'
+            ident = _get_ident()
             if self.writer != ident:
                 raise ValueError("write_out() called by non-writer")
             assert self.write_depth == 1
@@ -241,7 +242,7 @@ class RWLock:
             self.writing = 0
             self.nw = self.nw - 1
             self.nr = self.nr + 1
-            self.readers[_get_ident()] = 1
+            self.readers[ident] = 1
             if not self.nw:
                 self.readOK.notifyAll()
         finally:
