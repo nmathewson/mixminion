@@ -1,4 +1,4 @@
-$Id: HACKING,v 1.24 2004/03/07 06:33:56 nickm Exp $
+$Id: HACKING,v 1.25 2004/04/04 17:58:28 nickm Exp $
 Hacking Mixminion
 
 HOW TO CONTRIBUTE PATCHES:
@@ -18,8 +18,6 @@ System requirements:
 NON-HACKING PROJECTS:
 
 - We need documentation.
-
-- We need a better man page.
 
 - See the spec for open issues.
 

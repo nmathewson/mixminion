@@ -1,4 +1,7 @@
-$Id: HISTORY,v 1.12 2004/04/01 15:57:14 nickm Exp $
+$Id: HISTORY,v 1.13 2004/04/04 17:58:28 nickm Exp $
+NEW IN VERSION 0.0.7:
+   - New version number; nothing else has changed since 0.0.7rc2.
+
 NEW IN VERSION 0.0.7rc2:
    - BUGFIXES
      - Provide more helpful error messages when directory download fails.
