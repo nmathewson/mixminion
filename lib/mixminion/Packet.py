@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.34 2003/02/16 04:50:55 nickm Exp $
+# $Id: Packet.py,v 1.35 2003/02/17 14:40:34 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -522,7 +522,7 @@ First server is: %s""" % (hash, expiry, server)
         text = encodeBase64(self.pack())
         if not text.endswith("\n"):
             text += "\n"
-        return "%s\nVersion: 0.1\n%s%s\n"%(RB_TEXT_START,text,RB_TEXT_END)
+        return "%s\nVersion: 0.1\n\n%s%s\n"%(RB_TEXT_START,text,RB_TEXT_END)
     
 #----------------------------------------------------------------------
 # Routing info
@@ -744,11 +744,11 @@ class TextEncodedMessage:
             tagLine = ""
         elif self.messageType == 'ENC':
             ascTag = binascii.b2a_base64(self.tag).strip()
-            tagLine = "Decoding-handle: %s\n" % ascTag
+            tagLine = "Decoding-handle: %s\n\n" % ascTag
         elif self.messageType == 'LONG':
-            tagLine = "Message-type: overcompressed\n"
+            tagLine = "Message-type: overcompressed\n\n"
         elif self.messageType == 'BIN':
-            tagLine = "Message-type: binary\n"
+            tagLine = "Message-type: binary\n\n"
 
         if c and c[-1] != '\n':
             postNL = "\n"

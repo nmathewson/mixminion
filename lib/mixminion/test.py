@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.91 2003/02/16 04:50:55 nickm Exp $
+# $Id: test.py,v 1.92 2003/02/17 14:40:34 nickm Exp $
 
 """mixminion.tests
 
@@ -1227,17 +1227,18 @@ class PacketTests(unittest.TestCase):
         mb1 = tem(v, "BIN")
         eq(mb1.pack(), start+"""\
 Message-type: binary
+
 ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzl
 ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzl
 """+end)
-        eq(mb1.pack(), start+"Message-type: binary\n"+v64+end)
+        eq(mb1.pack(), start+"Message-type: binary\n\n"+v64+end)
         # Overcompressed
         ml1 = tem(v, "LONG")
-        eq(ml1.pack(), start+"Message-type: overcompressed\n"+v64+end)
+        eq(ml1.pack(), start+"Message-type: overcompressed\n\n"+v64+end)
         # Encoded
         menc1 = tem(v, "ENC", "9"*20)
         tag64 = base64.encodestring("9"*20).strip()
-        eq(menc1.pack(), start+"Decoding-handle: "+tag64+"\n"+v64+end)
+        eq(menc1.pack(), start+"Decoding-handle: "+tag64+"\n\n"+v64+end)
 
         # Test parsing: successful cases
         p = ptem(mt1.pack())[0]
@@ -4078,11 +4079,11 @@ Foo: 100
         ####
         # Tests escapeMessageForEmail
         self.assert_(stringContains(eme(FDPFast('plain',message)), message))
-        expect = "BEGINS =======\nMessage-type: binary\n"+\
+        expect = "BEGINS =======\nMessage-type: binary\n\n"+\
                  encodeBase64(binmessage)+"====="
         self.assert_(stringContains(eme(FDPFast('plain',binmessage)), expect))
         expect = "BEGINS =======\nDecoding-handle: "+\
-                 base64.encodestring(tag)+\
+                 base64.encodestring(tag)+"\n"+\
                  encodeBase64(binmessage)+"====="
         self.assert_(stringContains(eme(FDPFast('enc',binmessage,tag)),
                                         expect))
@@ -4113,6 +4114,7 @@ message encrypted to you; or 3) junk.
 
 ======= TYPE III ANONYMOUS MESSAGE BEGINS =======
 Decoding-handle: eHh4eHh4eHh4eHh4eHh4eHh4eHg=
+
 7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre
 7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre
 7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre

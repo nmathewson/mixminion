@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.60 2003/02/14 17:01:49 nickm Exp $
+# $Id: ClientMain.py,v 1.61 2003/02/17 14:40:34 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1546,10 +1546,13 @@ class MixminionClient:
                 results.append(msg.getContents())
             else:
                 surbKey = self.keys.getSURBKey(create=0)
-                results.append(
-                    mixminion.BuildMessage.decodePayload(msg.getContents(),
+                p = mixminion.BuildMessage.decodePayload(msg.getContents(),
                                                          tag=msg.getTag(),
-                                                         userKey=surbKey))
+                                                         userKey=surbKey)
+                if p:
+                    results.append(p)
+                else:
+                    raise UIError("Unable to decode message")
         return results
 
 def parseAddress(s):
@@ -1873,13 +1876,15 @@ class CLIArgumentParser:
         if self.wantReplyPath and self.address is None:
             address = self.config['Security'].get('SURBAddress')
             if address is None:
-                raise UIError("No recipient specified; exiting.")
+                raise UIError("No recipient specified; exiting.  (Try "
+                              "using -t <your-address>)")
             try:
                 self.address = parseAddress(address)
             except ParseError, e:
-                raise UIError(str(e))
+                raise UIError("Error in SURBAddress:"+str(e))
         elif self.address is None and self.replyBlockFiles == []:
-            raise UIError("No recipients specified; exiting")
+            raise UIError("No recipients specified; exiting. (Try using "
+                          "-t <recipient-address>")
         elif self.address is not None and self.replyBlockFiles:
             raise UIError("Cannot use both a recipient and a reply block")
         elif self.replyBlockFiles:
