@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.117 2004/02/06 23:14:28 nickm Exp $
+# $Id: ServerMain.py,v 1.118 2004/02/21 00:02:09 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1392,11 +1392,11 @@ Options:
 def signalServer(cmd, args):
     """[Entry point] Send a SIGHUP or a SIGTERM to a running mixminion
        server."""
-    if cmd.endswith("server-stop"):
+    if cmd.endswith("stop"):
         sig_reload = 0
         usage = _SIGNAL_SERVER_USAGE % ("server-stop", "shut down")
     else:
-        assert cmd.endswith("server-reload")
+        assert cmd.endswith("reload")
         sig_reload = 1
         usage = _SIGNAL_SERVER_USAGE % ("server-reload",
                                         "rescan its configuration")

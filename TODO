@@ -17,14 +17,14 @@ For 0.0.7:
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
                 o Clear up specification for multiple addrs on MAIL
-        . Infrastructure -- high level
+        o Infrastructure -- high level
                 o Servers need to download and use directories
                 o Servers should use downloaded directories to print useful
                   nicknames for other servers rather than just IP addresses.
                         o For outgoing connections
                         o For incoming connections
                         o Test
-                - Have callers of Packet/BuildMessage/DeliveryPacket
+                o Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
                 D Make processing thread and module thread general
                   cases of a thread pool abstraction.?
@@ -48,8 +48,7 @@ For 0.0.7:
                   servers from directory.
                         o Implement
                         - Test
-                - Maildir-style exit module to help integrators.
-                - "mixminiond" frontend
+                o "mixminiond" frontend
         . MMTP
                 o Make MMTP bursty.
                 . Bandwidth throttling
@@ -80,11 +79,9 @@ For 0.0.7:
                   'mixminiond.conf'.
                 - Maybe add a page for Mixminion integration.
 
-Reach for 0.0.7:
-        - Dummies and pinging
-        - RFC822 interface and maildir-style exit module to help
-          integrators.
-        - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
+Deferred from 0.0.7:
+        - Dummies and pinging [Rationale: no time]
+        - Make 'SIGHUP' reload, (and 'SIGUSR' dump). [Rationale: no time]
                 - SIGHUP should reconfigure everything:
                         - Logs
                         - EventStats
@@ -98,15 +95,23 @@ Reach for 0.0.7:
                 - SIGHUP should check whether serverinfo should be
                   regenerated.
                 - Add SIGUSR1 to do rotate-and-dump only.
-        - MMTP
+        - MMTP [Rationale: more design needed]
                 - Retrying should be per-destination, not per-packet.
                   Otherwise, we can leak which packets were first attempted
                   when.
                 - Limit number of packets sent over single client
                   connection.
-        - UI
+        - UI [Rationale: don't build stuff for integrators till after
+              codecon, when I'll talk with 2 potential integrators.]
+                - RFC822 interface to help integrators.
                 - "-o" option for queue
                 - "-i" option for flush.
+                - Maildir-style exit module to help integrators.
+                        - Implement MH/Maildir modes
+                        - Text/binary modes
+                        - With/without decoding handle
+                        - Attach to any type.
+
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   [Release criteria: Workable replacement for type II.  At least as

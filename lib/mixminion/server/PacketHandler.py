@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.35 2004/01/03 07:35:24 nickm Exp $
+# $Id: PacketHandler.py,v 1.36 2004/02/21 00:02:09 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -205,9 +205,9 @@ class PacketHandler:
         # If we're an exit node, there's no need to process the headers
         # further.
         if rt >= Packet.MIN_EXIT_TYPE:
-            return DeliveryPacket(rt, subh.getExitAddress(),
+            return DeliveryPacket(rt, subh.getExitAddress(0),
                                   keys.get(Crypto.APPLICATION_KEY_MODE),
-                                  subh.getTag(), payload)
+                                  payload)
 
         # If we're not an exit node, make sure that what we recognize our
         # routing type.
@@ -288,18 +288,15 @@ class DeliveryPacket:
     # dPayload -- An instance of mixminion.Packet.Payload for this object.
     # error -- None, or a string containing an error encountered while trying
     #     to decode the payload.
-    def __init__(self, routingType, routingInfo, applicationKey,
-                 tag, payload):
+    def __init__(self, routingType, routingInfo, applicationKey, payload):
         """Construct a new DeliveryPacket."""
         assert 0 <= routingType <= 0xFFFF
         assert len(applicationKey) == 16
-        #assert len(tag) == 20 #XXXX007 make tag system sane.
-        assert len(tag) == 20 or routingType == Packet.FRAGMENT_TYPE
         assert len(payload) == 28*1024
         self.exitType = routingType
         self.address = routingInfo
         self.key = applicationKey
-        self.tag = tag
+        self.tag = ""
         self.payload = payload
         self.contents = None
         self.type = None
@@ -307,6 +304,19 @@ class DeliveryPacket:
         self.isfrag = 0
         self.dPayload = None
         self.error = None
+        self.hasTag = 0 # XXXX007 DOCDOC
+
+    def setTagged(self,tagged=1):
+        self.hasTag=tagged
+        x = self.tag+self.address
+        if tagged:
+            if len(x)<Packet.TAG_LEN:
+                raise ParseError("Missing decoding handle for exit type")
+            self.tag = x[:Packet.TAG_LEN]
+            self.address = x[Packet.TAG_LEN:]
+        else:
+            self.tag = ""
+            self.address = x
 
     def __getstate__(self):
         return "V0", self.__dict__
@@ -389,8 +399,7 @@ class DeliveryPacket:
         message = self.payload
         self.contents = None
         try:
-            self.dPayload = mixminion.BuildMessage.decodePayload(message,
-                                                                 self.tag)
+            self.dPayload = mixminion.BuildMessage.decodePayload(message, "")
             if self.dPayload is None:
                 # encrypted message
                 self.type = 'enc'

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.67 2004/01/15 21:03:26 nickm Exp $
+# $Id: Main.py,v 1.68 2004/02/21 00:02:09 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -141,6 +141,8 @@ _COMMANDS = {
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
 
     "shell":           ( 'mixminion.Main',       'commandShell' ),
+
+    "__d":             ( 'mixminion.Main',       'mixminiondMain' ),
 }
 
 _USAGE = (
@@ -177,6 +179,18 @@ _USAGE = (
   "For help on sending a message, run 'mixminion send --help'"
 )
 
+_SERVER_USAGE = (
+    "Usage: mixminiond <command> [arguments]\n"+
+    "       start     [Begin running a Mixminion server]\n"+
+    "       stop      [Halt a running Mixminion server]\n"+
+    "       reload    [Make running Mixminion server reload its config\n"+
+    "                     (Not implemented yet; only restarts logging.)]\n"+
+    "       republish [Re-send all keys to directory server]\n"+
+    "       DELKEYS   [Remove generated keys for a Mixminion server]\n"+
+    "       stats     [List as-yet-unlogged statistics for this server]\n"+
+    "       upgrade   [Upgrade a pre-0.0.4 server homedir]\n"
+    )
+
 def printVersion(cmd,args):
     import mixminion
     print "Mixminion version %s" % mixminion.__version__
@@ -199,8 +213,11 @@ def rejectCommand(cmd,args):
 
     sys.exit(1)
 
-def printUsage():
-    print _USAGE
+def printUsage(daemon=0):
+    if daemon:
+        print _SERVER_USAGE
+    else:
+        print _USAGE
     print "NOTE: This software is for testing only.  The user set is too small"
     print "      to be anonymous, and the code is too alpha to be reliable."
 
@@ -242,7 +259,7 @@ def commandShell(cmd,args):
         except SystemExit:
             pass
 
-def main(args):
+def main(args,daemon=0):
     "Use <args> to fix path, pick a command and pass it arguments."
     # Specifically, args[0] is used to fix sys.path so we can import
     # mixminion.*; args[1] is used to select a command name from _COMMANDS,
@@ -250,16 +267,14 @@ def main(args):
 
     correctPath(args[0])
 
-##     if len(args) > 2 and args[1] == 'mixminiond':
-##         if _COMMANDS.has_key("server-"+args[2]):
-##             args[1:3] = "server-"+args[2]
-##         else:
-##             printUsage()
-##             sys.exit(1)
+    if daemon:
+        prefix = "server-"
+    else:
+        prefix = ""
 
     # Check whether we have a recognized command.
-    if len(args) == 1  or not _COMMANDS.has_key(args[1]):
-        printUsage()
+    if len(args) == 1  or not _COMMANDS.has_key(prefix+args[1]):
+        printUsage(daemon)
         sys.exit(1)
 
     if args[1] not in ('unittests', 'benchmarks', 'version') and \
@@ -276,7 +291,7 @@ def main(args):
     filePermissionErrorClass = commonModule.MixFilePermissionError
 
     # Read the module and function.
-    command_module, command_fn = _COMMANDS[args[1]]
+    command_module, command_fn = _COMMANDS[prefix+args[1]]
     mod = __import__(command_module, {}, {}, [command_fn])
     func = getattr(mod, command_fn)
 

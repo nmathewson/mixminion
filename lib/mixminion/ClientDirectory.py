@@ -1082,6 +1082,13 @@ class ClientDirectory:
             raise UIError("%s exit type expects a fixed exit server." %
                           exitAddress.getPrettyExitType())
 
+        if fs is None and lh is None:
+            for desc in self.getLiveServers(startAt, endAt, isExit=1):
+                if exitAddress.isSupportedByServer(desc):
+                    break
+            else:
+                raise UIError("No recommended server supports delivery type.")
+
         # Check for unrecommended servers
         if not warnUnrecommended:
             return
@@ -1465,6 +1472,15 @@ class ExitAddress:
             assert type(self.exitType) == types.IntType
             rt = self.exitType
         return rt, ri, self.lastHop
+
+    def suppressTag(self):
+        """DOCDOC"""
+        if self.isSSFragmented:
+            return 1
+        elif self.exitType == 'drop':
+            return 1
+        else:
+            return 0
 
 def parseAddress(s):
     """Parse and validate an address; takes a string, and returns an

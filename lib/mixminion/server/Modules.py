@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.70 2004/01/27 05:13:36 nickm Exp $
+# $Id: Modules.py,v 1.71 2004/02/21 00:02:09 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -64,6 +64,10 @@ class DeliveryModule:
     def __init__(self):
         "Zero-argument constructor, as required by Module protocol."
         pass
+
+    def usesDecodingHandle(self):
+        """DOCDOC"""
+        return 1
 
     def getRetrySchedule(self):
         """Return a retry schedule for this module's queue, as specified
@@ -142,6 +146,7 @@ class ImmediateDeliveryQueue:
     #  module: the underlying DeliveryModule object.
     def __init__(self, module):
         self.module = module
+        self.hasTag = 1
 
     def queueDeliveryMessage(self, packet, retry=0, lastAttempt=0):
         """Instead of queueing our message, pass it directly to the underlying
@@ -439,11 +444,18 @@ class ModuleManager:
 
         mod = self.typeToModule.get(exitType)
         if mod is None:
-            LOG.error("Unable to handle message with unknown type %s",
+            LOG.error("Unable to handle packet with unknown type %s",
                       exitType)
             return "<nil>"
+        try:
+            packet.setTagged(mod.usesDecodingHandle())
+        except ParseError:
+            LOG.error("Packet (type %04x) missing decoding handle; dropped",
+                      exitType)
+            return "<nil>"
+
         queue = self.queues[mod.getName()]
-        LOG.debug("Delivering message %r (type %04x) via module %s",
+        LOG.debug("Delivering packet %r (type %04x) via module %s",
                   packet.getContents()[:8], exitType, mod.getName())
 
         return queue.queueDeliveryMessage(packet)
@@ -500,6 +512,7 @@ class ModuleManager:
 #----------------------------------------------------------------------
 class DropModule(DeliveryModule):
     """Null-object pattern: drops all messages it receives."""
+    def usesDecodingHandle(self): return 0
     def getConfigSyntax(self):
         return { }
     def getRetrySchedule(self):
@@ -543,6 +556,7 @@ class FragmentModule(DeliveryModule):
         self.maxInterval = None
         self.maxFragments = None
         self.lock = threading.RLock()
+    def usesDecodingHandle(self): return 0
     def getConfigSyntax(self):
         return { "Delivery/Fragmented" :
                  { 'Enabled' : ('REQUIRE',  "boolean", "no"),
@@ -561,7 +575,7 @@ class FragmentModule(DeliveryModule):
         deliverySecs = [ 'Delivery/MBOX', 'Delivery/SMTP',
                          'Delivery/SMTP-Via-Mixmaster' ]
         enabled = [ config.get(s,{}).get("Enabled") for s in deliverySecs ]
-        
+
         if not [ e for e in enabled if e ]:
             raise ConfigError("You've specified Fragmented delivery, but no actual delivery method.  This doesn't make much sense.")
 
@@ -725,6 +739,7 @@ class _FragmentedDeliveryMessage:
         self.tp = None
         self.headers = None
 
+    def setTagged(self,tagged=1): pass
     def isDelivery(self): return 1
     def getExitType(self): return self.exitType
     def getAddress(self): return self.address

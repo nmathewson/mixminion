@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.130 2004/02/06 23:14:28 nickm Exp $
+# $Id: Common.py,v 1.131 2004/02/21 00:02:09 nickm Exp $
 
 """mixminion.Common
 
@@ -571,7 +571,7 @@ def readFile(fn, binary=0):
     finally:
         f.close()
 
-def writeFile(fn, contents, mode=0600, binary=0):
+def writeFile(fn, contents, mode=0600, binary=0, fsync=0):
     """Atomically write a string <contents> into a file <file> with mode
        <mode>.  If <binary>, binary mode will be used.
 
@@ -579,12 +579,16 @@ def writeFile(fn, contents, mode=0600, binary=0):
 
        If two processes attempt to writeFile the same file at once,
        the one finishing last wins.
+
+       If fsync is true, we call fsync on the file before closing it.
        """
     tmpname = fn+".tmp"
     f, tmpname = openUnique(tmpname, ['w','wb'][binary], mode)
     try:
         try:
             f.write(contents)
+            if fsync:
+                os.fsync(f.fileno())
         finally:
             f.close()
     except:

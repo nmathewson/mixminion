@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.184 2004/02/15 23:25:33 nickm Exp $
+# $Id: test.py,v 1.185 2004/02/21 00:02:09 nickm Exp $
 
 """mixminion.tests
 
@@ -2580,6 +2580,7 @@ class PacketHandlerTests(TestCase):
             else:
                 self.assert_(res.isDelivery())
                 self.assertEquals(res.getExitType(), rt)
+                res.setTagged(res.getExitType() not in (DROP_TYPE,FRAGMENT_TYPE))
                 self.assertEquals(res.getAddress(), ri)
                 if appkey:
                     self.assertEquals(res.getApplicationKey(), appkey)
@@ -5385,16 +5386,18 @@ deny pattern    /nyet.*Nyet/
 
 class FakeDeliveryPacket(mixminion.server.PacketHandler.DeliveryPacket):
     """Stub version of DeliveryPacket used for testing modules"""
-    def __init__(self, type, exitType, exitAddress, contents, tag=None,
+    def __init__(self, type, exitType, exitAddress, contents, tag="",
                  headers = {}):
-        if tag is None:
+        if tag == "" and exitType not in (DROP_TYPE, FRAGMENT_TYPE):
             tag = "-="*10
         mixminion.server.PacketHandler.DeliveryPacket.__init__(self,
-                        exitType, exitAddress, "Z"*16, tag, "Q"*(28*1024))
+                        exitType, tag+exitAddress, "Z"*16, "Q"*(28*1024))
         self.type = type
         self.headers = headers
         self.payload = None
         self.contents = contents
+        if tag:
+            self.setTagged(1)
 
 class ModuleTests(TestCase):
     def testEmailAddressSet(self):
@@ -5850,7 +5853,7 @@ MaximumSize: 1M
                                   "pirates@sea","").pack())
         deliv = [ mixminion.server.PacketHandler.DeliveryPacket(
             routingType=FRAGMENT_TYPE, routingInfo="", applicationKey="X"*16,
-            tag="", payload=p) for p in payloads ]
+            payload=p) for p in payloads ]
         self.assertEquals(len(deliv), 11)
 
         replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
@@ -7543,7 +7546,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(ModuleTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.70 2004/02/16 22:50:38 nickm Exp $
+# $Id: BuildMessage.py,v 1.71 2004/02/21 00:02:09 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -89,7 +89,7 @@ def buildRandomPayload(paddingPRNG=None):
     return paddingPRNG.getBytes(PAYLOAD_LEN)
 
 def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
-                        paddingPRNG=None):
+                       paddingPRNG=None, suppressTag=0):
     """Construct a forward message.
             payload: The payload to deliver.  Must be exactly 28K.  If the
                   payload is None, 28K of random data is sent.
@@ -101,6 +101,8 @@ def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
                   If None, a new PRNG is initialized.
 
         Neither path1 nor path2 may be empty.  If one is, MixError is raised.
+
+        suppressTag DOCDOC
     """
     if paddingPRNG is None:
         paddingPRNG = Crypto.getCommonPRNG()
@@ -108,11 +110,6 @@ def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
         raise MixError("First leg of path is empty")
     if not path2:
         raise MixError("Second leg of path is empty")
-
-    suppressTag = 0
-    #XXXX refactor _TYPES_WITHOUT_TAGS
-    if exitType == DROP_TYPE or mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType):
-        suppressTag = 1
 
     assert len(payload) == PAYLOAD_LEN
 
@@ -126,7 +123,7 @@ def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
         tag = _getRandomTag(paddingPRNG)
         exitInfo = tag + exitInfo
     return _buildPacket(payload, exitType, exitInfo, path1, path2,
-                        paddingPRNG)
+                        paddingPRNG,suppressTag=suppressTag)
 
 
 def buildEncryptedForwardPacket(payload, exitType, exitInfo, path1, path2,
@@ -301,11 +298,14 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
     return _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime, prng,
                                 seed)[0]
 
-def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
+def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0,
+                    suppressTag=0):
     """Given two path legs, an exit type and an exitInfo, raise an error
        if we can't build a hop with the provided legs.
 
-       The leg "path1" may be null."""
+       The leg "path1" may be null.
+
+       DOCDOC suppressTag"""
     err = 0 # 0: no error. 1: 1st leg too big. 2: 1st leg okay, 2nd too big.
     if path1 is not None:
         try:
@@ -314,8 +314,7 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
         except MixError:
             err = 1
     # Add a dummy tag as needed to last exitinfo.
-    if (exitType != DROP_TYPE
-        and not mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType)
+    if (not suppressTag
         and exitInfo is not None):
         exitInfo += "X"*20
     else:
@@ -466,7 +465,8 @@ def _decodeStatelessReplyPayload(payload, tag, userKey):
 
 #----------------------------------------------------------------------
 def _buildPacket(payload, exitType, exitInfo,
-                 path1, path2, paddingPRNG=None, paranoia=0):
+                 path1, path2, paddingPRNG=None, paranoia=0,
+                 suppressTag=0):
     """Helper method to create a message.
 
     The following fields must be set:
@@ -498,7 +498,7 @@ def _buildPacket(payload, exitType, exitInfo,
         reply = path2
         path2 = None
     else:
-        if len(exitInfo) < TAG_LEN and exitType != DROP_TYPE and not mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType):
+        if len(exitInfo) < TAG_LEN and not suppressTag:
             raise MixError("Implausibly short exit info: %r"%exitInfo)
         if exitType < MIN_EXIT_TYPE and exitType != DROP_TYPE:
             raise MixError("Invalid exit type: %4x"%exitType)
@@ -547,7 +547,7 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
                each of the subheaders.
            exitType: The routing type for the last node in the header
            exitInfo: The routing info for the last node in the header.
-               (Must include 20-byte decoding tag.)
+               (Must include 20-byte decoding tag, if any.)
            paddingPRNG: A pseudo-random number generator to generate padding
     """
     assert len(path) == len(secrets)

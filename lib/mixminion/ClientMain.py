@@ -369,7 +369,7 @@ class MixminionClient:
 
             pkt = mixminion.BuildMessage.buildForwardPacket(
                 p, routingType, routingInfo, path1, path2,
-                self.prng)
+                self.prng, suppressTag=address.suppressTag())
             r.append( (pkt, path1[0]) )
 
         return r

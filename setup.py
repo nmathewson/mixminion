@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.88 2003/12/15 05:16:47 nickm Exp $
+# $Id: setup.py,v 1.89 2004/02/21 00:02:09 nickm Exp $
 import sys
 
 #
@@ -326,28 +326,34 @@ if os.environ.get('PREFIX'):
 else:
     pathextra = ""
 
-SCRIPT_PATH = os.path.join("build", "mixminion")
-if sys.platform == 'win32':
-    SCRIPT_PATH += ".py"
 if not os.path.exists("build"):
     os.mkdir("build")
 
-f = open(SCRIPT_PATH, 'wt')
-# Distutils will take care of the executable path, and actually gets angry
-# if we try to be smart on our own. *sigh*.
-f.write("#!python\n")
-f.write("import sys\n")
-if pathextra and 'py2exe' not in sys.argv:
-    f.write("sys.path[0:0] = [%r]\n"%pathextra)
-f.write("""\
+
+if sys.platform == 'win32':
+    SCRIPT_SUFFIX = ".py"
+else:
+    SCRIPT_SUFFIX = ""
+
+SCRIPTS = []
+for name in "mixminion", "mixminiond":
+    SCRIPT_PATH = os.path.join("build", name+SCRIPT_SUFFIX)
+    f = open(SCRIPT_PATH, 'wt')
+    # Distutils will take care of the executable path, and actually gets angry
+    # if we try to be smart on our own. *sigh*.
+    f.write("#!python\n")
+    f.write("import sys\n")
+    if pathextra and 'py2exe' not in sys.argv:
+        f.write("sys.path[0:0] = [%r]\n"%pathextra)
+    f.write("""\
 try:
     import mixminion.Main
 except:
     print 'ERROR importing mixminion package.'
     raise
-""")
-if 'py2exe' in sys.argv:
-    f.write("""\
+    """)
+    if 'py2exe' in sys.argv:
+        f.write("""\
 if 1 == 0:
     # These import statements need to be here so that py2exe knows to
     # include all of the mixminion libraries.  Main.py imports libraries
@@ -362,14 +368,17 @@ if 1 == 0:
     # We need to be sure that it gets included, or else we'll get stuck
     # using the dumbdbm module.
     import bsddb, dbhash
-""")
-if sys.platform == 'win32':
-    f.write("# On win32, we default to shell mode.\n")
-    f.write("if len(sys.argv) == 1: sys.argv.append('shell')\n")
-f.write("\nmixminion.Main.main(sys.argv)\n")
-f.close()
+    """)
+    if name == 'mixminiond':
+        f.write("\nmixminion.Main.main(sys.argv, 1)\n")
+    else:
+        if sys.platform == 'win32':
+            f.write("# On win32, we default to shell mode.\n")
+            f.write("if len(sys.argv) == 1: sys.argv.append('shell')\n")
+        f.write("\nmixminion.Main.main(sys.argv)\n")
+    f.close()
 
-SCRIPTS = [ SCRIPT_PATH ]
+    SCRIPTS.append(SCRIPT_PATH)
 
 #======================================================================
 # Define a helper to let us run commands from the compiled code.

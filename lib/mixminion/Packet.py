@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.73 2004/02/02 07:05:49 nickm Exp $
+# $Id: Packet.py,v 1.74 2004/02/21 00:02:09 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -94,12 +94,6 @@ NEWS_TYPE      = 0x0102  # Post the message to some ngs, and maybe mail it too
 FRAGMENT_TYPE  = 0x0103  # Find the actual delivery info in the message payload
 MAX_EXIT_TYPE  = 0xFFFF
 
-# Set of exit types that don't get tag fields.
-# XXXX007 This interface is really brittle; it needs to change.  I added it
-# XXXX007 in order to allow 'fragment' to be an exit type without adding a
-# XXXX007 needless tag field to every fragment routing info.
-_TYPES_WITHOUT_TAGS = { FRAGMENT_TYPE : 1 }
-
 def typeIsSwap(tp):
     return tp in (SWAP_FWD_IPV4_TYPE,SWAP_FWD_HOST_TYPE)
 
@@ -162,8 +156,8 @@ def parseSubheader(s):
     underflow = ""
     if rlen < len(ri):
         ri, underflow = ri[:rlen], ri[rlen:]
-    if rt >= MIN_EXIT_TYPE and not _TYPES_WITHOUT_TAGS.get(rt) and rlen < TAG_LEN:
-        raise ParseError("Subheader missing tag")
+##     if rt >= MIN_EXIT_TYPE and not _TYPES_WITHOUT_TAGS.get(rt) and rlen < TAG_LEN:
+##         raise ParseError("Subheader missing tag")
     return Subheader(major,minor,secret,digest,rt,ri,rlen,underflow)
 
 class Subheader:
@@ -202,27 +196,25 @@ class Subheader:
                 "routingtype=%(routingtype)r, routinginfo=%(routinginfo)r, "+
                 "routinglen=%(routinglen)r)")% self.__dict__
 
-    def getExitAddress(self):
+    def getExitAddress(self, tagged=1):
         """Return the part of the routingInfo that contains the delivery
            address.  (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
         #XXXX007 This interface is completely insane.  Change it.
-        if _TYPES_WITHOUT_TAGS.get(self.routingtype):
+        if not tagged:
             return self.routinginfo
         else:
-            assert len(self.routinginfo) >= TAG_LEN
+            if len(self.routinginfo) < TAG_LEN:
+                raise ParseError("Missing tag")
             return self.routinginfo[TAG_LEN:]
 
     def getTag(self):
         """Return the part of the routingInfo that contains the decoding
            tag. (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
-        #XXXX007 This interface is completely insane.  Change it.
-        if _TYPES_WITHOUT_TAGS.get(self.routingtype):
-            return ""
-        else:
-            assert len(self.routinginfo) >= TAG_LEN
-            return self.routinginfo[:TAG_LEN]
+        if len(self.routinginfo) < TAG_LEN:
+            raise ParseError("Missing tag")
+        return self.routinginfo[:TAG_LEN]
 
     def setRoutingInfo(self, info):
         """Change the routinginfo, and the routinglength to correspond."""
