@@ -1,0 +1,26 @@
+XXXX PICK A LICENSE, FOLKS!
+
+Licensing for the Mixminion system 
+
+We haven't picked a license yet.  We should do so before we release
+code.  There seems to be the following tensions:
+   A) Between wanting universal adoption, and not wanting Microsoft
+        embrace-and-extend our server code.
+   B) Between wanting a simple, friendly license; and preventing
+        people from running modified servers without notice.
+
+Once we get something chosen, it should go here.
+
+Personally, I find the following options most realistic:
+1)
+   Separate server-only modules from client-and-server modules.  License
+   the former under GPL; licens the latter under LGPL.
+
+2) 
+   License everything under modified BSD (X11).
+
+I'm still looking at the ARPL as suggested by David Mazieres; it has
+some nice anti-Fed features, but its fringeness may scare people off.
+Perhaps we can achieve its goals through other means.
+
+-- Nick

@@ -1,0 +1,25 @@
+
+NEEDS TO BE WRITTEN
+
+- Queue for incoming messages
+- Queue for outgoing messages
+- Manager process
+- Configuration code
+- Logging/debugging code
+- Network code to receive
+- Network code to send
+- Client code
+- memlockall wrapper
+- Server description blocks
+- Key management
+- Path selection
+- Publishing to directory servers
+- Downloading from directory servers
+- Key rotation
+
+WRITTEN, BUT UNTESTED
+
+- BuildMessages.py
+- ServerProcess.py
+- Some of Formats.py
+

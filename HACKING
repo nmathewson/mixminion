@@ -1,0 +1,67 @@
+Hacking Mixminion
+
+Requirements:
+	Python 2.2 (see PORTING NOTES below)
+	OpenSSL 0.9.7 (you'll need to download a snapshot)
+	Working /dev/urandom (see PORTING NOTES below)
+
+Setting up:
+	Get python 2.2.  There are RPMs around.
+	Get the source.
+	Unpack openssl 0.9.7 into minion/contrib/openssl.
+	cd minion/contrib/openssl; ./config; make
+	
+Things to try:
+	make
+	make test
+	make time
+
+Things to hack:
+	See the TODO list.  It would be really nice if somebody could
+	hack up as much of MMTP as possible in C.
+
+DESIGN PRINCIPALS:
+    - It's not done till it's documented.
+    - It's not done till it's tested.
+    - Don't build general-purpose functionality.  Only build the
+      operations you need.
+    - "Premature optimization is the route of all evil." -Knuth
+      Resist the temptation to optimize until it becomes a necessity.
+      
+    - Here's the conceptual layout. XXXX EXPLAIN MORE
+
+       -------------
+       I User code I
+       -------------
+             I
+             V 
+             -----------------------------------------
+             I            MM library code            I
+             -----------------------------------------
+               I             I                 ^
+               V             I                 I
+       ------------------    I                 I
+     ..| Network client |    V                 I
+    .  ------------------<==---------       ----------
+ net                        | Queue |<=====>| Engine |
+    .  ------------------==>---------       ----------
+     ..| Network server |
+       ------------------
+
+
+
+PORTING NOTES:
+    - If you need to run on a system without /dev/urandom, you'll need
+      to write an acceptable fallback for mixminion.Crypto.trng() to
+      use.  
+    - We could backport to Python 2.1 with a minimum of pain by
+      replacing uses of // with divmod.  We could backport to 2.0 
+      (with bigger headaches) by excising nested scopes.
+
+      I refuse to backport to 1.5 or 1.6.
+
+CAVEATS:
+    - If I haven't got a test for it in tests.py, assume it doesn't work.
+    - The code isn't threadsafe.  It will become so only when it must.
+
+--Nick
