@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.57 2003/02/13 12:02:39 nickm Exp $
+# $Id: ClientMain.py,v 1.58 2003/02/13 18:45:07 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -61,6 +61,12 @@ def configureClientLock(filename):
 
 #----------------------------------------------------------------------
 
+class MyURLOpener(urllib.FancyURLopener):
+    def http_error_default(self, url, fp, errcode, errmsg, headers):
+        message = fp.read()
+        fp.close()
+        raise UIError("Error connecting to %s: %s %s\n(Server said:\n%s)" % (url, errcode, errmsg, message))
+    
 class ClientDirectory:
     """A ClientDirectory manages a list of server descriptors, either
        imported from the command line or from a directory."""
@@ -137,7 +143,7 @@ class ClientDirectory:
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
         try:
-            infile = urllib.FancyURLopener().open(url)
+            infile = MyURLOpener().open(url)
         except IOError, e:
             raise UIError(
                 ("Couldn't connect to directory server: %s.\n"
@@ -1182,6 +1188,7 @@ class ClientPool:
     #             the latest midnight preceeding the time when this
     #                 packet was inserted into the pool.
     #           )
+    # XXXX004 change this to be OO; add nicknames.
     
     # XXXX004 write unit tests
 
