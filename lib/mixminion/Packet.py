@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.49 2003/07/07 18:55:15 nickm Exp $
+# $Id: Packet.py,v 1.50 2003/07/08 19:13:50 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -684,7 +684,7 @@ def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
         headers['IN-REPLY-TO'] = inReplyTo
     if references:
         headers['REFERENCES'] = references
-    return encodeMessageHeaders(message, headers)
+    return encodeMessageHeaders(headers)
 
 def encodeMessageHeaders(headers):
     """DOCDOC dict

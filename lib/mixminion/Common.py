@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.97 2003/07/07 16:49:24 nickm Exp $
+# $Id: Common.py,v 1.98 2003/07/08 19:13:50 nickm Exp $
 
 """mixminion.Common
 
@@ -22,15 +22,12 @@ import calendar
 import cPickle
 import errno
 import fcntl
-import grp
 import gzip
 import os
-import pwd
 import re
 import signal
 import stat
 import statvfs
-import string
 import sys
 import threading
 import time

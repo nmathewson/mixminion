@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.43 2003/07/08 18:38:24 nickm Exp $
+# $Id: benchmark.py,v 1.44 2003/07/08 19:13:50 nickm Exp $
 
 """mixminion.benchmark
 
@@ -881,7 +881,6 @@ def testLeaks5_send2():
     import mixminion.MMTPClient
 
     #msg = "X" * 32 * 1024
-    n = 0
     server, listener, messagesIn, keyid = _getMMTPServer(1,port=(TEST_PORT+1))
     #t = threading.Thread(None, testLeaks5_send,
     #                     args=(keyid,))
@@ -897,7 +896,7 @@ def testLeaks5_send2():
 
     import socket
 
-    context = _getTLSContext(0)
+    #context = _getTLSContext(0)
 
     i = 0
     while 0:
@@ -996,8 +995,8 @@ def testLeaks_FEC():
     while 1:
         fec = _ml.FEC_generate(3,5)
         chunks = [ fec.encode(i, inp) for i in xrange(5) ]
-        dec = fec.decode([(i, chunks[i]) for i in xrange(2,5) ])
-
+        fec.decode([(i, chunks[i]) for i in xrange(2,5) ])
+        
 #----------------------------------------------------------------------
 def timeAll(name, args):
     if 0:

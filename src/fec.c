@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.4 2003/07/08 18:38:25 nickm Exp $ */ 
+/* $Id: fec.c,v 1.5 2003/07/08 19:13:50 nickm Exp $ */ 
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -808,7 +808,7 @@ mm_FEC_generate(PyObject *self, PyObject *args, PyObject *kwargs)
 					 &k, &n))
                 return NULL;
 	
-	if (k < 1 || n < 1 || k > 255 || n > 255) {
+	if (k < 1 || n < 1 || k > 255 || n > 255 || k > n) {
 		PyErr_SetString(mm_FECError, "K or N is out of range");
 		return NULL;
 	}
@@ -944,10 +944,8 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
  err:
         if (stringPtrs)
                 free(stringPtrs);
-        if (tup)
-                Py_DECREF(tup);
-        if (result)
-                Py_DECREF(result);
+        Py_XDECREF(tup);
+        Py_XDECREF(result);
 	return NULL;
 }
 
@@ -1072,18 +1070,15 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
 
         return result;
  err:
-        if (tup)
-                Py_DECREF(tup);
+        Py_XDECREF(tup);
         if (indices)
                 free(indices);
         if (objPtrs)
                 free(objPtrs);
-        if (stringPtrs) {
+        if (stringPtrs)
                 free(stringPtrs);
-        }
-        if (result)
-                Py_DECREF(result);
-	
+        Py_XDECREF(result);
+
 	return NULL;
 }
 

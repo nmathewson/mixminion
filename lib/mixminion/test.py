@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.132 2003/07/08 18:38:25 nickm Exp $
+# $Id: test.py,v 1.133 2003/07/08 19:13:50 nickm Exp $
 
 """mixminion.tests
 
@@ -853,8 +853,8 @@ class MinionlibFECTests(unittest.TestCase):
         inp = "".join(inpChunks)
         outChunks = [ fec.encode(i, inpChunks) for i in xrange(n) ]
         for i in xrange(n):
-            if n < k:
-                eq(outChunks[i], inChunks[i])
+            if i < k:
+                eq(outChunks[i], inpChunks[i])
             eq(len(outChunks[i]), sz)
 
         numberedChunks = [ (i, outChunks[i]) for i in xrange(n) ]
@@ -870,8 +870,33 @@ class MinionlibFECTests(unittest.TestCase):
         self.do_fec_test(3,5,10)
         self.do_fec_test(10,20,1024)
         self.do_fec_test(30,40,1024)
+        self.do_fec_test(30,40,1)
         self.do_fec_test(3,4,128)
         self.do_fec_test(3,3,2048)
+
+    def test_bad_fec(self):
+        
+        self.assertRaises(_ml.FECError,_ml.FEC_generate,5,3)
+        self.assertRaises(_ml.FECError,_ml.FEC_generate,0,10)
+        self.assertRaises(_ml.FECError,_ml.FEC_generate,10,300)
+
+        r = getCommonPRNG()
+        fec = _ml.FEC_generate(3,5)
+        inp = [ r.getBytes(256) for i in xrange(3) ]
+        self.assertRaises(_ml.FECError,fec.encode, -1, inp)
+        self.assertRaises(_ml.FECError,fec.encode, 5, inp)
+        self.assertRaises(_ml.FECError,fec.encode, 1, inp[0:2])
+        self.assertRaises(_ml.FECError,fec.encode, 1, inp*2)
+        self.assertRaises(_ml.FECError,fec.encode, 1, inp[0:2]+[3])
+        self.assertRaises(_ml.FECError,fec.encode, 1, 5)
+
+        cInp = [ (i, fec.encode(i, inp)) for i in xrange(5) ]
+        fec.decode(cInp[2:5])
+        self.assertRaises(_ml.FECError,fec.decode, inp)
+        self.assertRaises(_ml.FECError,fec.decode, [1,2,3])
+        self.assertRaises(_ml.FECError,fec.decode, cInp)
+        self.assertRaises(_ml.FECError,fec.decode, cInp[:-1])
+        self.assertRaises(_ml.FECError,fec.decode, cInp[0:2]+[2,'x'])
 
 #----------------------------------------------------------------------
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.41 2003/06/26 03:23:53 nickm Exp $
+# $Id: MMTPServer.py,v 1.42 2003/07/08 19:13:50 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -1080,7 +1080,7 @@ class MMTPAsyncServer(AsyncServer):
         except socket.error, e:
             LOG.error("Unexpected socket error connecting to %s:%s: %s",
                       ip, port, e)
-            for m in messages:
+            for m in self.messageList:
                 try:
                     m.failed(1)
                 except AttributeError:

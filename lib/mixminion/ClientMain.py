@@ -1335,7 +1335,7 @@ class ClientQueue:
             now = time.time()
         cutoff = now - maxAge
         remove = []
-        for h in handles:
+        for h in self.getHandles():
             when = self.getPacket(h)[2]
             if when < cutoff:
                 remove.append(when)
@@ -2154,18 +2154,18 @@ def runClient(cmd, args):
         sendUsageAndExit(cmd)
 
     inFile = None
-    headers = {}
+    h_subject = h_from = h_irt = h_references = None
     for opt,val in options:
         if opt in ('-i', '--input'):
             inFile = val
         elif opt == '--subject':
-            headers["SUBJECT"] = val
+            h_subject = val
         elif opt == '--from':
-            headers["FROM"] = val
+            h_from = val
         elif opt == '--in-reply-to':
-            headers["IN-REPLY-TO"] = val
+            h_irt = val
         elif opt == '--references':
-            headers["REFERENCES"] = val
+            h_references = val
 
     if args:
         sendUsageAndExit(cmd,"Unexpected arguments")
@@ -2184,7 +2184,8 @@ def runClient(cmd, args):
 
     # Encode the headers early so that we die before reading the message if
     # they won't work.
-    headerStr = encodeMessageHeaders(headers)
+    headerStr = encodeMailHeaders(subject=h_subject, fromAddr=h_from,
+                                  inReplyTo=h_irt, references=h_references)
 
     if inFile in (None, '-') and '-' in parser.replyBlockFiles:
         raise UIError(
@@ -2705,7 +2706,7 @@ def cleanQueue(cmd, args):
                 print "ERROR: %s expects an integer" % o
                 sys.exit(1)
     try:
-        if count is None:
+        if days is None:
             raise UsageError()
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
                                    wantClient=1)
