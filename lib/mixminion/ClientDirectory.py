@@ -273,8 +273,10 @@ class ClientDirectory:
         dirFile = os.path.join(self.dir, "dir")
         for fname in gzipFile, dirFile:
             self._diskLock.acquire()
+            if not os.path.exists(fname): 
+                self._diskLock.release()
+                continue
             try:
-                if not os.path.exists(fname): continue
                 s_lastDownload = s_lastModified = \
                                  os.stat(fname)[stat.ST_MTIME]
                 try:
