@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.17 2003/05/30 04:58:42 nickm Exp $
+# $Id: ServerQueue.py,v 1.18 2003/05/31 12:52:55 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -595,21 +595,21 @@ class DeliveryQueue(Queue):
             handles = self.sendable
             messages = []
             self.sendable = []
+            for h in self.pending.keys():
+                LOG.trace("     [%s] is pending delivery", h)
             for h in handles:
                 assert not self.pending.has_key(h)
                 next = self.nextAttempt[h]
                 if next is None:
-                    LOG.trace("     [%s] is expired.", h)
+                    LOG.trace("     [%s] is expired", h)
                     self.removeMessage(h)
                 elif next <= now:
                     LOG.trace("     [%s] is ready for delivery", h)
                     messages.append( (h, self.getObject(h)) )
                     self.pending[h] = now
                 else:
-                    LOG.trace("     [%s] is not yet ready for delivery", h)
+                    LOG.trace("     [%s] is not yet ready for redelivery", h)
                     self.sendable.append(h)
-            for h in self.pending.keys():
-                LOG.trace("     [%s] is pending delivery", h)
         finally:
             self._lock.release()
         self._repOk()

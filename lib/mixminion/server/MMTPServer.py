@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.31 2003/05/30 04:58:42 nickm Exp $
+# $Id: MMTPServer.py,v 1.32 2003/05/31 12:52:55 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -246,6 +246,7 @@ class SimpleTLSConnection(Connection):
     #           writing.
     #    __servermode: If true, we're the server side of the connection.
     #           Else, we're the client side.
+    # DOCDOC __connecting
     def __init__(self, sock, tls, serverMode, address=None):
         """Create a new SimpleTLSConnection.
 
@@ -260,8 +261,10 @@ class SimpleTLSConnection(Connection):
         self.__serverMode = serverMode
 
         if serverMode:
+            self.__connecting = 0
             self.__state = self.__acceptFn
         else:
+            self.__connecting = 1
             self.__state = self.__connectFn
 
         if address is not None:
@@ -319,6 +322,7 @@ class SimpleTLSConnection(Connection):
         """Hook to implement client-side handshake."""
         self.__con.connect() #may throw want*
         self.__server.unregister(self)
+        self.__connecting = 0
         self.finished()
 
     def __shutdownFn(self):
@@ -444,11 +448,10 @@ class SimpleTLSConnection(Connection):
         except _ml.TLSWantRead:
             self.__server.registerReader(self)
         except _ml.TLSClosed:
-            if self.__state is self.__connectFn:
+            if self.__connecting:
                 warn("Couldn't connect to server %s", self.address)
             else:
-                warn("Unexpectedly closed connection to %s; state is %s",
-                     self.address, self.__state)
+                warn("Unexpectedly closed connection to %s", self.address)
             self.handleFail(retriable=1)
             self.__sock.close()
             self.__server.unregister(self)
