@@ -1,9 +1,10 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.20 2003/04/10 03:01:07 nickm Exp $ */
+/* $Id: tls.c,v 1.21 2003/04/26 14:37:43 nickm Exp $ */
 #include "_minionlib.h"
 
 /* XXXX REMOVE*/
 #include <stdio.h>
+#include <time.h>
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/ssl.h>
@@ -561,6 +562,40 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
         return (PyObject*) result;
 }
 
+
+static char mm_TLSSock_check_cert_alive__doc__[] = 
+    "DOCDOC";
+
+static PyObject*
+mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+        time_t now;
+        X509 *cert = NULL;
+        SSL *ssl = NULL;
+
+        assert(mm_TLSSock_Check(self));
+        FAIL_IF_ARGS();
+        
+        ssl = ((mm_TLSSock*)self)->ssl;
+        if (!(cert = SSL_get_peer_certificate(ssl))) {
+                mm_SSL_ERR(0); return NULL;
+        }
+
+        /* Check expiration times. */
+        now = time(NULL);
+        if (X509_cmp_time(X509_get_notBefore(cert), &now) > 0) {
+                MM_TLS_ERR("Certificate is not yet valid");
+                return NULL;
+        }
+        if (X509_cmp_time(X509_get_notAfter(cert), &now) < 0) {
+                MM_TLS_ERR("Certificate has expired");
+                return NULL;
+        }
+        Py_INCREF(Py_None);
+        return Py_None;
+}
+
+
 static char mm_TLSSock_verify_cert_and_get_identity_pk__doc__[] = 
     "DOCDOC";
 
@@ -575,6 +610,7 @@ mm_TLSSock_verify_cert_and_get_identity_pk(
         RSA *rsa = NULL;
         EVP_PKEY *pkey = NULL;
         mm_RSA *result;
+
         int i;
 
         assert(mm_TLSSock_Check(self));
@@ -701,6 +737,7 @@ static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, write),
         METHOD(mm_TLSSock, shutdown),
         METHOD(mm_TLSSock, get_peer_cert_pk),
+        METHOD(mm_TLSSock, check_cert_alive),
         METHOD(mm_TLSSock, verify_cert_and_get_identity_pk),
         METHOD(mm_TLSSock, fileno),
         METHOD(mm_TLSSock, do_handshake),
