@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.13 2003/01/09 17:27:55 nickm Exp $
+# $Id: MMTPServer.py,v 1.14 2003/01/10 16:51:03 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -70,11 +70,6 @@ class AsyncServer:
            If we receive an unblocked signal, return immediately.
            """
 
-##         trace("%s readers (%s), %s writers (%s)" % (len(self.readers),
-##                                                  readers,
-##                                                  len(self.writers),
-##                                                  writers))
-
         readfds = self.readers.keys()
         writefds = self.writers.keys()
         try:
@@ -86,13 +81,10 @@ class AsyncServer:
                 raise e
 
         for fd in readfds:
-            #trace("Select got a read on fd %s",fd)
             self.readers[fd].handleRead()
         for fd in writefds:
-            #trace("Select got a write on fd %s", fd)
             self.writers[fd].handleWrite()
         for fd in exfds:
-            #trace("Select got an exception on fd %s", fd)
             if self.readers.has_key(fd): del self.readers[fd]
             if self.writers.has_key(fd): del self.writers[fd]
 
@@ -599,6 +591,8 @@ class MMTPClientConnection(SimpleTLSConnection):
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None):
         """Create a connection to send messages to an MMTP server.
+           Raises socket.error if the connection fails.
+        
            ip -- The IP of the destination server.
            port -- The port to connect to.
            keyID -- None, or the expected SHA1 hash of the server's public key
@@ -616,10 +610,12 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.ip = ip
         try:
             sock.connect((ip, port))
-        except socket.error:
+        except socket.error, e:
             # This will always raise an error, since we're nonblocking.  That's
-            # okay.
-            pass
+            # okay... but it had better be EINPROGRESS.
+            if e[0] != errno.EINPROGRESS:
+                raise e
+
         tls = context.sock(sock)
 
         SimpleTLSConnection.__init__(self, sock, tls, 0, "%s:%s"%(ip,port))
@@ -778,11 +774,17 @@ class MMTPAsyncServer(AsyncServer):
             assert len(m) == MESSAGE_LEN
             assert len(h) < 32
 
-        con = MMTPClientConnection(self.context,
-                                   ip, port, keyID, messages, handles,
-                                   self.onMessageSent,
-                                   self.onMessageUndeliverable)
-        con.register(self)
+        try:
+            con = MMTPClientConnections(self.context,
+                                        ip, port, keyID, messages, handles,
+                                        self.onMessageSent,
+                                        self.onMessageUndeliverable)
+            con.register(self)
+        except socket.error, e:
+            LOG.error("Unexpected socket error connecting to %s:%s: %s",
+                      ip, port, e)
+            for m,h in zip(messages, handles):
+                self.onMessageUndeliverable(m,h,1)
 
     def onMessageReceived(self, msg):
         pass
