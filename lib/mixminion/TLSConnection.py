@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.9 2004/02/06 23:14:28 nickm Exp $
+# $Id: TLSConnection.py,v 1.10 2004/02/07 07:25:14 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -367,7 +367,7 @@ class TLSConnection:
     def __doRead(self, cap):
         "Helper function: read as much data as we can."
         self.__readBlockedOnWrite = 0
-        while self.__reading and cap >= 0:
+        while self.__reading and cap > 0:
             try:
                 s = self.tls.read(min(_READLEN,cap))
                 if s == 0:
@@ -379,7 +379,8 @@ class TLSConnection:
                     return cap
                 else:
                     # We got some data; add it to the inbuf.
-                    LOG.trace("Read got %s bytes from %s", len(s),self.address)
+                    LOG.trace("Read got %s bytes from %s", 
+                              len(s), self.address)
                     self.inbuf.append(s)
                     self.inbuflen += len(s)
                     cap -= len(s)
@@ -413,7 +414,7 @@ class TLSConnection:
             bytesCutoff = sys.maxint
             maxBytes = sys.maxint-bytesNow
         else:
-            bytesCutoff = nr+nw+maxBytes
+            bytesCutoff = bytesNow+maxBytes
         try:
             self.lastActivity = time.time()
             while bytesNow < bytesCutoff and self.__stateFn(r, w, maxBytes):

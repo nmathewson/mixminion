@@ -490,11 +490,7 @@ class MixminionClient:
         try:
             clientLock()
             if nGood:
-                if len(pktList) > 1:
-                    mword = "packets"
-                else:
-                    mword = "packet"
-                LOG.info("... %s %s sent", nGood, mword)
+                LOG.info("... %s sent", nGood)
                 LOG.trace("Removing %s successful packets from queue", nGood)
             for idx in packetsSentByIndex.keys():
                 if handles and handles[idx]:
@@ -508,9 +504,10 @@ class MixminionClient:
                     e2 = sys.exc_info()
                     LOG.error("Error while cleaning queue: %s",e2[1])
 
-            if nBad and warnIfLost:
-                LOG.error("Error with queueing disabled: %s/%s lost",
-                          nBad, nGood+nBad)
+            if nBad and noQueue:
+                if warnIfLost:
+                    LOG.error("Error with queueing disabled: %s/%s lost",
+                              nBad, nGood+nBad)
             elif nBad and lazyQueue:
                 LOG.info("Error while delivering packets; %s/%s left in queue",
                          nBad,nGood+nBad)
@@ -520,10 +517,11 @@ class MixminionClient:
 
                 self.queuePackets(badPackets, routingInfo)
             elif nBad:
-                LOG.info("Error while delivering %s; leaving %s/%s in queue",
-                         mword, nBad, nBad+nGood)
+                assert not (noQueue or lazyQueue)
+                LOG.info("Error while delivering packets; leaving %s/%s in queue",
+                         nBad, nBad+nGood)
             if exc and not nBad:
-                LOG.info("Got error after all messages were delivered.")
+                LOG.info("Got error after all packets were delivered.")
             if exc:
                 LOG.info("Error was: %s",exc[1])
         finally:
