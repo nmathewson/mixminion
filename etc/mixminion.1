@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.6 2004/03/24 20:39:56 nickm Exp $
+.\" $Id: mixminion.1,v 1.7 2004/04/19 14:31:25 weasel Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -633,7 +633,8 @@ known servers are listed.
 .It Fl R Ar file | Fl \-reply-block= Ns Ar file
 .Brq send, queue
 Send packets via the SURBs listed in
-.Ar file .  The file must contain one or more SURBs.  Once a SURB
+.Ar file .
+The file must contain one or more SURBs.  Once a SURB
 has been used, it will automatically be ignored in the future.
 .It Fl \-references= Ns Ar str
 .Brq send, queue
