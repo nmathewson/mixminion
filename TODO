@@ -36,8 +36,11 @@ For 0.0.8:
                 o Make more ping parameters configurable.
                 o Fix how uptime is computed: handle edges of days correctly
                 o Performance/data examination: is disk use too insanely high?
-                - Too many constants in Pinger.py; fix them.
-                - Document.  Describe how to replace sqlite with pg or mysql.
+                o Too many constants in Pinger.py; fix them.
+                o Document code.
+                - More easy-to-parse output format.
+                - Document config
+                - Describe how to replace sqlite with pg or mysql.
         . Distributed directories
                o Spec changes
                        D Statistics go in format?

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.8 2004/12/13 01:06:43 nickm Exp $
+# $Id: ThreadUtils.py,v 1.9 2004/12/27 00:15:57 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -299,8 +299,19 @@ class ProcessingThread(threading.Thread):
                           self.threadName)
 
 class BackgroundingDecorator:
-    """DOCDOC"""
+    """Wraps an underlying object, and makes all method calls to the wrapped
+       object happen in a processing thread.
+
+       Return values from wrapped methods are lost.
+
+       Methods and attributes starting with _ are not wrapped;
+       otherwise, attribute access is not available.
+    """
+    #FFFF We could retain return values by adding some kind of a thunk
+    #FFFF system, or some kind of callback system.  But neither is needed
+    #FFFF right now.
     class _AddJob:
+        "Helper: A wrapped function for the underlying object."
         def __init__(self, processingThread, fn):
             self.thread = processingThread
             self.fn = fn
@@ -310,6 +321,8 @@ class BackgroundingDecorator:
             self.thread.addJob(callback)
 
     def __init__(self, processingThread, obj):
+        """Create a new BackgroundingDecorator to redirect calls to the
+           methods of obj to processingThread."""
         self._thread = processingThread
         self._baseObject = obj
 

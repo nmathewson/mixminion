@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.85 2004/07/27 04:33:20 nickm Exp $
+# $Id: MMTPServer.py,v 1.86 2004/12/27 00:15:57 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -499,7 +499,9 @@ class DeliverablePacket(mixminion.MMTPClient.DeliverableMessage):
         return 0
 
 class LinkPadding(mixminion.MMTPClient.DeliverableMessage):
-    """DOCDOC"""
+    """An instance of DeliverableMessage to implement link-padding
+       (junk) MMTP commands.
+    """
     def __init__(self):
         self.contents = getCommonPRNG().getBytes(1<<15)
     def succeeded(self): pass
@@ -508,8 +510,18 @@ class LinkPadding(mixminion.MMTPClient.DeliverableMessage):
     def isJunk(self): return 1
 
 class _ClientCon(MMTPClientConnection):
-    """DOCDOC"""
+    """A subclass of MMTPClientConnection that reports events to the
+       pinger subsystem."""
+    ## Fields:
+    # _pingLog: The PingLog we will inform about successful or failed
+    #    connections, or None if we have no PingLog.
+    # _nickname: The nickname of the server we're trying to connect to.
+    # _wasOnceConnected: True iff we have successfully negotiated a protocol
+    #    version with the other server.
     def configurePingLog(self, pingLog, nickname):
+        """Must be called after construction: set this _ClientCon to
+           report events to the pinglog 'pingLog'; tell it that we are
+            connecting to the server named 'nickname'."""
         self._pingLog = pingLog
         self._nickname = nickname
         self._wasOnceConnected = 0
@@ -608,6 +620,7 @@ class MMTPAsyncServer(AsyncServer):
         self.dnsCache = dnsCache
 
     def connectPingLog(self, pingLog):
+        """Report successful or failed connection attempts to 'pingLog'."""
         self.pingLog = pingLog
 
     def setServerContext(self, servercontext):

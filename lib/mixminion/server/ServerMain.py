@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.145 2004/12/27 00:09:21 nickm Exp $
+# $Id: ServerMain.py,v 1.146 2004/12/27 00:15:58 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -153,13 +153,14 @@ class IncomingQueue(mixminion.Filestore.StringStore):
     # packetHandler -- an instance of PacketHandler.
     # mixPool -- an instance of MixPool
     # processingThread -- an instance of ProcessingThread
+    # pingLog -- an instance of pingLog, or None
     def __init__(self, location, packetHandler):
         """Create an IncomingQueue that stores its packets in <location>
            and processes them through <packetHandler>."""
         mixminion.Filestore.StringStore.__init__(self, location, create=1)
         self.packetHandler = packetHandler
         self.mixPool = None
-        self.pingLog = None#DOCDOC
+        self.pingLog = None
 
     def connectQueues(self, mixPool, processingThread):
         """Sets the target mix queue"""
@@ -171,7 +172,9 @@ class IncomingQueue(mixminion.Filestore.StringStore):
                 lambda self=self, h=h: self.__deliverPacket(h))
 
     def setPingLog(self, pingLog):
-        "DOCDOC"
+        """Configure this queue to inform 'pingLog' about received
+           ping messages.
+        """
         self.pingLog = pingLog
 
     def queuePacket(self, pkt):
@@ -336,8 +339,10 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
     ## Fields:
     # server -- an instance of _MMTPServer
     # addr -- the key ID we published in our descriptor.
-    # incomingQueue -- pointer to IncomingQueue object to be used for
+    # incomingQueue -- the IncomingQueue object to be used for
     #        self->self communication.
+    # pingGenerator -- the pingGenerator that may want to add link padding
+    #        to outgoing packet sets, or None.
     def __init__(self, location, keyID):
         """Create a new OutgoingQueue that stores its packets in a given
            location."""
@@ -358,7 +363,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
 
         self.server = server
         self.incomingQueue = incoming
-        self.pingGenerator = pingGenerator#DOCDOC
+        self.pingGenerator = pingGenerator
 
     def _deliverMessages(self, msgList):
         "Implementation of abstract method from DeliveryQueue."
@@ -718,12 +723,18 @@ class MixminionServer(_Scheduler):
     # cleaningThread: Thread used to remove packets in the background
     # processingThread: Thread to handle CPU-intensive activity without
     #    slowing down network interactivity.
-    # databaseThread: DOCDOC
+    # databaseThread: Thread to handle pinger database activitity that may
+    #    be slow.  (If the database has good locking, this is only statistics
+    #    recomputation.  If the database has dumb locking, this is all
+    #    database activity.)
     # lockFile: An instance of Lockfile to prevent multiple servers from
     #    running in the same directory.  The filename for this lock is
     #    stored in self.pidFile.
     # pidFile: Filename in which we store the pid of the running server.
-    # pingLog: DOCDOC
+    # pingLog: None, or an instance of PingLog that needs to be informed
+    #    about network probing activity.
+    # pingGenerator: None, or an instance of PingGenerator that will decide
+    #    when to generate probe traffic.
     def __init__(self, config):
         """Create a new server from a ServerConfig."""
         _Scheduler.__init__(self)
