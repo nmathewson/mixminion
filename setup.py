@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.32 2003/01/07 06:12:47 nickm Exp $
+# $Id: setup.py,v 1.33 2003/01/07 18:40:48 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -131,7 +131,27 @@ f.close()
 
 #======================================================================
 # Define a helper to let us run commands from the compiled code.
-from distutils.core import Command
+def _haveCmd(cmdname):
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if os.path.exists(os.path.join(entry, cmdname)):
+            return 1
+    return 0
+
+try:
+    from distutils.core import Command
+except ImportError:
+    print "Uh oh.  You have Python installed, but I didn't find the distutils"
+    print "module, which is supposed to come with the standard library."
+    if _haveCmd("apt-get"):
+        v = sys.version[:3]
+        print "Debian may expect you to install python%s-dev"%v
+    elif _haveCmd("rpm"):
+        print "Redhat may need to install python2-devel"
+    else:
+        print "You may be missing some 'python development' package for your"
+        print "distribution."
+    sys.exit(0)
+        
 
 class runMMCommand(Command):
     # Based on setup.py from Zooko's pyutil package, which is in turn based on
