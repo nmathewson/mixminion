@@ -144,10 +144,7 @@ def installDefaultConfig(fname):
     LOG.warn("No configuration file found. Installing default file in %s",
                   fname)
 
-    fields = { 'ud_default' : '~/.mixminion' }
-
-    if sys.platform == 'win32':
-        fields['ud_default'] = 'mixminion'
+    fields = { 'ud_default' : mixminion.Config.DEFAULT_USER_DIR }
 
     writeFile(os.path.expanduser(fname),
               """\
@@ -1232,13 +1229,30 @@ def runPing(cmd, args):
     client = parser.client
 
     for arg in args:
-        info = directory.getServerInfo(arg,
+        if '.' in arg:
+            addrport = arg.split(":",1)
+            if len(addrport) == 2:
+                try:
+                    port = int(addrport[1])
+                except ValueError:
+                    raise UIError("Invalid port: %r"%addrport[1])
+                
+            else:
+                arg = "%s:48099"%arg
+                port = 48099
+            addr = addrport[0]
+            routing = mixminion.Packet.MMTPHostInfo(addr,port,"\x00"*20)
+            name = arg
+        else:
+            info = directory.getServerInfo(arg,
                                        startAt=time.time(), endAt=time.time(),
                                        strict=1)
+            routing = info.getRoutingInfo()
+            name = info.getNickname()
 
-        ok, status = client.pingServer(info.getRoutingInfo())
+        ok, status = client.pingServer(routing)
         print ">>>", status
-        print info.getNickname(), (ok and "is up" or "is down")
+        print name, (ok and "is up" or "is down")
 
 _IMPORT_SERVER_USAGE = """\
 Usage: %(cmd)s [options] <filename> ...
