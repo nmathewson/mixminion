@@ -153,11 +153,11 @@ To see a list of currently known servers, type:
 
 To force a reload of the server directory, type:
 
-      mixminion send -t <address> -i <file> -D yes
+      mixminion send -t <address> [-i <file>] -D yes
 
 To send a message _without_ reloading the directory, type:
 
-      mixminion send -t <address> -i <file> -D no
+      mixminion send -t <address> [-i <file>] -D no
 
 To reload the directory without sending a message, type:
 
@@ -165,13 +165,13 @@ To reload the directory without sending a message, type:
 
 To force a path of a given length, type:
 
-      mixminion send -t <address> -i <file> -H <number of hops>
+      mixminion send -t <address> [-i <file>] -H <number of hops>
 
       You can change the default by editing ~/.mixminionrc
 
 To specify a path manually, type:
 
-      mixminion send -t <address> -i <file> -P <path>
+      mixminion send -t <address> [-i <file>] -P <path>
 
       The argument <path> must be a comma separated list of either:
           (a) Server nicknames as given by 'list-servers'
@@ -197,9 +197,9 @@ To specify a path manually, type:
 
 To send a dummy message, specify "drop" instead of an email address, as in:
 
-      mixminion -t drop
-      mixminion -t drop -P '*,Foo'
-      mixminion -t drop -H 8
+      mixminion send -t drop
+      mixminion send -t drop -P '*,Foo'
+      mixminion send -t drop -H 8
       
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 ========================================
