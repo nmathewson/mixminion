@@ -1,0 +1,11 @@
+/var/log/mixminion/log {
+	daily
+	rotate 5
+	compress
+	delaycompress
+	missingok
+	notifempty
+	postrotate
+		/etc/init.d/mixminion reload > /dev/null
+	endscript
+}

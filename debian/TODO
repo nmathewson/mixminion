@@ -7,7 +7,7 @@ Legend:
 	X Abandoned
 
 For the first upload:
-	- setup logrotate to cleanup var/log/mixminion/
+	o setup logrotate to cleanup var/log/mixminion/
 	- lintian thinks /usr/lib/python2.3/site-packages/mixminion/Main.py is
 	  a scrypt and should be +x.  Lintian also complains about the weird
 	  shebang (unusual-interpreter).
