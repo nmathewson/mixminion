@@ -445,17 +445,20 @@ class MixminionClient:
             return 0, "Couldn't connect to server: %s" % e
 
     def sendPackets(self, pktList, routingInfo, noQueue=0, lazyQueue=0,
-                     warnIfLost=1):
+                    alreadyQueued=0, warnIfLost=1):
         """Given a list of packets and an IPV4Info object, sends the
            packets to the server via MMTP.
 
            If noQueue is true, do not queue the packets even on failure.
            If lazyQueue is true, only queue the packets on failure.
+           XXXX alreadyQueued
            Otherwise, insert the packets in the queue, and remove them on
            success.
 
            If warnIfLost is true, log a warning if we fail to deliver
            the packets, and we don't queue them.
+
+           XXXX return 1 if all delivered
            """
         #XXXX write unit tests
         timeout = self.config['Network'].get('ConnectionTimeout')
@@ -510,10 +513,12 @@ class MixminionClient:
                 if warnIfLost:
                     LOG.error("Error with queueing disabled: %s/%s lost",
                               nBad, nGood+nBad)
+                elif alreadyQueued:
+                    LOG.info("Error while delivering packets; %s/%s left in queue",
+                             nBad,nGood+nBad)
             elif nBad and lazyQueue:
                 LOG.info("Error while delivering packets; %s/%s left in queue",
                          nBad,nGood+nBad)
-
                 badPackets = [ pktList[idx] for idx in xrange(len(pktList))
                                if not packetsSentByIndex.has_key(idx) ]
 
@@ -528,6 +533,8 @@ class MixminionClient:
                 LOG.info("Error was: %s",exc[1])
         finally:
                 clientUnlock()
+
+        return nGood
 
     def flushQueue(self, maxPackets=None, handles=None):
         """Try to send packets in the queue to their destinations.  Do not try
@@ -569,24 +576,28 @@ class MixminionClient:
         finally:
             clientUnlock()
 
-        sentSome = 0; sentAll = 1
+        nPackets = len(packets)
+        nSent = 0
         for routing, packets in self._sortPackets(packets):
             LOG.info("Sending %s packets to %s...",
                      len(packets), displayServerByRouting(routing))
             try:
-                self.sendPackets(packets, routing, noQueue=1, warnIfLost=0)
-                sentSome = 1
+                ok = self.sendPackets(packets, routing, noQueue=1,
+                                      warnIfLost=0, alreadyQueued=1)
+                nSent += ok
             except MixError, e:
                 LOG.error("Can't deliver packets to %s: %s; leaving in queue",
                           displayServerByRouting(routing), str(e))
-                sentAll = 0
 
-        if sentAll:
+        if nSent == nPackets:
             LOG.info("Queue flushed")
-        elif sentSome:
+        elif nSent > 0:
             LOG.info("Queue partially flushed")
-        else:
+        elif nSent == 0:
             LOG.info("No packets delivered")
+        else:
+            raise MixFatalError("BUG: somehow sent %s/%s packets!"
+                                %(nSent,nPackets))
 
     def cleanQueue(self, handles):
         """Remove all packets older than maxAge seconds from the
