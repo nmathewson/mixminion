@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.40 2003/02/05 06:19:28 nickm Exp $
+# $Id: setup.py,v 1.41 2003/02/09 22:30:57 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -22,7 +22,8 @@ import os, re, struct, shutil
 
 os.umask(022)
 
-VERSION= '0.0.3alpha'
+VERSION = '0.0.3alpha'
+VERSION_INFO = (0,0,3,'a',0)
 
 USE_OPENSSL=1
 
@@ -54,6 +55,8 @@ initFile = f.read()
 f.close()
 initCorrected = re.compile(r'^__version__\s*=.*$', re.M).sub(
     '__version__ = \"%s\"'%VERSION, initFile)
+initCorrected = re.compile(r'^version_info\s*=.*$', re.M).sub(
+    'version_info = %r'%(VERSION_INFO,), initCorrected)
 if initCorrected != initFile:
     f = open("lib/mixminion/__init__.py", 'w')
     f.write(initCorrected)

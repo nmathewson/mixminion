@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.5 2003/01/09 17:43:20 nickm Exp $
+# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: HashLog.py,v 1.6 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.HashLog
 
@@ -17,7 +17,7 @@ __all__ = [ 'HashLog' ]
 
 # FFFF Mechanism to force a different default db module.
 
-# FFFF two-copy journaling to protect against catastrophic failure that
+# FFFF Two-copy journaling to protect against catastrophic failure that
 # FFFF underlying DB code can't handle.
 
 # flags to pass to os.open when opening the journal file.
@@ -74,7 +74,6 @@ class HashLog:
         self.journal = {}
         if os.path.exists(self.journalFileName):
             f = open(self.journalFileName, 'r')
-            # FFFF deal with really big journals?
             j = f.read()
             for i in xrange(0, len(j), DIGEST_LEN):
                 self.journal[j[i:i+DIGEST_LEN]] = 1

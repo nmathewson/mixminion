@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.29 2003/02/05 07:10:54 nickm Exp $
+# $Id: Modules.py,v 1.30 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -180,21 +180,20 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 self.deliveryFailed(handle, 0)
 
 class DeliveryThread(threading.Thread):
+    "DOCDOC"
+    #DOCDOC
     def __init__(self, moduleManager):
         threading.Thread.__init__(self)
         self.moduleManager = moduleManager
         self.event = threading.Event()
-        self.__stoppinglock = threading.Lock() # UGLY. XXXX
-        self.isStopping = 0
+        self.__stoppingevent = threading.Event()
 
     def beginSending(self):
         self.event.set()
 
     def shutdown(self):
         LOG.info("Telling delivery thread to shut down.")
-        self.__stoppinglock.acquire()
-        self.isStopping = 1
-        self.__stoppinglock.release()
+        self.__stoppingevent.set()
         self.event.set()
 
     def run(self):
@@ -202,9 +201,7 @@ class DeliveryThread(threading.Thread):
             while 1:
                 self.event.wait()
                 self.event.clear()
-                self.__stoppinglock.acquire()
-                stop = self.isStopping
-                self.__stoppinglock.release()
+                stop = self.__stoppingevent.isSet()
                 if stop:
                     LOG.info("Delivery thread shutting down.")
                     return

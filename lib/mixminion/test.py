@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.81 2003/02/07 17:23:11 nickm Exp $
+# $Id: test.py,v 1.82 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.tests
 
@@ -1011,6 +1011,15 @@ class PacketTests(unittest.TestCase):
         rb = ReplyBlock(header="Z"*2048,useBy=0,rt=1,ri="F"*10,key=key)
         self.assertEquals(r, rb.pack())
 
+        # Now try two blocks.
+        r += ("SURB\x00\x01"+"\x00\x00\x00\x00"+("Z"*2048)+"\x00\x0A"+
+              "\x00\x01"
+             +key+("G"*10))
+        rb = parseReplyBlocks(r)
+        self.assertEquals(2, len(rb))
+        self.assertEquals(rb[0].timestamp, 0)
+        self.assertEquals(rb[1].routingInfo, "G"*10)
+
     def test_payloads(self):
         # Checks for payload structure functions.
 
@@ -1777,7 +1786,16 @@ class BuildMessageTests(unittest.TestCase):
         self.assertEquals(2, len(parsed2))
         self.assertEquals(reply.pack(), parsed2[1].pack())
 
-        #XXXX003 test failing cases for parseTextReplyBlocks
+        self.assertEquals([], parseTextReplyBlocks("X"))
+
+        # test failing cases for parseTextReplyBlocks
+        def fails(s, p=parseTextReplyBlocks, self=self):
+            self.assertRaises(ParseError, p, s)
+
+        fails("== BEGIN TYPE III REPLY BLOCK ==\n"+
+              "Version: 0.1\n"+
+              "xyz\n"+
+              "== END TYPE III REPLY BLOCK ==\n")
         
         # Test decoding
         seed = loc[:20]
@@ -2587,10 +2605,6 @@ class LogTests(unittest.TestCase):
         log.error_exc(inf)
         log.error_exc(inf, "And so on")
         log.error_exc(inf, "And so %s", "on")
-
-        # print buf.getvalue()
-        # FFFF We should examine the value of the above, but inspection
-        # FFFF show that we're fine.
 
         # Try out file logging
         t = mix_mktemp("log")
@@ -4638,14 +4652,14 @@ def getDirectory(servers, identity):
 BCC_INSTANCE = None
 
 class ClientMainTests(unittest.TestCase):
-    def testClientKeystore(self):
-        """Check out ClientMain's keystore implementation"""
+    def testClientDirectory(self):
+        """Check out ClientMain's directory implementation"""
         eq = self.assertEquals
         neq = self.assertNotEquals
         ServerInfo = mixminion.ServerInfo.ServerInfo
 
         dirname = mix_mktemp()
-        ks = mixminion.ClientMain.ClientKeystore(dirname)
+        ks = mixminion.ClientMain.ClientDirectory(dirname)
 
         ## Write the descriptors to disk.
         edesc = getExampleServerDescriptors()
@@ -4683,7 +4697,7 @@ class ClientMainTests(unittest.TestCase):
             self.assertRaises(MixError, ks.getServerInfo, "Joe", startAt=now,
                               endAt=now+6*oneDay)
             if i in (0,1,2):
-                ks = mixminion.ClientMain.ClientKeystore(dirname)
+                ks = mixminion.ClientMain.ClientDirectory(dirname)
             if i == 1:
                 ks.rescan()
             if i == 2:
@@ -4732,7 +4746,7 @@ class ClientMainTests(unittest.TestCase):
                               edesc["Bob"][4])
 
             if i in (0,1,2):
-                ks = mixminion.ClientMain.ClientKeystore(dirname)
+                ks = mixminion.ClientMain.ClientDirectory(dirname)
             if i == 1:
                 ks.rescan()
             if i == 2:
@@ -4837,7 +4851,7 @@ class ClientMainTests(unittest.TestCase):
             neq(p[1].getNickname(), "Alice")
             neq(p[1].getNickname(), "Joe")
             # 2b. With 3 <= servers < length
-            ks2 = mixminion.ClientMain.ClientKeystore(mix_mktemp())
+            ks2 = mixminion.ClientMain.ClientDirectory(mix_mktemp())
             ks2.importFromFile(os.path.join(impdirname, "Joe0"))
             ks2.importFromFile(os.path.join(impdirname, "Alice0"))
             ks2.importFromFile(os.path.join(impdirname, "Lisa1"))
@@ -5084,7 +5098,7 @@ class ClientMainTests(unittest.TestCase):
 
         ## Now try clean()
         ks.clean() # Should do nothing.
-        ks = mixminion.ClientMain.ClientKeystore(dirname)
+        ks = mixminion.ClientMain.ClientDirectory(dirname)
         ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
         raises(MixError, ks.getServerInfo, "Lola")
 

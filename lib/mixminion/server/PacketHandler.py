@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.8 2003/02/05 06:28:31 nickm Exp $
+# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: PacketHandler.py,v 1.9 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -189,6 +189,7 @@ class PacketHandler:
         return RelayedPacket(address, msg)
         
 class RelayedPacket:
+    """DOCDOC"""
     def __init__(self, address, msg):
         assert isinstance(address, Packet.IPV4Info)
         self.address = address
@@ -204,6 +205,7 @@ class RelayedPacket:
         return self.msg
 
 class DeliveryPacket:
+    """DOCDOC"""
     def __init__(self, routingType, routingInfo, applicationKey,
                  tag, payload):
         self.exitType = routingType

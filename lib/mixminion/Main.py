@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.27 2003/02/06 20:20:03 nickm Exp $
+# $Id: Main.py,v 1.28 2003/02/09 22:30:58 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -143,6 +143,7 @@ _USAGE = (
   "       decode         [Decode or decrypt a received message]\n"+
   "       generate-surb  [Generate a single-use reply block]\n"+
   "       inspect-surbs  [DOCDOC]\n"+
+  "          ???? DOCDOC what else ????\n"+
   "                               (For Servers)\n"+
   "       server         [Begin running a Mixminon server]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
@@ -160,6 +161,8 @@ def printVersion():
     print "Mixminion version %s" % mixminion.__version__
     print ("Copyright 2002-2003 Nick Mathewson.  "+
            "See LICENSE for licensing information.")
+    print "NOTE: This software is for testing only.  The user set is too small"
+    print "      to be anonymous, and the code is too alpha to be reliable."
 
 def printUsage():
     import mixminion

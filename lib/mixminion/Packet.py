@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.28 2003/02/06 20:20:03 nickm Exp $
+# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Packet.py,v 1.29 2003/02/09 22:30:58 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -20,8 +20,9 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'Subheader', 'TAG_LEN', 'TextEncodedMessage',
             'getTotalBlocksForRoutingInfoLen', 'parseHeader', 'parseIPV4Info',
             'parseMBOXInfo', 'parseMessage', 'parsePayload', 'parseReplyBlock',
-            'parseSMTPInfo', 'parseSubheader', 'parseTextEncodedMessage',
-            'parseTextReplyBlocks', 'uncompressData' ]
+            'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
+            'parseTextEncodedMessage', 'parseTextReplyBlocks', 'uncompressData'
+            ]
 
 import base64
 import binascii
@@ -402,34 +403,42 @@ class FragmentPayload(_Payload):
 #   routingInfo for the last server.
 RB_UNPACK_PATTERN = "!4sBBL%dsHH%ss" % (HEADER_LEN, SECRET_LEN)
 MIN_RB_LEN = 30+HEADER_LEN
-# XXXX003 handle input with differing number of ='s.
 RB_TEXT_START = "======= BEGIN TYPE III REPLY BLOCK ======="
 RB_TEXT_END   = "======== END TYPE III REPLY BLOCK ========"
-RB_TEXT_RE = re.compile(RB_TEXT_START+
-                        r'[\r\n]+Version: (\d+.\d+)\s*[\r\n]+(.*)[\r\n]+'+
-                        RB_TEXT_END, re.M) 
+# XXXX Use a better pattern here.
+RB_TEXT_RE = re.compile(r"==+ BEGIN TYPE III REPLY BLOCK ==+"+
+                        r'[\r\n]+Version: (\d+\.\d+)\s*[\r\n]+(.*?)'+
+                        r"==+ END TYPE III REPLY BLOCK ==+", re.M|re.DOTALL) 
 
 def parseTextReplyBlocks(s):
-    """DOCDOC"""
+    """Given a string holding one or more text-encoded reply blocks,
+       return a list containing the reply blocks.  Raise ParseError on
+       failure."""
     idx = 0
     blocks = []
     while 1:
-        idx = s.find(RB_TEXT_START, idx)
-        if idx == -1:
+        m = RB_TEXT_RE.search(s[idx:])
+        if m is None:
+            # FFFF Better errors on malformatted reply blocks.
             break
-        m = RB_TEXT_RE.match(s, idx)
-        if not m:
-            raise ParseError("Misformatted reply block")
         version, text = m.group(1), m.group(2)
+        idx += m.end()
         if version != '0.1':
-            LOG.warn("Unrecognized reply block version: %s", version)
-        val = binascii.a2b_base64(text)
+            LOG.warn("Skipping reply block with unrecognized version: %s",
+                     version)
+            continue
+        try:
+            val = binascii.a2b_base64(text)
+        except (TypeError, binascii.Incomplete, binascii.Error), e:
+            raise ParseError("Bad reply block encoding: %s"%e)
         blocks.append(parseReplyBlock(val))
-        idx = m.end()
     return blocks
 
 def parseReplyBlocks(s):
-    "DOCDOC"
+    """Given a string containing a list of concatenated encoded reply blocks,
+       return list of reply blocks corresponding to those in the string.
+       Raise ParseError on failure.
+    """
     blocks = []
     while s:
         block, length = parseReplyBlock(s, allowMore=1, returnLen=1)
@@ -438,8 +447,14 @@ def parseReplyBlocks(s):
     return blocks
 
 def parseReplyBlock(s, allowMore=0, returnLen=0):
-    """Return a new ReplyBlock object for an encoded reply block."""
-    # DOCDOC withIdx
+    """Return a new ReplyBlock object for an encoded reply block.
+       If allowMore is true, accept a string that only begins with a
+       reply block.  If returnLen is true, return a 2-tuple of the
+       reply block, and its length when encoded.
+
+       Raise ParseError on failure.
+    """
+
     if len(s) < MIN_RB_LEN:
         raise ParseError("Reply block too short")
     try:
@@ -499,7 +514,8 @@ First server is: %s""" % (hash, expiry, server)
                            self.encryptionKey) + self.routingInfo
 
     def packAsText(self):
-        text = binascii.b2a_base64(self.pack())
+        """Returns the external text representation of this reply block"""
+        text = base64.encodestring(self.pack())
         if not text.endswith("\n"):
             text += "\n"
         return "%s\nVersion: 0.1\n%s%s\n"%(RB_TEXT_START,text,RB_TEXT_END)
@@ -589,8 +605,10 @@ class MBOXInfo:
 
 #----------------------------------------------------------------------
 # Ascii-encoded packets
-
-#XXXX003 accept lines with different #'s of equal signs.
+#
+# The format is HeaderLine, TagLine?, Body, FooterLine.
+#     TagLine is one of /Message-type: (overcompressed|binary)/
+#                    or /Decoding-handle: (base64-encoded-stuff)/.
 MESSAGE_START_LINE = "======= TYPE III ANONYMOUS MESSAGE BEGINS ======="
 MESSAGE_END_LINE   = "======== TYPE III ANONYMOUS MESSAGE ENDS ========"
 _MESSAGE_START_RE  = re.compile(r"==+ TYPE III ANONYMOUS MESSAGE BEGINS ==+")
@@ -600,6 +618,8 @@ _FIRST_LINE_RE = re.compile(r'''^Decoding-handle:\s(.*)\r*\n|
 _LINE_RE = re.compile(r'[^\r\n]*\r*\n', re.S+re.M)
 
 def _nextLine(s, idx):
+    """Helper method.  Return the index of the first character of the first
+       line of s to follow <idx>."""
     m = _LINE_RE.match(s[idx:])
     if m is None:
         return len(s)
@@ -607,7 +627,10 @@ def _nextLine(s, idx):
         return m.end()+idx
 
 def parseTextEncodedMessage(msg,force=0,idx=0):
-    """ DOCDOC
+    """Given a text-encoded Type III packet, return a TextEncodedMessage
+       object or raise ParseError.
+          force -- uncompress the message even if it's overcompressed.
+          idx -- index within <msg> to search.
     """
     #idx = msg.find(MESSAGE_START_PAT, idx)
     m = _MESSAGE_START_RE.search(msg[idx:])
@@ -624,7 +647,6 @@ def parseTextEncodedMessage(msg,force=0,idx=0):
     if m is None:
         msgType = 'TXT'
     elif m.group(1):
-        # XXXX003 enforce length
         ascTag = m.group(1)
         msgType = "ENC" 
         idx = _nextLine(msg, idx)
@@ -632,7 +654,7 @@ def parseTextEncodedMessage(msg,force=0,idx=0):
         if m.group(2) == 'overcompressed':
             msgType = 'LONG' 
         elif m.group(2) == 'binary':
-            msgType = 'BIN' #XXXX003 refactor
+            msgType = 'BIN'
         else:
             raise ParseError("Unknown message type: %r"%m.group(2))
         idx = _nextLine(msg, idx)
@@ -643,39 +665,60 @@ def parseTextEncodedMessage(msg,force=0,idx=0):
     if msgType == 'TXT':
         return TextEncodedMessage(msg, 'TXT'), endIdx
 
-    msg = binascii.a2b_base64(msg) #XXXX May raise
+    try:
+        msg = binascii.a2b_base64(msg)
+    except (TypeError, binascii.Incomplete, binascii.Error), e:
+        raise ParseError("Error in base64 encoding: %s"%e)
+
     if msgType == 'BIN':
         return TextEncodedMessage(msg, 'BIN'), endIdx
     elif msgType == 'LONG':
         if force:
-            msg = uncompressData(msg) #XXXX may raise
+            msg = uncompressData(msg) # May raise ParseError
         return TextEncodedMessage(msg, 'LONG'), endIdx
     elif msgType == 'ENC':
-        tag = binascii.a2b_base64(ascTag)
+        try:
+            tag = binascii.a2b_base64(ascTag)
+        except (TypeError, binascii.Incomplete, binascii.Error), e:
+            raise ParseError("Error in base64 encoding: %s"%e)
+        if len(tag) != TAG_LEN:
+            raise ParseError("Impossible tag length: %s"%len(tag))
         return TextEncodedMessage(msg, 'ENC', tag), endIdx
     else:
         raise MixFatalError("unreached")
 
 class TextEncodedMessage:
+    """A TextEncodedMessage object holds a Type-III message as delivered
+       over a text-based medium."""
     def __init__(self, contents, messageType, tag=None):
+        """Create a new TextEncodedMessage given a set of contents, a
+           messageType ('TXT', 'ENC', 'LONG', or 'BIN'), and optionally
+           a tag."""
         assert messageType in ('TXT', 'ENC', 'LONG', 'BIN')
         assert tag is None or (messageType == 'ENC' and len(tag) == 20)
         self.contents = contents
         self.messageType = messageType
         self.tag = tag
     def isBinary(self):
+        """Return true iff this is a binary plaintext packet."""
         return self.messageType == 'BIN'
     def isText(self):
+        """Return true iff this is a text plaintext packet."""
         return self.messageType == 'TXT'
     def isEncrypted(self):
+        """Return true iff this is an encrypted packet."""
         return self.messageType == 'ENC'
     def isOvercompressed(self):
+        """Return true iff this is an overcompressed plaintext packet."""
         return self.messageType == 'LONG'
     def getContents(self):
+        """Return the (unencoded) contents of this packet."""
         return self.contents
     def getTag(self):
+        """Return the (unencoded) decoding handle for this packet, or None."""
         return self.tag
     def pack(self):
+        """Return the text representation of this message."""
         c = self.contents
         preNL = postNL = ""
 

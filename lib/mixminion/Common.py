@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.56 2003/02/07 17:23:11 nickm Exp $
+# $Id: Common.py,v 1.57 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.Common
 
@@ -122,7 +122,7 @@ def createPrivateDir(d, nocreate=0):
 
     checkPrivateDir(d)
 
-_WARNED_DIRECTORIES = {} # ???? Threading danger?
+_WARNED_DIRECTORIES = {}
 
 def checkPrivateDir(d, recurse=1):
     """Return true iff d is a directory owned by this uid, set to mode
@@ -299,7 +299,6 @@ def _logtime():
     'Helper function.  Returns current local time formatted for log.'
     t = time.time()
     return "%s.%03d"%(time.strftime("%b %d %H:%M:%S", time.localtime(t)),
-                      # ???? There is probably a faster way to do this.
                       (t*1000)%1000)
 
 class _FileLogHandler:
@@ -865,6 +864,7 @@ def openUnique(fname, mode='w'):
 class Lockfile:
     "DOCDOC"
     def __init__(self, filename):
+        "DOCDOC"
         self.filename = filename
         self.count = 0
         self.fd = None
@@ -889,6 +889,7 @@ class Lockfile:
             raise
 
     def release(self):
+        "DOCDOC"
         assert self.fd is not None
         self.count -= 1
         if self.count > 0:

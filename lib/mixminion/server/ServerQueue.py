@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.5 2003/02/04 02:08:37 nickm Exp $
+# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ServerQueue.py,v 1.6 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -9,6 +9,7 @@
 import os
 import time
 import stat
+import sys
 import cPickle
 import threading
 
@@ -376,7 +377,7 @@ class DeliveryQueue(Queue):
         """Returns a (n_retries, msg, nextAttempt) tuple for a given
            message handle."""
         o = self.getObject(handle)
-        if len(o) == 3:# XXXX For legacy queues; delete after 0.0.3
+        if len(o) == 3:# XXXX004 For legacy queues; delete after 0.0.3
             o = o + (0,)
         return o[0], o[2], o[3]
 
@@ -423,9 +424,16 @@ class DeliveryQueue(Queue):
         """
         try:
             self._lock.acquire()
-            #XXXX003 be more robust in the presence of errors here.
-            self.removeMessage(handle)
-            del self.pending[handle]
+            try:
+                self.removeMessage(handle)
+            except:
+                # This should never happen.
+                LOG.error_exc(sys.exc_info(), "Error removing message")
+            try:
+                del self.pending[handle]
+            except KeyError:
+                # This should never happen.
+                LOG.error("Handle %s was not pending", handle)
         finally:
             self._lock.release()
 
@@ -435,10 +443,15 @@ class DeliveryQueue(Queue):
            invoked after the corresponding message has been
            successfully delivered."""
         try:
-            #XXXX003 be more robust in the presence of errors here.
             self._lock.acquire()
-            lastAttempt = self.pending[handle]
-            del self.pending[handle]
+            try:
+                lastAttempt = self.pending[handle]
+                del self.pending[handle]
+            except KeyError:
+                # This should never happen
+                LOG.error("Handle %s was not pending")
+                lastAttempt = 0
+                
             if retriable:
                 # Queue the new one before removing the old one, for
                 # crash-proofness.  First, fetch the old information...
@@ -464,7 +477,7 @@ class DeliveryQueue(Queue):
                     if retries <= len(self.retrySchedule):
                         self.queueDeliveryMessage(msg, retries, nextAttempt)
                 elif not self.retrySchedule:
-                    #LEGACY XXXX003
+                    #LEGACY XXXX004
                     retries += 1
                     nextAttempt = 0
                     if retries < 10:

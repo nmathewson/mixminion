@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.38 2003/02/05 05:34:55 nickm Exp $
+# $Id: Config.py,v 1.39 2003/02/09 22:30:58 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -316,7 +316,6 @@ def _parseTime(s):
 
     return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))
 
-# ????003 What should this actually be?
 _NICKNAME_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
                    "abcdefghijklmnopqrstuvwxyz"+
                    "0123456789_.@-")
@@ -324,7 +323,7 @@ MAX_NICKNAME = 128
 def _parseNickname(s):
     """Validation function.  Returns true iff s contains a valoid
        server nickname-- that is, a string of 1..128 characters,
-       containing only the characters [A-Za-z0-9_@] and '-'.
+       containing only the characters [A-Za-z0-9_@], '.' or '-'.
        """
     s = s.strip()
     bad = s.translate(mixminion.Common._ALLCHARS, _NICKNAME_CHARS)

@@ -115,7 +115,7 @@ For 0.0.3:
                         o Add configuration options and reasonable default.
                         o Unit tests
                 o Refactor the heck out of argument parsing.
-                . Add "don't use me for anonymity" boilerplate.
+                o Add "don't use me for anonymity" boilerplate.
                 . Client support for reply blocks.
                         o Recheck spec on external reply block format
                         o Implement external reply block format
@@ -131,49 +131,51 @@ For 0.0.3:
                         o Implement backend
                         o Test backend
                         o Implement frontend
-                        . Test frontend
-                        - Refactor until clean
+                        o Test frontend
+                        o Refactor until clean
                         - Document
                 . Client-side pooling.
                 	o Design
                         o Implement
                         - Test
-                . Make client code multiprocess-safe: locking on
+                o Make client code multiprocess-safe: locking on
                   cache (if needed!); locking on pool.
                         o Move lock functionality into Common.
                         o Locking on cache
                         o Locking on pool
                         o Refactor locking; use only a single lock
                           for all client functionality.
-        . Directories include an "allowable version" section.
-        . UI
+        o UI
                 o Make path parsing accept space around the commas and colon.
                 o Make paths print more cleanly.
                 o Better command breakdown for pulling directories.
-                - Better error message when path+routinginfo won't fit 
-                  into header.
-                - Better concept of too-short paths.
         - Break backward compatibility :P
                 - Fix aes_ctr128 and bump packet version and write
                   unit tests for counter mode.
                 - Increment packet minor number; make client check
                   packet minor number.
                 - Add fields to serverinfo, server directory.
-                - Make client check 'Recommended-Software' against
-                  current version.
-        - Release
+        - Bugs
+                - mixminion generate-surb > x should work
+        . Release
                 - Note all places that need documentation comments or
-                  additional testing
+                  additional testing.
                 - Check all usage messages
-                - Triage XXXX's
-                - Resolve XXXX's
+                o Triage XXXX's
+                - Resolve XXXX003's
                 - Bump version numbers
                 - Update README
 
 Originally scheduled for 0.0.3, but delayed:
+        - Directories include an "allowable version" section.
+                - Make client check 'Recommended-Software' against
+                  current version.
         - UI
                 . Good user error reporting strategy.
                 - Beautify list-servers output.
+                - Better error message when path+routinginfo won't fit 
+                  into header.
+                - Better concept of too-short paths.
         - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.

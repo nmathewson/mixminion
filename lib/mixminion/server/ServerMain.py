@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.36 2003/02/06 20:20:03 nickm Exp $
+# $Id: ServerMain.py,v 1.37 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -35,6 +35,8 @@ from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
      createPrivateDir, formatBase64, formatTime, installSIGCHLDHandler, \
      Lockfile, secureDelete, waitForChildren
 
+#DOCDOC Re-check fields and args for all classes, methods here!
+
 class IncomingQueue(mixminion.server.ServerQueue.Queue):
     """A DeliveryQueue to accept packets from incoming MMTP connections,
        and hold them until they can be processed.  As packets arrive, and
@@ -46,12 +48,10 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
         mixminion.server.ServerQueue.Queue.__init__(self, location, create=1)
         self.packetHandler = packetHandler
         self.mixPool = None
-        self.moduleManager = None
 
-    def connectQueues(self, mixPool, manager, processingThread):
+    def connectQueues(self, mixPool, processingThread):
         """Sets the target mix queue"""
         self.mixPool = mixPool
-        self.moduleManager = manager #XXXX003 refactor.
         self.processingThread = processingThread
         for h in self.getAllMessages():
             assert h is not None
@@ -145,7 +145,6 @@ class MixPool:
 
     def queueObject(self, obj):
         """Insert an object into the queue."""
-        obj.isDelivery() #XXXX003 remove this implicit typecheck.
         self.queue.queueObject(obj)
 
     def count(self):
@@ -214,8 +213,12 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         "Implementation of abstract method from DeliveryQueue."
         # Map from addr -> [ (handle, msg) ... ]
         msgs = {}
-        # XXXX003 SKIP DEAD MESSAGES!!!!
         for handle, packet, n_retries in msgList:
+            if not isinstance(packet,
+                              mixminion.server.PacketHandler.RelayedPacket):
+                LOG.warn("Skipping packet in obsolete format")
+                self.deliverySucceeded(handle)
+                continue
             addr = packet.getAddress()
             message = packet.getPacket()
             msgs.setdefault(addr, []).append( (handle, message) )
@@ -384,7 +387,6 @@ class MixminionServer:
         createPrivateDir(homeDir)
 
         # Lock file.
-        # FFFF Refactor this part into common?
         self.lockFile = Lockfile(os.path.join(homeDir, "lock"))
         try:
             self.lockFile.acquire()
@@ -443,8 +445,7 @@ class MixminionServer:
 
         LOG.debug("Connecting queues")
         self.incomingQueue.connectQueues(mixPool=self.mixPool,
-                                         manager=self.moduleManager,
-                                        processingThread=self.processingThread)
+                                       processingThread=self.processingThread)
         self.mixPool.connectQueues(outgoing=self.outgoingQueue,
                                    manager=self.moduleManager)
         self.outgoingQueue.connectQueues(server=self.mmtpServer)
@@ -485,6 +486,7 @@ class MixminionServer:
             while timeLeft > 0:
                 # Handle pending network events
                 self.mmtpServer.process(2)
+                # Check for signals
                 if STOPPING:
                     LOG.info("Caught sigterm; shutting down.")
                     return
@@ -493,17 +495,18 @@ class MixminionServer:
                     LOG.info("Resetting logs")
                     LOG.reset()
                     GOT_HUP = 0
-                # ???? This could slow us down a good bit.  Move it?
+                # Make sure that our worker threads are still running.
                 if not (self.cleaningThread.isAlive() and
                         self.processingThread.isAlive() and
                         self.moduleManager.thread.isAlive()):
                     LOG.fatal("One of our threads has halted; shutting down.")
                     return
                 
-                # Calculate remaining time.
+                # Calculate remaining time until the next event.
                 now = time.time()
                 timeLeft = nextEventTime - now
 
+            # It's time for an event.
             event = scheduledEvents[0][1]
             del scheduledEvents[0]
 
@@ -517,8 +520,6 @@ class MixminionServer:
                 insort(scheduledEvents, (now + 600, "SHRED"))
             elif event == 'MIX':
                 # Before we mix, we need to log the hashes to avoid replays.
-                # FFFF We need to recover on server failure.
-
                 try:
                     # There's a potential threading problem here... in
                     # between this sync and the 'mix' below, nobody should
@@ -548,6 +549,9 @@ class MixminionServer:
     def cleanQueues(self):
         """Remove all deleted messages from queues"""
         LOG.trace("Expunging deleted messages from queues")
+        # We use the 'deleteFiles' method from 'cleaningThread' so that
+        # we schedule old files to get deleted in the background, rather than
+        # blocking while they're deleted.
         df = self.cleaningThread.deleteFiles
         self.incomingQueue.cleanQueue(df)
         self.mixPool.queue.cleanQueue(df)
@@ -574,7 +578,6 @@ class MixminionServer:
 #----------------------------------------------------------------------
 def daemonize():
     """Put the server into daemon mode with the standard trickery."""
-    # ??? This 'daemonize' logic should go in Common.
 
     # This logic is more-or-less verbatim from Stevens's _Advanced
     # Programming in the Unix Environment_:
@@ -583,6 +586,7 @@ def daemonize():
     pid = os.fork()
     if pid != 0:
         os._exit(0)
+
     # Call 'setsid' to make ourselves a new session.
     if hasattr(os, 'setsid'):
         # Setsid is not available everywhere.

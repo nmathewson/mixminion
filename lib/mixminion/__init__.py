@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.22 2003/01/08 07:53:24 nickm Exp $
+# $Id: __init__.py,v 1.23 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion
 
@@ -8,15 +8,9 @@
 
 # This version string is generated from setup.py; don't edit it.
 __version__ = "0.0.3alpha"
+# DOCDOC
+version_info = (0, 0, 3, 'a', 0)
 __all__ = [ 'server', 'directory' ]
-
-## import mixminion.BuildMessage
-## import mixminion.Crypto
-## import mixminion.Common
-## import mixminion.Config
-## import mixminion.MMTPClient
-## import mixminion.Packet
-## import mixminion.ServerInfo
 
 ## This next segment keeps pychecker from making spurious complaints.
 import sys

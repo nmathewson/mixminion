@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.38 2003/02/05 06:28:31 nickm Exp $
+# $Id: BuildMessage.py,v 1.39 2003/02/09 22:30:58 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -255,7 +255,6 @@ def decodePayload(payload, tag, key=None,
        we return None.  If the payload is corrupt, we raise MixError.
     """
     # FFFF Take a list of keys?
-    # FFFF Allow callbacks?
 
     if len(payload) != PAYLOAD_LEN or len(tag) != TAG_LEN:
         raise MixError("Wrong payload or tag length")
@@ -609,7 +608,7 @@ def _decodePayloadImpl(payload):
 
     # Uncompress the body.
     contents = payload.getContents()
-    # FFFF - We should make this rule configurable.
+    # ???? Should we make this rule configurable?  I say no.
     maxLen = max(20*1024, 20*len(contents))
 
     return uncompressData(contents, maxLength=maxLen)

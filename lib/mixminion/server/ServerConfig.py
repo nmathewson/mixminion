@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.17 2003/01/17 06:18:06 nickm Exp $
+# $Id: ServerConfig.py,v 1.18 2003/02/09 22:30:58 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -207,11 +207,6 @@ SERVER_SYNTAX =  {
                      'Comments': ('ALLOW', None, None),
                      'ModulePath': ('ALLOW', None, None),
                      'Module': ('ALLOW*', None, None),
-
-##                      'MixAlgorithm' : ('ALLOW', _parseMixRule, "Cottrell"),
-##                      'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
-##                      'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
-##                      'MixPoolMinSize' : ('ALLOW', C._parseInt, "5"),
                      'MixAlgorithm' : ('ALLOW', _parseMixRule, "Timed"),
                      'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
                      'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
