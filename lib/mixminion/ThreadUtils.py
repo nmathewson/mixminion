@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.9 2004/12/27 00:15:57 nickm Exp $
+# $Id: ThreadUtils.py,v 1.10 2005/02/07 06:18:40 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -30,26 +30,55 @@ QueueEmpty = Empty
 del Queue
 del Empty
 
-class ClearableQueue(MessageQueue):
-    """Extended version of python's Queue class that supports removing
-       all the items from the queue."""
-    def clear(self):
-        """Remove all the items from this queue."""
-        # If the queue is empty, return.
-        if not self.esema.acquire(0):
-            return
-        self.mutex.acquire()
-        was_full = self._full()
-        self._clear()
-        assert self._empty()
-        # If the queue used to be full, it isn't anymore.
-        if was_full:
-            self.fsema.release()
-        self.mutex.release()
+try:
+    q = MessageQueue()
+    q.not_full
+except:
+    BUILTIN_QUEUE_USES_CONDITIONS = 0
+else:
+    BUILTIN_QUEUE_USES_CONDITIONS = 1
+del q
 
-    def _clear(self):
-        """Backend for _clear"""
-        del self.queue[:]
+if BUILTIN_QUEUE_USES_CONDITIONS:
+    class ClearableQueue(MessageQueue):
+        """Extended version of python's Queue class that supports removing
+           all the items from the queue."""
+        def clear(self):
+            """Remove all the items from this queue."""
+            # If the queue is empty, return.
+            self.not_empty.acquire()
+            try:
+                if self._empty(): return
+                self._clear()
+                self.not_full.notify()
+            finally:
+                self.not_empty.release()
+
+        def _clear(self):
+            """Backend for _clear"""
+            self.queue.clear()
+else:
+    class ClearableQueue(MessageQueue):
+        """Extended version of python's Queue class that supports removing
+           all the items from the queue."""
+        def clear(self):
+            """Remove all the items from this queue."""
+            # If the queue is empty, return.
+            if not self.esema.acquire(0):
+                return
+            self.mutex.acquire()
+            was_full = self._full()
+            self._clear()
+            assert self._empty()
+            # If the queue used to be full, it isn't anymore.
+            if was_full:
+                self.fsema.release()
+            self.mutex.release()
+
+        def _clear(self):
+            """Backend for _clear"""
+            del self.queue[:]
+
 
 try:
     q = MessageQueue()

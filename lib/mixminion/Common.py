@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.143 2004/12/02 23:39:01 nickm Exp $
+# $Id: Common.py,v 1.144 2005/02/07 06:18:40 nickm Exp $
 
 """mixminion.Common
 
@@ -1270,7 +1270,7 @@ class Duration:
 
     def __float__(self):
         """Return the number of seconds in this duration"""
-        return self.seconds
+        return float(self.seconds)
 
     def __int__(self):
         """Return the number of seconds in this duration"""
