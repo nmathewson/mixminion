@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.123 2004/03/23 00:35:07 nickm Exp $
+# $Id: ServerMain.py,v 1.124 2004/03/23 05:15:17 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -677,7 +677,7 @@ class MixminionServer(_Scheduler):
             os.makedirs(os.path.split(self.pidFile)[0], 0700)
         self.lockFile = Lockfile(self.pidFile)
         try:
-            self.lockFile.acquire(mode=0644)
+            self.lockFile.acquire(mode=0644,blocking=0)
         except LockfileLocked:
             raise UIError("Another server seems to be running.")
 

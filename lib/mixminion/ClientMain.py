@@ -57,6 +57,14 @@ def configureClientLock(filename):
     global _CLIENT_LOCKFILE
     _CLIENT_LOCKFILE = Lockfile(filename)
 
+class ClientDiskLock:
+    """A wrapper around clientLock and clientUnlock to present a lock-like
+       interface, and default to blocking locks."""
+    def acquire(self):
+        clientLock()
+    def release(self):
+        clientUnlock()
+
 class ClientKeyring:
     """Class to manage storing encrypted keys for a client.  Right now, this
        is limited to a single SURB decryption key.  In the future, we may
@@ -949,7 +957,7 @@ class CLIArgumentParser:
             assert _CLIENT_LOCKFILE
             LOG.debug("Configuring server list")
             self.directory = mixminion.ClientDirectory.ClientDirectory(
-                userdir, _CLIENT_LOCKFILE)
+                userdir, ClientDiskLock())
             self.directory.configure(self.config)
             self.directory._installAsKeyIDResolver()
 

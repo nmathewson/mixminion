@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.136 2004/03/23 00:13:55 nickm Exp $
+# $Id: Common.py,v 1.137 2004/03/23 05:15:16 nickm Exp $
 
 """mixminion.Common
 
@@ -1490,7 +1490,11 @@ class Lockfile:
         """Acquire this lock.  If we're acquiring the lock for the first time,
            write 'contents' to the lockfile.  If 'blocking' is true, wait
            until we can acquire the lock.  If 'blocking' is false, raise
-           LockfileLocked if we can't acquire the lock."""
+           LockfileLocked if we can't acquire the lock.
+
+           XXXX008 NOTE: This doesn't match the standard lock interface, which
+           defaults to blocking=1.  This should change. XXXX008
+        """
 
         if self.count > 0:
             self.count += 1

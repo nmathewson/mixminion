@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.51 2004/03/07 06:31:46 nickm Exp $
+# $Id: ServerList.py,v 1.52 2004/03/23 05:15:17 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -475,7 +475,7 @@ class ServerList:
 
     def _lock(self):
         self.rlock.acquire()
-        self.lockfile.acquire()
+        self.lockfile.acquire(blocking=1)
 
     def _unlock(self):
         self.lockfile.release()
