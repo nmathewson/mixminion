@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.128 2004/01/08 22:33:31 nickm Exp $
+# $Id: Common.py,v 1.129 2004/01/27 05:13:36 nickm Exp $
 
 """mixminion.Common
 
@@ -24,6 +24,7 @@ import calendar
 import cPickle
 import errno
 import gzip
+import math
 import os
 import re
 import signal
@@ -748,8 +749,18 @@ def secureDelete(fnames, blocking=0):
     # Some systems are unhappy when you call them with too many options.
     for i in xrange(0, len(fnames), 250-len(_SHRED_OPTS)):
         files = fnames[i:i+250-len(_SHRED_OPTS)]
-        pid = os.spawnl(os.P_NOWAIT,
-                        _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
+        try:
+            pid = os.spawnl(os.P_NOWAIT,
+                            _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
+        except OSError, e:
+            if e.errno not in (errno.EAGAIN, errno.ENOMEM):
+                raise
+            LOG.warn("Transient error while shredding files: %s",e)
+            for f in files:
+                if os.path.exists(f):
+                    _overwriteFile(f)
+                    os.unlink(f)
+
         if blocking:
             try:
                 os.waitpid(pid, 0)
@@ -763,11 +774,33 @@ def secureDelete(fnames, blocking=0):
 # I'm trying to make this interface look like a subset of the one in
 # the draft PEP-0282 (http://www.python.org/peps/pep-0282.html).
 
-def _logtime():
+# This weirdness is used to memoize lookups in the 'time' module's namespace.
+# "LOG.log" can get called a lot, so this matters.
+def _logtime(_time=time.time,_strftime=time.strftime,
+             _localtime=time.localtime,_tzadj=[None],_dst=[None]):
     'Helper function.  Returns current local time formatted for log.'
-    t = time.time()
-    return "%s.%03d"%(time.strftime("%b %d %H:%M:%S", time.localtime(t)),
-                      (t*1000)%1000)
+    t = _time()
+    lt = _localtime(t)
+
+    # We use the '_dst[0]' variable to check whether our DST setting
+    # has changed since the last time _logtime was called.
+    if lt[8]!=_dst[0]:
+        # If it was, we regenerate the string '_tzadj[0]' to be the 
+        # adjustment to UTC used to get local time.
+        _dst[0]=lt[8]
+        offset = floorDiv((calendar.timegm(lt)-time.mktime(lt)),60)
+        if offset>=0:
+            sign="+"
+        else:
+            sign='-'
+        h,m=divmod(abs(offset),60)
+        _tzadj[0]="%s%02d%02d"%(sign,h,m)
+        
+    return "%s.%03d %s"%(_strftime("%b %d %H:%M:%S", lt),
+                         (t*1000)%1000,
+                         _tzadj[0])
+    #return time.strftime("%b %d %H:%M:%S.%%03d %z", time.localtime(t)) %( 
+    #    (t*1000)%1000)
 
 class _FileLogHandler:
     """Helper class for logging.  Represents a file on disk, and allows the

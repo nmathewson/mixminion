@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.69 2004/01/08 23:07:32 nickm Exp $
+# $Id: Modules.py,v 1.70 2004/01/27 05:13:36 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -13,6 +13,7 @@ __all__ = [ 'ModuleManager', 'DeliveryModule',
             'DELIVER_OK', 'DELIVER_FAIL_RETRY', 'DELIVER_FAIL_NORETRY'
             ]
 
+import errno
 import os
 import re
 import sys
@@ -1348,7 +1349,13 @@ class MixmasterSMTPModule(SMTPModule):
 
         cmd = self.command
         opts = self.options + (self.tmpQueue.getMessagePath(handle),)
-        code = os.spawnl(os.P_WAIT, cmd, cmd, *opts)
+        try:
+            code = os.spawnl(os.P_WAIT, cmd, cmd, *opts)
+        except OSError,e:
+            if e.errno not in (errno.EAGAIN, errno.ENOMEM): raise
+            LOG.warn("Transient error while running Mixmaster: %s",e)
+            return DELIVER_FAIL_RETRY
+
         LOG.debug("Queued Mixmaster message: exit code %s", code)
         self.tmpQueue.removeMessage(handle)
         return DELIVER_OK
@@ -1358,7 +1365,12 @@ class MixmasterSMTPModule(SMTPModule):
            should be called after invocations of processMessage."""
         cmd = self.command
         LOG.debug("Flushing Mixmaster pool")
-        os.spawnl(os.P_WAIT, cmd, cmd, "-S")
+        try:
+            os.spawnl(os.P_WAIT, cmd, cmd, "-S")
+        except OSError,e:
+            if e.errno not in (errno.EAGAIN, errno.ENOMEM): raise
+            LOG.warn("Transient error while running Mixmaster: %s",e)
+            return DELIVER_FAIL_RETRY
 
 class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
     """Delivery queue for _MixmasterSMTPModule.  Same as
