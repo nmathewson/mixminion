@@ -1,16 +1,19 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.9 2002/11/22 21:00:52 nickm Exp $
+# $Id: setup.py,v 1.10 2002/12/02 03:45:56 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
 # compare to it: it was only added as of Python version 1.6.
+#
+# (Because of syntax issues, this file won't even parse for any python older
+#  than 1.3.  I'm okay with that.)
 if not hasattr(sys, 'version_info') or sys.version_info < (2, 0, 0):
     print "Sorry, but I require Python 2.0 or higher."
     sys.exit(0)
 
 try:
-    import zlib as _
+    import zlib
 except ImportError, _:
     print "Zlib support seems to be missing; install python with zlib support."
     sys.exit(0)
