@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.38 2004/03/07 06:31:46 nickm Exp $
+# $Id: PacketHandler.py,v 1.39 2004/07/27 03:16:40 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -243,7 +243,7 @@ class RelayedPacket:
     """A packet that is to be relayed to another server; returned by
        returned by PacketHandler.processPacket."""
     ## Fields:
-    # address -- an instance of IPV4Info
+    # address -- an instance of IPV4Info DOCDOC
     # msg -- a 32K packet.
     def __init__(self, address, msg):
         """Create a new packet, given an instance of IPV4Info or
