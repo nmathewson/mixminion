@@ -1,7 +1,7 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.6 2003/02/09 22:30:58 nickm Exp $
+# $Id: HashLog.py,v 1.7 2003/03/26 16:34:36 nickm Exp $
 
-"""mixminion.HashLog
+"""mixminion.server.HashLog
 
    Persistant memory for the hashed secrets we've seen.  Used by
    PacketHandler to prevent replay attacks."""
