@@ -1,8 +1,8 @@
-$Id: README,v 1.40 2003/04/04 20:59:53 nickm Exp $
+$Id: README,v 1.41 2003/05/29 05:49:04 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.3
+This is Mixminion version 0.0.4, Release Candidate 1.
 
- WARNING!  Mixminion 0.0.3 breaks backward compatibility with version 0.0.2.
+ WARNING!  Mixminion 0.0.4 breaks backward compatibility with version 0.0.3.
  Versions older than 0.0.3 are no longer supported; you should upgrade now.
 
 CONTENTS:
@@ -40,6 +40,61 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.4rc1:
+   First steps toward directory automation:
+      - Servers generate new keys and server descriptors when the old ones
+        are close to expiring.  (~2 weeks)
+      - Servers also regenerate server descriptors when their configuration
+        changes.
+      - When a set of keys expires, a server rotates to the next set
+        automatically (with some overlap).
+      - Servers can upload their descriptors to a directory server
+        automatically.
+      - There's a trivial directory backend that accepts signed updates
+        automatically, and queues new servers.
+      - Directories now include a list of which servers are believed to be
+        working correctly.  Right now, this list is still manually
+        configured.
+      - There's a cron job that regenerates the directory every so often.
+
+   Packet format overhaul:
+      - Server RSA keys are now 2048 bits long.
+      - The header representation is more compact now, so we don't pay in
+        space for the increased key length.
+
+   MMTP improvements:
+      - The certificate regime has changed so that key rotation is now 
+        possible: instead of authenticating servers based on their TLS
+        keys, we authenticate based on their identity keys, which never
+        change.
+      - Packets sent from a server to itself no longer hit the network.
+      - When relaying messages, a server never opens more than 1 connection
+        at a time to the same server.
+      - MMTP clients now recognize a 'REJECTED' reply that a server can use
+        to refuse messages when under high load.
+
+   Other server improvements:
+      - Servers can (optionally) track the number of packets received, 
+        relayed successfully, dropped, and so on.
+      - Servers can recognize and advertise whether they are configured
+        'securely.'
+      - The deliver/retry logic has been largely rewritten.  It should
+        freak out and die less frequently now.  In any case, it also prints
+        better debugging messages, and thrashes the disk less.
+
+   Minor changes:
+      - We now use real OpenPGP-style ASCII-armor.  Accept no substitutes!
+
+   Numerous UI Improvements:
+      - There are saner error messages for many common cases.
+      - Support for multiple SURB keys to prevent identity-blending attack.
+      - There's a new (temporary) 'mixminion ping' command that you can use
+        to tell whether a server is accepting connections.  It's potentially
+        dangerous (if you go pinging all the servers in your path), and has
+        a banner saying so.
+      - The path selection syntax has changed to be more flexible.  (You can
+        now specify a single random hop, or N random hops.)
 
 NEW IN VERSION 0.0.3:
    Better build support:
@@ -145,28 +200,71 @@ NEW IN VERSION 0.0.1:
 STILL NOT IN THIS VERSION:
    - We could use some man pages.
    - IP-based restrictions don't work.
-   - No automatic key generation or server publication.
    - No support for distributed directories.
    - Other stuff too numerous to mention; see TODO.
 
-III. HOW TO UPGRADE FROM MIXMINION 0.0.2
+III. HOW TO UPGRADE FROM MIXMINION 0.0.3
 ========================================
 
 Just follow the installation instructions below.
 
-If you're running a server, you may want to configure the new 'Retry' options
-in your mixminiond.conf file; see ./etc/mixmioniond.conf for examples.  You
-do not need to generate a new server descriptor or keyset; just upgrade your
-software.
+If you're running a server, you will need to upgrade your server's files.
+Follow these steps:
+
+    1. Your configuration file may be out of date.  The following options
+       are new:
+          "Publish"
+          "LogStats"
+          "StatsInterval"
+          "StatsFile"
+
+       The following options have been renamed:
+          "PublicKeySloppiness" -> "PublicKeyOverlap".
+
+       The following options, formerly optional, are now mandatory:
+          "Nickname"
+
+       See etc/mixminiond.conf for an example.
+
+    2. Run 'mixminion upgrade-server' to delete keys and packets in obsolete
+       formats.  (If you forget this step, the server will remind you when
+       you try to start it.)
+
+    3. Start your server as usual ('mixminion server-start') and try sending
+       some messages through it.  (You can find the filename(s) of the
+       currently live server descriptors stored in $HOMEDIR/current-desc.)
+
+       Example:
+          % mixminion server-start
+            [wait for server to start]
+
+          % cat $HOMEDIR/current-desc
+          $HOMEDIR/keys/key_0022/ServerDesc
+
+          % cp `cat $HOMEDIR/current-desc` myserver
+          % mixminion send -t <your email> -P './myserver,?,?'
+            [Type your message, followed by Ctrl-D.]
+          
+            [Wait a while, and see if your message gets sent.]
+
+    4. When you're confident your server is working correctly, and you want
+       to advertise your server to the rest of the world, edit your
+       mixminiond.conf, and set the "Publish" option to 'yes'.
+
+    5. Restart your server.  It will now advertise itself to the (still,
+       alas!) central directory.  The first time you do this, I have to
+       update the directory manually (to prevent pseudospoofing).  Once your
+       server is listed, future updates will be get into the directory
+       automatically.
 
 IV. HOW TO INSTALL MIXMINION
 ============================
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.3.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4rc1.tar.gz>
 
-  % cd Mixminion-0.0.3
+  % cd Mixminion-0.0.4rc1
   % make download-openssl
   % make build-openssl
   % make
@@ -265,6 +363,13 @@ To reload the directory without sending a message, type:
         mixminion send -D yes
      OR mixminion update-servers
 
+To see whether a server is running, type:
+ 
+      mixminion ping <servername>
+
+      (WARNING: This command is potentially dangerous, for a number of subtle
+      and not-so-subtle reasons.  It will go away before mixminion 1.0.)
+
 To force a path of a given length, type:
 
       mixminion send -t <address> [-i <file>] -H <number of hops>
@@ -282,8 +387,17 @@ To specify a path manually, type:
       For example, to send a message through the servers Foo, Bar, Baz, and
       Quux, you would type "-P Foo,Bar,Baz,Quux."
 
-      If you only care about the servers at the beginning or end of your
-      path, you can include a wildcard, like this:
+      To specify a randomly chosen server, you can include a question mark,
+      like this:
+             -P 'Foo,?,Bar,?'     [Foo, a random server, Bar, and another
+                                   random server]
+
+      You can specify a sequence of N random servers like this:
+             -P 'Foo,*3,Bar'      [Foo, three random servers, then Bar.]
+
+      If you have specified a path length (explicitly or in ~/.mixminionrc)
+      you can use a '*' to indicate as many random servers as are needed to
+      make your path long enough:
 
              -P 'Foo,*'           [Path that starts with Foo]
              -P '*,Foo'           [Path that ends with Foo]
@@ -296,6 +410,13 @@ To specify a path manually, type:
              -P 'Foo,Bar:Baz,Quux'    [Swap headers at server Bar]
              --swap-at=<n>            [Swap headers at the n'th server]
       If you don't know what a swap point is, don't worry. :)
+
+If you want to use the same path by default for all of your messages,
+edit the  ~/.mixminonrc and change the ForwardPath line:
+
+      # By default, use the same servers for entry and exit each time,
+      # with three randomly chosen servers in the middle.
+      ForwardPath: FavoriteEntry,?,?,?,FavoriteExit
 
 To send a dummy message, specify "drop" instead of an email address, as in:
 
@@ -315,6 +436,10 @@ To queue a message for later transmission, run "mixminion queue" instead of
       To attempt to deliver all messages waiting in the queue:
 
       mixminion flush
+
+      To attempt to deliver no more than 16 messages:
+
+      mixminion flush -n 16
 
       (QUEUE NOTE: By default, when "mixminion send" fails to deliver a
       message, it leaves that message in the queue to be reattempted later.
@@ -425,20 +550,23 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
         "mixminion server-start -f <path to mixminiond.conf>"
 
-    (The -f flag and path is only necessary if you placed the
+    (The -f flag and path are only necessary if you placed the
     configuration file somehwere other than ~/.mixminiond.conf,
     ~/etc/mixminiond.conf, or /etc/mixminiond.conf.)
 
 5) To try out your server, clients will need a copy of your server
-   descriptor, which should be stored in $SERVER_HOME/keys/key_*/ServerDesc.
+   descriptor, whose location is stored $SERVER_HOME/current-desc.
 
    For example, if your mixminiond.conf contains the following line:
 
            Homedir: /home/mixminion/spool
 
-   Then your first server descriptor will be stored in:
+   Then if you read the contents of /home/mixminion/spool/current-desc,
+   you will find a filename like:
 
            "/home/mixminion/spool/keys/key_0001/ServerDesc".
+
+   This file is your current server descriptor. 
 
    Mixminion supports a global directory of server descriptors.  Until you
    are listed in that directory, clients can import your ServerDesc file
@@ -446,13 +574,21 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
            mixminion import-server <filename>
 
-6) When you're ready to advertise your server, email your server descriptor
-   (PGP-signed, if possible) to <nickm@freehaven.net>.  I'll try out your
-   server for a while and then add it to the directory.
+   They can also use your ServerDesc without importing it by using the
+   filename as a part of their path:
 
-   WARNING: We don't have statistics yet, so the system isn't robust in
-   the presence of unreliable servers in the directory.  Please let me
-   know if you're going to take down a server, and please don't publish a
+           mixminion send -t <address> -P '<filename>,?,?'
+
+6) When you're ready to advertise your server, edit 'mixminiond.conf' and set
+   the 'Publish' option to 'yes'.  When you restart your server, it will
+   advertise itself to the central directory.
+
+   The first time you do this, I have to update the directory manually (to
+   prevent pseudospoofing).  Once your server is listed, future updates will
+   be get into the directory automatically.
+
+   WARNING: We don't have statistics yet, so the system isn't robust in the
+   presence of unreliable servers in the directory.  Please don't publish a
    server if you don't think you can keep it up for a good while.
 
    {This step will be more automated in later versions.}
@@ -464,7 +600,15 @@ To make a server reload its configuration:
     mixminion server-reload [-f configfile]
 
     (Right now, this just closes and re-opens the log files.)
-   
+
+Your server can be configured to keep track of the number of packets it
+receives and other interesting statistics.  Ordinarily, it aggregates these
+totals and flushes a report to disk at a configurable interval.  If you want
+to see statistics in the _current_ interval, run:
+
+    mixminion server-stats [-f configfile]
+
+ 
 VII. HOW TO REPORT BUGS AND SUGGEST NEW FEATURES
 ================================================
 
