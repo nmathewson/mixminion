@@ -179,10 +179,10 @@ To specify a path manually, type:
              -P 'Foo,*'           [Path that starts with Foo]
              -P '*,Foo'           [Path that ends with Foo]
              -P 'Foo,Bar,*,Quux'  [Path that starts with Foo and Bar,
-                                   and ands with Quux]
+                                   and ends with Quux]
 
-      {ADVANCED} To specify a swap point explicitly, you use a colon in
-      your path, as in:
+      {ADVANCED} By default, the swap point will be halfway through. To
+      specify a swap point explicitly, use a colon in your path, as in:
              -P 'Foo,Bar:Baz,Quux'    [Swap headers at server Bar]
              --swap-at=<n>            [Swap headers at the n'th server]
       If you don't know what a swap point is, don't worry. :)

@@ -1,10 +1,10 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.8 2003/01/05 13:19:53 nickm Exp $
+# $Id: ServerList.py,v 1.9 2003/01/06 05:42:07 arma Exp $
 
 """mixminion.directory.ServerList
 
-   Implements a store of sererinfos for a diectory.
-
+   Implements a store of serverinfos for a directory.
+   
    FFFF Right now, this is about maximally slow.  There are a lot of tricks
    FFFF we could do to speed it up: not revalidating servers in our cache;
    FFFF pickling serverinfo objects for easy access, and so on.  But

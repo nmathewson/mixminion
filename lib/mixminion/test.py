@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.65 2003/01/06 03:26:36 nickm Exp $
+# $Id: test.py,v 1.66 2003/01/06 05:42:07 arma Exp $
 
 """mixminion.tests
 
@@ -3769,7 +3769,7 @@ class ModuleTests(unittest.TestCase):
             has(set,"octavio.nyet.jones@nyet.net")
             has(set,"octavio.jones@nyet.nyet.net")
 
-            # Basic functinoality: Don't match anything else.
+            # Basic functionality: Don't match anything else.
             hasNo(set,"mojo@jojo.com")
             hasNo(set,"mr-fred@wilburs-barn.com") # almost by user
             hasNo(set,"joe@sally.com") # almost by domain...
