@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.48 2003/01/07 04:13:08 nickm Exp $
+# $Id: Common.py,v 1.49 2003/01/08 08:04:25 nickm Exp $
 
 """mixminion.Common
 
@@ -23,6 +23,7 @@ import signal
 import stat
 import statvfs
 import sys
+import threading
 import time
 import traceback
 
@@ -115,7 +116,7 @@ def createPrivateDir(d, nocreate=0):
 
     checkPrivateDir(d)
 
-_WARNED_DIRECTORIES = {}
+_WARNED_DIRECTORIES = {} # ???? Threading danger?
 
 def checkPrivateDir(d, recurse=1):
     """Return true iff d is a directory owned by this uid, set to mode
@@ -165,6 +166,7 @@ def checkPrivateDir(d, recurse=1):
                 LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
                          mode, d, st[stat.ST_GID])
             _WARNED_DIRECTORIES[d] = 1
+
 #----------------------------------------------------------------------
 # Secure filesystem operations.
 
@@ -369,6 +371,7 @@ class Log:
            minSeverity, and sends its output to stderr."""
         self.configure(None)
         self.setMinSeverity(minSeverity)
+        self.__lock = threading.Lock()
 
     def configure(self, config):
         """Set up this Log object based on a ServerConfig or ClientConfig
@@ -452,8 +455,12 @@ class Log:
         if _SEVERITIES.get(severity, 100) < self.severity:
             return
 
-        for h in self.handlers:
-            h.write(severity, m)
+        self.__lock.acquire()
+        try:
+            for h in self.handlers:
+                h.write(severity, m)
+        finally:
+            self.__lock.release()
 
     def trace(self, message, *args):
         "Write a trace (hyperverbose) message to the log"

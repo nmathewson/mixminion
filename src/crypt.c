@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.17 2002/12/29 20:30:41 nickm Exp $ */
+/* $Id: crypt.c,v 1.18 2003/01/08 08:09:09 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -64,10 +64,12 @@ mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS
         SHA1_Init(&ctx);
         SHA1_Update(&ctx,cp,len);
         SHA1_Final(PyString_AS_STRING(output),&ctx);
         memset(&ctx,0,sizeof(ctx));
+        Py_END_ALLOW_THREADS
 
         return output;
 }
@@ -112,6 +114,7 @@ mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
         static char *kwlist[] = { "key", NULL };
         char *key;
         int keylen;
+        int r;
         AES_KEY *aes_key = NULL;
         PyObject *result;
 
@@ -126,7 +129,10 @@ mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
         if (!(aes_key = malloc(sizeof(AES_KEY)))) {
                 PyErr_NoMemory(); goto err;
         }
-        if (AES_set_encrypt_key(key, keylen*8, aes_key)) {
+        Py_BEGIN_ALLOW_THREADS
+        r = AES_set_encrypt_key(key, keylen*8, aes_key);
+        Py_END_ALLOW_THREADS
+        if (r) {
                 mm_SSL_ERR(1);
                 goto err;
         }
@@ -188,8 +194,10 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS
         mm_aes_counter128(input, PyString_AS_STRING(output), inputlen,
                           aes_key, idx);
+        Py_END_ALLOW_THREADS
 
         if (prng) free(input);
         return output;
@@ -224,9 +232,11 @@ mm_strxor(PyObject *self, PyObject *args, PyObject *kwdict)
         }
 
         outp = PyString_AS_STRING(output);
+        Py_BEGIN_ALLOW_THREADS
         while (s1len--) {
                 *(outp++) = *(s1++) ^ *(s2++);
         }
+        Py_END_ALLOW_THREADS
 
         return output;
 }
@@ -249,7 +259,10 @@ mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
                                          &seed, &seedlen))
                 return NULL;
 
+        Py_BEGIN_ALLOW_THREADS
         RAND_seed(seed, seedlen);
+        Py_END_ALLOW_THREADS
+
         Py_INCREF(Py_None);
         return Py_None;
 }
@@ -307,6 +320,7 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 
         output = PyString_FromStringAndSize(NULL, keylen);
         out = PyString_AS_STRING(output);
+        Py_BEGIN_ALLOW_THREADS
         if (encrypt) {
                 if (pub)
                         i = RSA_public_encrypt(stringlen, string, out, rsa,
@@ -322,6 +336,7 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
                         i = RSA_private_decrypt(stringlen, string, out, rsa,
                                                 RSA_NO_PADDING);
         }
+        Py_END_ALLOW_THREADS
 
         if (i <= 0) {
                 Py_DECREF(output);
@@ -359,7 +374,10 @@ mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS
         rsa = RSA_generate_key(bits, e, NULL, NULL);
+        Py_END_ALLOW_THREADS
+
         if (rsa == NULL) {
                 mm_SSL_ERR(1);
                 return NULL;
@@ -383,7 +401,7 @@ mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
         int len;
         PyObject *output;
-        unsigned char *out, *outp;
+        unsigned char *out = NULL, *outp;
 
         assert(mm_RSA_Check(self));
         if (!PyArg_ParseTupleAndKeywords(args, kwdict,
@@ -396,19 +414,21 @@ mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS
         len = public ? i2d_RSAPublicKey(rsa,NULL) :
                 i2d_RSAPrivateKey(rsa,NULL);
-        if (len < 0) {
-                mm_SSL_ERR(1);
-                return NULL;
+        if (len >= 0) {
+                out = outp = malloc(len+1);
+                if (public)
+                        len = i2d_RSAPublicKey(rsa, &outp);
+                else
+                        len = i2d_RSAPrivateKey(rsa, &outp);
         }
-        out = outp = malloc(len+1);
-        if (public)
-                len = i2d_RSAPublicKey(rsa, &outp);
-        else
-                len = i2d_RSAPrivateKey(rsa, &outp);
+        Py_END_ALLOW_THREADS
+
         if (len < 0) {
-                free(out);
+                if (out)
+                        free(out);
                 mm_SSL_ERR(1);
                 return NULL;
         }
@@ -441,8 +461,10 @@ mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict)
                                          &string, &stringlen, &public))
                 return NULL;
 
+        Py_BEGIN_ALLOW_THREADS
         rsa = public ? d2i_RSAPublicKey(NULL, &string, stringlen) :
                 d2i_RSAPrivateKey(NULL, &string, stringlen);
+        Py_END_ALLOW_THREADS
         if (!rsa) {
                 mm_SSL_ERR(1);
                 return NULL;
@@ -460,6 +482,7 @@ const char mm_RSA_PEM_write_key__doc__[]=
 PyObject *
 mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
+        /* XXXX make this threadsafe. */
         static char* kwlist[] = { "file", "public", "password", NULL };
         PyObject *pyfile;
         int public, passwordlen=0;
@@ -551,12 +574,15 @@ mm_rsa_PEM_read_key(PyObject *self, PyObject *args, PyObject *kwdict)
         if (!passwordlen)
                 password = "";
 
+        Py_BEGIN_ALLOW_THREADS
         if (public) {
                 rsa = PEM_read_RSAPublicKey(file, NULL, NULL, NULL);
         } else {
                 rsa = PEM_read_RSAPrivateKey(file, NULL,
                                              NULL, password);
         }
+        Py_END_ALLOW_THREADS
+
         if (!rsa) {
                 mm_SSL_ERR(1);
                 return NULL;
@@ -626,6 +652,7 @@ const char mm_RSA_get_public_key__doc__[]=
 PyObject *
 mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
+        /* ???? should be threadified? */
         static char *kwlist[] = {  NULL };
 
         RSA *rsa;
@@ -658,6 +685,7 @@ const char mm_RSA_get_exponent__doc__[]=
 PyObject *
 mm_RSA_get_exponent(PyObject *self, PyObject *args, PyObject *kwdict)
 {
+        /* ???? should be threadified? */
         static char *kwlist[] = {  NULL };
 
         RSA *rsa;
@@ -683,6 +711,7 @@ const char mm_rsa_make_public_key__doc__[]=
 PyObject *
 mm_rsa_make_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
+        /* ???? Should be threadified */
         static char *kwlist[] = { "n","e", NULL };
 
         RSA *rsa;
@@ -713,6 +742,7 @@ const char mm_RSA_get_modulus_bytes__doc__[]=
 static PyObject *
 mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwargs)
 {
+        /* ???? should be threadified? */
         static char *kwlist[] = { NULL };
         RSA *rsa;
 
@@ -797,9 +827,12 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
                 PyErr_NoMemory(); return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS
         r = RSA_padding_add_PKCS1_OAEP(PyString_AS_STRING(output), keylen,
                                        input, inputlen,
                                        param, paramlen);
+        Py_END_ALLOW_THREADS
+
         if (r <= 0) {
                 mm_SSL_ERR(1);
                 Py_DECREF(output);
@@ -842,9 +875,11 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
                 PyErr_NoMemory(); return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS
         r = RSA_padding_check_PKCS1_OAEP(PyString_AS_STRING(output), r,
                                          input+1, inputlen-1, keylen,
                                          param, paramlen);
+        Py_END_ALLOW_THREADS
         if (r <= 0) {
                 mm_SSL_ERR(1);
                 Py_DECREF(output);
@@ -874,10 +909,11 @@ const char mm_generate_dh_parameters__doc__[] =
 PyObject *
 mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 {
+        /* ???? should be threadified? */
         static char *kwlist[] = { "filename", "verbose", "bits", NULL };
         char *filename;
         int bits=512, verbose=0;
-
+ 
         BIO *out = NULL;
         DH *dh = NULL;
 
@@ -887,12 +923,12 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
                                          &filename, &verbose, &bits))
                 return NULL;
 
-        if (!(out = BIO_new_file(filename, "w")))
-                goto error;
-        if (!(dh = DH_generate_parameters(bits, 2,
-                                          verbose?gen_dh_callback:NULL,
-                                          NULL)))
-                goto error;
+        out = BIO_new_file(filename, "w");
+        if (out)
+                dh = DH_generate_parameters(bits, 2,
+                                            verbose?gen_dh_callback:NULL,
+                                            NULL);
+        if (out && dh)
         if (!PEM_write_bio_DHparams(out, dh))
                 goto error;
         BIO_free(out);
@@ -920,6 +956,7 @@ const char mm_generate_cert__doc__[] =
 PyObject *
 mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
+        /* ???? should be threadified? */
         static char *kwlist[] = { "filename", "rsa", "cn",
                                   "start_time", "end_time", NULL };
         char *filename, *cn;

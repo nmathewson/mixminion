@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.35 2003/01/05 13:19:53 nickm Exp $
+# $Id: Crypto.py,v 1.36 2003/01/08 08:04:27 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -8,11 +8,12 @@
    the functions in mixminion.Crypto, and not call _minionlib's crypto
    functionality themselves."""
 
+import binascii
 import copy_reg
 import os
 import stat
 import sys
-import binascii
+import threading
 from types import StringType
 
 import mixminion._minionlib as _ml
@@ -588,13 +589,13 @@ class AESCounterPRNG(RNG):
             raise MixFatalError("Exhausted period of PRNG.")
         return prng(self.key,n,c)
 
-_theSharedPRNG = None
 def getCommonPRNG():
     '''Returns a general-use AESCounterPRNG, initializing it if necessary.'''
-    global _theSharedPRNG
-    if _theSharedPRNG is None:
-        _theSharedPRNG = AESCounterPRNG()
-    return _theSharedPRNG
+    # We create one PRNG per thread.
+    thisThread = threading.currentThread()
+    if not hasattr(thisThread, "minion_shared_PRNG"):
+        thisThread.minion_shared_PRNG = AESCounterPRNG()
+    return thisThread.minion_shared_PRNG
 
 #----------------------------------------------------------------------
 # TRNG implementation

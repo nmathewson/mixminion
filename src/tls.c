@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.11 2002/12/16 02:40:11 nickm Exp $ */
+/* $Id: tls.c,v 1.12 2003/01/08 08:09:09 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -111,14 +111,15 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
         static char *kwlist[] = { "certfile", "pkfile", "dhfile", NULL };
         char *certfile = NULL, *dhfile=NULL;
         mm_RSA *rsa = NULL;
+        int err = 0;
 
         SSL_METHOD *method;
-        SSL_CTX *ctx;
-        DH *dh;
-        mm_TLSContext *result;
-        BIO *bio;
+        SSL_CTX *ctx = NULL;
+        DH *dh = NULL;
+        BIO *bio = NULL;
         RSA *_rsa = NULL;
         EVP_PKEY *pkey = NULL;
+        mm_TLSContext *result;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sO!s:TLSContext_new",
                                          kwlist,
@@ -127,53 +128,60 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
                                          &dhfile))
                 return NULL;
 
+        Py_BEGIN_ALLOW_THREADS;
         method = TLSv1_method();
 
-        if (!(ctx = SSL_CTX_new(method))) {
-                mm_SSL_ERR(0); return NULL;
-        }
-        if (!SSL_CTX_set_cipher_list(ctx, TLS1_TXT_DHE_RSA_WITH_AES_128_SHA)){
-                SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
-        }
-        if (certfile &&
-            !SSL_CTX_use_certificate_file(ctx,certfile,SSL_FILETYPE_PEM)) {
-                SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
-        }
-        if (rsa) {
+        if (!(ctx = SSL_CTX_new(method)))
+                err = 1;
+        if (!err && !SSL_CTX_set_cipher_list(ctx, 
+                                       TLS1_TXT_DHE_RSA_WITH_AES_128_SHA))
+                err = 1;
+        if (!err && certfile &&
+            !SSL_CTX_use_certificate_file(ctx,certfile,SSL_FILETYPE_PEM))
+                err = 1;
+        if (!err && rsa) {
                 if (!(_rsa = RSAPrivateKey_dup(rsa->rsa)) ||
-                    !(pkey = EVP_PKEY_new()) ||
-                    !EVP_PKEY_assign_RSA(pkey, _rsa)) {
-                        if (!pkey && _rsa) RSA_free(_rsa);
-                        if (pkey) EVP_PKEY_free(pkey);
-                        SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
-                }
-                if (!(SSL_CTX_use_PrivateKey(ctx, pkey))) {
+                    !(pkey = EVP_PKEY_new()))
+                        err = 1;
+                if (!err && !EVP_PKEY_assign_RSA(pkey, _rsa))
+                        err = 1;
+                if (!err && !(SSL_CTX_use_PrivateKey(ctx, pkey)))
+                        err = 1;
+                if (pkey)
                         EVP_PKEY_free(pkey);
-                        SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
-                }
-                EVP_PKEY_free(pkey);
         }
 
-        if (dhfile) {
-                if ( !(bio = BIO_new_file(dhfile, "r"))) {
-                        SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
+        if (!err && dhfile) {
+                if ( !(bio = BIO_new_file(dhfile, "r")))
+                        err = 1;
+                if (!err) {
+                        dh=PEM_read_bio_DHparams(bio,NULL,NULL,NULL);
+                        if (!dh) 
+                                err = 1;
                 }
-                dh=PEM_read_bio_DHparams(bio,NULL,NULL,NULL);
-                BIO_free(bio);
-                if (!dh) {
-                        SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
-                }
-                SSL_CTX_set_tmp_dh(ctx,dh);
-                DH_free(dh);
+                if (!err)
+                        SSL_CTX_set_tmp_dh(ctx,dh);
         }
-        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+        if (!err)
+                SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+        Py_END_ALLOW_THREADS
 
-        result = PyObject_New(mm_TLSContext, &mm_TLSContext_Type);
-        if (!result) {
-                SSL_CTX_free(ctx); return NULL;
+        if (!err) {
+                result = PyObject_New(mm_TLSContext, &mm_TLSContext_Type);
+                if (!result) {
+                        SSL_CTX_free(ctx); return NULL;
+                }
+                result->ctx = ctx;
+                return (PyObject*)result;
+        } else {
+                if (dh) DH_free(dh);
+                if (bio) BIO_free(bio);
+                if (!pkey && _rsa) RSA_free(_rsa);
+                if (pkey) EVP_PKEY_free(pkey);
+                if (ctx) SSL_CTX_free(ctx);
+                mm_SSL_ERR(0);
+                return NULL;
         }
-        result->ctx = ctx;
-        return (PyObject*)result;
 }
 
 static void
@@ -196,10 +204,11 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
         PyObject *sockObj;
         int serverMode = 0;
         int sock;
+        int err = 0;
 
         SSL_CTX *ctx;
-        BIO *bio;
-        SSL *ssl;
+        BIO *bio = NULL;
+        SSL *ssl = NULL;
         mm_TLSSock *ret;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:sock",
@@ -214,31 +223,37 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 
         ctx = ((mm_TLSContext*)self)->ctx;
 
-        if (!(ssl = SSL_new(ctx))) {
-                mm_SSL_ERR(0); return NULL;
-        }
+        Py_BEGIN_ALLOW_THREADS
+        if (!(ssl = SSL_new(ctx)))
+                err = 1;
 
-        if (serverMode && !SSL_set_cipher_list(ssl,
+        if (!err && serverMode && !SSL_set_cipher_list(ssl,
                     TLS1_TXT_DHE_RSA_WITH_AES_128_SHA ":"
-                    SSL3_TXT_RSA_DES_192_CBC3_SHA)) {
-                mm_SSL_ERR(0); SSL_free(ssl); return NULL;
-        }
+                    SSL3_TXT_RSA_DES_192_CBC3_SHA))
+                err = 1;
 
-        if (!(bio = BIO_new_socket(sock, BIO_NOCLOSE))) {
-                SSL_free(ssl); mm_SSL_ERR(0); return NULL;
-        }
+        if (!err && !(bio = BIO_new_socket(sock, BIO_NOCLOSE)))
+                err = 1;
         SSL_set_bio(ssl,bio,bio);
+        Py_END_ALLOW_THREADS
 
-        if (!(ret = PyObject_New(mm_TLSSock, &mm_TLSSock_Type))) {
-                SSL_free(ssl); PyErr_NoMemory(); SSL_free(ssl); return NULL;
+        if (!err) {
+                if (!(ret = PyObject_New(mm_TLSSock, &mm_TLSSock_Type))) {
+                        SSL_free(ssl); PyErr_NoMemory(); return NULL;
+                }
+                ret->ssl = ssl;
+                ret->context = self;
+                ret->sock = sock;
+                ret->sockObj = sockObj;
+                Py_INCREF(self);
+                Py_INCREF(sockObj);
+                return (PyObject*)ret;
+        } else {
+                if (ssl) SSL_free(ssl);
+                mm_SSL_ERR(0);
+                return NULL;
         }
-        ret->ssl = ssl;
-        ret->context = self;
-        ret->sock = sock;
-        ret->sockObj = sockObj;
-        Py_INCREF(self);
-        Py_INCREF(sockObj);
-        return (PyObject*)ret;
+        
 }
 
 static PyMethodDef mm_TLSContext_methods[] = {
@@ -494,6 +509,7 @@ static char mm_TLSSock_get_peer_cert_pk__doc__[] =
 static PyObject*
 mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 {
+        /* ???? Should be threadified? */
         SSL *ssl;
         X509 *cert;
         EVP_PKEY *pkey;
