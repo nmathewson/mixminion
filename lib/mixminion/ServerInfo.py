@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.35 2003/01/05 13:19:53 nickm Exp $
+# $Id: ServerInfo.py,v 1.36 2003/01/06 07:03:24 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -266,10 +266,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
            A ServerInfo is superseded when, for all time it is valid,
            a more-recently-published descriptor with the same nickname
            is also valid.
+
+           This function is only accurate when called with two valid
+           server descriptors.
         """
         valid = self.getIntervalSet()
         for o in others:
-            if o.isNewerThan(self) and o.getNickname() == self.getNickname():
+            if (o.isNewerThan(self) and
+                o.getNickname().lower() == self.getNickname().lower()):
                 valid -= o.getIntervalSet()
         return valid.isEmpty()
 

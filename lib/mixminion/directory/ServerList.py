@@ -1,10 +1,10 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.9 2003/01/06 05:42:07 arma Exp $
+# $Id: ServerList.py,v 1.10 2003/01/06 07:03:25 nickm Exp $
 
 """mixminion.directory.ServerList
 
    Implements a store of serverinfos for a directory.
-   
+
    FFFF Right now, this is about maximally slow.  There are a lot of tricks
    FFFF we could do to speed it up: not revalidating servers in our cache;
    FFFF pickling serverinfo objects for easy access, and so on.  But
@@ -46,8 +46,8 @@ class ServerList:
     #  rejectDir: Directory where we store invalid descriptors.
     #  archiveDir: Directory where we store old descriptors
     #  servers: Map from filename within <serverDir> to ServerInfo objects.
-    #  serversByNickname: A map from server nickname to lists of filenames
-    #       within <serverDir>
+    #  serversByNickname: A map from lowercased server nickname to
+    #       lists of filenames within <serverDir>
     ##Layout:
     #  basedir
     #     servers/
@@ -95,7 +95,8 @@ class ServerList:
         server = ServerInfo(string=contents, assumeValid=0)
 
         nickname = server.getNickname()
-        if knownOnly and not self.serversByNickname.has_key(nickname):
+        lcnickname = nickname.lower()
+        if knownOnly and not self.serversByNickname.has_key(lcnickname):
             raise MixError("Unknown server %s: use import-new."%nickname)
 
         # Is the server already invalid?
@@ -103,21 +104,21 @@ class ServerList:
             raise MixError("Descriptor has already expired")
 
         # Is there already a server with the same nickname?
-        if self.serversByNickname.has_key(nickname):
+        if self.serversByNickname.has_key(lcnickname):
             # Make sure the identity key is the same.
-            oldServer = self.servers[self.serversByNickname[nickname][0]]
+            oldServer = self.servers[self.serversByNickname[lcnickname][0]]
             oldIdentity = oldServer.getIdentity()
             newIdentity = server.getIdentity()
             if not pk_same_public_key(newIdentity, oldIdentity):
                 raise MixError("Identity key has changed for %r" % nickname)
             # Okay -- make sure we don't have this same descriptor.
-            for fn in self.serversByNickname[nickname]:
+            for fn in self.serversByNickname[lcnickname]:
                 oldServer = self.servers[fn]
                 if oldServer['Server']['Digest'] == server['Server']['Digest']:
                     raise MixError("Server descriptor already inserted.")
             # Okay -- make sure that this server isn't superseded.
             if server.isSupersededBy(
-               [ self.servers[fn] for fn in self.serversByNickname[nickname]]):
+             [ self.servers[fn] for fn in self.serversByNickname[lcnickname]]):
                 raise MixError("Server descriptor is superseded")
 
         newFile = nickname+"-"+formatFnameTime()
@@ -128,21 +129,22 @@ class ServerList:
 
         # Now update the internal structure
         self.servers[newFile] = server
-        self.serversByNickname.setdefault(nickname, []).append(newFile)
+        self.serversByNickname.setdefault(lcnickname, []).append(newFile)
 
     def expungeServersByNickname(self, nickname):
         """Forcibly remove all servers named <nickname>"""
         LOG.info("Removing all servers named %s", nickname)
-        if not self.serversByNickname.has_key(nickname):
+        lcnickname = nickname.lower()
+        if not self.serversByNickname.has_key(lcnickname):
             LOG.info("  (No such servers exist)")
             return
-        servers = self.serversByNickname[nickname]
+        servers = self.serversByNickname[lcnickname]
         for fn in servers:
             LOG.info("  Removing %s", fn)
             os.rename(os.path.join(self.serverDir, fn),
                       os.path.join(self.archiveDir, fn))
             del self.servers[fn]
-        del self.serversByNickname[nickname]
+        del self.serversByNickname[lcnickname]
         LOG.info("  (%s servers removed)", len(servers))
 
     def generateDirectory(self,
@@ -227,7 +229,7 @@ class ServerList:
 
         removed = {} # Map from filename->whyRemoved
         # Find all superseded servers
-        for name, servers in self.serversByNickname.items():
+        for servers in self.serversByNickname.values():
             servers = [ (self.servers[fn]['Server']['Published'],
                         fn, self.servers[fn]) for fn in servers ]
             servers.sort()
@@ -243,7 +245,6 @@ class ServerList:
                 continue
             if s.isExpiredAt(now-6000):
                 # The descriptor is expired.
-                name = s.getNickname()
                 removed[fn] = "expired"
 
         # This is a kinda nasty hack: we never remove the last descriptor for
@@ -296,4 +297,4 @@ class ServerList:
         self.serversByNickname = {}
         for fn, server in self.servers.items():
             nickname = server.getNickname()
-            self.serversByNickname.setdefault(nickname, []).append(fn)
+            self.serversByNickname.setdefault(nickname.lower(), []).append(fn)

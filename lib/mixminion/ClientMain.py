@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.30 2003/01/06 05:03:34 nickm Exp $
+# $Id: ClientMain.py,v 1.31 2003/01/06 07:03:24 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -55,7 +55,8 @@ class ClientKeystore:
     #   second element indicates whether the ServerInfo comes from a
     #   directory or a file.
     # digestMap: Map of (Digest -> 'D'|'I:filename').
-    # byNickname: Map from nickname to list of (ServerInfo, source) tuples.
+    # byNickname: Map from nickname.lower() to list of (ServerInfo, source)
+    #   tuples.
     # byCapability: Map from capability ('mbox'/'smtp'/'relay'/None) to
     #    list of (ServerInfo, source) tuples.
     # allServers: Same as byCapability[None]
@@ -258,6 +259,7 @@ class ClientKeystore:
         info = ServerInfo(string=contents, validatedDigests=self.digestMap)
 
         nickname = info.getNickname()
+        lcnickname = nickname.lower()
         identity = info.getIdentity()
         # Make sure that the identity key is consistent with what we know.
         for s, _ in self.serverList:
@@ -276,8 +278,8 @@ class ClientKeystore:
             raise MixError("Server desciptor is expired")
 
         # Is the server superseded?
-        if self.byNickname.has_key(nickname):
-            if info.isSupersededBy([s for s, _ in self.byNickname[nickname]]):
+        if self.byNickname.has_key(lcnickname):
+            if info.isSupersededBy([s for s,_ in self.byNickname[lcnickname]]):
                 raise MixError("Server descriptor is superseded")
 
         # Copy the server into DIR/servers.
@@ -295,12 +297,12 @@ class ClientKeystore:
 
     def expungeByNickname(self, nickname):
         """Remove all imported (non-directory) server nicknamed 'nickname'."""
-
+        lcnickname = nickname.lower()
         n = 0 # number removed
         newList = [] # replacement for serverList.
 
         for info, source in self.serverList:
-            if source == 'D' or info.getNickname() != nickname:
+            if source == 'D' or info.getNickname().lower() != lcnickname:
                 newList.append((info, source))
                 continue
             n += 1
@@ -330,7 +332,7 @@ class ClientKeystore:
                               None: self.allServers }
 
         for info, where in self.serverList:
-            nn = info.getNickname()
+            nn = info.getNickname().lower()
             lists = [ self.allServers, self.byNickname.setdefault(nn, []) ]
             for c in info.getCaps():
                 lists.append( self.byCapability[c] )
@@ -350,7 +352,8 @@ class ClientKeystore:
         fmtlen = min(longestnamelen, 20)
         format = "%"+str(fmtlen)+"s:"
         for n in nicknames:
-            lines.append(format%n)
+            nnreal = self.byNickname[n][0][0].getNickname()
+            lines.append(format%nnreal)
             for info, where in self.byNickname[n]:
                 caps = info.getCaps()
                 va = formatDate(info['Server']['Valid-After'])
@@ -383,11 +386,11 @@ class ClientKeystore:
         # XXXX their nicknames are different.  The logic should probably
         # XXXX go into directory, though.
 
-        u = {} # Map from nickname -> latest-expiring info encountered in lst
+        u = {} # Map from lcnickname -> latest-expiring info encountered in lst
         for info, _  in lst:
             if not info.isValidFrom(startAt, endAt):
                 continue
-            n = info.getNickname()
+            n = info.getNickname().lower()
             if u.has_key(n):
                 if u[n].isNewerThan(info):
                     continue
@@ -404,9 +407,10 @@ class ClientKeystore:
 
         newServers = []
         for info, where in self.serverList:
-            others = [ s for s, _ in self.byNickname[info.getNickname()] ]
+            lcnickname = info.getNickname().lower()
+            others = [ s for s, _ in self.byNickname[lcnickname] ]
             inDirectory = [ s.getDigest()
-                            for s, w in self.byNickname[info.getNickname()]
+                            for s, w in self.byNickname[lcnickname]
                             if w == 'D' ]
             if (where != 'D'
                 and (info.isExpiredAt(cutoff)
@@ -446,8 +450,8 @@ class ClientKeystore:
                 return name
             else:
                 LOG.error("Server is not currently valid")
-        elif self.byNickname.has_key(name):
-            s = self.__findOne(self.byNickname[name], startAt, endAt)
+        elif self.byNickname.has_key(name.lower()):
+            s = self.__findOne(self.byNickname[name.lower()], startAt, endAt)
             if not s:
                 raise MixError("Couldn't find valid descriptor %s" % name)
             return s
@@ -511,9 +515,9 @@ class ClientKeystore:
             if not endList:
                 raise MixError("No %s servers known" % endCap)
             # ... and pick one that hasn't been used, if possible.
-            used = [ info.getNickname() for info in startServers ]
+            used = [ info.getNickname().lower() for info in startServers ]
             unusedEndList = [ info for info in endList
-                              if info.getNickname() not in used ]
+                              if info.getNickname().lower() not in used ]
             if unusedEndList:
                 endServers = [ prng.pick(unusedEndList) ]
             else:
@@ -538,11 +542,11 @@ class ClientKeystore:
         # Find our candidate servers.
         midList = self.__find(self.byCapability[midCap],startAt,endAt)
         # Which of them are we using now?
-        used = [ info.getNickname()
+        used = [ info.getNickname().lower()
                  for info in list(startServers)+list(endServers) ]
         # Which are left?
         unusedMidList = [ info for info in midList
-                          if info.getNickname() not in used ]
+                          if info.getNickname().lower() not in used ]
         if len(unusedMidList) >= nNeeded:
             # We have enough enough servers to choose without replacement.
             midServers = prng.shuffle(unusedMidList, nNeeded)
@@ -554,17 +558,17 @@ class ClientKeystore:
 
             midServers = []
             if startServers:
-                prevNickname = startServers[-1].getNickname()
+                prevNickname = startServers[-1].getNickname().lower()
             else:
                 prevNickname = " (impossible nickname) "
             if endServers:
-                endNickname = endServers[0].getNickname()
+                endNickname = endServers[0].getNickname().lower()
             else:
                 endNickname = " (impossible nickname) "
 
             while nNeeded:
                 info = prng.pick(midList)
-                n = info.getNickname()
+                n = info.getNickname().lower()
                 if n != prevNickname and (nNeeded > 1 or n != endNickname):
                     midServers.append(info)
                     prevNickname = n

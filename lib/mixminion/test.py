@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.66 2003/01/06 05:42:07 arma Exp $
+# $Id: test.py,v 1.67 2003/01/06 07:03:24 nickm Exp $
 
 """mixminion.tests
 
@@ -3309,10 +3309,10 @@ IP: 192.168.0.99
         # Now, check whether the guts of lst are correct.
         eq(len(lst.servers), 4)
         eq(len(lst.serversByNickname), 2)
-        eq(len(lst.serversByNickname['Fred']), 2)
-        eq(len(lst.serversByNickname['Lola']), 2)
+        eq(len(lst.serversByNickname['fred']), 2)
+        eq(len(lst.serversByNickname['lola']), 2)
         eq(readFile(os.path.join(baseDir, "servers",
-                                 lst.serversByNickname['Fred'][0])),
+                                 lst.serversByNickname['fred'][0])),
            examples["Fred"][1])
         # Now generate a directory...
         lst.generateDirectory(now, dayLater, 0,
@@ -3358,8 +3358,8 @@ IP: 192.168.0.99
         lst = ServerList(baseDir)
         eq(len(lst.servers), 4)
         eq(len(lst.serversByNickname), 2)
-        eq(len(lst.serversByNickname['Fred']), 2)
-        eq(len(lst.serversByNickname['Lola']), 2)
+        eq(len(lst.serversByNickname['fred']), 2)
+        eq(len(lst.serversByNickname['lola']), 2)
         lst.generateDirectory(now, dayLater, 0,
                               identity)
         d2 = readFile(lst.getDirectoryFilename())
@@ -3388,11 +3388,11 @@ IP: 192.168.0.99
         # But we _do_ remove expired servers if others exist.
         lst.importServerInfo(examples["Lisa"][2]) # Valid from 5...7.
         eq(2, len(lst.servers))
-        eq(2, len(lst.serversByNickname["Lisa"]))
+        eq(2, len(lst.serversByNickname["lisa"]))
         lst.clean(now=now+60*60*24*100) # Very far in the future.
         eq(1, len(lst.servers))
-        eq(1, len(lst.serversByNickname["Lisa"]))
-        eq(readFile(os.path.join(serverDir, lst.serversByNickname["Lisa"][0])),
+        eq(1, len(lst.serversByNickname["lisa"]))
+        eq(readFile(os.path.join(serverDir, lst.serversByNickname["lisa"][0])),
            examples["Lisa"][2])
         eq(1, len(os.listdir(archiveDir)))
         eq(1, len(os.listdir(serverDir)))
@@ -3416,24 +3416,24 @@ IP: 192.168.0.99
         # Right now, nothing is superceded or expired
         lst.clean()
         eq(5, len(os.listdir(serverDir)))
-        eq(4, len(lst.serversByNickname["Bob"]))
+        eq(4, len(lst.serversByNickname["bob"]))
         lst.importServerInfo(examples["Bob"][4]) # Newer, from 4 to 7.
         # Now "Bob1" is superseded.
         lst.clean()
         eq(1, len(os.listdir(archiveDir)))
-        eq(4, len(lst.serversByNickname["Bob"]))
+        eq(4, len(lst.serversByNickname["bob"]))
         eq(5, len(os.listdir(serverDir)))
         eq(5, len(lst.servers))
-        eq(4, len(lst.serversByNickname["Bob"]))
+        eq(4, len(lst.serversByNickname["bob"]))
         eq(readFile(os.path.join(archiveDir, os.listdir(archiveDir)[0])),
            examples["Bob"][1])
-        for fn in lst.serversByNickname["Bob"]:
+        for fn in lst.serversByNickname["bob"]:
             fn = os.path.join(serverDir, fn)
             self.assertNotEquals(readFile(fn), examples["Bob"][1])
         # Now try rescanning...
         lst = ServerList(baseDir)
         eq(5, len(lst.servers))
-        eq(4, len(lst.serversByNickname["Bob"]))
+        eq(4, len(lst.serversByNickname["bob"]))
         # ... adding a new bob...
         lst.importServerInfo(examples["Bob"][5])
         eq(6, len(lst.servers))
