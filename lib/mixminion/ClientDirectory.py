@@ -8,7 +8,8 @@
      - address parsing.
 """
 
-__all__ = [ 'ClientDirectory', 'parsePath', 'parseAddress' ]
+__all__ = [ 'ClientDirectory', 'parsePath', 'parseAddress',
+            'GotInvalidDirectoryError' ]
 
 import cPickle
 import errno
@@ -43,6 +44,9 @@ MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 #XXXX This class has become unwieldy.  It should get refactored into:
 #XXXX "abstract server set", "directory-based server set", "disk-backed server
 #XXXX set", and "path generator".
+
+class GotInvalidDirectoryError(UIError):
+    """Raised when we have downloaded an invalid directory."""
 
 class ClientDirectory:
     """A ClientDirectory manages a list of server descriptors, either
@@ -223,7 +227,8 @@ class ClientDirectory:
                 fname=fname,
                 validatedDigests=digestMap)
         except mixminion.Config.ConfigError, e:
-            raise MixFatalError("Downloaded invalid directory: %s" % e)
+            raise GotInvalidDirectoryError(
+                "Received an invalid directory: %s"%e)
 
         # Make sure that the identity is as expected.
         identity = directory['Signature']['DirectoryIdentity']

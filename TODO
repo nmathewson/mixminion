@@ -79,8 +79,8 @@ For 0.0.7:
 
 For 0.0.7rc2:
         o Man pages
-        - Nuke invalid cached dir.gz; don't kill server.
-        - On invalid dir_new.gz, server falls back to old one, and
+        D Nuke invalid cached dir.gz; don't kill server.
+        o On invalid dir_new.gz, server falls back to old one, and
           client offers -D no.
         o Document bandwidth spikiness, maybe make configurable.
         o Don't report empty directories as having a "blank line 1."

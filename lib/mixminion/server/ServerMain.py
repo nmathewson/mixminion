@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.122 2004/03/23 00:09:06 nickm Exp $
+# $Id: ServerMain.py,v 1.123 2004/03/23 00:35:07 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -725,7 +725,12 @@ class MixminionServer(_Scheduler):
         LOG.debug("Initializing directory client")
         self.dirClient = mixminion.ClientDirectory.ClientDirectory(
             os.path.join(config.getWorkDir(),"dir"))
-        self.dirClient.updateDirectory()
+        try:
+            self.dirClient.updateDirectory()
+        except mixminion.ClientDirectory.GotInvalidDirectoryError, e:
+            LOG.warn(str(e))
+            LOG.warn("   (I'll use the old one until I get one that's good.)")
+
         self.dirClient._installAsKeyIDResolver()
 
         publishedIP, publishedPort, publishedKeyID = self.keyring.getAddress()
@@ -826,12 +831,18 @@ class MixminionServer(_Scheduler):
 
     def updateDirectoryClient(self):
         def c(self=self):
-            self.dirClient.updateDirectory()
-            prng = mixminion.Crypto.getCommonPRNG()
-            nextUpdate = succeedingMidnight(time.time())
-            # Randomly retrieve the directory within an hour after midnight, to
-            # avoid hosing the server.
-            nextUpdate += prng.getInt(60)*60
+            try:
+                self.dirClient.updateDirectory()
+                nextUpdate = succeedingMidnight(time.time()+30)
+                prng = mixminion.Crypto.getCommonPRNG()
+                # Randomly retrieve the directory within an hour after
+                # midnight, to avoid hosing the server.
+                nextUpdate += prng.getInt(60)*60
+            except mixminion.ClientDirectory.GotInvalidDirectoryError, e:
+                LOG.warn(str(e))
+                LOG.warn("    I'll try again in an hour.")
+                nextUpdate = min(succeedingMidnight(time.time()+30),
+                                 time.time()+3600)
             self.scheduleOnce(nextUpdate, "UPDATE_DIR_CLIENT",
                               self.updateDirectoryClient)
         self.processingThread.addJob(c)
