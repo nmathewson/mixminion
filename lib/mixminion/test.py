@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.27 2002/09/10 14:45:31 nickm Exp $
+# $Id: test.py,v 1.28 2002/09/10 20:06:28 nickm Exp $
 
 """mixminion.tests
 
@@ -2521,12 +2521,19 @@ class ServerMainTests(unittest.TestCase):
 	pass
 
 #----------------------------------------------------------------------
+class ClientMainTests(unittest.TestCase):
+    def testClientKeystore(self):
+	pass
+
+#----------------------------------------------------------------------
 def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
+    suite.addTest(tc(ClientMainTests))
     suite.addTest(tc(ServerMainTests))
+
     if 0: return suite
 
     suite.addTest(tc(MiscTests))

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.15 2002/09/10 14:45:30 nickm Exp $
+# $Id: Config.py,v 1.16 2002/09/10 20:06:25 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -631,13 +631,25 @@ class ClientConfig(_ConfigFile):
         'User' : { 'UserDir' : ('ALLOW', None, "~/.mixminion" ) },
         'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
                        'SURBAddress' : ('ALLOW', None, None),
-                       'SURBPathLength' : ('ALLOW', _parseInt, "8") },
+                       'SURBPathLength' : ('ALLOW', _parseInt, "8"),
+		       'SURBLifetime' : ('ALLOW', _parseInterval, "7 days") },
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
 	_validateHostSection(sections.get('Host', {}))
+
+	security = sections.get('Security', {})
+	p = security.get('PathLength', 8)
+	if not 0 < p <= 16:
+	    raise ConfigError("Path length must be between 1 and 16")
+	if p < 4:
+	    getLog().warn("Your default path length is frighteningly low."
+			  "  I'll trust that you know what you're doing.")
+	
+	    
+	    
 
 SERVER_SYNTAX =  {
         'Host' : ClientConfig._syntax['Host'],

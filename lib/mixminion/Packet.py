@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.9 2002/09/10 14:45:30 nickm Exp $
+# $Id: Packet.py,v 1.10 2002/09/10 20:06:26 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -259,6 +259,7 @@ def parseReplyBlock(s):
 class ReplyBlock:
     """A mixminion reply block, including the address of the first hop
        on the path, and the RoutingType and RoutingInfo for the server."""
+    # XXXXX Not in sync with spec
     def __init__(self, header, useBy, rt, ri):
         """Construct a new Reply Block."""
         assert len(header) == HEADER_LEN

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.2 2002/09/10 14:45:30 nickm Exp $
+# $Id: ClientMain.py,v 1.3 2002/09/10 20:06:24 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -47,6 +47,7 @@ class DirectoryCache:
        FFFF doesn't matter so much right now.
        """
     def __init__(self, dirname):
+	dirname = os.path.join(dirname, 'servers')
 	createPrivateDir(dirname)
 	self.dirname = dirname
 	self.servers = None
@@ -78,16 +79,36 @@ class DirectoryCache:
 	    else:
 		self.servers[nickname] = info
 
-    def getCurrentServer(nickname, when=None):
+    def getCurrentServer(nickname, when=None, until=None):
+	if type(nickname) == ServerInfo:
+	    return nickname
 	if when is None:
 	    when = time.time()
-	for info in self.servers[nickname]:
+	if until is None:
+	    until = when+1
+	try:
+	    serverList = self.servers[nickname]
+	except KeyError, e:
+	    raise MixError("Nothing known about server %s"%nickname)
+	for info in serverList:
 	    #XXXX fail on DNE
 	    server = info['Server']
-	    if server['Valid-After'] <= now <= server['Valid-Until']:
+	    if server['Valid-After'] <= when <= until <= server['Valid-Until']:
 		return info
-	#XXXX fail on DNE
-	return None
+	raise MixError("No current information for server %s"%nickname)
+
+    def getAllCurrentServers(when=None, until=0):
+	if when is None:
+	    when = time.time()
+	if until is None:
+	    until = when+1
+	result = []
+	for nickname, infos in self.servers.items():
+	    for info in infos:
+		server = info['Server']
+		if server['Valid-After'] <= when <= until <= server['Valid-Until']:
+		    result.append(info)
+	return result
 
     def importServerInfo(self, fname, force=1):
 	self.load()
@@ -126,7 +147,192 @@ class DirectoryCache:
 	f.write(contents)
 	f.close()
 
+def installDefaultConfig(fname):
+    getLog().warn("No configuration file found. Installing default file in %s",
+		  fname)
+    f = open(os.path.expanduser(fname), 'w')
+    f.write("""\ 
+# This file contains your options for the mixminion client.
+[Host]
+## Use this option to specify a 'secure remove' command.
+#ShredCommand: rm -f
+## Use this option to specify a nonstandard entropy source.
+#EntropySource: /dev/urandom
 
+[DirectoryServers]
+# Not yet implemented
+
+[User]
+## By default, mixminion puts your files in ~/.mixminion.  You can override
+## this directory here.
+#UserDir: ~/.mixminion
+
+[Security]
+PathLength: 4
+
+## Not yet implemented:
+# SURBAddress: mbox:quux
+# SURBPathLength: 8
+
+""")
+    f.close()
+
+class MixminionClient:
+    def __init__(self, conf=None):
+	if conf is None:
+	    conf = os.environ.get("MINIONRC", None)
+	    if conf is None: 
+		conf = "~/.minionrc"
+		if not os.path.exists(conf):
+		    installDefaultConfig(conf)
+	conf = os.path.expanduser(conf)
+	self.config = mixminion.Config.ClientConfig(fname=conf)
+
+	getLog().configure(self.config)
+	getLog().debug("Configuring client")
+	mixminion.Common.configureShredCommand(self.config)
+	mixminion.Crypto.init_crypto(self.config)
+
+	# Make directories
+	userdir = self.config['User']['UserDir']
+	createPrivateDir(userdir)
+	createPrivateDir(os.path.join(userdir, 'surbs'))
+
+	# Get directory cache
+	self.dirCache = DirectoryCache(os.path.join(userdir, 
+						    'directory', 'servers'))
+	self.dirCache.load()
+
+	# Initialize PRNG
+	self.prng = mixminion.Crypto.AESCounterPRNG()
+
+    def getDirectoryCache(self):
+	return self.dirCache
+
+    def _getRandomPath(self, length=None):
+	# FFFF Base-list functionality
+	if not length:
+	    length = self.config['Security'].get('PathLength',8)
+
+	# XXXX We only pick servers that will be good for 24 hours.  That's
+	# XXXX bad!  It allows a delaying/partitioning attack.
+	servers = self.dirCache.getAllCurrentServers(when=time.time(),
+					     until=time.time()+24*60*60)
+
+	if length > len(servers):
+	    getLog().warn("I only know about %s servers; That's not enough to use distinct servers on your path.", len(servers))
+	    result = []
+	    while len(result) < length:
+		result.extend(prng.shuffle(servers))
+	    return result[:length]
+	else:
+	    return self.prng.shuffle(servers, length)
+
+    def _getPath(self, minLength, startAt, endAt, serverList=None):
+	if serverList is not None:
+	    if len(serverList) < minLength:
+		raise MixError("Path must have at least %s hops", minLength)
+	    
+	    serverList = [ self.dirCache.getCurrentServer(s,startAt,endAt) 
+			            for s in serverList ]
+	else:
+	    serverList = self._getRandomPath()
+	
+	if len(serverList) < minLength:
+	    serverList += self._getRandomPath(minLength-len(serverList))
+	    
+	return serverList
+
+    def sendForwardMessage(self, routingType, routingInfo, payload, 
+			   serverList=None):
+	message, firstHop = self.generateForwardMessage(address,
+							payload,
+							serverList)
+	self.sendMessages([message], firstHop)
+
+    def sendReplyMessage(self, payload, replyBlock, serverList=None):
+	message, firstHop = self.generateReplyMessage(payload, 
+						      replyBlock,
+						      serverList)
+	self.sendMessages([message], firstHop)
+
+    def generateForwardMessage(self, address, payload, serverList=None):
+	serverList = self._getPath(2, 
+				   #XXXX This is bogus; see above
+				   time.time(), time.time()+24*60*60,
+				   serverList)
+	    
+	firstPathlen = floorDiv(len(serverList), 2)
+	servers1,servers2 = serverList[:firstPathLen],serverList[firstPathLen:]
+	
+	routingType, routingInfo, lastHop = address.getRouting()
+	if lastHop != None:
+	    servers2.append(self.dirCache.getCurrentServer(lastHop))
+	msg = mixminion.BuildMessage.buildForwardMessage(payload,
+							 routingType, 
+							 routingInfo,
+							 servers1, servers2)
+	return msg, servers1[0]
+
+    def generateReplyBlock(self, address, startAt=None, endAt=None,
+			   password=None, serverList=None):
+	if startAt is None:
+	    startAt = time.time()
+	if endAt is None:
+	    lifetime = self.config['Security'].get('SURBLifetime')
+	    if lifetime:
+		endAt = startAt + lifetime[2]
+	    else:
+		endAt = startAt + 24*60*60*7
+	    
+	path  = self._getPath(2, 
+			      #XXXX This is bogus; see above
+			      startAt, endAt,
+			      serverList)
+
+	if password:
+	    # XXXX Out of sync with spec.
+	    raise MixFatalError("Not implemented")
+
+	handle = Crypto.getBytes(16)
+	rt, ri, lastHop = address.getRouting("RTRN"+handle)
+	if lastHop is not None:
+	    path.append(lastHop)
+	block, secrets = mixminion.BuildMesssage.buildReplyBlock(path, rt, ri,
+								 endAt,
+								 self.prng)
+
+	# XXXX Store secrets and expiry time
+	return block
+
+    def generateReplyMessage(self, payload, replyBlock, serverList=None):
+	# XXXX Not in sync with spec
+	path = self._getPath(1, time.time(), replyBlock.timestamp,
+			     serverList)
+
+	msg = mixminion.BuildMessage.buildReplyMessage(payload,
+						       path,
+						       replyBlock)
+	return msg, path[0]
+
+    def decodeReplyMessage(self, tag, payload):
+	pass
+
+    def sendMessages(self, msgList, server):
+	con = mixminion.MMTPClient.BlockingClientConnection(server.getAddr(),
+							    server.getPort(),
+							    server.getKeyID())
+	try:
+	    con.connect()
+	    for msg in msgList:
+		con.sendPacket(msg)
+	finally:
+	    con.shutdown()
+
+class Address:
+    def getRouting(self, tag=None):
+	# Return rt, ri, lasthop
+	raise NotImplemented("Address.getRouting()")
 
 def sendTestMessage(servers1, servers2):
     assert len(servers1)
