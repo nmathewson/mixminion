@@ -761,7 +761,7 @@ class ClientDirectory:
         for e in p:
             fixed = e.getFixedServer(self, startAt, endAt)
             if prevFixed and fixed and not prevFixed.canRelayTo(fixed):
-                raise UIError("Server %s can't relay to %s",
+                raise UIError("Server %s can't relay to %s" %
                               prevFixed.getNickname(), fixed.getNickname())
             prevFixed = fixed
 
@@ -770,15 +770,15 @@ class ClientDirectory:
         if lh is not None:
             lh_s = self.getServerInfo(lh, startAt, endAt)
             if lh_s is None:
-                raise UIError("No known server descriptor named %s",lh)
+                raise UIError("No known server descriptor named %s" % lh)
             if fs and not fs.canRelayTo(lh_s):
-                raise UIError("Server %s can't relay to %s",
-                              fs.getNickname(), lh)
+                raise UIError("Server %s can't relay to %s" %(
+                              fs.getNickname(), lh))
             fs = lh_s
         if fs is not None:
             exitAddress.checkSupportedByServer(fs)
         elif exitAddress.isServerRelative():
-            raise UIError("%s exit type expects a fixed exit server.",
+            raise UIError("%s exit type expects a fixed exit server." %
                           exitAddress.getPrettyExitType())
 
         # Check for unrecommended servers
@@ -1052,7 +1052,7 @@ class ExitAddress:
             sware = desc['Server'].get("Software","")
             if (sware.startswith("Mixminion 0.0.4") or
                 sware.startswith("Mixminion 0.0.5alpha1")):
-                raise UIError("Server %s is running old software that doesn't support exit headers.", nickname)
+                raise UIError("Server %s is running old software that doesn't support exit headers."% nickname)
 
         exitKB = ceilDiv(self.exitSize, 1024)
 
@@ -1240,7 +1240,7 @@ class DescriptorPathElement(PathElement):
         self.desc = desc
     def validate(self, directory, start, end):
         if not self.desc.isValidFrom(start, end):
-            raise UIError("Server %r is not valid during given time range",
+            raise UIError("Server %r is not valid during given time range" %
                            self.desc.getNickname())
     def getFixedServer(self, directory, start, end):
         return self.desc
