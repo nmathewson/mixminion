@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.27 2003/01/09 06:28:58 nickm Exp $
+# $Id: ServerMain.py,v 1.28 2003/01/09 06:53:22 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -238,7 +238,7 @@ class CleaningThread(threading.Thread):
             self.deleteFile(f)
 
     def shutdown(self):
-        LOG.info("Telling cleanup thread to shut down") #????info
+        LOG.info("Telling cleanup thread to shut down.")
         self._queue.put(None)
 
     def run(self):
@@ -326,9 +326,6 @@ class MixminionServer:
         """Create a new server from a ServerConfig."""
         LOG.debug("Initializing server")
 
-        installSIGCHLDHandler()
-        installSignalHandlers()
-        
         self.config = config
         homeDir = config['Server']['Homedir']
         createPrivateDir(homeDir)
@@ -395,6 +392,7 @@ class MixminionServer:
         self.outgoingQueue.connectQueues(server=self.mmtpServer)
         self.mmtpServer.connectQueues(incoming=self.incomingQueue,
                                       outgoing=self.outgoingQueue)
+
 
         self.cleaningThread = CleaningThread()
         self.cleaningThread.start()
@@ -620,10 +618,6 @@ def runServer(cmd, args):
     try:
         mixminion.Common.LOG.configure(config)
         LOG.debug("Configuring server")
-        mixminion.Common.configureShredCommand(config)
-        mixminion.Crypto.init_crypto(config)
-
-        server = MixminionServer(config)
     except:
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
@@ -640,6 +634,20 @@ def runServer(cmd, args):
                           "Exception while starting server in the background")
             os._exit(0)
 
+    installSIGCHLDHandler()
+    installSignalHandlers()
+
+    try:
+        mixminion.Common.configureShredCommand(config)
+        mixminion.Crypto.init_crypto(config)
+
+        server = MixminionServer(config)
+    except:
+        info = sys.exc_info()
+        LOG.fatal_exc(info,"Exception while configuring server")
+        print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
+        sys.exit(1)            
+            
     LOG.info("Starting server")
     try:
         server.run()
