@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.6 2002/06/27 23:32:24 arma Exp $
+# $Id: HashLog.py,v 1.7 2002/07/01 18:03:05 nickm Exp $
 
 """mixminion.HashLog
 
@@ -19,9 +19,14 @@ class HashLog:
        Each HashLog corresponds to a single public key (whose hash is the
        log's keyid).  A HashLog must persist for as long as the key does.
 
-       It is not necessary to sync the HashLog to the disk every time a new
-       message is seen; rather, the HashLog must be synced before any messages
-       are sent to the network.
+       It is not necessary to sync the HashLog to the disk every time
+       a new message is seen; instead, we must only ensure that every
+       _retransmitted_ message is first inserted into the hashlog and
+       synced.  (One way to implement this is to process messages from
+       'state A' into 'state B', marking them in the hashlog as we go,
+       and syncing the hashlog before any message is sent from 'B' to
+       the network.  On a restart, we reinsert all messages waiting in 'B'
+       into the log.)
 
        HashLogs are implemented using Python's anydbm interface.  This defaults
        to using Berkeley DB, GDBM, or --if you have none of these-- a flat

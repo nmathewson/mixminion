@@ -1,11 +1,19 @@
 /* Copyright 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.3 2002/06/24 20:28:19 nickm Exp $ */
+/* $Id: main.c,v 1.4 2002/07/01 18:03:05 nickm Exp $ */
+
+/*
+  If you're not familiar with writing Python extensions, you should
+  read "Extending and Embedding the Python Interpreter" at
+  "http://www.python.org/doc/current/ext/ext.html".
+*/
+
 #include <_minionlib.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/rsa.h>
 
+/* Macros to declare function tables for Python. */
 #define ENTRY_ND(fn) { #fn, (PyCFunction)mm_##fn, METH_VARARGS|METH_KEYWORDS,\
                        0}
 #define ENTRY(fn) { #fn, (PyCFunction)mm_##fn, METH_VARARGS|METH_KEYWORDS, \
@@ -27,7 +35,16 @@ static struct PyMethodDef _mixcryptlib_functions[] = {
 	{ NULL, NULL }
 };
 
-/* return 1 on failure. */
+/* Helper method to create an exception object and register it in a
+   module's dictionary.
+
+   module_dict: A PyDictObject* for the module's namespace.
+   exception: Set to point to a pointer to the newly allocated exception.
+   longName: The fully qualified name of this exception.
+   itemString: The name of this exception within the module.
+   doc: The doctring for this exception.
+
+   returns 1 on failure; 0 on success */
 static int
 exc(PyObject *module_dict, PyObject **exception, char *longName, 
     char *itemString, char *doc)
@@ -52,13 +69,15 @@ exc(PyObject *module_dict, PyObject **exception, char *longName,
 	return 0;
 }
 
+/* Required by Python: magic method to tell the Python runtime about our
+ * new module and its contents.  Also initializes OpenSSL as needed.
+ */
 DL_EXPORT(void)
 init_minionlib(void)
 {
 	PyObject *m, *d;
 	m = Py_InitModule("_minionlib", _mixcryptlib_functions);
 	d = PyModule_GetDict(m);
-
 
 	SSL_library_init();
 	SSL_load_error_strings();
@@ -85,14 +104,14 @@ init_minionlib(void)
 		return;
 
 	Py_INCREF(&mm_TLSContext_Type);
-	if (PyDict_SetItemString(d, "TLSContext", (PyObject*)&mm_TLSContext_Type) < 0)
+	if (PyDict_SetItemString(d, "TLSContext", 
+				 (PyObject*)&mm_TLSContext_Type) < 0)
 		return;
 
 	Py_INCREF(&mm_TLSSock_Type);
-	if (PyDict_SetItemString(d, "TLSSock", (PyObject*)&mm_TLSSock_Type) < 0)
+	if (PyDict_SetItemString(d, "TLSSock", 
+				 (PyObject*)&mm_TLSSock_Type) < 0)
 		return;
-
-
 }
 
 /*

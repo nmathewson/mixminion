@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.8 2002/06/27 23:32:24 arma Exp $
+# $Id: BuildMessage.py,v 1.9 2002/07/01 18:03:05 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -32,8 +32,8 @@ def buildReplyMessage(payload, path1, replyBlock):
                          path1=path1, path2=replyBlock)
 
 def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None):
-    """Return a newly-constructed reply block and a list of secrets used
-       to make it.
+    """Return a 2-tuple containing (1) a newly-constructed reply block and (2)
+       a list of secrets used to make it.
        
               path: A list of ServerInfo
               exitType: Routing type to use for the final node
@@ -235,7 +235,8 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
         # Create a subheader object for this node, but don't fill in the
         # digest until we've constructed the rest of the header.
         subhead = Subheader(MAJOR_NO, MINOR_NO,
-                            secrets[i], " "*20,
+                            secrets[i],
+                            None, #placeholder for as-yet-uncalculated digest
                             rt, ri)
 
         extHeaders = "".join(subhead.getExtraBlocks())

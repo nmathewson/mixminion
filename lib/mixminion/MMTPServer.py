@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.3 2002/06/27 23:32:24 arma Exp $
+# $Id: MMTPServer.py,v 1.4 2002/07/01 18:03:05 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -10,8 +10,20 @@
    If you just want to send messages into the system, use MMTPClient.
 
    XXXX As yet unsupported are: Session resumption, key renegotiation,
-   XXXX checking KeyID."""
+   XXXX checking KeyID.
 
+   XXXX: Also unsupported: timeouts."""
+
+# NOTE FOR THE CURIOUS: The 'asyncore' module in the standard library
+#    is another general select/poll wrapper... so why are we using our
+#    own?  Basically, because asyncore has IMO a couple of misdesigns,
+#    the largest of which is that it has the 'server loop' periodically
+#    query the connections for their status, whereas we have the
+#    connections inform the server of their status whenever they
+#    change.  This latter approach turns out to be far easier to use
+#    with TLS.
+
+import errno
 import socket
 import select
 import re
@@ -35,7 +47,7 @@ class AsyncServer:
        Connection objects that are waiting for reads and writes
        (respectively), and waits for their underlying sockets to be
        available for the desired operations.
-       """       
+       """
     def __init__(self):
         """Create a new AsyncServer with no readers or writers."""
         self.writers = {}
@@ -45,14 +57,24 @@ class AsyncServer:
         """If any relevant file descriptors become available within
            'timeout' seconds, call the appropriate methods on their
            connections and return immediately after. Otherwise, wait
-           'timeout' seconds and return."""
+           'timeout' seconds and return.
+
+           If we receive an unblocked signal, return immediately.
+           """
 
         debug("%s readers, %s writers" % (len(self.readers),
                                           len(self.writers)))
         
         readfds = self.readers.keys()
         writefds = self.writers.keys()
-        readfds, writefds, exfds = select.select(readfds, writefds,[], timeout)
+        try:
+            readfds,writefds,exfds = select.select(readfds,writefds,[],timeout)
+        except select.error, e:
+            if e[0] == errno.EINTR:
+                return
+            else:
+                raise e
+        
         for fd in readfds:
             debug("Got a read on "+str(fd))
             self.readers[fd].handleRead()
@@ -126,7 +148,7 @@ class ListenConnection(Connection):
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setblocking(0)
-        self.sock.setsockopt(0, socket.SO_REUSEADDR, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.ip, self.port))
         self.sock.listen(backlog)
         # FFFF LOG
@@ -175,8 +197,6 @@ class SimpleTLSConnection(Connection):
     #    __inbuflen: The total length of all the strings in __inbuf
     #    __expectReadLen: None, or the number of bytes to read before
     #           the current read succeeds.
-    #    __maxReadLen: None, or a number of bytes above which the current
-    #           read must fail.
     #    __terminator: None, or a string which will terminate the current read.
     #    __outbuf: None, or the remainder of the string we're currently
     #           writing.
@@ -208,24 +228,20 @@ class SimpleTLSConnection(Connection):
             assert self.__state == self.__connectFn
             server.registerWriter(self)
         
-    def expectRead(self, bytes=None, bytesMax=None, terminator=None):
+    def expectRead(self, bytes=None, terminator=None):
         """Begin reading from the underlying TLS connection.
 
            After the read is finished, this object's finished method
            is invoked.  A call to 'getInput' will retrieve the contents
            of the input buffer since the last call to 'expectRead'.
 
-           bytes -- If provided, a number of bytes to read before
-                    exiting the read state.
-           bytesMax -- If provided, a maximal number of bytes to read
-                    before exiting the read state.
-           terminator -- If provided, a character sequence to read
-                    before exiting the read state.
+           If 'terminator' is not provided, we try to read exactly
+           'bytes' bytes.  If terminator is provided, we read until we
+           encounter the terminator, but give up after 'bytes' bytes.
         """
         self.__inbuf = []
         self.__inbuflen = 0
         self.__expectReadLen = bytes
-        self.__maxReadLen = bytesMax
         self.__terminator = terminator
 
         self.__state = self.__readFn
@@ -283,7 +299,7 @@ class SimpleTLSConnection(Connection):
         if self.__terminator and len(self.__inbuf) > 1:
             self.__inbuf = ["".join(self.__inbuf)]
 
-        if self.__maxReadLen and self.__inbuflen > self.__maxReadLen:
+        if self.__expectReadLen and self.__inbuflen > self.__expectReadLen:
             debug("Read got too much.")
             self.shutdown(err=1)
             return
@@ -293,7 +309,7 @@ class SimpleTLSConnection(Connection):
             self.__server.unregister(self)
             self.finished()
 
-        if self.__expectReadLen and (self.__inbuflen >= self.__expectReadLen):
+        if self.__expectReadLen and (self.__inbuflen == self.__expectReadLen):
             debug("read got enough.")
             self.__server.unregister(self)
             self.finished()
@@ -395,7 +411,7 @@ class MMTPServerConnection(SimpleTLSConnection):
            string.
         """
         self.finished = self.__receivedProtocol
-        self.expectRead(None, 1024, '\n')
+        self.expectRead(1024, '\n')
 
     def __receivedProtocol(self):
         """Called once we're done reading the protocol string.  Either
@@ -419,7 +435,7 @@ class MMTPServerConnection(SimpleTLSConnection):
         """
         debug("done w/ server sendproto")
         self.finished = self.__receivedMessage
-        self.expectRead(SEND_RECORD_LEN, SEND_RECORD_LEN)
+        self.expectRead(SEND_RECORD_LEN)
 
     def __receivedMessage(self):
         """Called once we've read a message from the line.  Checks the
@@ -444,7 +460,7 @@ class MMTPServerConnection(SimpleTLSConnection):
         debug("done w/ send ack")
         #XXXX Rehandshake
         self.finished = self.__receivedMessage
-        self.expectRead(SEND_RECORD_LEN, SEND_RECORD_LEN)
+        self.expectRead(SEND_RECORD_LEN)
 
 #----------------------------------------------------------------------
         
@@ -481,7 +497,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         """Called when we're done sending the protocol string.  Begins
            reading the server's response.
         """
-        self.expectRead(len(PROTOCOL_STRING), len(PROTOCOL_STRING))
+        self.expectRead(1024, '\n')
         self.finished = self.__receivedProtocol
 
     def __receivedProtocol(self):
@@ -517,7 +533,8 @@ class MMTPClientConnection(SimpleTLSConnection):
     def __receivedAck(self):
        """Called when we're done reading the ACK.  If the ACK is bad,
           closes the connection.  If the ACK is correct, removes the
-          just-sent message from the queue, and calls sentCallback.
+          just-sent message from the connection's internal queue, and
+          calls sentCallback.
 
           If there are more messages to send, begins sending the next.
           Otherwise, begins shutting down.

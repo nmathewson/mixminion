@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.4 2002/06/27 23:32:24 arma Exp $
+# $Id: PacketHandler.py,v 1.5 2002/07/01 18:03:05 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -27,17 +27,20 @@ class PacketHandler:
 
            A sequence of private keys may be provided, if you'd like the
            server to accept messages encrypted with any of them.  Beware,
-           though: this slows down the packet handler a lot.
+           though: PK decryption is expensive.  Also, a hashlog must be
+           provided for each private key.
         """
         # ???? Any way to support multiple keys in protocol?
         try:
             # Check whether we have a key or a tuple of keys.
             _ = privatekey[0]
+            assert len(hashlog) == len(privatekey)
+            
             self.privatekey = privatekey
+            self.hashlog = hashlog
         except:
             self.privatekey = (privatekey, )
-
-        self.hashlog = hashlog
+            self.hashlog = (hashlog, )
 
     def processMessage(self, msg):
         """Given a 32K mixminion message, processes it completely.
@@ -67,20 +70,24 @@ class PacketHandler:
         # order.  Only fail if all private keys fail.
         subh = None
         e = None
-        for pk in self.privatekey:
+        for pk, hashlog in zip(self.privatekey, self.hashlog):
             try:
                 subh = Crypto.pk_decrypt(header1[0], pk)
+                break
             except Crypto.CryptoError, err:
                 e = err
         if not subh:
+            # Nobody managed to get us the first subheader.  Raise the
+            # most-recently-received error.
             raise e
-        subh = Packet.parseSubheader(subh)
+
+        subh = Packet.parseSubheader(subh) #may raise ParseError
 
         # Check the version: can we read it?
         if subh.major != Packet.MAJOR_NO or subh.minor != Packet.MINOR_NO:
             raise ContentError("Invalid protocol version")
 
-        # Check the digest: is it correct?
+        # Check the digest of all of header1 but the first subheader.
         if subh.digest != Crypto.sha1(header1[1:]):
             raise ContentError("Invalid digest")
 
@@ -89,10 +96,10 @@ class PacketHandler:
 
         # Replay prevention
         replayhash = keys.get(Crypto.REPLAY_PREVENTION_MODE, 20)
-        if self.hashlog.seenHash(replayhash):
+        if hashlog.seenHash(replayhash):
             raise ContentError("Duplicate message detected.")
         else:
-            self.hashlog.logHash(replayhash)
+            hashlog.logHash(replayhash)
 
         # If we're meant to drop, drop now.
         rt = subh.routingtype
@@ -112,7 +119,7 @@ class PacketHandler:
                 # size can be longer than the number of bytes in the rest
                 # of the header.
                 raise ContentError("Impossibly long routing info length")
-                
+
             extra = Crypto.ctr_crypt(header1[1:1+nExtra], header_sec_key)
             subh.appendExtraBlocks(extra)
             remainingHeader = header1[1+nExtra:]

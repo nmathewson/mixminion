@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.4 2002/06/24 20:28:19 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.5 2002/07/01 18:03:05 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -11,9 +11,14 @@
 #error "Mixminion requires OpenSSL 0.9.7 (which might not have been released yet, but you can get snapshots from openssl.org)."
 #endif
 
+/* We provide our own implementation of counter mode; see aes_ctr.c
+ */
 void mm_aes_counter128(const char *in, char *out, unsigned int len, 
 		       AES_KEY *key, unsigned long count);
 
+/* Propagate an error from OpenSSL.  If 'crypto', it's a cryptography
+ * error.  Else, it's a TLS error.
+ */
 void mm_SSL_ERR(int crypto);
 
 extern PyTypeObject mm_RSA_Type;
@@ -26,9 +31,20 @@ typedef struct mm_RSA {
 extern PyTypeObject mm_TLSContext_Type;
 extern PyTypeObject mm_TLSSock_Type;
 
+/**
+ * Macros to declare function prototypes with the proper signatures for Python.
+ **/
 #define FUNC(fn) PyObject* fn(PyObject *self, PyObject *args, PyObject *kwdict)
 #define DOC(fn) extern const char fn##__doc__[]
 #define FUNC_DOC(fn) FUNC(fn); DOC(fn)
+
+
+/* Macro to declare entries for a method table.
+ */
+#define METHOD(obj, name) { #name, (PyCFunction)obj##_##name, \
+                        METH_VARARGS|METH_KEYWORDS,       \
+                        (char*)obj##_##name##__doc__ }
+
 
 /* Functions from crypt.c */
 FUNC_DOC(mm_sha1);

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.4 2002/06/27 23:32:24 arma Exp $
+# $Id: Packet.py,v 1.5 2002/07/01 18:03:05 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -259,6 +259,7 @@ class ReplyBlock:
        on the path, and the RoutingType and RoutingInfo for the server."""
     def __init__(self, header, useBy, rt, ri):
         """Construct a new Reply Block."""
+        assert len(header) == HEADER_LEN
         self.header = header
         self.timestamp = useBy
         self.routingType = rt

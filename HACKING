@@ -2,7 +2,7 @@ Hacking Mixminion
 
 Requirements:
 	Python 2.0-2.2  (see PORTING NOTES below)
-	OpenSSL 0.9.7 (you'll need to download a snapshot. Also see PORTING)
+	OpenSSL 0.9.7 (you'll need to download a snapshot. Also see PORTING.)
 	Working /dev/urandom (see PORTING NOTES below)
 
 Setting up:
@@ -17,8 +17,7 @@ Things to try:
 	make time
 
 Things to hack:
-	See the TODO list.  It would be really nice if somebody could
-	hack up as much of MMTP as possible in C.
+	See the TODO list.
 
 DESIGN PRINCIPALS:
     - It's not done till it's documented.
@@ -49,14 +48,15 @@ DESIGN PRINCIPALS:
        ------------------
 
 CODING STYLE:
-    - See PEP-0008.  I believe in most of it.
+    - See PEP-0008: "Style Guide For Python Code".  I believe in most of it.
+      (http://www.python.org/peps/pep-0008.html)
     - Also see PEP-0257 for documentation; we're not there yet, but it's
-      happening.
+      happening. (http://www.python.org/peps/pep-0257.html)
     - The magic string "XXXX" indicates a defect in the code. "FFFF" indicates
       a missing feature, and "????" indicates an untested or iffy block.
 
 PORTABILITY NOTES:
-    - I've already backported to 2.0.  (I refuse to backport to 1.5 or
+    - I've already backported to Python 2.0.  (I refuse to backport to 1.5 or
       1.6.)
     - Right now, we're dependant on OpenSSL. OpenSSL's license has an
       old-style BSD license that isn't compatible with the GPL.  We

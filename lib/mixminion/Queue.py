@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.2 2002/06/25 11:41:08 nickm Exp $
+# $Id: Queue.py,v 1.3 2002/07/01 18:03:05 nickm Exp $
 
 """mixminion.Queue
 
@@ -26,6 +26,10 @@ _NEW_MESSAGE_MODE += getattr(os, 'O_BINARY', 0)
 # trash.
 INPUT_TIMEOUT = 600
 
+# If we've been cleaning for more than CLEAN_TIMEOUT seconds, assume the 
+# old clean is dead.
+CLEAN_TIMEOUT = 60
+
 class Queue:
     """A Queue is an unordered collection of files with secure remove and
        move operations.
@@ -37,9 +41,18 @@ class Queue:
              rmv_HANDLE   (A message waiting to be deleted)
              msg_HANDLE  (A message waiting in the queue.
              inp_HANDLE  (An incomplete message being created.)
-       (Where HANDLE is a randomly chosen 8-character selection from the
+       (Where HANDLE is a randomly chosen 12-character selection from the
        characters 'A-Za-z0-9+-'.  [Collision probability is negligable.])
        """
+       # How negligible?  A back-of-the-envelope approximation: The chance
+       # of a collision reaches .1% when you have 3e9 messages in a single
+       # queue.  If Alice somehow manages to accumulate a 96 gigabyte
+       # backlog, we'll have bigger problems than name collision... such
+       # as the fact that most Unices behave badly when confronted with
+       # 3 billion files in the same directory... or the fact that,
+       # at today's processor speeds, it will take Alice 3 or 4
+       # CPU-years to clear her backlog. 
+
     # Fields:   rng--a random number generator for creating new messages
     #                and getting a random slice of the queue.
     #           dir--the location of the queue.
@@ -63,7 +76,7 @@ class Queue:
                 os.mkdir(location, 0700)
             else:
                 raise MixFatalError("No directory for queue %s" % location)
-
+ 
         # Check permissions
         mode = os.stat(location)[stat.ST_MODE]
         if mode & 0077:
@@ -118,7 +131,6 @@ class Queue:
     def removeMessage(self, handle):
         """Given a handle, removes the corresponding message from the queue."""
         self.__changeState(handle, "msg", "rmv")
-        secureDelete(os.path.join(self.dir, "rmv_"+handle))
 
     def removeAll(self):
         """Removes all messages from this queue."""
@@ -126,8 +138,10 @@ class Queue:
         for m in os.listdir(self.dir):
             if m[:4] in ('inp_', 'msg_'):
                 self.__changeState(m[4:], m[:3], "rmv")
-                removed.append(os.path.join(self.dir, "rmv_"+m[4:]))
-        secureDelete(removed)
+                #removed.append(os.path.join(self.dir, "rmv_"+m[4:]))
+        #    elif m[:4] == 'rmv_':
+        #        removed.append(self.dir)
+        self.cleanQueue()
 
     def moveMessage(self, handle, queue):
         """Given a handle and a queue, moves the corresponding message from
@@ -172,23 +186,42 @@ class Queue:
            rejects the corresponding message."""
         f.close()
         self.__changeState(handle, "inp", "rmv")
-        secureDelete(os.path.join(self.dir, "rmv_"+handle))
 
-    def cleanQueue(self, initial=0):
-        """Removes all timed-out or trash messages from the queue.  If
-           'initial', assumes we're starting up and nobody's already removing
-           messages.  Else, assumes halfway-removed messages are garbage."""
+    def cleanQueue(self):
+        """Removes all timed-out or trash messages from the queue.
+
+           Returns 1 if a clean is already in progress; otherwise
+           returns 0.
+        """
+        now = time.time() 
+        cleanFile = os.path.join(self.dir,".cleaning")
+        try:
+            s = os.stat(cleanFile)
+            if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
+                cleaning = 0
+            cleaning = 1    
+        except OSError:
+            cleaning = 0
+
+        if cleaning:
+            return 1
+
+        f = open(cleanFile, 'w')
+        f.write(str(now))
+        f.close()
+        
         rmv = []
         allowedTime = int(time.time()) - INPUT_TIMEOUT
         for m in os.listdir(self.dir):
-            if initial and m.startswith("rmv_"):
+            if m.startswith("rmv_"):
                 rmv.append(os.path.join(self.dir, m))
             elif m.startswith("inp_"):
                 s = os.stat(m)
                 if s[stat.ST_MTIME] < allowedTime:
                     self.__changeState(m[4:], "inp", "rmv")
                     rmv.append(os.path.join(self.dir, m))
-        secureDelete(rmv)
+        _secureDelete_bg(rmv, cleanFile)
+        return 0
 
     def __changeState(self, handle, s1, s2):
         """Helper method: changes the state of message 'handle' from 's1'
@@ -198,5 +231,16 @@ class Queue:
 
     def __newHandle(self):
         """Helper method: creates a new random handle."""
-        junk = self.rng.getBytes(6)
+        junk = self.rng.getBytes(9)
         return base64.encodestring(junk).strip().replace("/","-")
+
+def _secureDelete_bg(files, cleanFile):
+    if os.fork() != 0:
+        return
+    # Now we're in the child process.
+    secureDelete(files, blocking=1)
+    try:
+        os.unlink(cleanFile)
+    except OSError:
+        pass
+    os._exit(0)

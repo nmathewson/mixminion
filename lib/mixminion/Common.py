@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.5 2002/06/25 11:41:08 nickm Exp $
+# $Id: Common.py,v 1.6 2002/07/01 18:03:05 nickm Exp $
 
 """mixminion.Common
 
@@ -55,19 +55,31 @@ def ceilDiv(a,b):
 # FFFF This needs to be made portable.
 _SHRED_CMD = "/usr/bin/shred"
 
+if not os.path.exists(_SHRED_CMD):
+    # XXXX use real logging
+    log("Warning: %s not found. Files will not be securely deleted." %
+        _SHRED_CMD)
+    _SHRED_CMD = None
+
 def secureDelete(fnames, blocking=0):
     """Given a list of filenames, removes the contents of all of those
        files, from the disk, 'securely'.  If blocking=1, does not
        return until the remove is complete.  If blocking=0, returns
        immediately, and returns the PID of the process removing the
        files.  (Returns None if this process unlinked the files
-       itself) XXXX Clarify this.
+       itself.) XXXX Clarify this.
 
        XXXX Securely deleting files only does so much good.  Metadata on
        XXXX the file system, such as atime and dtime, can still be used
        XXXX to reconstruct information about message timings.  To be
        XXXX really safe, we should use a loopback device and shred _that_
        XXXX from time to time.
+
+       XXXX Currently, we use shred from GNU fileutils.  Shred's 'unlink'
+       XXXX operation has the regrettable property that two shred commands
+       XXXX running in the same directory can sometimes get into a race.
+       XXXX The source to shred.c seems to imply that this is harmless, but
+       XXXX let's try to avoid that, to be on the safe side. 
     """
     if isinstance(fnames, StringType):
         fnames = [fnames]
@@ -116,10 +128,9 @@ def waitForChildren():
     while 1:
         try:
             # FFFF This won't work on Windows.  What to do?
-            pid, status = os.waitpid(-1, 0)
-        except:
+            pid, status = os.waitpid(0, 0)
+        except OSError, e:
             break
-
 
 def _sigChldHandler(signal_num, _):
     '''(Signal handler for SIGCHLD)'''
@@ -130,7 +141,7 @@ def _sigChldHandler(signal_num, _):
     while 1:
         try:
             # This waitpid call won't work on Windows.  What to do?
-            pid, status = os.waitpid(-1, os.WNOHANG)
+            pid, status = os.waitpid(0, os.WNOHANG)
             if pid == 0:
                 break
         except OSError:

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.2 2002/06/25 11:41:08 nickm Exp $ */
+/* $Id: tls.c,v 1.3 2002/07/01 18:03:05 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -20,7 +20,12 @@ char mm_TLSWantWrite__doc__[] =
 "Exception raised when a non-blocking TLS operation would block on writing.\n";
 PyObject *mm_TLSWantWrite = NULL;
 
+/* Convenience macro to set a type error with a given string. */
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)
+
+/* Convenience macro to set an error and quit if a 0-argument function
+   was called with arguments.  (We can't just use 'METH_NOARGS', since
+   that wasn't available in Python 2.0.) */
 #define FAIL_IF_ARGS() if (PyTuple_Size(args)) { \
                            TYPE_ERR("No arguments expected"); \
                            return NULL; \
@@ -54,6 +59,9 @@ tls_error(SSL *ssl, int r, int zeroReturnIsError)
 		  PyErr_SetNone(mm_TLSWantWrite);
 		  return ERROR;
  	  case SSL_ERROR_SYSCALL:
+		  /* ???? We may want to act differently here; this is
+		   * ???? (almost?) always an unexpected close. 
+		   */
  	  default:
 		  mm_SSL_ERR(0);
 		  return ERROR;
@@ -201,12 +209,8 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 	return (PyObject*)ret;
 }
 
-#define METHOD(name) { #name, (PyCFunction)mm_TLSContext_##name, \
-                        METH_VARARGS|METH_KEYWORDS,       \
-                        (char*)mm_TLSContext_##name##__doc__ }
-
 static PyMethodDef mm_TLSContext_methods[] = {
-	METHOD(sock),
+	METHOD(mm_TLSContext, sock),
 	{ NULL, NULL }
 };
  
@@ -495,20 +499,15 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 	return (PyObject*) result;
 }
 
-#undef METHOD
-#define METHOD(name) { #name, (PyCFunction)mm_TLSSock_##name, \
-                        METH_VARARGS|METH_KEYWORDS,       \
-                        (char*)mm_TLSSock_##name##__doc__ }
-
 static PyMethodDef mm_TLSSock_methods[] = {
-	METHOD(accept),
-	METHOD(connect),
-	METHOD(pending),
-	METHOD(read),
-	METHOD(write),
-	METHOD(shutdown),
-	METHOD(get_peer_cert_pk),
-	METHOD(fileno),
+	METHOD(mm_TLSSock, accept),
+	METHOD(mm_TLSSock, connect),
+	METHOD(mm_TLSSock, pending),
+	METHOD(mm_TLSSock, read),
+	METHOD(mm_TLSSock, write),
+	METHOD(mm_TLSSock, shutdown),
+	METHOD(mm_TLSSock, get_peer_cert_pk),
+	METHOD(mm_TLSSock, fileno),
 	{ NULL, NULL }
 };
  

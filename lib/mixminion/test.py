@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.8 2002/06/25 11:41:08 nickm Exp $
+# $Id: test.py,v 1.9 2002/07/01 18:03:05 nickm Exp $
 
 """mixminion.tests
 
@@ -17,6 +17,7 @@ import os
 import sys
 import threading
 import time
+import atexit
 
 from mixminion.Common import MixError, MixFatalError
 
@@ -936,7 +937,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.sp1 = PacketHandler(self.pk1, h)
         self.sp2 = PacketHandler(self.pk2, h)
         self.sp3 = PacketHandler(self.pk3, h)
-        self.sp2_3 = PacketHandler((self.pk2,self.pk3), h)
+        self.sp2_3 = PacketHandler((self.pk2,self.pk3), (h,h))
 
     def tearDown(self):
         self.hlog.close()
@@ -1140,7 +1141,16 @@ import stat
 from mixminion.Common import waitForChildren
 from mixminion.Queue import Queue
 
-already = 0
+def removeTempDirs(*dirs):
+    print "Removing temporary dirs"
+    waitForChildren()
+    for d in dirs:
+        if os.path.isdir(d):
+            for fn in os.listdir(d):
+                os.unlink(os.path.join(d,fn))
+            os.rmdir(d)
+        elif os.path.exists(d):
+            os.unlink(d)
 
 class QueueTests(unittest.TestCase):
     def setUp(self):
@@ -1148,19 +1158,9 @@ class QueueTests(unittest.TestCase):
         mixminion.Common.installSignalHandlers(child=1,hup=0,term=0)
         self.d1 = tempfile.mktemp("q1")
         self.d2 = tempfile.mktemp("q2")
+        self.d3 = tempfile.mktemp("q3")
+        atexit.register(removeTempDirs, self.d1, self.d2, self.d3)
         
-    def tearDown(self):
-        # First, wait until all the removes have finished.
-        waitForChildren()
-        
-        for d in (self.d1, self.d2):
-            if os.path.isdir(d):
-                for fn in os.listdir(d):
-                    os.unlink(os.path.join(d,fn))
-                os.rmdir(d)
-            elif os.path.exists(d):
-                os.unlink(d)
-
     def testCreateQueue(self):
         # Nonexistant dir.
         self.failUnlessRaises(MixFatalError, Queue, self.d1)
@@ -1196,8 +1196,8 @@ class QueueTests(unittest.TestCase):
 
     def testQueueOps(self):
         #XXXX COMMENT ME
-        queue1 = Queue(self.d1, create=1)
-        queue2 = Queue(self.d2, create=1)
+        queue1 = Queue(self.d2, create=1)
+        queue2 = Queue(self.d3, create=1)
 
         handles = [queue1.queueMessage("Sample message %s" % i) 
                    for i in range(100)]
@@ -1214,11 +1214,12 @@ class QueueTests(unittest.TestCase):
             self.assertEquals("Sample message %s" %i,
                               queue1.messageContents(h))
 
-        assert len(hdict) == len(handles) == 100     
+        assert len(hdict) == len(handles) == 100
 
         q2h = []
         for h in handles[:30]:
-            q2h.append(queue1.moveMessage(h, queue2))
+            nh = queue1.moveMessage(h, queue2)
+            q2h.append(nh)
 
         from string import atoi
         seen = {}
@@ -1228,6 +1229,7 @@ class QueueTests(unittest.TestCase):
             i = atoi(c[15:])
             self.failIf(seen.has_key(i))
             seen[i]=1
+
         for i in range(30):
             self.failUnless(seen.has_key(i))
 
@@ -1259,10 +1261,13 @@ class QueueTests(unittest.TestCase):
         queue1.abortMessage(f,h)
         self.failUnlessRaises(IOError, queue1.messageContents, h)
         self.assertEquals(queue1.count(), 41)
-        self.assert_(not os.path.exists(os.path.join(self.d1, "msg_"+h)))
+        self.assert_(not os.path.exists(os.path.join(self.d2, "msg_"+h)))
 
         queue1.removeAll()
         queue2.removeAll()
+
+        queue1.cleanQueue()    
+        queue2.cleanQueue()
 
 #----------------------------------------------------------------------
 # SIGHANDLERS
@@ -1303,8 +1308,32 @@ def _getMMTPServer():
         return server, listener, messagesIn
 
 class MMTPTests(unittest.TestCase):
+
+    def doTest(self, fn):
+        self.listener = self.server = None
+        try:
+            fn()
+        finally:
+            if self.listener is not None:
+                self.listener.shutdown()
+            if self.server is not None:
+                count = 0
+                while count < 100 and (self.server.readers or
+                                       self.server.writers):
+                    self.server.process(0.1)
+                    count = count + 1
+
     def testBlockingTransmission(self):
-        server, listener, messagesIn = _getMMTPServer() 
+        self.doTest(self._testBlockingTransmission)
+
+    def testNonblockingTransmission(self):
+        self.doTest(self._testNonblockingTransmission)
+    
+    def _testBlockingTransmission(self):
+        server, listener, messagesIn = _getMMTPServer()
+        self.listener = listener
+        self.server = server
+        
         messages = ["helloxxx"*4096, "helloyyy"*4096]
 
         server.process(0.1)
@@ -1315,13 +1344,16 @@ class MMTPTests(unittest.TestCase):
         while len(messagesIn) < 2:
             server.process(0.1)
         t.join()
+
+        for i in xrange(10):
+            server.process(0.1)
+
         self.failUnless(messagesIn == messages)
-        # Shutdown properly on failure. XXXX
-        listener.shutdown()
-        server.process(0.1)
-            
-    def testNonblockingTransmission(self):
-        server, listener, messagesIn = _getMMTPServer() 
+
+    def _testNonblockingTransmission(self):
+        server, listener, messagesIn = _getMMTPServer()
+        self.listener = listener
+        self.server = server
 
         messages = ["helloxxx"*4096, "helloyyy"*4096]
         async = mixminion.MMTPServer.AsyncServer()
@@ -1344,9 +1376,6 @@ class MMTPTests(unittest.TestCase):
 
         self.assertEquals(len(messagesIn), len(messages))
         self.failUnless(messagesIn == messages)
-        # Shutdown properly on failure. XXXX
-        listener.shutdown()
-        server.process(0.1)
         
 #----------------------------------------------------------------------
 

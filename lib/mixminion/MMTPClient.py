@@ -1,18 +1,22 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.2 2002/06/25 11:41:08 nickm Exp $
+# $Id: MMTPClient.py,v 1.3 2002/07/01 18:03:05 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
    side of the Mixminion Transfer protocol.  You can use this client to 
    upload messages to any conforming Mixminion server.
 
-   XXXX (We don't want to use this module for tranferring packets
-   XXXX between servers; once we have async IO working in MMTPServer, we'll
-   XXXX use that.)
+   (We don't use this module for tranferring packets between servers;
+   in fact, MMTPServer makes it redundant.  We only keep this module
+   around [A] so that clients have an easy (blocking) interface to
+   introduce messages into the system, and [B] so that we've got an
+   easy-to-verify reference implementation of the protocol.)
 
    XXXX We don't yet check for the correct keyid.
 
-   XXXX: As yet unsupported are: Session resumption and key renegotiation."""
+   XXXX: As yet unsupported are: Session resumption and key renegotiation.
+
+   XXXX: Also unsupported: timeouts."""
 
 import socket
 import mixminion._minionlib as _ml
@@ -44,7 +48,7 @@ class BlockingClientConnection:
         
         ####
         # Protocol negotiation
-
+        # For now, we only support 1.0
         self.tls.write("PROTOCOL 1.0\n")
         inp = self.tls.read(len("PROTOCOL 1.0\n"))
         if inp != "PROTOCOL 1.0\n":

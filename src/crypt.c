@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.5 2002/06/24 20:28:19 nickm Exp $ */
+/* $Id: crypt.c,v 1.6 2002/07/01 18:03:05 nickm Exp $ */
 #include <Python.h>
 
 #include <openssl/bn.h>
@@ -213,7 +213,6 @@ mm_strxor(PyObject *self, PyObject *args, PyObject *kwdict)
 		TYPE_ERR("Mismatch between argument lengths");
 		return NULL;
 	}
-
 	
 	if (!(output = PyString_FromStringAndSize(NULL,s1len))) { 
 		PyErr_NoMemory(); 
@@ -245,7 +244,6 @@ mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
 					 kwlist,
 					 &seed, &seedlen))
 		return NULL;
-
 	
 	RAND_seed(seed, seedlen);
 	Py_INCREF(Py_None);
@@ -289,10 +287,8 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 	int keylen, i;
 	char *out;
 	PyObject *output;
-	if (!mm_RSA_Check(self)) {
-		TYPE_ERR("Called RSA method with non-RSA object.");
-		return NULL;
-	}
+	assert(mm_RSA_Check(self));
+
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
 					 "s#ii:crypt", kwlist,
 					 &string, &stringlen, &pub, &encrypt))
@@ -376,10 +372,7 @@ mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	PyObject *output;
 	unsigned char *out, *outp;
 
-	if (!mm_RSA_Check(self)) {
-		TYPE_ERR("Called RSA method with non-RSA object.");
-		return NULL;
-	}
+	assert(mm_RSA_Check(self));
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
 					 "i:rsa_encode_key", kwlist, &public))
 		return NULL;
@@ -507,10 +500,7 @@ mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	PyObject *n, *e;
 	PyObject *output;
 
-	if (!mm_RSA_Check(self)) {
-		TYPE_ERR("Called RSA method with non-RSA object.");
-		return NULL;
-	}
+	assert(mm_RSA_Check(self));
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
 					 ":rsa_get_public_key", kwlist))
 		return NULL;
@@ -570,10 +560,7 @@ mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
 	static char *kwlist[] = { NULL };
 	RSA *rsa;
 
-	if (!mm_RSA_Check(self)) {
-		TYPE_ERR("Called RSA method with non-RSA object.");
-		return NULL;
-	}
+	assert(mm_RSA_Check(self));
 	rsa = ((mm_RSA*)self)->rsa;
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 ":get_modulus_bytes", kwlist))
@@ -582,16 +569,11 @@ mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
 	return PyInt_FromLong(BN_num_bytes(rsa->n));
 }
 
- 
-#define METHOD(name) { #name, (PyCFunction)mm_RSA_##name, \
-                        METH_VARARGS|METH_KEYWORDS,       \
-                        (char*)mm_RSA_##name##__doc__ }
-
 static PyMethodDef mm_RSA_methods[] = {
-	METHOD(crypt),
-	METHOD(encode_key),
-	METHOD(get_modulus_bytes),
-	METHOD(get_public_key),
+	METHOD(mm_RSA, crypt),
+	METHOD(mm_RSA, encode_key),
+	METHOD(mm_RSA, get_modulus_bytes),
+	METHOD(mm_RSA, get_public_key),
 	{ NULL, NULL }
 };
  
@@ -694,7 +676,6 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 		PyErr_SetString(mm_CryptoError, "Bad padding");
 		return NULL;
 	}
-	
 	
 	if (!(output = PyString_FromStringAndSize(NULL,keylen))) { 
 		PyErr_NoMemory(); return NULL; 
