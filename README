@@ -14,7 +14,7 @@ CONTENTS:
 I. OVERVIEW
 ===========
 
-Mixminion is the standard implementation of the Type III anonymous Mix
+Mixminion is the standard implementation of the Type III anonymous remailer
 protocol, which lets you send very anonymous email.  This best-of-breed
 remailer uses conservative design approaches to provide security against most
 known attacks.  We chose a simple, extensible design so that we can provide a
@@ -93,9 +93,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.2.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.2.1.tar.gz>
 
-  % cd Mixminion-0.0.2
+  % cd Mixminion-0.0.2.1
   % make download-openssl
   % make build-openssl
   % make
