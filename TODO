@@ -77,6 +77,15 @@ For 0.0.7:
                 - Must include openssl libs with python-needed installer
                 o Use new version of py2exe
 
+For 0.0.7rc2:
+        - Man pages
+        - Nuke invalid cached dir.gz; don't kill server.
+        - On invalid dir_new.gz, server falls back to old one, and
+          client offers -D no.
+        - Document bandwidth spikiness, maybe make configurable.
+        - Don't report empty directories as having a "blank line 1."
+
+
 Deferred from 0.0.7:
         - Specification
                 - Clear up specification for payload versions.

@@ -1,4 +1,4 @@
-$Id: README,v 1.75 2004/03/08 03:27:31 nickm Exp $
+$Id: README,v 1.76 2004/03/18 04:49:59 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.7rc1, from the Mixminion CVS repository.
 
@@ -335,7 +335,6 @@ To specify a path manually, type:
       the path (rounding up). To specify a swap point explicitly, use
       a colon in your path, as in:
              -P 'Foo,Bar:Baz,Quux'    [Swap headers at server Bar]
-             --swap-at=<n>            [Swap headers at the n'th server]
       If you don't know what a swap point is, don't worry. :)
 
 If you want to use the same path by default for all of your messages,
