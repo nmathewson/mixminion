@@ -222,8 +222,8 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER:
            mixminion import-server <filename>
 
 5) When you're ready to advertise your server, email your server descriptor
-   to <nickm@freehaven.net>.  I'll try out your server for a while, then add
-   it to the directory.
+   (PGP-signed, if possible) to <nickm@freehaven.net>.  I'll try out your
+   server for a while, then add it to the directory.
 
    WARNING: we don't have statistics yet, so the system isn't robust in the
    presence of unreliable servers in the directory.  Please let me know if
