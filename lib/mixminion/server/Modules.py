@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.15 2003/01/06 03:26:35 nickm Exp $
+# $Id: Modules.py,v 1.16 2003/01/07 01:41:20 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -692,7 +692,7 @@ class DirectSMTPModule(SMTPModule):
                    'Message' : ('ALLOW', None, ""),
                    'ReturnAddress': ('ALLOW', None, None), #Required on e
                    'SubjectLine' : ('ALLOW', None,
-                                    'Type-III Anonymous Message'),
+                                    'Type III Anonymous Message'),
 
                    }
                  }
@@ -779,7 +779,7 @@ class MixmasterSMTPModule(SMTPModule):
                    'MixCommand' : ('REQUIRE', _parseCommand, None),
                    'Server' : ('REQUIRE', None, None),
                    'SubjectLine' : ('ALLOW', None,
-                                    'Type-III Anonymous Message'),
+                                    'Type III Anonymous Message'),
                    }
                  }
 

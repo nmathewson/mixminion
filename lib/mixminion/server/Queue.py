@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.4 2002/12/16 02:40:11 nickm Exp $
+# $Id: Queue.py,v 1.5 2003/01/07 01:41:20 nickm Exp $
 
 """mixminion.server.Queue
 
@@ -411,7 +411,7 @@ class CottrellMixQueue(TimedMixQueue):
            unless it has <minPool>+<minSend> messages, and never sends more
            than <sendRate> * the corrent pool size.
 
-           If 'minSend'==1, this is a real Cottrell (type-II) mix pool.
+           If 'minSend'==1, this is a real Cottrell (type II style) mix pool.
            Otherwise, this is a generic 'timed dynamic-pool' mix pool.  (Note
            that there is still a matter of some controversy whether it ever
            makes sense to set minSend != 1.)

@@ -6,11 +6,12 @@ Acknowledgements
 
 Roger Dingledine
 Lucky Green
+Peter Palfrader
 Robyn Wagner
 Bryce "Zooko" Wilcox-O'Hearn
 
    Finaly, thanks to George Danezis and the whole Mixminion-Dev team
-   for their work on the Type-III remailer design.
+   for their work on the Type III remailer design.
 
                                               -- Nick
-$Id: ACKS,v 1.2 2003/01/06 11:44:51 nickm Exp $
+$Id: ACKS,v 1.3 2003/01/07 01:41:20 nickm Exp $

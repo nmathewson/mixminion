@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.68 2003/01/06 10:39:24 nickm Exp $
+# $Id: test.py,v 1.69 2003/01/07 01:41:20 nickm Exp $
 
 """mixminion.tests
 
@@ -3868,7 +3868,7 @@ SMTPServer: nowhere
 BlacklistFile: %s
 Message: Avast ye mateys!  Prepare to be anonymized!
 ReturnAddress: yo.ho.ho@bottle.of.rum
-SubjectLine: Arr! This be a Type-III Anonymous Message
+SubjectLine: Arr! This be a Type III Anonymous Message
         """ % blacklistFile)
 
         module = manager.nameToModule["SMTP"]
@@ -3904,7 +3904,7 @@ SubjectLine: Arr! This be a Type-III Anonymous Message
             EXPECTED_SMTP_PACKET = """\
 To: users@everywhere
 From: yo.ho.ho@bottle.of.rum
-Subject: Arr! This be a Type-III Anonymous Message
+Subject: Arr! This be a Type III Anonymous Message
 
 Avast ye mateys!  Prepare to be anonymized!
 

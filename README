@@ -14,7 +14,7 @@ CONTENTS:
 I. OVERVIEW
 ===========
 
-Mixminion is the standard implementation of the Type-III anonymous Mix
+Mixminion is the standard implementation of the Type III anonymous Mix
 protocol, which lets you send very anonymous email.  This best-of-breed
 remailer uses conservative design approaches to provide security against most
 known attacks. We chose a simple, extensible design so that we can provide a
@@ -143,7 +143,7 @@ Mixminion will then take the following steps:
      B) Select a path that ends at a server with SMTP support.
         (Currently, this defaults to 4 hops.)
      C) Read your message.
-     D) Construct a Type-III Mix packet containing your message.
+     D) Construct a Type III Mix packet containing your message.
         (For more information, see the links at http://www.mixminion.net/)
      E) Send the message to the first server in your path.
 
