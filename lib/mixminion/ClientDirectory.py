@@ -48,6 +48,1231 @@ MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 class GotInvalidDirectoryError(UIError):
     """Raised when we have downloaded an invalid directory."""
 
+class _DescriptorSourceSharedState:
+    """DOCDOC"""
+    MAGIC = "DSSS-0.1"
+    EXPIRY_SLOPPINESS = 7200
+    def __init__(self):
+        self.lock = RWLock()
+        self.disklock = threading.RLock()
+        self.digestMap = {}
+        self.changed = 1
+    def useDiskLock(self, disklock):
+        self.disklock = disklock
+    def clean(self, now=None):
+        if now is None:
+            now = time.time()
+        cutoff = now + self.EXPIRY_SLOPPINESS
+        self.lock.write_in()
+        try:
+            for k in self.digestMap.keys():
+                if k > cutoff:
+                    del self.digestMap[k]
+                    self._changed = 1
+        finally:
+            self.lock.write_out()
+    def hasChanged(self):
+        return self._changed
+    def _addDigest(self,s):
+        # must hold lock
+        self.digestMap[s.getDigest()] = s['Server']['Valid-Until']
+        self._changed = 1
+    def __getstate__(self):
+        self.lock.read_in()
+        try:
+            return self.MAGIC, self.digestMap
+        finally:
+            self.lock.read_out()
+    def __setstate__(self,state):
+        if (type(state) != types.TupleType or len(state)<1 or
+            state[0] != self.MAGIC):
+            LOG.warn("Uncognized state on picked DSSS; rebuilding.")
+            self.digestMap = {}
+            self._changed = 1
+        else:
+            self.digestMap = state[1]
+            self._changed = 0
+        self.lock = RWLock()
+        self.diskLock = threading.RLock()
+
+class DescriptorSource:
+    """DOCDOC"""
+    def __init__(self):
+        assert self.__class__ != DescriptorSource
+        self._s = None
+        self._changed = 0
+    def hasChanged(self):
+        return self._changed
+    def getServerList(self):
+        raise NotImplemented()
+    def getRecommendedNicknames(self):
+        return []
+    def configure(self, config):
+        pass
+    def update(self, force=0):
+        pass
+    def rescan(self, force=0):
+        pass
+    def clean(self, now=None):
+        pass
+    def save(self):
+        self._changed = 0
+    def _setSharedState(self,state):
+        self._s = state
+
+class FSBackedDescriptorSource(DescriptorSource):
+    # directory
+    # servers { fname -> (mtime, server descriptor) }
+    MAGIC = "FBBDS-0.1"
+    EXPIRY_SLOPPINESS = 7200
+    def __init__(self, state):
+        DescriptorSource.__init__(self)
+        self._setSharedState(state)
+        self.directory = None
+        self.servers = {}
+        self._changed = 1
+        self.rescan()
+
+    def getServerList(self):
+        self._s.lock.read_in()
+        try:
+            return [ s for _,s in self.servers.values() ]
+        finally:
+            self._s.lock.read_out()
+
+    def configure(self, config):
+        if hasattr(config, 'isServerConfig') and config.isServerConfig():
+            self.directory = None
+        else:
+            userdir = config["User"].get("UserDir",
+                                         mixminion.Config.DEFAULT_USER_DIR)
+            userdir = os.path.expanduser(userdir)
+            self.directory = os.path.join(userdir, "imported")
+
+    def rescan(self, force=0):
+        if self.directory is None:
+            return
+        if force:
+            self.servers = {}
+
+        self._s.lock.write_in()
+        try:
+            for fname in os.listdir(self.directory):
+                fullname = os.path.join(self.directory, fname)
+                try:
+                    mtime = long(os.stat(fullname)[stat.ST_MTIME])
+                except OSError:
+                    LOG.warn("Missing file %s", fullname)
+                    del self.servers[fname]
+                    continue
+                if (self.servers.has_key(fname) and
+                    mtime >= self.servers[fname][0]):
+                    continue
+                try:
+                    s = mixminion.ServerInfo(fname=fullname,assumeValid=0,
+                                           validatedDigests=self._s.digestMap)
+                except mixminion.Config.ConfigError, e:
+                    LOG.warn("Invalid entry %s in %s: %s",
+                             fname, self.directory, e)
+                    continue
+                self.servers[fname] = (mtime, s)
+                self._s._addDigest(s)
+            self._changed = 1
+        finally:
+            self._s.lock.write_out()
+
+    def clean(self, now=None):
+        if now is None:
+            now = time.time()
+        cutoff = now + self.EXPIRY_SLOPPINESS
+        removed = []
+        self._s.lock.write_in()
+        byNickname = {}
+        for _,s in self.servers.values():
+            byNickname.setdefault(s.getNickname.lower(),[]).append(s)
+        try:
+            for fname, (_, s) in self.servers.items():
+                expires = s['Server']['Valid-Until']
+                if expires > cutoff:
+                    LOG.debug("Removing expired server %s",fname)
+                    removed.append(fname)
+                elif s.isSupersededBy(byNickname[s.getNickname.lower()]):
+                    LOG.debug("Removing superseded server %s",fname)
+                    removed.append(fname)
+            for fname in removed:
+                del self.servers[fname]
+                self._changed = 1
+                self._removeOne(fname)
+        finally:
+            self._s.lock.write_out()
+
+    def _removeOne(self, fname):
+        tryUnlink(os.path.join(self.directory, fname))
+
+    def importServer(self, sourceFname):
+        contents = readPossiblyGzippedFile(sourceFname)
+        try:
+            s = mixminion.ServerInfo(string=contents,assumeValid=0)
+        except mixminion.Config.ConfigError, e:
+            raise UIError("Invalid server descriptor: %s"%e)
+
+        nameBase = "%s-%s" %(s.getNickname(),
+                             formatFnameTime(s['Server']['Published']))
+
+        self._s.lock.write_in()
+        try:
+            self._s.read_in()
+            if s.isExpiredAt(time.time()):
+                raise UIError("Server descriptor is already expired")
+            samenickname = [ sd for _,sd in self.servers.values if
+                             sd.getNickname.lower() == s.getNickname.lower()]
+            for sd in samenickname:
+                if not mixminion.Crypto.pk_same_public_key(s.getIdentity(),
+                                                           sd.getIdentity()):
+                    raise MixError("Mismatched identity key for server")
+            if s.isSupersededBy(samenickname):
+                raise UIError("Server descriptor is already superseded")
+
+            f, fname = openUnique(os.path.join(self.directory,nameBase))
+            f.write(contents)
+            f.close()
+            fullname = os.path.join(self.directory, fname)
+            self.servers[fname] = (os.stat(fullname)[stat.ST_MTIME], s)
+            self._s._addDigest(s)
+            self._changed = 1
+        finally:
+            self._s.lock.write_out()
+
+    def expungeByNickname(self, nickname):
+        self._s.lock.write_in()
+        try:
+            badFnames = {}
+            for fname, sd in self.servers:
+                if sd.getNickname().lower() == nickname.lower():
+                    badFnames[fname]=1
+            if not badFnames:
+                return
+            for fname in badFnames.keys():
+                tryUnlink(os.path.join(self.directory, fname))
+            self.servers = [ (fn, sd) for fn, sd in self.servers
+                             if not badFnames.has_key(fn) ]
+            self.changed = 1
+        finally:
+            self._s.lock.write_out()
+
+    def __getstate__(self):
+        self._s.lock.read_in()
+        s = self.MAGIC, self.servers
+        self._s.lock.read_out()
+        return s
+
+    def __setstate__(self,state):
+        if (type(state) != types.TupleType or len(state)<1 or
+            state[0] != self.MAGIC):
+            LOG.warn("Unrecognized state on picked FSBDS; rebuilding.")
+            self.servers = {}
+            self._changed = 1
+        else:
+            self.servers = state[1]
+            self._changed = 0
+
+class DirectoryBackedDescriptorSource(DescriptorSource):
+    """DOCDOC"""
+    MAGIC = "BDBS-0.1"
+    def __init__(self, state):
+        DescriptorSource.__init__(self)
+        self._setSharedState(state)
+        self.fname = None
+        self.serverDir = None
+        self.lastDownload = 0
+        self._changed = 1
+        self.__downloading = 0
+        self.rescan()
+
+    def getServerList(self):
+        if self.serverDir is None:
+            return []
+        else:
+            return self.serverDir.getAllServers()
+
+    def getRecommendedNicknames(self):
+        if self.serverDir is None:
+            return []
+        else:
+            return self.serverDir.getRecommendedNicknames()
+
+    def getRecommendedVersions(self):
+        self._s.lock.read_in()
+        try:
+            sec = self.serverDir['Recommended-Software']
+            return (sec.get("MixminionClient",[]),
+                    sec.get("MixminionServer",[]))
+        finally:
+            self._s.lock.read_out()
+
+    def getRecommendedServerVersions(self):
+        return self.serverDir['Recommended-Software'].get("MixminionClient",[])
+
+    def configure(self, config):
+        if hasattr(config, 'isServerConfig') and config.isServerConfig():
+            self.fname = os.path.join(config.getWorkDir(), 'dir', 'dir.gz')
+        else:
+            userdir = config["User"].get("UserDir",
+                                         mixminion.Config.DEFAULT_USER_DIR)
+            userdir = os.path.expanduser(userdir)
+            self.fname = os.path.join(userdir, 'dir.gz')
+
+    def rescan(self, force=0):
+        self._s.lock.write_in()
+        try:
+            try:
+                self.serverDir = mixminion.ServerInfo.ServerDirectory(
+                    fname=self.fname,
+                    validatedDigests=self._s.digestMap)
+            except mixminion.Config.ConfigError, e:
+                LOG.warn("Found invalid cached directory; not using: %s",e)
+                return
+            self.lastDownload = os.stat(self.fname)[stat.ST_MTIME]
+            for s in self.serverDir.getAllServers():
+                self._s.addDigest(s)
+            self._changed = 1
+        finally:
+            self._s.lock.write_out()
+
+    def update(self, force=0):
+        self.updateDirectory(forceDownload=force)
+
+    def updateDirectory(self, forceDownload=0, url=MIXMINION_DIRECTORY_URL,
+                        timeout=None, now=None):
+        if now is None:
+            now = time.time()
+
+        if (self.serverDir is None or forceDownload or
+            self.lastDownload < previousMidnight(now)):
+            self.downloadDirectory(url=url,timeout=timeout)
+        else:
+            LOG.debug("Directory is up to date.")
+
+    def downloadDirectory(self, url=MIXMINION_DIRECTORY_URL, timeout=None):
+        self._s.lock.write_in()
+        try:
+
+            if self.__downloading:
+                LOG.info("Download already in progress")
+                return 0
+            self.__downloading = 1
+        finally:
+            self._s.lock.write_out()
+
+        try:
+            self._downloadDirectoryImpl(url,timeout)
+        finally:
+            self._s.lock.write_in()
+            self.__downloading = 0
+            self._s.lock.write_out()
+
+    def _downloadDirectory(self, url, timeout=None):
+        LOG.info("Downloading directory from %s", url)
+        # XXXX Refactor download logic.
+        if timeout: mixminion.NetUtils.setGlobalTimeout(timeout)
+        try:
+            try:
+                # Tell HTTP proxies and their ilk not to cache the directory.
+                # Really, the directory server should set an Expires header
+                # in its response, but that's harder.
+                request = urllib2.Request(url,
+                          headers={ 'Pragma' : 'no-cache',
+                                    'Cache-Control' : 'no-cache', })
+                infile = urllib2.urlopen(request)
+            except IOError, e:
+                #XXXX008 the "-D no" note makes no sense for servers.
+                raise UIError(
+                    ("Couldn't connect to directory server: %s.\n"
+                     "Try '-D no' to run without downloading a directory.")%e)
+            except socket.error, e:
+                if mixminion.NetUtils.exceptionIsTimeout(e):
+                    raise UIError("Connection to directory server timed out")
+                else:
+                    raise UIError("Error connecting to directory server: %s"%e)
+        finally:
+            if timeout:
+                mixminion.NetUtils.unsetGlobalTimeout()
+
+        assert url.endswith(".gz")
+        # Open a temporary output file.
+        fname = self.fname+"_new.gz"
+        outfile = open(fname, 'wb')
+
+        # Read the file off the network.
+        while 1:
+            s = infile.read(1<<16)
+            if not s: break
+            outfile.write(s)
+        # Close open connections.
+        infile.close()
+        outfile.close()
+
+        # Open and validate the directory
+        LOG.info("Validating directory")
+
+        self._s.lock.read_in()
+        digestMap = self._s.digestMap.copy()
+        self._s.lock.read_out()
+
+        try:
+            directory = mixminion.ServerInfo.ServerDirectory(
+                fname=fname,
+                validatedDigests=digestMap)
+        except mixminion.Config.ConfigError, e:
+            raise GotInvalidDirectoryError(
+                "Received an invalid directory: %s"%e)
+
+        identity = directory['Signature']['DirectoryIdentity']
+        fp = MIXMINION_DIRECTORY_FINGERPRINT
+        if fp and mixminion.Crypto.pk_fingerprint(identity) != fp:
+            raise MixFatalError("Bad identity key on directory")
+
+        self._s.lock.write_in()
+        try:
+            replaceFile(fname, self.fname)
+            self.serverDir = directory
+            self.lastDownload = time.time()
+            self._changed = 1
+            for s in self.serverDir.getAllServers():
+                self._s.addDigest(s)
+        finally:
+            self._s.lock.write_out()
+
+    def __getstate__(self):
+        return self.MAGIC, self.lastDownload, self.serverDir
+
+    def __setstate__(self,state):
+        if (type(state) != types.TupleType or len(state)<1 or
+            state[0] != self.MAGIC):
+            LOG.warn("Unrecognized state on picked FSBDS; rebuilding.")
+            self.serverDir = None
+            self.lastDownload = 0
+            self._changed = 1
+        else:
+            _, self.lastDownload, self.serverDir = state[1:]
+            self._changed = 0
+
+class CachingDescriptorSource(DescriptorSource):
+    """DOCDOC"""
+    MAGIC = "CDS-0.1"
+    def __init__(self,cacheFile,state):
+        DescriptorSource.__init__(self)
+        self.bases = []
+        self._setSharedState(state)
+        self.cacheFile = cacheFile
+
+    def getServerList(self):
+        self._s.lock.read_in()
+        try:
+            servers = []
+            for b in self.bases:
+                servers.extend(b.getServerList())
+            return servers
+        finally:
+            self._s.lock.read_out()
+
+    def getRecommendedNicknames(self):
+        self._s.lock.read_in()
+        try:
+            nicknames = []
+            for b in self.bases:
+                nicknames.extend(b.getRecommendedNicknames())
+            return nicknames
+        finally:
+            self._s.lock.read_out()
+
+    def configure(self,config):
+        for b in self.bases: b.configure(config)
+
+    def _setSharedState(self,state):
+        self._s = state
+        for b in self.bases: b._setSharedState(state)
+
+    def clean(self,now=None):
+        self._s.lock.write_in()
+        try:
+            for b in self.bases: b.clean(now)
+            self._s.clean(now)
+        finally:
+            self._s.lock.write_out()
+
+    def rescan(self,force=0):
+        self._s.lock.write_in()
+        try:
+            for b in self.bases: b.rescan(force)
+        finally:
+            self._s.lock.write_out()
+
+    def update(self,force=0):
+        self._s.lock.write_in()
+        try:
+            for b in self.bases: b.update(force)
+        finally:
+            self._s.lock.write_out()
+
+    def addBase(self, b):
+        self._s.lock.write_in()
+        try:
+            if b not in self.bases:
+                self.bases.append(b)
+                b._setSharedState(self._s)
+        finally:
+            self._s.lock.write_out()
+
+    def __getstate__(self):
+        self._s.lock.read_in()
+        try:
+            return self.MAGIC, self.bases, self._s
+        finally:
+            self._s.lock.read_out()
+
+    def __setstate__(self,state):
+        if (type(state) != types.TupleType or len(state)<1 or
+            state[0] != self.MAGIC):
+            LOG.warn("Unrecognized state on picked FSBDS; rebuilding.")
+            self.bases = []
+        else:
+            self.bases = state[1]
+            self._setSharedState(state[2])
+
+    def hasChanged(self):
+        if self._s.hasChanged():
+            return 1
+        for b in self.bases:
+            if b.hasChanged():
+                return 1
+        return 0
+
+    def save(self):
+        self._s.lock.write_in()
+        try:
+            if not self.hasChanged():
+                return
+
+            writePickled(self.cacheFile, self)
+
+            for b in self.bases: b._changed = 0
+            self._s.changed = 0
+        finally:
+            self._s.lock.write_out()
+
+    def __getattr__(self, attr):
+        for b in self.bases:
+            o = getattr(b,attr,None)
+            if isinstance(o, types.MethodType):
+                return o
+        raise AttributeError(attr)
+
+def loadCachingDescriptorStore(config):
+    """DOCDOC"""
+    if hasattr(config, 'isServerConfig') and config.isServerConfig():
+        base = os.path.join(config.getWorkDir(), 'dir')
+        isServer = 1
+    else:
+        userdir = config["User"].get("UserDir",
+                                     mixminion.Config.DEFAULT_USER_DIR)
+        base = os.path.expanduser(userdir)
+        isServer = 0
+    cacheFile = os.path.join(base, 'cache')
+
+    try:
+        store = readPickled(cacheFile)
+        store.cacheFile = cacheFile
+        store.configure(config)
+        return store
+    except (OSError, IOError):
+        LOG.info("Couldn't read directory cache; rebuilding")
+    except (cPickle.UnpicklingError, ValueError), e:
+        LOG.info("Couldn't unpickle directory cache: %s", e)
+
+    LOG.info("Generating fresh directory cache...")
+
+    state = _DescriptorSourceSharedState()
+    store = CachingDescriptorSource(cacheFile,state)
+    if not isServer:
+        store.addBase(FSBackedDescriptorSource(state))
+    store.addBase(DirectoryBackedDescriptorSource(state))
+    store.configure(config)
+    store.rescan(1)
+    store.save()
+    return store
+
+class ClientDirectory2:
+    def __init__(self, store):
+        self.store = store
+        self.__scan()
+
+    def __scan(self):
+        # must hold read lock.
+        self.allServers = self.store.getServers()
+        self.clientVersions, self.serverVersions = self.store.get
+        self.goodNicknames = {}
+        self.goodServers = []
+        self.byNickname = {}
+        self.byKeyID = {}
+        for n in self.store.getRecommendedNicknames():
+            assert n == n.lower()
+            self.goodNicknames[n]=1
+        for s in self.allServers:
+            lcnickname = s.getNickname().lower()
+            keydigest = s.getKeyDigest()
+            self.byKeyID.setdefault(keydigest,[]).append(s)
+            self.byNickname.setdefault(lcnickname,[]).append(s)
+            if self.goodNicknames.has_key(lcnickname):
+                self.goodServers.append(s)
+
+    def __scanAsNeeded(self):
+        # must hold read lock.
+        if self.store.hasChanged():
+            self.store.save()
+            self.__scan()
+
+    def configure(self,config):
+        self.store.configure(config)
+
+        sec = config.get("Security", {})
+        blocked = {}
+        for lst in sec.get("BlockEntries", []):
+            for nn in lst:
+                blocked.setdefault(nn.lower(),[]).append('entry')
+        for lst in sec.get("BlockExits", []):
+            for nn in lst:
+                blocked.setdefault(nn.lower(),[]).append('exit')
+        for lst in sec.get("BlockServers", []):
+            for nn in lst:
+                blocked[nn.lower()] = ['*']
+
+        self.store._s.lock.write_in()
+        try:
+            self.blockedNicknames = blocked
+            self.__rebuildTables()
+        finally:
+            self.store._s.lock.write_out()
+
+    def save(self):
+        self.store.save()
+
+    def rescan(self,force=0):
+        self.store.rescan(force)
+
+    def update(self, force=0):
+        self.store.update(force=force)
+
+    def clean(self, now=None):
+        self.store.clean(now=None)
+
+    def importServer(self, sourceFname):
+        fn = getattr(self.store, "importServer", None)
+        if fn is None:
+            raise MixFatalError("Attempted to import a server with no FS-backed store configured.")
+        fn(sourceFname)
+
+    def expungeByNickane(self, nickname):
+        fn = getattr(self.store, "importServer", None)
+        if fn is None:
+            raise MixFatalError("Attempted to expunge a server with no FS-backed store configured.")
+        fn(nickname)
+
+    def _installAsKeyIDResolver(self):
+        """Use this ClientDirectory to identify servers in calls to
+           ServerInfo.displayServer*."""
+        mixminion.ServerInfo._keyIDToNicknameFn = self.getNicknameByKeyID
+        mixminion.ServerInfo._addressToNicknameFn = self.getNicknameByAddress
+
+    def getNicknameByAddress(self, addr):
+        """Given an address (IP or hostname) return the nickname of
+           the server with that hostname.  Return None if no such
+           server is known, and a slash-separated string if multiple
+           servers are known."""
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            nicknames = []
+            for desc,where in self.fullServerList:
+                if addr in (desc.getIP(), desc.getHostname()):
+                    if desc.getNickname() not in nicknames:
+                        nicknames.append(desc.getNickname())
+            if nicknames:
+                return "/".join(nicknames)
+            else:
+                return None
+        finally:
+            self.store._s.lock.read_out()
+
+    def getNicknameByKeyID(self, keyid):
+        """Given a keyid, return the nickname of the server with that
+           keyid.  Return None if no such server is known, and a
+           slash-separated string if multiple servers are known."""
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            s = self.byKeyID.get(keyid)
+            if not s:
+                return None
+            r = []
+            for desc in s:
+                if desc.getNickname() not in r:
+                    r.append(desc.getNickname())
+            if r:
+                return "/".join(r)
+            else:
+                return None
+        finally:
+            self.store._s.lock.read_out()
+
+    def getKeyIDByNickname(self, nickname):
+        """Given the nickname of the server, return the corresponding
+           keyid, or None if the nickname is not recognized."""
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            s = self.byNickname.get(nickname.lower())
+            if not s:
+                return None
+            return s[0].getKeyDigest()
+        finally:
+            self.store._s.lock.read_out()
+
+    def getNameByRelay(self, routingType, routingInfo):
+        """Given a routingType, routingInfo (as string) tuple, return the
+           nickname of the corresponding server.  If no such server is
+           known, return a string representation of the routingInfo.
+        """
+        routingInfo = parseRelayInfoByType(routingType, routingInfo)
+        nn = self.getNicknameByKeyID(routingInfo.keyinfo)
+        if nn is None:
+            return routingInfo.format()
+        else:
+            return nn
+
+    def getFeatureMap(self, features, at=None, goodOnly=0):
+        """Given a list of feature names (see Config.resolveFeatureName for
+           more on features, returns a dict mapping server nicknames to maps
+           from (valid-after,valid-until) tuples to maps from feature to
+           value.
+
+           That is: { nickname : { (time1,time2) : { feature : val } } }
+
+           If 'at' is provided, use only server descriptors that are valid at
+           the time 'at'.
+
+           If 'goodOnly' is true, use only recommended servers.
+        """
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            result = {}
+            if not self.allServers:
+                return {}
+            dirFeatures = [ 'status' ]
+            resFeatures = []
+            for f in features:
+                if f.lower() in dirFeatures:
+                    resFeatures.append((f, ('+', f.lower())))
+                else:
+                    feature = mixminion.Config.resolveFeatureName(
+                        f, mixminion.ServerInfo.ServerInfo)
+                    resFeatures.append((f, feature))
+            for sd in self.fullServerList:
+                if at and not sd.isValidAt(at):
+                    continue
+                nickname = sd.getNickname()
+                isGood = self.goodServerNicknames.get(nickname.lower(), 0)
+                blocked = self.blockedNicknames.get(nickname.lower(), [])
+                if goodOnly and not isGood:
+                    continue
+                va = sd['Server']['Valid-After']
+                vu = sd['Server']['Valid-Until']
+                d = result.setdefault(nickname, {}).setdefault((va,vu), {})
+                for feature,(sec,ent) in resFeatures:
+                    if sec == '+':
+                        if ent == 'status':
+                            stat = []
+                            if not isGood:
+                                stat.append("not recommended")
+                            if '*' in blocked:
+                                stat.append("blocked")
+                            else:
+                                if 'entry' in blocked:
+                                    stat.append("blocked as entry")
+                                if 'exit' in blocked:
+                                    stat.append("blocked as exit")
+                            if stat:
+                                d['status'] = "(%s)"%(",".join(stat))
+                            else:
+                                d['status'] = "(ok)"
+                        else:
+                            raise AssertionError # Unreached.
+                    else:
+                        d[feature] = str(sd.getFeature(sec,ent))
+
+            return result
+        finally:
+            self.store._s.lock.read_out()
+
+    def __find(self, lst, startAt, endAt):
+        """Helper method.  Given a list of ServerInfo, return all
+           elements that are valid for all time between startAt and endAt.
+
+           Only one element is returned for each nickname; if multiple
+           elements with a given nickname are valid over the given time
+           interval, the most-recently-published one is included.
+
+           Caller must hold read lock.
+           """
+        # FFFF This is not really good: servers may be the same, even if
+        # FFFF their nicknames are different.  The logic should probably
+        # FFFF go into directory, though.
+
+        u = {} # Map from lcnickname -> latest-expiring info encountered in lst
+        for info in lst:
+            if not info.isValidFrom(startAt, endAt):
+                continue
+            if not info.supportsPacketVersion():
+                continue
+            n = info.getNickname().lower()
+            if u.has_key(n):
+                if u[n].isNewerThan(info):
+                    continue
+            u[n] = info
+
+        return u.values()
+
+    def __nicknameIsBlocked(self, nn, isEntry=0, isExit=0):
+        """Return true iff 'nn' is blocked.  By default, check for nicknames
+           blocked in every position.  If isEntry is true, also check for
+           nicknames blocked as entries; and if isExit is true, also check
+           for nicknames blocked as exits."""
+        b = self.blockedNicknames.get(nn.lower(), None)
+        if b is None:
+            return 0
+        elif '*' in b:
+            return 1
+        elif isEntry and 'entry' in b:
+            return 1
+        elif isExit and 'exit' in b:
+            return 1
+        else:
+            return 0
+
+    def __excludeBlocked(self, lst, isEntry=0, isExit=0):
+        """Given a list of ServerInfo, return a new list with all the
+           blocked servers removed.  'isEntry' and 'isExit' are as for
+           __nicknameIsBlocked.
+        """
+        res = []
+        for info in lst:
+            if not self.__nicknameIsBlocked(info.getNickname(),isEntry,isExit):
+                res.append(info)
+        return res
+
+    def getLiveServers(self, startAt=None, endAt=None, isEntry=0, isExit=0):
+        """Return a list of all server desthat are live from startAt through
+           endAt.  The list is in the standard (ServerInfo,where) format,
+           as returned by __find.  If 'isEntry' or 'isExit' is true, return
+           servers suitable as entries or exits.  Exclude servers in
+           the not-recommended or blocked lists.
+        """
+        if startAt is None:
+            startAt = time.time()
+        if endAt is None:
+            endAt = time.time()+self.DEFAULT_REQUIRED_LIFETIME
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            return self.__excludeBlocked(
+                self.__find(self.serverList, startAt, endAt),
+                isEntry=isEntry, isExit=isExit)
+        finally:
+            self.store._s.lock.read_out()
+
+    def getServerInfo(self, name, startAt=None, endAt=None, strict=0):
+        """Return the most-recently-published ServerInfo for a given
+           'name' valid over a given time range.  If not strict, and no
+           such server is found, return None.
+
+           name -- A ServerInfo object, a nickname, or a filename.
+        """
+        if startAt is None:
+            startAt = time.time()
+        if endAt is None:
+            endAt = startAt + self.DEFAULT_REQUIRED_LIFETIME
+
+        if isinstance(name, mixminion.ServerInfo.ServerInfo):
+            # If it's a valid ServerInfo, we're done.
+            if name.isValidFrom(startAt, endAt):
+                return name
+            else:
+                LOG.error("Server is not currently valid")
+                return None
+
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            # If it's a nickname, return a serverinfo with that name.
+            lst = self.byNickname.get(name.lower())
+        finally:
+            self.store._s.lock.read_out()
+
+        if lst is not None:
+            sds = self.__find(lst, startAt, endAt)
+            if strict and not sds:
+                raise UIError(
+                    "Couldn't find any currently live descriptor with name %s"
+                    % name)
+            elif not sds:
+                return None
+            return sds[0]
+        elif os.path.exists(os.path.expanduser(name)):
+            # If it's a filename, try to read it.
+            fname = os.path.expanduser(name)
+            try:
+                return mixminion.ServerInfo.ServerInfo(fname=fname,
+                                                       assumeValid=0)
+            except OSError, e:
+                raise UIError("Couldn't read descriptor %r: %s" %
+                               (name, e))
+            except mixminion.Config.ConfigError, e:
+                raise UIError("Couldn't parse descriptor %r: %s" %
+                               (name, e))
+        elif strict:
+            raise UIError("Couldn't find descriptor for %r" % name)
+        else:
+            return None
+
+    def generatePaths(self, nPaths, pathSpec, exitAddress,
+                      startAt=None, endAt=None,
+                      prng=None):
+        """Generate a list of paths for delivering packets to a given
+           exit address, using a given path spec.  Each path is returned
+           as a tuple of lists of ServerInfo.
+
+                nPaths -- the number of paths to generate.  (You need
+                   to generate multiple paths at once when you want them
+                   to converge at the same exit server -- for example,
+                   for delivering server-side fragmented messages.)
+                pathSpec -- A PathSpecifier object.
+                exitAddress -- An ExitAddress object.
+                startAt, endAt -- A duration of time over which the
+                   paths must remain valid.
+        """
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            return self._generatePaths(nPaths, pathSpec, exitAddress,
+                                       startAt, endAt, prng)
+        finally:
+            self.store._s.lock.read_out()
+
+    def _generatePaths(self, nPaths, pathSpec, exitAddress,
+                       startAt=None, endAt=None,
+                       prng=None):
+        """Helper: implement generatePaths, without getting lock"""
+        assert pathSpec.isReply == exitAddress.isReply
+
+        if prng is None:
+            prng = mixminion.Crypto.getCommonPRNG()
+
+        paths = []
+        lastHop = exitAddress.getLastHop()
+        if lastHop:
+            plausibleExits = []
+        else:
+            plausibleExits = exitAddress.getExitServers(self,startAt,endAt)
+            if exitAddress.isSSFragmented:
+                # We _must_ have a single common last hop.
+                plausibleExits = [ prng.pick(plausibleExits) ]
+
+        for _ in xrange(nPaths):
+            p1 = []
+            p2 = []
+            for p in pathSpec.path1:
+                p1.extend(p.getServerNames())
+            for p in pathSpec.path2:
+                p2.extend(p.getServerNames())
+
+            p = p1+p2
+            # Make the exit hop _not_ be None; deal with getPath brokenness.
+            #XXXX refactor this.
+            if lastHop:
+                if not p or not p[-1] or p[-1].lower()!=lastHop.lower():
+                    p.append(lastHop)
+            elif p[-1] == None and not exitAddress.isReply:
+                p[-1] = prng.pick(plausibleExits)
+
+            if pathSpec.lateSplit:
+                n1 = ceilDiv(len(p),2)
+            else:
+                n1 = len(p1)
+
+            path = self._getPath(p, startAt=startAt, endAt=endAt)
+            path1,path2 = path[:n1], path[n1:]
+            paths.append( (path1,path2) )
+            if pathSpec.isReply or pathSpec.isSURB:
+                LOG.info("Selected path is %s",
+                         ",".join([s.getNickname() for s in path]))
+            else:
+                LOG.info("Selected path is %s:%s",
+                         ",".join([s.getNickname() for s in path1]),
+                         ",".join([s.getNickname() for s in path2]))
+
+        return paths
+
+    def getPath(self, template, startAt=None, endAt=None, prng=None):
+        """Workhorse method for path selection.  Given a template, and
+           a capability that must be supported by the exit node, return
+           a list of serverinfos that 'matches' the template, and whose
+           last node provides exitCap.
+
+           The template is a list of either: strings or serverinfos as
+           expected by 'getServerInfo'; or None to indicate that
+           getPath should select a corresponding server.
+
+           All servers are chosen to be valid continuously from
+           startAt to endAt.
+
+           The path selection algorithm is described in path-spec.txxt
+        """
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            return self._getPath(template, startAt, endAt, prng)
+        finally:
+            self.store._s.lock.read_out()
+
+    def _getPath(self, template, startAt=None, endAt=None, prng=None):
+        """Helper: implement getPath, without getting lock"""
+        # Fill in startAt, endAt, prng if not provided
+        if startAt is None:
+            startAt = time.time()
+        if endAt is None:
+            endAt = startAt + self.DEFAULT_REQUIRED_LIFETIME
+        if prng is None:
+            prng = mixminion.Crypto.getCommonPRNG()
+
+        # Resolve explicitly-provided servers (we already warned.)
+        servers = []
+        for name in template:
+            if name is None:
+                servers.append(name)
+            else:
+                servers.append(self.getServerInfo(name, startAt, endAt, 1))
+
+        # Now figure out which relays we haven't used yet.
+        relays = self.__find(self.serverList, startAt, endAt)
+        relays = self.__excludeBlocked(relays)
+        if not relays:
+            raise UIError("No relays known")
+        elif len(relays) == 2:
+            LOG.warn("Not enough servers to avoid same-server hops")
+        elif len(relays) == 1:
+            LOG.warn("Only one relay known")
+
+        # Now fill in the servers. For each relay we need...
+        for i in xrange(len(servers)):
+            if servers[i] is not None:
+                continue
+            # Find the servers adjacent to it, if any...
+            if i>0:
+                prev = servers[i-1]
+            else:
+                prev = None
+            if i+1<len(servers):
+                next = servers[i+1]
+            else:
+                next = None
+            # ...and see if there are any relays left that aren't adjacent?
+            candidates = []
+            for c in relays:
+                # Skip blocked entry points
+                if i==0 and self.__nicknameIsBlocked(c.getNickname(),
+                                                     isEntry=1):
+                    continue
+                # Skip blocked exit points
+                if i==(len(servers)-1) and self.__nicknameIsBlocked(
+                    c.getNickname(), isExit=1):
+                    continue
+                # Avoid same-server hops
+                if ((prev and c.hasSameNicknameAs(prev)) or
+                    (next and c.hasSameNicknameAs(next))):
+                    continue
+                # Avoid hops that can't relay to one another.
+                if ((prev and not prev.canRelayTo(c)) or
+                    (next and not c.canRelayTo(next))):
+                    continue
+                # Avoid first hops that we can't deliver to.
+                if (not prev) and not c.canStartAt():
+                    continue
+                candidates.append(c)
+            if candidates:
+                # Good.  There are some okay servers.
+                servers[i] = prng.pick(candidates)
+            else:
+                # Nope.  Can we duplicate a relay?
+                LOG.warn("Repeating a relay because of routing restrictions.")
+                if prev and next:
+                    if prev.canRelayTo(next):
+                        servers[i] = prev
+                    elif next.canRelayTo(next):
+                        servers[i] = next
+                    else:
+                        raise UIError("Can't generate path %s->???->%s"%(
+                                      prev.getNickname(),next.getNickname()))
+                elif prev and not next:
+                    servers[i] = prev
+                elif next and not prev:
+                    servers[i] = next
+                else:
+                    raise UIError("No servers known.")
+
+        # FFFF We need to make sure that the path isn't totally junky.
+
+        return servers
+
+    def validatePath(self, pathSpec, exitAddress, startAt=None, endAt=None,
+                     warnUnrecommended=1):
+        """Given a PathSpecifier and an ExitAddress, check whether any
+           valid paths can satisfy the spec for delivery to the address.
+           Raise UIError if no such path exists; else returns.
+
+           If warnUnrecommended is true, give a warning if the user has
+           requested any unrecommended servers.
+           """
+        self.store._s.lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            return self._validatePath(pathSpec, exitAddress, startAt, endAt,
+                                      warnUnrecommended)
+        finally:
+            self.store._s.lock.read_out()
+
+    def _validatePath(self, pathSpec, exitAddress, startAt=None, endAt=None,
+                     warnUnrecommended=1):
+        """Helper: implement validatePath without getting lock"""
+        if startAt is None: startAt = time.time()
+        if endAt is None: endAt = startAt+self.DEFAULT_REQUIRED_LIFETIME
+
+        p = pathSpec.path1+pathSpec.path2
+        assert p
+        # Make sure all elements are valid.
+        for e in p:
+            e.validate(self, startAt, endAt)
+
+        # If there is a 1st element, make sure we can route to it.
+        fixed = p[0].getFixedServer(self, startAt, endAt)
+        if fixed and not fixed.canStartAt():
+            raise UIError("Cannot relay messages to %s"%fixed.getNickname())
+
+        # When there are 2 elements in a row, make sure each can route to
+        # the next.
+        prevFixed = None
+        for e in p:
+            fixed = e.getFixedServer(self, startAt, endAt)
+            if fixed and not fixed.supportsPacketVersion():
+                raise UIError("We don't support any packet formats used by %s",
+                              fixed.getNickname())
+            if prevFixed and fixed and not prevFixed.canRelayTo(fixed):
+                raise UIError("Server %s can't relay to %s" %
+                              prevFixed.getNickname(), fixed.getNickname())
+            prevFixed = fixed
+
+        fs = p[-1].getFixedServer(self,startAt,endAt)
+        lh = exitAddress.getLastHop()
+        if lh is not None:
+            lh_s = self.getServerInfo(lh, startAt, endAt)
+            if lh_s is None:
+                raise UIError("No known server descriptor named %s" % lh)
+            if fs and not fs.canRelayTo(lh_s):
+                raise UIError("Server %s can't relay to %s" %(
+                              fs.getNickname(), lh))
+            fs = lh_s
+        if fs is not None:
+            exitAddress.checkSupportedByServer(fs)
+        elif exitAddress.isServerRelative():
+            raise UIError("%s exit type expects a fixed exit server." %
+                          exitAddress.getPrettyExitType())
+
+        if fs is None and lh is None:
+            for desc in self.getLiveServers(startAt, endAt, isExit=1):
+                if exitAddress.isSupportedByServer(desc):
+                    break
+            else:
+                raise UIError("No recommended server supports delivery type.")
+
+        # Check for unrecommended servers
+        if not warnUnrecommended:
+            return
+        warned = {}
+        for i in xrange(len(p)):
+            e = p[i]
+            fixed = e.getFixedServer(self, startAt, endAt)
+            if not fixed: continue
+            nick = fixed.getNickname()
+            lc_nickname = nick.lower()
+            if warned.has_key(lc_nickname):
+                continue
+            if not self.goodServerNicknames.has_key(lc_nickname):
+                warned[lc_nickname] = 1
+                LOG.warn("Server %s is not recommended", nick)
+            b = self.blockedNicknames.get(lc_nickname,None)
+            if not b: continue
+            if '*' in b:
+                warned[lc_nickname] = 1
+                LOG.warn("Server %s is blocked", nick)
+            else:
+                if i == 0 and 'entry' in b:
+                    warned[lc_nickname] = 1
+                    LOG.warn("Server %s is blocked as an entry", nick)
+                elif i==(len(p)-1) and 'exit' in b:
+                    warned[lc_nickname] = 1
+                    LOG.warn("Server %s is blocked as an exit", nick)
+
+    def checkSoftwareVersion(self,client=1):
+        """Check the current client's version against the stated version in
+           the most recently downloaded directory; log a warning if this
+           version isn't listed as recommended.
+           """
+        self._lock.read_in()
+        try:
+            self.__scanAsNeeded()
+            if client:
+                allowed = self.clientVersions
+            else:
+                allowed = self.serverVersions
+        finally:
+            self._lock.read_out()
+
+        if not allowed: return
+
+        current = mixminion.__version__
+        if current in allowed:
+            # This version is recommended.
+            return
+        current_t = mixminion.version_info
+        more_recent_exists = 0
+        for a in allowed:
+            try:
+                t = mixminion.parse_version_string(a)
+            except ValueError:
+                LOG.warn("Couldn't parse recommended version %s", a)
+                continue
+            try:
+                if mixminion.cmp_versions(current_t, t) < 0:
+                    more_recent_exists = 1
+            except ValueError:
+                pass
+        if more_recent_exists:
+            LOG.warn("This software may be obsolete; "
+                      "You should consider upgrading.")
+        else:
+            LOG.warn("This software is newer than any version "
+                     "on the recommended list.")
+
 class ClientDirectory:
     """A ClientDirectory manages a list of server descriptors, either
        imported from the command line or from a directory."""

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.84 2004/03/23 03:03:36 nickm Exp $
+# $Id: Config.py,v 1.85 2004/04/26 16:55:45 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -1051,6 +1051,10 @@ class ClientConfig(_ConfigFile):
             return int(t)
         # ...default to 2 minutes.
         return 120
+
+    def isServerConfig(self):
+        """DOCDOC"""
+        return 0
 
 def _validateHostSection(sec):
     """Helper function: Makes sure that the shared [Host] section is correct;

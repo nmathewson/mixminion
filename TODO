@@ -17,6 +17,13 @@ For 0.0.8:
           no matter how hard OpenSSL makes it.
         - Dummies and pinging
         - Distributed directories
+        - Bugs
+                - Make build process mention where to download openssl if
+                  neither wget nor curl is found.
+                - Make client run and unittests not die when there is no
+                  thread module.
+                - Have -P *5 -t mbox:foo@server always always mean
+                  -P *5,server -t mbox:foo
 
 Reach goals for 0.0.8:
         - Specification

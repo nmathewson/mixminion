@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.54 2004/03/23 00:09:24 nickm Exp $
+# $Id: ServerConfig.py,v 1.55 2004/04/26 16:55:46 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -237,6 +237,9 @@ class ServerConfig(mixminion.Config._ConfigFile):
             return os.path.join(self.getWorkDir(), 'queues')
         else:
             return self._get_fname("Server", "QueueDir", "work/queues")
+    def isServerConfig(self):
+        """DOCDOC"""
+        return 1
 
 def _validateRetrySchedule(mixInterval, schedule, sectionName):
     """Backend for ServerConfig.validateRetrySchedule -- separated for testing.

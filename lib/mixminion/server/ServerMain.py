@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.124 2004/03/23 05:15:17 nickm Exp $
+# $Id: ServerMain.py,v 1.125 2004/04/26 16:55:46 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -727,6 +727,9 @@ class MixminionServer(_Scheduler):
             os.path.join(config.getWorkDir(),"dir"))
         try:
             self.dirClient.updateDirectory()
+        except UIError, e:
+            LOG.warn(str(e))
+            LOG.warn("   (I'll use the old directory until I have a new one.)")
         except mixminion.ClientDirectory.GotInvalidDirectoryError, e:
             LOG.warn(str(e))
             LOG.warn("   (I'll use the old one until I get one that's good.)")
@@ -839,6 +842,11 @@ class MixminionServer(_Scheduler):
                 # midnight, to avoid hosing the server.
                 nextUpdate += prng.getInt(60)*60
             except mixminion.ClientDirectory.GotInvalidDirectoryError, e:
+                LOG.warn(str(e))
+                LOG.warn("    I'll try again in an hour.")
+                nextUpdate = min(succeedingMidnight(time.time()+30),
+                                 time.time()+3600)
+            except UIError, e:#XXXX008 This should really be a new exception
                 LOG.warn(str(e))
                 LOG.warn("    I'll try again in an hour.")
                 nextUpdate = min(succeedingMidnight(time.time()+30),
