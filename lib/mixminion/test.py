@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.77 2003/02/05 05:34:55 nickm Exp $
+# $Id: test.py,v 1.78 2003/02/05 06:28:31 nickm Exp $
 
 """mixminion.tests
 
@@ -1289,15 +1289,15 @@ class BuildMessageTests(unittest.TestCase):
         for m in ("", "a", "\000", "xyzzy"*10, ("glossy glossolalia.."*2)[32],
                   longMsg):
             c = BuildMessage.compressData(m)
-            self.assertEquals(m, BuildMessage.uncompressData(c))
+            self.assertEquals(m, uncompressData(c))
 
-        self.failUnlessRaises(ParseError, BuildMessage.uncompressData, "3")
+        self.failUnlessRaises(ParseError, uncompressData, "3")
 
         for _ in xrange(20):
             for _ in xrange(20):
                 m = p.getBytes(p.getInt(1000))
                 try:
-                    BuildMessage.uncompressData(m)
+                    uncompressData(m)
                 except ParseError:
                     pass
         #FFFF Find a decent test vector.
@@ -1317,7 +1317,7 @@ class BuildMessageTests(unittest.TestCase):
             for ov in 0, 42-20+16: # encrypted forward overhead
                 pld = BuildMessage._encodePayload(m,ov,p)
                 self.assertEquals(28*1024, len(pld)+ov)
-                comp = BuildMessage.compressData(m)
+                comp = compressData(m)
                 self.assert_(pld[22:].startswith(comp))
                 self.assertEquals(sha1(pld[22:]),pld[2:22])
                 self.assert_(BuildMessage._checkPayload(pld))
@@ -1683,7 +1683,7 @@ class BuildMessageTests(unittest.TestCase):
         self.assertEquals(20, len(t))
         self.assertEquals(28*1024,len(p))
         self.assertEquals(0, ord(t[0]) & 0x80)
-        comp = BuildMessage.compressData("Hello!!!!")
+        comp = compressData("Hello!!!!")
         self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
         self.assert_(p[22:].startswith(comp))
         self.assertEquals(sha1(p[22:]), p[2:22])
@@ -1697,7 +1697,7 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(sessionkey)
             msg = rsa_rest + lioness_decrypt(mrest,
                               ks.getLionessKeys("END-TO-END ENCRYPT"))
-            comp = BuildMessage.compressData(payload)
+            comp = compressData(payload)
             self.assert_(len(comp), ord(msg[0])*256 + ord(msg[1]))
             self.assertEquals(sha1(msg[22:]), msg[2:22])
             self.assert_(msg[22:].startswith(comp))
@@ -1818,7 +1818,7 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_encrypt(p, ks.getLionessKeys(
                                Crypto.PAYLOAD_ENCRYPT_MODE))
-        comp = BuildMessage.compressData('Information???')
+        comp = compressData('Information???')
         self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
         self.assert_(p[22:].startswith(comp))
         self.assertEquals(sha1(p[22:]), p[2:22])
@@ -1831,7 +1831,7 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_encrypt(p, ks.getLionessKeys(
                                       Crypto.PAYLOAD_ENCRYPT_MODE))
-        comp = BuildMessage.compressData(payload)
+        comp = compressData(payload)
         self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
         self.assert_(p[22:].startswith(comp))
         self.assertEquals(sha1(p[22:]), p[2:22])
@@ -1844,7 +1844,7 @@ class BuildMessageTests(unittest.TestCase):
           "even the invisible victim is responsible for the fate of all.\n"+\
           "   -- _Invisible Man_"
 
-        comp = BuildMessage.compressData(payload)
+        comp = compressData(payload)
         self.assertEquals(len(comp), 109)
         encoded1 = (comp+ "RWE/HGW"*4096)[:28*1024-22]
         encoded1 = '\x00\x6D'+sha1(encoded1)+encoded1
@@ -1943,7 +1943,7 @@ class BuildMessageTests(unittest.TestCase):
         nils = "\x00"*(25*1024)
         overcompressed_payload = \
              BuildMessage._encodePayload(nils, 0, AESCounterPRNG())
-        self.failUnlessRaises(BuildMessage.CompressedDataTooLong,
+        self.failUnlessRaises(CompressedDataTooLong,
              BuildMessage.decodePayload, overcompressed_payload, "X"*20)
 
         # And now the cases that fail hard.  This can only happen on:
@@ -2141,7 +2141,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.assert_(not pkt.isPlaintext())
         self.assert_(pkt.isOvercompressed())
         self.assert_(pkt.getAsciiContents(),
-             base64.encodestring(BuildMessage.compressData(pcomp)))
+             base64.encodestring(compressData(pcomp)))
 
         m = befm(p, SMTP_TYPE, "nobody@invalid", [self.server1],
                  [self.server3], getRSAKey(0,1024))
@@ -3886,7 +3886,7 @@ IP: 1.0.0.1
 ##         manager.sendReadyMessages()
 ##         self.assertEquals(len(exampleMod.processedAll), 1)
 ##         self.assertEquals(exampleMod.processedAll[0],
-##             (BuildMessage.compressData(p), 'long', 1234, "Buenas noches"))
+##             (compressData(p), 'long', 1234, "Buenas noches"))
 
         # Check serverinfo generation.
         try:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.27 2003/02/05 05:34:55 nickm Exp $
+# $Id: Modules.py,v 1.28 2003/02/05 06:28:31 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -34,8 +34,7 @@ from mixminion.Config import ConfigError, _parseBoolean, _parseCommand, \
      _parseIntervalList
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
      isPrintingAscii
-from mixminion.BuildMessage import CompressedDataTooLong
-from mixminion.Packet import ParseError
+from mixminion.Packet import ParseError, CompressedDataTooLong
 
 # Return values for processMessage
 DELIVER_OK = 1

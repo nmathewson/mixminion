@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.28 2003/01/10 20:12:05 nickm Exp $
+# $Id: benchmark.py,v 1.29 2003/02/05 06:28:31 nickm Exp $
 
 """mixminion.benchmark
 
@@ -20,14 +20,13 @@ from time import time
 
 import mixminion._minionlib as _ml
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
-     compressData, uncompressData, _encodePayload, decodePayload, \
-     CompressedDataTooLong
+     compressData, uncompressData, _encodePayload, decodePayload
 from mixminion.Common import secureDelete, installSIGCHLDHandler, \
      waitForChildren, formatBase64
 from mixminion.Crypto import *
 from mixminion.Crypto import OAEP_PARAMETER
 from mixminion.Crypto import _add_oaep_padding, _check_oaep_padding
-from mixminion.Packet import SMTP_TYPE
+from mixminion.Packet import SMTP_TYPE, CompressedDataTooLong
 from mixminion.ServerInfo import ServerInfo
 from mixminion.server.HashLog import HashLog
 from mixminion.server.PacketHandler import PacketHandler

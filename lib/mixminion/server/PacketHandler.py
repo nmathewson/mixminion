@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.7 2003/02/05 05:34:55 nickm Exp $
+# $Id: PacketHandler.py,v 1.8 2003/02/05 06:28:31 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -10,7 +10,6 @@ import mixminion.Packet as Packet
 import mixminion.Common as Common
 import mixminion.BuildMessage
 
-from mixminion.BuildMessage import CompressedDataTooLong
 from mixminion.Common import MixError, isPrintingAscii
 
 __all__ = [ 'PacketHandler', 'ContentError', 'DeliveryPacket', 'RelayedPacket']
@@ -264,7 +263,7 @@ class DeliveryPacket:
                 # forward message
                 self.type = 'plain'
                 # self.contents is right
-        except CompressedDataTooLong, _:
+        except Packet.CompressedDataTooLong, _:
             self.contents = (mixminion.Packet.parsePayload(message)
                                              .getContents())
             self.type = 'long'
