@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.25 2005/01/01 21:56:03 nickm Exp $
+# $Id: Pinger.py,v 1.26 2005/02/07 07:08:55 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -420,6 +420,9 @@ class PingLog:
                                  ["path", "sentat", "received"])
             self._db.createIndex("connectionAttemptServerAt",
                                  "connectionAttempt", ["server","at"])
+            self._db.createIndex("echolotOneHopResultSI",
+                                 "echolotOneHopResult",
+                                 ["server",  "interval"])
 
             # XXXX008 We should maybe have indices on echolot*results,
             # uptimes.
@@ -675,7 +678,7 @@ class PingLog:
 
         # Okay, now everybody else.
         for s, serverID in self._serverIDs.items():
-            if s == '<self>': continue
+            if s in ('<self>','<unknown>'): continue
             cur.execute("SELECT at, success FROM connectionAttempt"
                         " WHERE server = %s AND at >= %s AND at <= %s"
                         " ORDER BY at",
@@ -899,7 +902,7 @@ class PingLog:
         serverNames.sort()
         reliability = {}
         for s in serverNames:
-            if s == '<self>': continue
+            if s in ('<self>','<unknown>'): continue
             # For now, always calculate overall results.
             r = self._calculateOneHopResult(s,now,now,now,
                                              calculateOverallResults=1)
@@ -929,30 +932,32 @@ class PingLog:
                     " AND sentat >= %s AND received > 0",
                     (path,since))
         nReceived, = cur.fetchone()
+        cur.execute("SELECT SUM(r1.reliability * r2.reliability) "
+                   "FROM ping, echolotOneHopResult as r1, "
+                   "   echolotOneHopResult as r2, statsInterval "
+                   "WHERE ping.path = %s AND ping.sentAt >= %s "
+                   "AND statsInterval.startAt <= ping.sentAt "
+                   "AND statsInterval.endAt >= ping.sentAt "
+                   "AND r1.server = %s "
+                   "AND r1.interval = statsInterval.id "
+                   "AND r2.server = %s "
+                   "AND r2.interval = statsInterval.id ",
+                    (path, self._db.time(since),
+                     self._getServerID(s1), self._getServerID(s2)))
 
-        # Product: expected reliability.
-        try:
-            product = self._serverReliability[s1] * self._serverReliability[s2]
-        except KeyError:
-            product = None
+        nExpected, = cur.fetchone()
 
-        # Frac: actual reliability
-        if nSent == 0:
-            frac = 0.0
-        else:
-            frac = float(nReceived)/nSent
-
-        isBroken = nSent >= 3 and product and frac <= product*0.3
+        isBroken = nSent >= 3 and nExpected and nReceived <= nExpected*0.3
 
         isInteresting = ((nSent < 3 and nReceived == 0) or
-                         (product and frac <= product*0.3))
+                         (nExpected and nReceived <= nExpected*0.3))
         if 0:
             if isInteresting:
                 if nSent < 3 and nReceived == 0:
                     LOG.trace("%s,%s is interesting because %d were sent and %d were received",
                               s1,s2, nSent, nReceived)
-                elif product and frac <= product*0.3:
-                    LOG.trace("%s,%s is interesting because its reliability is %s and we expected a reliability of %s", s1,s2,frac, product)
+                elif nExpected and nReceived <= nExpected*0.3:
+                    LOG.trace("%s,%s is interesting because we expected %s and got %s", s1, s2, nExpected, nReceived)
                 else:
                     LOG.trace("I have no idea why %s,%s is interesting.",s1,s2)
 
@@ -976,9 +981,9 @@ class PingLog:
         serverNames.sort()
 
         for s1 in serverNames:
-            if s1 == '<self>': continue
+            if s1 in ('<self>','<unknown>'): continue
             for s2 in serverNames:
-                if s2 == '<self>': continue
+                if s2 == ('<self>','<unknown>'): continue
                 p = "%s,%s"%(s1,s2)
                 nS, nR, isBroken, isInteresting = \
                     self._calculate2ChainStatus(since, s1, s2)
@@ -1325,6 +1330,8 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
         for n in pingable:
             if self._sendOnePing([n], [myDescriptor]):
                 self._schedulePing((n,), now+60)
+            else:
+                del self.nextPingTime[(n,)]
 
 class TwoHopPingGenerator(_PingScheduler, PingGenerator):
     """A TwoHopPingGenerator uses the Echolot ping algorithm to schedule
@@ -1391,6 +1398,8 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
         for n1, n2 in pingable:
             if self._sendOnePing([n1,n2], [myDescriptor]):
                 self._schedulePing((n1,n2), now+60)
+            else:
+                del self.nextPingTime[(n1,n2)]
 
 class TestLinkPaddingGenerator(PingGenerator):
     """A PingGenerator to ensure that we randomly probe all known server
