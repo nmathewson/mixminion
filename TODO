@@ -33,29 +33,29 @@ For 0.0.8:
                           across invocations.
                         - Tests for pinging
                 - Pretty-print stats
-        - Distributed directories
-               - Spec changes
-                       - Statistics go in format?
-                       - Specify intermediate/final formats
-                       - Intermediate format is server list with signed vote
-                       - Final is multi-signed server-list-with-votes.
-                       - List of other good directories (clique is who?)
-                       - URL layout.
+        . Distributed directories
+               o Spec changes
+                       D Statistics go in format?
+                       o Specify intermediate/final formats
+                       o Intermediate format is server list with signed vote
+                       o Final is multi-signed server-list-with-votes.
+                       o List of other good directories (clique is who?)
+                       o URL layout.
                - Configuration: where are the directory servers?
-               - Server
-                       - Implement formats: gen and parse
-                       - Implement generate-dir-with-votes
-                       - Implement read-multi-dirs-with-votes
+               . Server
+                       o Implement formats: gen and parse
+                       o Implement generate-dir-with-votes
+                       o Implement read-multi-dirs-with-votes
                        - Implement download-multiple-directories
-                       - Implement compute-vote-and-sign
+                       o Implement compute-vote-and-sign
                        - Implement download-multiple-signed-dirs
                        - Implement add-one-more-sig
                        - Document how to run a directory
-                - Client
+                . Client
                        - Choose random URL
-                       - Validate multiple signatures
+                       o Validate multiple signatures
                        - Which sigs are valid?  Enough?
-                       - Document how to change directoryu
+                       - Document how to change directory config
                 - Test everything
         . Bugs
                 o Make tests pass with bizarre umasks.  (Try 0077, 0000,
