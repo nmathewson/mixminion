@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.43 2004/07/27 03:20:31 nickm Exp $
+# $Id: ServerQueue.py,v 1.44 2004/12/12 22:28:40 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -630,10 +630,6 @@ class PerAddressDeliveryQueue(DeliveryQueue):
         finally:
             self._lock.release()
 
-    def _repOK(self):
-        #XXXX008
-        pass
-
     def removeExpiredMessages(self, now=None):
         """DOCDOC"""
         assert self.retrySchedule is not None
@@ -704,9 +700,6 @@ class PerAddressDeliveryQueue(DeliveryQueue):
     def cleanQueue(self, secureDeleteFn=None):
         self.sync()
         self.store.cleanQueue(secureDeleteFn)
-
-    def sync(self):
-        self.addressStateDB.sync()
 
     def close(self):
         self.addressStateDB.close()

@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.13 2004/12/12 02:48:16 nickm Exp $
+# $Id: Pinger.py,v 1.14 2004/12/12 22:28:40 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -1041,6 +1041,6 @@ def openPingLog(config, location=None, databaseThread=None):
     log = PingLog(db)
 
     if db.LOCKING_IS_COARSE and databaseThread is not None:
-        log = BackgroundingDecorator(databaseThread, log)
+        log = mixminion.ThreadUtils.BackgroundingDecorator(databaseThread, log)
 
     return log

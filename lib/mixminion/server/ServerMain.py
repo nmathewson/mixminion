@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.138 2004/12/12 02:48:16 nickm Exp $
+# $Id: ServerMain.py,v 1.139 2004/12/12 22:28:40 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -717,6 +717,7 @@ class MixminionServer(_Scheduler):
     # cleaningThread: Thread used to remove packets in the background
     # processingThread: Thread to handle CPU-intensive activity without
     #    slowing down network interactivity.
+    # databaseThread: DOCDOC
     # lockFile: An instance of Lockfile to prevent multiple servers from
     #    running in the same directory.  The filename for this lock is
     #    stored in self.pidFile.
@@ -836,19 +837,21 @@ class MixminionServer(_Scheduler):
         pingerEnabled = config['Pinging'].get("Enabled")
         if pingerEnabled and mixminion.server.Pinger.canRunPinger():
             #FFFF Later, enable this stuff anyway, to make R-G-B mixing work.
+            LOG.debug("Initializing database thread for pinger")
+            self.databaseThread = ProcessingThread("database thread")
+
             LOG.debug("Initializing ping log")
-            pingerDir = os.path.join(config.getWorkDir(), "pinger")
-            pingerLogDir = os.path.join(pingerDir, "log")
-            self.pingLog = mixminion.server.Pinger.openPingLog(config)
+            self.pingLog = mixminion.server.Pinger.openPingLog(
+                config, databaseThread=self.databaseThread)
 
             LOG.debug("Initializing ping generator")
-
             self.pingGenerator=mixminion.server.Pinger.getPingGenerator(config)
         else:
             if pingerEnabled:
                 LOG.warn("Running a pinger requires Python 2.2 or later, and the pysqlite module")
             self.pingLog = None
             self.pingGenerator = None
+            self.databaseThread = None
 
         self.cleaningThread = CleaningThread()
         self.processingThread = ProcessingThread()
@@ -874,6 +877,8 @@ class MixminionServer(_Scheduler):
                                        keyring=self.keyring)
             self.pingGenerator.scheduleAllPings(time.time())
 
+        if self.databaseThread is not None:
+            self.databaseThread.start()
         if self.pingLog is not None:
             self.incomingQueue.setPingLog(self.pingLog)
             self.mmtpServer.connectPingLog(self.pingLog)
@@ -996,11 +1001,14 @@ class MixminionServer(_Scheduler):
                 now+self.pingLog.HEARTBEAT_INTERVAL,
                 self.pingLog.heartbeat,
                 self.pingLog.HEARTBEAT_INTERVAL))
-            self.scheduleEvent(RecurringBackgroundEvent(
+            # FFFF if we aren't using a LOCKING_IS_COURSE database, we will
+            # FFFF still want this to happen in another thread.
+            #XXXX008 use symbolic constants here
+            self.scheduleEvent(RecurringEvent(
                 now+3*60,
-                self.processingThread.addJob,
-                self.pingLog.calculateStatistics,
-                27*60*60))
+                lambda self=self: self.pingLog.calculateAll(
+                 os.path.join(self.config.getWorkingDir(), "pinger", "status")),
+                1*60*60))
 
         # Makes next update get scheduled.
         nextUpdate = self.updateDirectoryClient()
@@ -1113,7 +1121,7 @@ class MixminionServer(_Scheduler):
         self.outgoingQueue.cleanQueue(df)
         self.moduleManager.cleanQueues(df)
         if self.pingLog:
-            self.pingLog.clean()
+            self.pingLog.rotate()
 
     def close(self):
         """Release all resources; close all files."""
@@ -1122,14 +1130,21 @@ class MixminionServer(_Scheduler):
         self.cleaningThread.shutdown()
         self.processingThread.shutdown()
         self.moduleManager.shutdown()
+        if self.databaseThread: self.databaseThread.shutdown()
 
         self.cleaningThread.join()
         self.processingThread.join()
         self.moduleManager.join()
+        if self.databaseThread: self.databaseThread.join()
 
         self.packetHandler.close()
         self.moduleManager.close()
         self.outgoingQueue.close()
+        if self.pingLog:
+            if hasattr(self.pingLog, '_baseObject'):
+                self.pingLog._baseObject.close()
+            else:
+                self.pingLog.close()
 
         EventStats.log.save()
 

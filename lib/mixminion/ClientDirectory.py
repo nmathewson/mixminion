@@ -425,7 +425,7 @@ class DirectoryBackedDescriptorSource(DescriptorSource):
         """Fetch a new directory."""
         if self.__downloading:
             LOG.info("Download already in progress")
-            return 0
+            return
         self.__downloading = 1
         self._downloadDirectoryImpl(url,lock)
         self.__downloading = 0

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.23 2004/08/09 20:04:59 nickm Exp $
+# $Id: Filestore.py,v 1.24 2004/12/12 22:28:39 nickm Exp $
 
 """mixminion.Filestore
 
@@ -329,7 +329,7 @@ class ObjectStoreMixin:
                 res = cPickle.load(f)
                 f.close()
                 return res
-            except cPickle.UnpicklingError, e:
+            except (cPickle.UnpicklingError, EOFError, IOError), e:
                 LOG.error("Found damaged object %s in filestore %s: %s",
                           handle, self.dir, str(e))
                 self._preserveCorrupted(handle)

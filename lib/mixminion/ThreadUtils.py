@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.5 2004/12/12 02:48:16 nickm Exp $
+# $Id: ThreadUtils.py,v 1.6 2004/12/12 22:28:39 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -10,8 +10,10 @@
 __all__ = [ 'MessageQueue', 'QueueEmpty', 'ClearableQueue', 'TimeoutQueue',
             'RWLock', 'ProcessingThread', 'BackgroundingDecorator' ]
 
+import sys
 import threading
 import time
+from mixminion.Common import LOG
 
 import thread
 _get_ident = thread.get_ident
@@ -265,9 +267,9 @@ class ProcessingThread(threading.Thread):
         def __call__(self):
             raise self
 
-    def __init__(self):
+    def __init__(self, name="processing thread"):
         """Create a new processing thread."""
-        threading.Thread.__init__(self, name="processing thread")
+        threading.Thread.__init__(self)
         self.mqueue = ClearableQueue()
         self.threadName = name
 

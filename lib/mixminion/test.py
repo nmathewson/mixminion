@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.210 2004/12/12 02:48:16 nickm Exp $
+# $Id: test.py,v 1.211 2004/12/12 22:28:39 nickm Exp $
 
 """mixminion.tests
 
@@ -3272,7 +3272,7 @@ class FilestoreTests(FStoreTestBase):
 
         d = WD(loc, "testing")
         try:
-            d["xyzzy"]
+            _ = d["xyzzy"]
         except KeyError:
             pass
         else:
@@ -7122,16 +7122,18 @@ class ClientDirectoryTests(TestCase):
         pathIs((p1[:1],p2[-2:]), ((alice,),(bob,lola)))
 
         # 1a'. Filename with internal commas and colons, where permitted.
-        fredfile2 = os.path.join(mix_mktemp(), "a:b,c")
+        dirname3 = mix_mktemp()
+        os.mkdir(dirname3, 0700)
+        fredfile2 = os.path.join(dirname3, "a:b,c")
         try:
             writeFile(fredfile2,edesc["Fred"][1])
-        except OSError:
+        except OSError, e:
             pass
         else:
             p1,p2 = ppath(ks, None, "Alice,%r,Bob,Joe"%fredfile2, email)
-            pathIs(p1,p2), ((alice,fred),(bob,joe))
+            pathIs((p1,p2), ((alice,fred),(bob,joe)))
             p1,p2 = ppath(ks, None, "%r,Alice,Bob,Joe"%fredfile2, email)
-            pathIs(p1,p2), ((fred,alice),(bob,joe))
+            pathIs((p1,p2), ((fred,alice),(bob,joe)))
 
         # 1b. Colon, no star
         p1,p2 = ppath(ks, None, "Alice:Fred,Joe", email)
@@ -7215,7 +7217,6 @@ class ClientDirectoryTests(TestCase):
         ks = mixminion.ClientDirectory.ClientDirectory(config)
         ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
         raises(MixError, ks.getServerInfo, "Lola", strict=1)
-        ks.getServerInfo
 
     def testFeatureMaps(self):
         from mixminion.ClientDirectory import compressFeatureMap
@@ -7443,7 +7444,6 @@ class ClientMainTests(TestCase):
 
         # Now try with some servers...
         edesc = getExampleServerDescriptors()
-        ServerInfo = mixminion.ServerInfo.ServerInfo
 
         # ... and for now, we need to restart the client.
         client = mixminion.ClientMain.MixminionClient(usercfg)

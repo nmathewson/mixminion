@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.87 2004/12/07 01:44:30 nickm Exp $
+# $Id: ServerInfo.py,v 1.88 2004/12/12 22:28:39 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -621,6 +621,7 @@ class SignedDirectory:
         for s in servers:
             si = ServerInfo(string=s, validatedDigests=validatedDigests,
                             _keepContents=_keepServerContents)
+            self.servers.append(si)
         self.goodServerNames = [ name.lower()
              for name in self.dirInfo['Directory-Info']['Recommended-Servers'] ]
 
@@ -643,7 +644,7 @@ class SignedDirectory:
                 continue
             if s.checkSignature():
                 # XXXX008 LOG.debug("Valid signature from %s")
-                self.signers.append[(digest, url)]
+                self.signers.append((digest, url))
             else:
                 #LOG.debug("Invalid signature from %s") XXXX008
                 continue
@@ -764,7 +765,7 @@ class _DirectoryInfo(mixminion.Config._ConfigFile):
 
     def __init__(self, string):
         self.sigStatus = None
-        mixminion.Config._ConfigFile.__init__(self, string=contents)
+        mixminion.Config._ConfigFile.__init__(self, string=string)
 
     def prevalidate(self, contents):
         for name, ents in contents:
@@ -806,11 +807,11 @@ class _DirectorySignature(mixminion.Config._ConfigFile):
 
     def __init__(self, string):
         self.sigStatus = None
-        mixminion.Config._ConfigFile.__init__(self, string=contents)
+        mixminion.Config._ConfigFile.__init__(self, string=string)
 
-    def validate(self):
-        sec = self['Signed-Directory']
-        idKeyBytes = sec['Directory-Identity'].get_modulus_bytes() 
+    def validate(self, lines, contents):
+        sec = contents['Signed-Directory']
+        idKeyBytes = sec['Directory-Identity'].get_modulus_bytes()
         if not (2048 <= idKeyBytes*8 <= 4096):
             raise ConfigError("Identity key length is out of range (%s bits)"
                               % idKeyBytes*8)

@@ -1672,7 +1672,6 @@ def updateServers(cmd, args):
 
     parser.init()
     directory = parser.directory
-    config = parser.config
     clientLock()
     try:
         directory.update(force=1)
