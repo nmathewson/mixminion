@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.78 2004/05/31 01:02:55 nickm Exp $
+# $Id: Packet.py,v 1.79 2004/07/27 03:23:23 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -92,6 +92,9 @@ SMTP_TYPE      = 0x0100  # Mail the message
 MBOX_TYPE      = 0x0101  # Send the message to one of a fixed list of addresses
 NEWS_TYPE      = 0x0102  # Post the message to some ngs, and maybe mail it too
 FRAGMENT_TYPE  = 0x0103  # Find the actual delivery info in the message payload
+NEWS_TYPE      = 0x0104  # DOCDOC
+PING_TYPE      = 0x0105  # DOCDOC
+
 MAX_EXIT_TYPE  = 0xFFFF
 
 def typeIsSwap(tp):
