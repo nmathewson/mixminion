@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.82 2004/03/06 05:10:56 nickm Exp $
+# $Id: MMTPServer.py,v 1.83 2004/03/07 21:27:27 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -190,7 +190,7 @@ class SelectAsyncServer:
         if bwpt is None:
             self.bucket = None
         else:
-            bucket = self.bucket + bwpt
+            bucket = (self.bucket or 0) + bwpt
             if bucket > self.maxBucket:
                 self.bucket = self.maxBucket
             else:
