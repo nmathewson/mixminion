@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.38 2003/01/07 19:06:26 nickm Exp $
+# $Id: ClientMain.py,v 1.39 2003/01/08 07:54:23 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -689,6 +689,8 @@ def parsePath(keystore, config, path, address, nHops=None,
     # Turn 'path' into a list of server names, '*', and '*swap*'.
     #  (* is not a valid nickname character, so we're safe.)
     path = path.replace(":", ",*swap*,").split(",")
+    # Strip whitespace around the commas and colon.
+    path = [ s.strip() for s in path ]
     # List of servers that appear on the path before the '*'
     enterPath = []
     # List of servers that appear after the '*'.
@@ -1079,9 +1081,9 @@ def runClient(cmd, args):
 
     try:
         path1, path2 = parsePath(keystore, config, path, address, nHops, nSwap)
-        LOG.info("Selected path is [%s][%s]",
-                 " ".join([ s.getNickname() for s in path1 ]),
-                 " ".join([ s.getNickname() for s in path2 ]))
+        LOG.info("Selected path is %s:%s",
+                 ",".join([ s.getNickname() for s in path1 ]),
+                 ",".join([ s.getNickname() for s in path2 ]))
     except MixError, e:
         print >>sys.stderr, e
         sys.exit(1)
