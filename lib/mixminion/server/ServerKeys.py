@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.31 2003/05/29 02:01:34 nickm Exp $
+# $Id: ServerKeys.py,v 1.32 2003/05/29 02:15:01 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -131,7 +131,7 @@ class ServerKeyring:
             LOG.trace("Found key %s (valid from %s to %s)",
                       dirname, formatDate(t1), formatDate(t2))
 
-        LOG.debug("Found %s keys.", len(self.keySets)
+        LOG.debug("Found %s keys.", len(self.keySets))
 
         # Now, sort the key intervals by starting time.
         self.keySets.sort()
@@ -955,7 +955,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # This is for debugging: we try to parse and validate the descriptor
     #   we just made.
     # FFFF Remove this once we're more confident.
-    ServerInfo(string=info)
+    inf = ServerInfo(string=info)
+    ok = checkDescriptorConsistency(inf, config, log=0, isPublished=0)
+    assert ok
 
     return info
 
