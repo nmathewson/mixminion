@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.5 2003/05/28 05:26:48 nickm Exp $
+# $Id: Directory.py,v 1.6 2003/05/28 05:32:09 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -50,7 +50,7 @@ class Directory:
         dir_uid = self.config.dir_uid
         dir_gid = self.config.dir_gid
         cgi_gid = self.config.cgi_gid
-        
+
         for fn, uid, gid, mode, recurse in [
             (self.location,       dir_uid, cgi_gid, 0750, 1),
             (self.directoryBase,  dir_uid, dir_gid, 0700, 0),
@@ -64,7 +64,7 @@ class Directory:
                     os.makedirs(fn, mode)
                 else:
                     os.mkdir(fn, mode)
-            _set_uid_gid_mode(fn, dir_uid, cgi_gid, mode)
+            _set_uid_gid_mode(fn, uid, gid, mode)
 
         if not os.path.exists(self.cacheFile):
             self.cache = IDCache(self.cacheFile)
