@@ -1,4 +1,4 @@
-mixminion (0.0.XXXXX) unreleased; urgency=low
+mixminion (0.0.7.1-2) experimental; urgency=low
 
   * Update debian/copyright: Mixminion relicensed to MIT.
   * Build depend on python too, in addition to python2.3
@@ -7,7 +7,7 @@ mixminion (0.0.XXXXX) unreleased; urgency=low
     (closes: #257758).
   * Also logrotate /var/log/mixminion/stats (closes: #289669).
 
- -- Peter Palfrader <weasel@debian.org>  Mon, 10 Jan 2005 15:31:51 +0100
+ -- Peter Palfrader <weasel@debian.org>  Mon, 10 Jan 2005 15:35:51 +0100
 
 mixminion (0.0.7.1-1) experimental; urgency=low
 
