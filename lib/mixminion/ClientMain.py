@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.84 2003/05/30 02:07:41 nickm Exp $
+# $Id: ClientMain.py,v 1.85 2003/05/30 03:07:56 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -414,6 +414,8 @@ class ClientDirectory:
 
         for info, where in self.fullServerList:
             nn = info.getNickname().lower()
+            if self.goodServerNicknames.get(nn):
+                continue
             self.byNickname.setdefault(nn, []).append((info, where))
 
 
@@ -1898,6 +1900,7 @@ class CLIArgumentParser:
                 else:
                     LOG.setMinSeverity("INFO")
             mixminion.Common.configureShredCommand(self.config)
+            mixminion.Common.configureTrustedUsers(self.config)
             if not self.verbose:
                 try:
                     LOG.setMinSeverity("WARN")

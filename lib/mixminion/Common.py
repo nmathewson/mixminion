@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.83 2003/05/28 08:39:45 nickm Exp $
+# $Id: Common.py,v 1.84 2003/05/30 03:07:56 nickm Exp $
 
 """mixminion.Common
 
@@ -25,6 +25,7 @@ import fcntl
 import grp
 import gzip
 import os
+import pwd
 import re
 import signal
 import stat
@@ -308,6 +309,8 @@ def createPrivateDir(d, nocreate=0):
     checkPrivateDir(d)
 
 _WARNED_DIRECTORIES = {}
+_VALID_DIRECTORIES = {}
+_TRUSTED_UIDS = [ 0 ]
 
 def checkPrivateDir(d, recurse=1):
     """Check whether d is a directory owned by this uid, set to mode
@@ -315,6 +318,7 @@ def checkPrivateDir(d, recurse=1):
        this uid and uid 0.  If any of these conditions are unmet, raise
        MixFatalErrror.  Otherwise, return None."""
     me = os.getuid()
+    trusted_uids = _TRUSTED_UIDS + [ me ]
 
     if not os.path.isabs(d):
         d = os.path.abspath(d)
@@ -338,6 +342,8 @@ def checkPrivateDir(d, recurse=1):
     # Check permissions on parents.
     while 1:
         parent = os.path.split(d)[0]
+        if _VALID_DIRECTORIES.has_key(parent):
+            return
         if parent == d:
             return
         d = parent
@@ -345,7 +351,7 @@ def checkPrivateDir(d, recurse=1):
         st = os.stat(d)
         mode = st[stat.ST_MODE]
         owner = st[stat.ST_UID]
-        if owner not in (0, me):
+        if owner not in trusted_uids:
             raise MixFatalError("Bad owner (uid=%s) on directory %s"
                                 % (owner, d))
         if (mode & 02) and not (mode & stat.S_ISVTX):
@@ -358,6 +364,23 @@ def checkPrivateDir(d, recurse=1):
                 LOG.warn("Directory %s is writable by group %s (mode %o)",
                          d, group, mode&0777)
             _WARNED_DIRECTORIES[d] = 1
+
+def configureTrustedUsers(config):
+    #XXXX004 call this
+    users = config['Host']['TrustedUser']
+    if not users:
+        return
+
+    for u in users:
+        u = u.strip()
+        try:
+            ent = pwd.getpwnam(u)
+        except KeyError:
+            LOG.warn("TrustedUser: No such user as %s", u)
+            continue
+
+        uid = ent[2]
+        _TRUSTED_UIDS.append(uid)
 
 #----------------------------------------------------------------------
 # File helpers

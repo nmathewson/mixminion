@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.15 2003/05/17 00:08:44 nickm Exp $
+# $Id: testSupport.py,v 1.16 2003/05/30 03:07:56 nickm Exp $
 
 """mixminion.testSupport
 
@@ -122,8 +122,6 @@ Decoding handle: %s%s==========MESSAGE ENDS""" % (
 # mix_mktemp: A secure, paranoid mktemp replacement.  (May be overkill
 # for testing, but better safe than sorry.)
 
-# Constant flag: are we paranoid about permissions and uid on our tmpdir?
-_MM_TESTING_TEMPDIR_PARANOIA = 1
 # Name of our temporary directory: all temporary files go under this
 # directory.  If None, it hasn't been created yet.  If it exists,
 # it must be owned by us, mode 700, and have no parents that an adversary
@@ -141,7 +139,6 @@ def mix_mktemp(extra=""):
     if _MM_TESTING_TEMPDIR is None:
         # We haven't configured our temporary directory yet.
         import tempfile
-        paranoia = _MM_TESTING_TEMPDIR_PARANOIA
 
         # If tempfile.mkdtemp exists, use it.  This avoids warnings, and
         # is harder for people to exploit.
@@ -155,7 +152,7 @@ def mix_mktemp(extra=""):
         # Otherwise, pick a dirname, make sure it doesn't exist, and try to
         # create it.
             temp = tempfile.mktemp()
-            if paranoia and os.path.exists(temp):
+            if os.path.exists(temp):
                 print "I think somebody's trying to exploit mktemp."
                 sys.exit(1)
             try:
@@ -169,33 +166,16 @@ def mix_mktemp(extra=""):
             print "Couldn't create temp dir %r" %temp
             sys.exit(1)
         st = os.stat(temp)
-        if paranoia:
-            # And be writeable only by us...
-            if st[stat.ST_MODE] & 077:
-                print "Couldn't make temp dir %r with secure permissions" %temp
-                sys.exit(1)
-            # And be owned by us...
-            if st[stat.ST_UID] != os.getuid():
-                print "The wrong user owns temp dir %r"%temp
-                sys.exit(1)
-            parent = temp
-            # And if, and all of its parents, must not be group-writeable
-            # unless their sticky bit is set, and must not be owned by
-            # anybody except us and root.
-            while 1:
-                p = os.path.split(parent)[0]
-                if parent == p:
-                    break
-                parent = p
-                st = os.stat(parent)
-                m = st[stat.ST_MODE]
-                if m & 02 and not (m & stat.S_ISVTX):
-                    print "Directory %s has fishy permissions %o" %(parent,m)
-                    sys.exit(1)
-                if st[stat.ST_UID] not in (0, os.getuid()):
-                    print "Directory %s has bad owner %s" % (parent,
-                                                             st[stat.ST_UID])
-                    sys.exit(1)
+
+        # And be writeable only by us...
+        if st[stat.ST_MODE] & 077:
+            print "Couldn't make temp dir %r with secure permissions" %temp
+            sys.exit(1)
+        # And be owned by us...
+        if st[stat.ST_UID] != os.getuid():
+            print "The wrong user owns temp dir %r"%temp
+            sys.exit(1)
+        parent = temp
 
         _MM_TESTING_TEMPDIR = temp
         if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:

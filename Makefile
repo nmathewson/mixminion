@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.44 2003/05/30 02:11:11 nickm Exp $
+# $Id: Makefile,v 1.45 2003/05/30 03:07:56 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -156,7 +156,12 @@ uninstall-help:
 sdist: clean
 	@$(FINDPYTHON); \
 	echo $$PYTHON setup.py sdist; \
-	$$PYTHON setup.py sdist
+	$$PYTHON setup.py sdist; \
+	VERSION=`ls dist/*.tar.gz | sed -e s/.*-// | sed -e s/.tar.gz//`; \
+	cp README dist/README-$$VERSION
+
+signdist: sdist
+	gpg -ba dist/Mixminion*.tar.gz
 
 #======================================================================
 # OpenSSL-related targets

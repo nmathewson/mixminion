@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.44 2003/05/28 06:37:32 nickm Exp $
+# $Id: Config.py,v 1.45 2003/05/30 03:07:56 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -706,6 +706,7 @@ class ClientConfig(_ConfigFile):
         'Host' : { '__SECTION__' : ('ALLOW', None, None),
                    'ShredCommand': ('ALLOW', _parseCommand, None),
                    'EntropySource': ('ALLOW', None, "/dev/urandom"),
+                   'TrustedUser': ('ALLOW*', None, None),
                    },
         'DirectoryServers' :
                    { '__SECTION__' : ('REQUIRE', None, None),
@@ -748,4 +749,6 @@ def _validateHostSection(sec):
        raise ConfigError if it isn't"""
     # For now, we do nothing here.  EntropySource and ShredCommand are checked
     # in configure_trng and configureShredCommand, respectively.
-    pass
+
+    # Host is checked in setupTrustedUIDs.
+

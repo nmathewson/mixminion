@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.54 2003/05/28 05:31:41 nickm Exp $
+# $Id: setup.py,v 1.55 2003/05/30 03:07:56 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -30,9 +30,9 @@ import os, re, shutil, string, struct
 
 os.umask(022)
 
-VERSION = '0.0.4alpha3'
+VERSION = '0.0.4rc1'
 # System: 0==alpha, 50==beta, 99==release candidate, 100==release
-VERSION_INFO = (0,0,4,0,3)
+VERSION_INFO = (0,0,4,99,1)
 
 # Function to pull openssl version number out of an opensslv.h file.  This
 # isn't a real C preprocessor, but it seems to work well enough.

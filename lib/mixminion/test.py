@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.112 2003/05/29 04:39:59 nickm Exp $
+# $Id: test.py,v 1.113 2003/05/30 03:07:56 nickm Exp $
 
 """mixminion.tests
 
@@ -5782,6 +5782,9 @@ def testAll(name, args):
     # Suppress 'files-can't-be-securely-deleted' message while testing
     LOG.setMinSeverity("FATAL")
     mixminion.Common.secureDelete([],1)
+
+    #DOCDOC
+    mixminion.Common._VALID_DIRECTORIES["/tmp"] = 1
 
     # Disable TRACE and DEBUG log messages, unless somebody overrides from
     # the environment.
