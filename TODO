@@ -27,8 +27,9 @@ TCP latency, and me.)
                 o Separate SURB logging, keystores, and client queues into
                   client support module.
                 . Refactor path selection to have a nicer interface.
-                        . Generic, cross-module notion of "address".
-                        D Better capability infrastructure.
+                        X Generic, cross-module notion of "address".
+                        X Better capability infrastructure.
+                        - Better ExitAddress notion.
                         . Separate parsing path str into specifier list, 
                           checking specifier list for sanity, and generating
                           path from specifier list.
@@ -148,7 +149,6 @@ not yet ready to replace type I.]
                   'Boilerplate' functionality.
                 - Real SMTP module
                         - Abuse prevention of some undetermined kind.
-                        X Support for setting 'Subject' and 'From' lines.
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
         - End-to-end issues

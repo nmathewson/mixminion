@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.155 2003/09/28 05:27:56 nickm Exp $
+# $Id: test.py,v 1.156 2003/10/07 21:57:46 nickm Exp $
 
 """mixminion.tests
 
@@ -6205,7 +6205,7 @@ class ClientDirectoryTests(TestCase):
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola", mboxWithoutServer)
         pathIs((p1,p2), ((alice,fred),(bob,lola)))
         p1,p2 = ppath(ks, None, "Alice,?,?,Bob", mboxWithServer)
-        eq((len(p1),len(p2)), (2,3))
+        eq((len(p1),len(p2)), (3,2))
         pathIs((p1[:1],p2[-2:]), ((alice,),(bob,lola)))
 
         # 1a'. Filename with internal commas and colons, where permitted.
@@ -6325,9 +6325,9 @@ class ClientDirectoryTests(TestCase):
         raises(MixError, ppath, ks, None, "Alice:Bob,Fred", mboxWithoutServer)
         # Two stars.
         raises(MixError, ppath, ks, None, "Alice,*,Bob,*,Joe", email)
-        # NHops mismatch
-        raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=2)
-        raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=4)
+        # NHops mismatch -- no longer an error.
+        ##raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=2)
+        ##raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=4)
         # Nonexistent file
         raises(MixError, ppath, ks, None, "./Pierre:Alice,*", email)
 

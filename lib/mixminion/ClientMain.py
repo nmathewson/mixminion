@@ -17,6 +17,7 @@ from types import ListType
 
 import mixminion.BuildMessage
 import mixminion.ClientUtils
+import mixminion.ClientDirectory
 import mixminion.Config
 import mixminion.Crypto
 import mixminion.Filestore
