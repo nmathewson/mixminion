@@ -1,13 +1,12 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.11 2002/12/16 02:40:11 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.12 2003/01/05 04:16:49 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
 #include <Python.h>
 #include <openssl/opensslv.h>
 #if (OPENSSL_VERSION_NUMBER < 0x00907003L)
-#error "Mixminion requires OpenSSL 0.9.7 (which may not be released yet,\
-but you can get snapshots from openssl.org)."
+#error "Mixminion requires OpenSSL 0.9.7 -- try 'make download-openssl; make build-openssl'"
 #endif
 
 #include <openssl/aes.h>

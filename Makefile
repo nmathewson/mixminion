@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.25 2003/01/04 04:27:49 nickm Exp $
+# $Id: Makefile,v 1.26 2003/01/05 04:16:49 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -103,8 +103,8 @@ sdist: clean
 #======================================================================
 # OpenSSL-related targets
 
-OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7-beta4.tar.gz
-OPENSSL_FILE = openssl-0.9.7-beta4.tar.gz
+OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7.tar.gz
+OPENSSL_FILE = openssl-0.9.7.tar.gz
 
 download-openssl:
 	@if [ -x "`which wget 2>&1`" ] ; then                             \

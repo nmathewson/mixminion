@@ -1,16 +1,15 @@
 Hacking Mixminion                                  -*- Text -*-
 
 Requirements:
-	Python 2.0-2.2  (see PORTING NOTES below)
+        Python 2.0-2.2  (see PORTING NOTES below)
 
-	OpenSSL 0.9.7 (You'll need to download a beta. As of 1 December 2002,
-           that's http//www.openssl.org/source/openssl-0.9.7-beta4.tar.gz).
-	   Don't worry; the makefile knows how to download it for you.
+        OpenSSL 0.9.7 (If you don't have it, the Makefile knows how to
+            download it for you.)
 
-	A working /dev/urandom (see PORTING NOTES below)
+        A working /dev/urandom (see PORTING NOTES below)
 
 Things to hack:
-	See the TODO list.
+        See the TODO list.
 
 DESIGN PRINCIPLES:
     - It's not done till it's documented.
@@ -28,8 +27,8 @@ CODING STYLE:
     - Magic strings:
          "XXXX" indicates a defect in the code. 
          "FFFF" indicates a missing feature.
-	 "????" indicates an untested or iffy block.
-	 "DOCDOC" indicates missing documentation.
+         "????" indicates an untested or iffy block.
+         "DOCDOC" indicates missing documentation.
 
 PORTABILITY NOTES:
     - I've already backported to Python 2.0.  (I refuse to backport to 1.5 or
@@ -80,11 +79,11 @@ FINDING YOUR WAY AROUND THE CODE.
         A batch of messages is selected by the 'Mix pool' for delivery.
              V
              ---Some are placed in an 'Outgoing' queue...
-	     I       V
+             I       V
              I   ... and delivered to other Mixminion servers via MMTPServer
              V
              ---Others are queued and delivered by other exit methods, 
-	        implemented and selected by ModuleManager.
+                implemented and selected by ModuleManager.
 
 CONTRIBUTING PATCHES:
     - Send them to the list mixminion-dev@freehaven.net, or to me
