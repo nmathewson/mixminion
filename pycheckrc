@@ -1,17 +1,28 @@
-# Sample defaults file for PyChecker 0.8.10
+# Sample defaults file for PyChecker 0.8.11
+# This file should be called:  .pycheckrc
+# It should be placed in your home directory (value of $HOME).
+# If $HOME is not set, it will look in the current directory.
+
+import os
+_PARANOID = os.environ.get("PYCHECKER_HEAVY",None)
+if _PARANOID == 'max':
+    _VERY_PARANOID = _PARANOID = 1
+elif _PARANOID is not None:
+    _PARANOID = 1; _VERY_PARANOID = 0
+else:
+    _VERY_PARANOID = _PARANOID = 0
 
 # bool: warnings for Doc Strings
-noDocModule = 1
-noDocClass = 1
-# XXXX Reenable for paranoia
-noDocFunc = 0 
+noDocModule = _PARANOID
+noDocClass = _PARANOID
+noDocFunc = _PARANOID
 
 # bool: when checking if class data members (attributes) are set
 #       check all members or __init__() only
 onlyCheckInitForMembers = 0
 
 # bool: warn when all module variables are not used (including private vars)
-allVariablesUsed = 0
+allVariablesUsed = _PARANOID
 
 # bool: produce warnings for each occurrence of a warning for global (xxx)
 reportAllGlobals = 0
@@ -23,7 +34,7 @@ privateVariableUsed = 1
 importUsed = 1
 
 # bool: warn when import and from ... import are used for same module
-mixImport = 0
+mixImport = _PARANOID
 
 # bool: warn when imports are not used in __init__.py
 packageImportUsed = 1
@@ -41,7 +52,7 @@ localVariablesUsed = 1
 unusedLocalTuple = 0
 
 # bool:  warn when class attributes (data members) are unused
-membersUsed = 1
+membersUsed = 0
 
 # bool: warn when Subclass.__init__ is not called in a subclass
 baseClassInitted = 1
@@ -73,6 +84,16 @@ inconsistentTypes = 1
 # bool: warn when setting a tuple of variables to a non-sequence (a, b = None)
 unpackNonSequence = 1
 
+# bool: warn when setting a tuple of variables to the wrong size (a, b = 1,)
+unpackSize = 1
+
+# bool: warn when using strings exceptions or 
+#       other classes not derived from Exception to raise/catch exceptions
+badExceptions = 1
+
+# bool: warn when using a deprecated module or function
+deprecated = 1
+
 # bool: warn when the class attribute does not exist
 classAttrExists = 1
 
@@ -87,7 +108,7 @@ namedArgs = 0
 methodArgName = 'self'
 
 # bool: warn when method/function arguments are unused
-argumentsUsed = 1
+argumentsUsed = _VERY_PARANOID
 
 # bool: ignore if self is unused in methods
 ignoreSelfUnused = 0
@@ -100,12 +121,20 @@ redefiningFunction = 1
 checkOverridenMethods = 1
 
 # int: warnings for code complexity, max value before generating a warning
-maxLines = 100
-maxBranches = 20
-maxReturns = 10
-maxArgs = 7
-maxLocals = 15
-maxReferences = 10
+if _PARANOID:
+    maxLines = 100
+    maxBranches = 20
+    maxReturns = 10
+    maxArgs = 7
+    maxLocals = 15
+    maxReferences = 10
+else:
+    maxLines = 300
+    maxBranches = 50
+    maxReturns = 20
+    maxArgs = 15
+    maxLocals = 30
+    maxReferences = 20
 
 # bool:  ignore all warnings from standard library components
 #	 (this includes anything under the standard library, eg, site-packages)
@@ -173,9 +202,9 @@ checkImplicitReturns = 1
 #       { 'module1': 'no-namedargs maxlines=0',
 #	  'module2.my_func': 'argsused',
 #	  'module3.my_class': 'no-initreturn', }
-suppressions = {
-	}
+suppressions = {}
 
 # dict: suppress warnings where keys can be regular expressions
 suppressionRegexs = {}
 
+del os, _PARANOID, _VERY_PARANOID
