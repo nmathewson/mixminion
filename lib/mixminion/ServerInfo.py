@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.16 2002/10/30 02:29:11 nickm Exp $
+# $Id: ServerInfo.py,v 1.17 2002/10/30 02:40:13 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -440,12 +440,12 @@ def _guessLocalIP():
 	except socket.error, _:
 	    pass
 
-    if len(ip_set) == 0:
-	raise IPGuessError("No address found")
-
     for ip in ip_set.keys():
 	if ip.startswith("127.") or ip.startswith("0."):
 	    del ip_set[ip]
+
+    if len(ip_set) == 0:
+	raise IPGuessError("No address found")
 
     if len(ip_set) > 1:
 	raise IPGuessError("Multiple addresses found: %s" % (
