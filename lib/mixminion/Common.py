@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.53 2003/01/17 06:18:06 nickm Exp $
+# $Id: Common.py,v 1.54 2003/02/04 02:02:51 nickm Exp $
 
 """mixminion.Common
 
@@ -531,13 +531,21 @@ class LogStream:
        We don't actually want to use these; but they keep us from dropping
        prints on the floor.
        """
+    # Fields:
+    #    name -- The name of this stream
+    #    severity -- The severity of log messages to generate.
+    #    buf -- A list of strings that have been written to this stream since
+    #        we most recently flushed the buffer to the log.
     def __init__(self, name, severity):
         self.name = name
         self.severity = severity
-        self.buf = [] #DOCDOC
+        self.buf = [] 
     def write(self, s):
-        #DOCDOC justify this inefficiency.
-        #LOG.log(self.severity, "called with %r", s)
+        # This is inefficient, but we don't actually use this class if we can
+        # avoid it.  The basic idea is to generate a call to Log.log for every
+        # newline.  (This buffering is particularly necessary because typical
+        # uses of sys.stdout/stderr generate multiple calls to file.write per
+        # line.)
         if "\n" not in s:
             self.buf.append(s)
             return
