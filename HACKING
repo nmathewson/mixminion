@@ -1,13 +1,19 @@
-$Id: HACKING,v 1.23 2003/12/12 22:37:12 nickm Exp $
+$Id: HACKING,v 1.24 2004/03/07 06:33:56 nickm Exp $
 Hacking Mixminion
 
-Requirements:
+HOW TO CONTRIBUTE PATCHES:
+    - Send them to the list mixminion-dev@freehaven.net, or to me
+      (nickm@freehaven.net).
+    - Include a statement saying that you give permission for me to
+      redistribute your work under any FSF-approved license Mixminion
+      may use in the future, including (but not limited to) LGPL, GPL,
+      modified (3-clause) BSD, X11, or MIT.
+
+System requirements:
         Python >= 2.0 (see PORTING NOTES below)
 
         OpenSSL 0.9.7 (If you don't have it, the Makefile knows how to
             download it for you.)
-
-        A working /dev/urandom (see PORTING NOTES below)
 
 NON-HACKING PROJECTS:
 
@@ -49,16 +55,7 @@ THINGS TO HACK:  (Good introductory projects that I won't get to myself for
   configurable via some kind of generic boilerplate mechanism, and stored in
   separate files.  (Difficulty: easy.  Invasiveness: slight.)
 
-- We should throttle bandwidth under high load.  To implement this, every
-  connection needs to keep track of how many bytes it's sent or received,
-  and stop trying to read or write after a certain threshold is passed.
-  Every timeslice (say, 1 or 2 seconds), we reset the quota and restart the
-  connections.  A good implementation would support:
-      - Per-connection limits
-      - Total-bandwidth limits
-      - Noticing multiple connections from the same IP.
-      - Throttling delivery as well as MMTP
-      - Throttling CPU usage in the processing thread.
+- We could use some way to cap total disk usage, and handle full disks sanely.
   (Difficulty: moderate.  Invasiveness: moderate.)
 
 - If you have access to a multiprocessor machine, it would be nice to make
@@ -69,16 +66,14 @@ THINGS TO HACK:  (Good introductory projects that I won't get to myself for
   one-per-connection). (Difficulty: easy/moderate, depending on your
   knowledge of writing multithreaded code. Invasiveness: slight.)
 
+- We have a specification for multiple exit addresses, but it needs to be
+  implemented... (Difficulty: easy.  Invasiveness: slight.)
+
 THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
   specification work.  Please, get your spec discussed on mixminion-dev and
   checked into CVS *before* you submit an implementation for any of these!
 
   [See spec-issues.txt for more open issues].)
-
-- Maybe, there should be support for multiple exit addresses (cc, bcc, etc.)
-  This is prone to abuse... (Spec difficulty: easy, once you've figured out
-  how to limit abuse.  Implementation difficulty: easy.  Invasiveness:
-  slight.)
 
 - We should have an incoming email gateway for users to use reply blocks to
   send messages anonymously without using Mixminion software.  (Spec
@@ -87,8 +82,8 @@ THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
 
 - Want a real challenge?  We have an allusive description for how to do
   K-of-N fragmentation in our E2E-spec documentation.  Go flesh out the
-  description.  (Spec difficulty: moderate.  Implementation difficulty: hard.
-  Invasiveness: some.)
+  description.  (Spec difficulty: moderate.  Implementation difficulty:
+  already implemented.)
 
 - Right now, we never generate link padding or dummy messages.  The code is
   there, but it never gets triggered.  Specify when it gets triggered (and
@@ -204,11 +199,6 @@ PORTABILITY NOTES:
       run under gnutls/libgcrypt as well, but I think in the long term
       we should migrate to libnss entirely.
 
-PORTING TO NON-LINUX PLATFORMS:
-    - If you need to run on a system without an acceptable /dev/*random,
-      you'll need to write an acceptable fallback for mixminion.Crypto.trng()
-      to use.
-
 CAVEATS:
     - If I haven't got a test for it in tests.py, assume it doesn't work.
     - The code isn't threadsafe.  It will become so only if it must.
@@ -224,24 +214,20 @@ FINDING YOUR WAY AROUND THE CODE.
 
         Received in MMTPServer;
               V
-         Stored in an 'Incoming' queue, implemented in ServerMain and Queue.
+           Stored in an 'Incoming' queue, implemented in ServerMain and Queue.
               V
         Validated, decrypted, padded by code in PacketHandler.
               V
-         Stored in a 'Mix' pool, implemented in ServerMain and Queue.
-             V
+           Stored in a 'Mix' pool, implemented in ServerMain and Queue.
+              V
         A batch of messages is selected by the 'Mix pool' for delivery.
-             V
-             ---Some are placed in an 'Outgoing' queue...
-             I       V
-             I   ... and delivered to other Mixminion servers via MMTPServer
-             V
-             ---Others are queued and delivered by other exit methods,
-                implemented and selected by ModuleManager.
-
-CONTRIBUTING PATCHES:
-    - Send them to the list mixminion-dev@freehaven.net, or to me
-      (nickm@freehaven.net).
+              V
+              ---Some are placed in an 'Outgoing' queue...
+              I       V
+              I   ... and delivered to other Mixminion servers via MMTPServer
+              V
+              ---Others are queued and delivered by other exit methods,
+                 implemented and selected by ModuleManager.
 
 --Nick
 

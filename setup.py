@@ -1,14 +1,14 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.91 2004/03/06 06:39:44 nickm Exp $
+# $Id: setup.py,v 1.92 2004/03/07 06:33:56 nickm Exp $
 import sys
 
 #
 #   Current Mixminion version
 #
-VERSION = '0.0.7alpha0'
+VERSION = '0.0.7alpha2'
 # System: 0==alpha, 50==beta, 98=pre, 99==release candidate, 100==release
-VERSION_INFO = (0,0,7,0,0)
+VERSION_INFO = (0,0,7,0,2)
 
 # Check the version.  We need to make sure version_info exists before we
 # compare to it: it was only added as of Python version 1.6.
@@ -508,11 +508,22 @@ extmodule = Extension(
     define_macros=MACROS)
 
 
+EXTRA = {}
+
 if 'py2exe' in sys.argv:
     # Py2EXE wants numberic versions for Windows
     VERSION = "." .join(map(str,VERSION_INFO))
-    # XXXX WRONG!!!! 
+    # XXXX WRONG!!!!
     sys.path.append("./build/lib.win32-2.3")
+    EXTRA = {
+        'console' : SCRIPTS,
+        'zipfile' : r'lib\shared.zip',
+        'options' : {'py2exe':
+                     { 'compressed':1,
+                     'excludes': ['mixminion._textwrap','mixminion._unittest',
+                                  'mixminion._zlibutil','coverage'] }
+                 },
+        }
 
 setup(name='Mixminion',
       version=VERSION,
@@ -527,18 +538,9 @@ setup(name='Mixminion',
       scripts=SCRIPTS,
       ext_modules=[extmodule],
       cmdclass={'run': runMMCommand},
-
-
-      # for Py2EXE
-      console=SCRIPTS,
       data_files=[("",["README","TODO","LICENSE","HISTORY",
                       "etc/mixminiond.conf"])],
-      zipfile=r'lib\shared.zip',
-      options={'py2exe':
-                { 'compressed':1,
-                  'excludes': ['mixminion._textwrap','mixminion._unittest',
-                               'mixminion._zlibutil','coverage'] }
-              },
+      **EXTRA
 )
 
 try:

@@ -140,8 +140,6 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   incompatible changes.  Target: first half of 2004.  (No guarantees!)]
         - Security
                 - Upgrade packet format as necessary.
-                - Perhaps, increased or configurable DH parameter size,
-                  or fixed DH parameters.
         - Modules and module support
                 - Use STARTTLS as available, if it's not too hard.
                 - Real SMTP module
@@ -282,7 +280,6 @@ Features for "1.0" (some research/specification required):
                 - Only pick from the directory when picking
                   random servers.
                 - Notice Allow/Deny.
-                - Notice MMTP protocol versions.
         - UI issues
                 - Notice when out of disk space, die more cleanly.
                   (support max-disk-usage).

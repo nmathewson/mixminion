@@ -1,6 +1,6 @@
-$Id: README,v 1.73 2004/02/21 01:04:48 nickm Exp $
+$Id: README,v 1.74 2004/03/07 06:33:56 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.7alpha, from the Mixminion CVS repository.
+This is Mixminion version 0.0.7rc1, from the Mixminion CVS repository.
 
 CONTENTS:
         I.    Overview
@@ -37,6 +37,50 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN 0.0.7rc1:
+
+   - USER FUNCTIONALITY
+     - Ability to delete or transmit queued messages to selected mixes,
+       instead of all mixes.
+     - Configuration options to block servers from path generation.
+     - New "mixminiond FOO" script as alternate starting point for
+       "mixminion server-FOO" functions.
+     - CLI interface for client-side fragment reassembly.
+     - Command shell (on Windows) supports filenames with spaces much
+       better.
+
+   - INFRASTRUCTURE
+     - Allow servers to download and use directories (necessary for
+       dummy/pinging work in future versions.)
+     - Display server nicknames in log instead of just IP addresses.
+     - Servers check recommended-version, complain when server is obsolete.
+     - Put timezones in log.
+     - Refactor RFC822 header generation logic (original patch from
+       bfordham).
+
+   - NETWORKING
+     - Rewrite MMTP logic to implement protocol correctly and transfer
+       packets more quickly, without waiting for round-trip acknowledgments
+       after each before sending the next.
+     - Unify client and server MMTP sending implementations.
+     - Use IP TOS flags where available to request optimization for
+       bandwidth.
+     - Configurable limits for bandwidth.
+     - Configurable limits on number of outgoing network connections.
+     - New --reply-block-fd option to read reply-blocks from a file
+       descriptor.
+     - New --passphrase-fd option to read passphrase from a file
+       descriptor.
+     - The --quiet option works for clients as well as servers.
+     - "mixminion ping" supports addr:port syntax as well as nicknames.
+
+   - MISC
+     - Call shred more efficiently when calling shred
+     - Other bugfixes too numerous to mention
+     - Remove some deprecated functionality
+     - Better windows build
+
 <See HISTORY file for changes in earlier versions.>
 
 STILL NOT IN THIS VERSION:
@@ -46,31 +90,21 @@ STILL NOT IN THIS VERSION:
    - No support for distributed directories.
    - Other stuff too numerous to mention; see TODO.
 
-III. HOW TO UPGRADE FROM MIXMINION 0.0.5
+III. HOW TO UPGRADE FROM MIXMINION 0.0.6
 ========================================
 
 First, follow the installation instructions from section IV to install the
 new version of the software.
 
-If you aren't running a server, you are done.  (Compatibility note: SURB
-keyrings used by version 0.0.5 are _not_ compatible with keyrings used by
-0.0.6!)
+If you aren't running a server, you are done.
 
 If you're running a server, you may need to upgrade your configuration file.
 Follow these steps:
 
-    1. Your configuration file may be out of date.  You will need to add
-        a 'Hostname' entry to the 'Incoming/MMTP' section of your
-        configuration.  It _must_ contain a valid DNS name for your server.
-        (You can use a static IP instead, if your server's IP will never
-        change.)
+    1. Your configuration file may be out of date.  Here's what has changed:
 
-        The 'IP' configuration entry is still required, too, in order to
-        support older clients.
-
-        (If you control your own DNS, you may want to consider creating a
-        separate entry for your Mixminion server, so that you could move to a
-        different host in the future as needed.)
+       A. The "Contact-Email" setting is no longer optional.  You must
+          provide a contact email address if you haven't already.
 
     2. Start your server as usual ('mixminion server-start') and try sending
        some messages through it.  Check your configuration log for warnings.
@@ -80,9 +114,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version: For Unix-clones, Mac OS X, or Windows with Cygwin
 ---------------------------------------------------------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.6.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.7rc1.tar.gz>
 
-  % cd Mixminion-0.0.6
+  % cd Mixminion-0.0.7rc1
   % make download-openssl
   % make build-openssl
   % make
@@ -149,16 +183,10 @@ The very easy version: For Windows
 
    First, make sure that you're running Win98 or later.
 
-   Download 'Mixminion-0.0.6.win32.zip", and unpack it anywhere you like.
+   Download 'Mixminion-0.0.7rc1.win32.zip", and unpack it anywhere you like.
    It will create a directory named 'mixminion'.
 
    Use mixminion.exe from that directory as your command-line client.
-
-   NOTE TO ALL WINDOWS USERS:  This is the first version of Mixminion to
-   support native Win32 operations.  As such, you should consider it even
-   more experimental than usual.  If you find any bugs, or any places where
-   its behavior is stupid for a Windows environment, please let me know.
-   (See section VII below for information on how to report bugs.)
 
 The slightly harder version: For Windows with Python 2.3
 --------------------------------------------------------
@@ -166,7 +194,7 @@ The slightly harder version: For Windows with Python 2.3
    First, make sure that you have the latest official release of Python 2.3
    installed.  As of 5 Dec 2003, this is 2.3.2.
 
-   Download and run "Mixminion-0.0.6.win32-py2.3.exe".  It will unpack
+   Download and run "Mixminion-0.0.7rc1.win32-py2.3.exe".  It will unpack
    its files into your Python directory.
 
    The script to invoke Mixminion will be stored in the 'Scripts'
