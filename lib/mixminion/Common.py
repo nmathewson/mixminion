@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.74 2003/05/17 05:04:32 arma Exp $
+# $Id: Common.py,v 1.75 2003/05/17 05:40:42 nickm Exp $
 
 """mixminion.Common
 
@@ -254,15 +254,19 @@ def checkPrivateDir(d, recurse=1):
 # File helpers
 class AtomicFile:
     """Wrapper around open/write/rename to encapsulate writing to a temporary
-       file, then moving to the final filename on close"""
+       file, then moving to the final filename on close.
+
+       NOTE 1: If you don't call 'close' or 'discard' on this object,
+       the temporary file it creates will stay around indefinitely.
+
+       NOTE 2: If multiple AtomicFiles are active for the same destination
+       file, the last one to close will win, and results for the others will
+       not be visible.
+       """
     def __init__(self, fname, mode='w'):
         self.fname = fname
         self.tmpname = fname + ".tmp"
-        # XXXX Put a note here saying we've thought about the security
-        # XXXX issues (eg having a file that ends in .tmp that gets
-        # XXXX overwritten by this thing).
-        fd = os.open(self.tmpname, os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0600)
-        self.f = os.fdopen(fd, mode)
+        self.f, self.tmpname = openUnique(self.tmpname)
 
     def write(self, s):
         self.f.write(s)
@@ -271,11 +275,17 @@ class AtomicFile:
         """Close the underlying file and replace the destination file."""
         os.rename(self.tmpname, self.fname)
         self.f.close()
+        self.f = None
 
     def discard(self):
         """Discard changes to the temporary file."""
         self.f.close()
         os.unlink(self.tmpname)
+        self.f = None
+
+    def __del__(self):
+        if self.f:
+            LOG.error("Atomic file not closed/discarded: %s",self.tmpname)
 
 def readPickled(fn):
     """Given the name of a file containing a pickled object, return the pickled
