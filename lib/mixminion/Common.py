@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.47 2003/01/05 13:19:53 nickm Exp $
+# $Id: Common.py,v 1.48 2003/01/07 04:13:08 nickm Exp $
 
 """mixminion.Common
 
@@ -393,7 +393,8 @@ class Log:
                     self.error(str(e))
                 if (config['Server'].get('Daemon',0) or
                     not config['Server'].get('EchoMessages',0)):
-                    print "Removing console handler"
+                    print "Silencing the console log; look in %s instead"%(
+                        logfile)
                     del self.handlers[0]
 
     def setMinSeverity(self, minSeverity):
