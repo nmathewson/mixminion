@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.60 2003/08/31 19:29:29 nickm Exp $
+# $Id: Packet.py,v 1.61 2003/10/09 15:26:16 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -12,14 +12,14 @@
 __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'ENC_FWD_OVERHEAD', 'ENC_SUBHEADER_LEN',
             'encodeMailHeaders', 'encodeMessageHeaders',
-            'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_TYPE', 'FragmentPayload',
+            'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_IPV4_TYPE', 'FragmentPayload',
             'FRAGMENT_MESSAGEID_LEN', 'FRAGMENT_TYPE', 
             'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
             'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
             'MIN_SUBHEADER_LEN', 'Packet',
             'OAEP_OVERHEAD', 'PAYLOAD_LEN', 'ParseError', 'ReplyBlock',
             'ReplyBlock', 'SECRET_LEN', 'SINGLETON_PAYLOAD_OVERHEAD',
-            'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_TYPE', 'SingletonPayload',
+            'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_IPV4_TYPE', 'SingletonPayload',
             'Subheader', 'TAG_LEN', 'TextEncodedMessage',
             'parseHeader', 'parseIPV4Info',
             'parseMBOXInfo', 'parsePacket', 'parseMessageAndHeaders',
@@ -75,9 +75,11 @@ TAG_LEN = 20
 #----------------------------------------------------------------------
 # Values for the 'Routing type' subheader field
 # Mixminion types
-DROP_TYPE      = 0x0000  # Drop the current message
-FWD_TYPE       = 0x0001  # Forward the msg to an IPV4 addr via MMTP
-SWAP_FWD_TYPE  = 0x0002  # SWAP, then forward the msg to an IPV4 addr via MMTP
+DROP_TYPE          = 0x0000     # Drop the current message
+FWD_IPV4_TYPE      = 0x0001 # Forward the msg to an IPV4 addr via MMTP
+SWAP_FWD_IPV4_TYPE = 0x0002 # SWAP, then FWD_IPV4
+FWD_HOST_TYPE      = 0x0003 # Forward the msg to a hostname, via MMTP.
+SWAP_FWD_HOST_TYPE = 0x0004 # SWAP, then FWD_HOST
 
 # Exit types
 MIN_EXIT_TYPE  = 0x0100  # The numerically first exit type.
@@ -92,6 +94,9 @@ MAX_EXIT_TYPE  = 0xFFFF
 # XXXX006 in order to allow 'fragment' to be an exit type without adding a
 # XXXX006 needless tag field to every fragment routing info.  
 _TYPES_WITHOUT_TAGS = { FRAGMENT_TYPE : 1 }
+
+def typeIsSwap(tp):
+    return tp in (SWAP_FWD_IPV4_TYPE,SWAP_FWD_HOST_TYPE)
 
 class ParseError(MixError):
     """Thrown when a message or portion thereof is incorrectly formatted."""
@@ -525,7 +530,7 @@ class ReplyBlock:
     def format(self):
         hash = binascii.b2a_hex(sha1(self.pack()))
         expiry = formatTime(self.timestamp)
-        if self.routingType == SWAP_FWD_TYPE:
+        if self.routingType == SWAP_FWD_IPV4_TYPE:
             server = parseIPV4Info(self.routingInfo).format()
         else:
             server = "????"
@@ -598,6 +603,52 @@ class IPV4Info:
         r = cmp(type(self), type(other))
         if r: return r
         r = cmp(self.ip, other.ip)
+        if r: return r
+        r = cmp(self.port, other.port)
+        if r: return r
+        return cmp(self.keyinfo, other.keyinfo)
+
+MMTP_HOST_PAT = "!H%ds" % DIGEST_LEN
+
+def parseMMTPHostInfo(s):
+    """DOCDOC"""
+    if len(s) < 2+DIGEST_LEN+1:
+        raise ParseError("Routing information is too short.")
+    try:
+        port, keyinfo = struct.unpack(MMTP_HOST_PAT, s[:2+DIGEST_LEN])
+    except struct.error:
+        raise ParseError("Misformatted routing info")
+    return MMTPHostInfo(s[2+DIGEST_LEN:], port, keyinfo)
+
+class MMTPHostInfo:
+    """DOCDOC"""
+    def __init__(self, hostname, port, keyinfo):
+        """Construct a new IPV4Info"""
+        assert 0 <= port <= 65535
+        self.hostname = hostname
+        self.port = port
+        self.keyinfo = keyinfo
+
+    def format(self):
+        return "%s:%s (keyid=%s)"%(self.hostname, self.port,
+                                   binascii.b2a_hex(self.keyinfo))
+
+    def pack(self):
+        """Return the routing info for this address"""
+        assert len(self.keyinfo) == DIGEST_LEN
+        return struct.pack(MMTP_HOST_PAT,self.port,self.keyinfo)+self.hostname
+
+    def __repr__(self):
+        return "MMTPHostInfo(%r, %r, %r)"%(
+            self.hostname,self.port,self.keyinfo)
+
+    def __hash__(self):
+        return hash(self.pack())
+
+    def __cmp__(self, other):
+        r = cmp(type(self), type(other))
+        if r: return r
+        r = cmp(self.hostname, other.hostname)
         if r: return r
         r = cmp(self.port, other.port)
         if r: return r

@@ -11,6 +11,7 @@ __all__ = [ 'Address', 'ClientKeyring', 'MixminionClient' ]
 
 import getopt
 import os
+import socket
 import sys
 import time
 from types import ListType
@@ -26,12 +27,11 @@ import mixminion.MMTPClient
 from mixminion.Common import LOG, Lockfile, LockfileLocked, MixError, \
      MixFatalError, MixProtocolBadAuth, MixProtocolError, UIError, \
      UsageError, createPrivateDir, isPrintingAscii, isSMTPMailbox, readFile, \
-     stringContains, succeedingMidnight, writeFile
+     stringContains, succeedingMidnight, writeFile, previousMidnight
 from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
-     parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE
-from mixminion.ClientDirectory import ClientDirectory, parsePath, \
-     parsePathLeg
+     parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE, \
+     parseMessageAndHeaders
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
@@ -203,8 +203,16 @@ class MixminionClient:
         self.prng = mixminion.Crypto.getCommonPRNG()
         self.queue = mixminion.ClientUtils.ClientQueue(os.path.join(userdir, "queue"))
 
-    def sendForwardMessage(self, address, payload, servers1, servers2,
-                           forceQueue=0, forceNoQueue=0):
+    def _sortPackets(self, packets):
+        """[(packet,firstHop),...] -> [ (routing, [packet,...]), ...]"""
+        r = {}
+        for packet, firstHop in packets:
+            ri = firstHop.getRoutingInfo()
+            r.setdefault(ri,[]).append(packet)
+        return r.items()
+
+    def sendForwardMessage(self, directory, address, pathSpec, message,
+                           startAt, endAt, forceQueue=0, forceNoQueue=0):
         """Generate and send a forward message.
             address -- the results of a parseAddress call
             payload -- the contents of the message to send
@@ -216,17 +224,17 @@ class MixminionClient:
                fails."""
         assert not (forceQueue and forceNoQueue)
 
-        for packet, firstHop in self.generateForwardMessage(
-            address, payload, servers1, servers2):
+        allPackets = self.generateForwardPayloads(
+            directory, address, pathSpec, message, startAt, endAt)
 
-            routing = firstHop.getRoutingInfo()
-
+        for routing, packets in self._sortPackets(allPackets):
             if forceQueue:
-                self.queueMessages([packet], routing)
+                self.queueMessages(packets, routing)
             else:
-                self.sendMessages([packet], routing, noQueue=forceNoQueue)
+                self.sendMessages(packets, routing, noQueue=forceNoQueue)
 
-    def sendReplyMessage(self, payload, servers, surbList, forceQueue=0,
+    def sendReplyMessage(self, directory, address, pathSpec, surbList, message,
+                         startAt, endAt, forceQueue=0,
                          forceNoQueue=0):
         """Generate and send a reply message.
             payload -- the contents of the message to send
@@ -237,17 +245,18 @@ class MixminionClient:
             forceQueue -- if true, do not try to send the message; simply
                queue it and exit.
             forceNoQueue -- if true, do not queue the message even if delivery
-               fails."""
+               fails.
+
+               DOCDOC args are wrong."""
         #XXXX write unit tests
-        message, firstHop = \
-                 self.generateReplyMessage(payload, servers, surbList)
+        allPackets = self.generateReplyMessage(
+            directory, address, pathSpec, message, surbList, startAt, endAt)
 
-        routing = firstHop.getRoutingInfo()
-
-        if forceQueue:
-            self.queueMessages([message], routing)
-        else:
-            self.sendMessages([message], routing, noQueue=forceNoQueue)
+        for routing, packets in self._sortPackets(allPackets):
+            if forceQueue:
+                self.queueMessages(packets, routing)
+            else:
+                self.sendMessages(packets, routing, noQueue=forceNoQueue)
 
     def generateReplyBlock(self, address, servers, name="", expiryTime=0):
         """Generate an return a new ReplyBlock object.
@@ -265,42 +274,44 @@ class MixminionClient:
 
         return block
 
-    def generateForwardMessage(self, address, message, servers1, servers2):
+    def generateForwardPayloads(self, directory, address, pathSpec, message,
+                               startAt, endAt):
         """Generate a forward message, but do not send it.  Returns a
            list of tuples of (the packet body, a ServerInfo for the
            first hop.)
 
-            address -- the results of a parseAddress call
-            message -- the contents of the message to send  (None for DROP
-              messages)
-            servers1,servers2 -- lists of ServerInfo.
+           DOCDOC
             """
-        routingType, routingInfo, _ = address.getRouting()
+
+        #XXXX006 handle user-side fragmentation.
 
         #XXXX006 we need to factor this long-message logic out to the
         #XXXX006 common code.  For now, this is a temporary measure.
-        fragmentedMessagePrefix = mixminion.Packet.ServerSideFragmentedMessage(
-            routingType, routingInfo, "").pack()
+        fragmentedMessagePrefix = address.getFragmentedMessagePrefix()
         LOG.info("Generating payload(s)...")
         r = []
         payloads = mixminion.BuildMessage.encodeMessage(message, 0,
                             fragmentedMessagePrefix)
         if len(payloads) > 1:
-            routingType = mixminion.Packet.FRAGMENT_TYPE
-            routingInfo = ""
-            if servers2[-1]['Delivery/Fragmented'].get('Maximum-Fragments',1) < len(payloads):
-                raise UIError("Oops; %s won't reassable a message this large."%
-                              servers2[-1].getNickname())
+            address.setFragmented(1,len(payloads))
+        else:
+            address.setFragmented(0,1)
+        routingType, routingInfo, _ = address.getRouting()
+        
+        directory.validatePath(pathSpec, address, startAt, endAt)
+        
+        for p, (path1,path2) in zip(payloads, directory.generatePaths(
+            len(payloads), pathSpec, address, startAt, endAt)):
 
-        #XXXX006 don't use the same path for all the packets!
-        for p in payloads:
             msg = mixminion.BuildMessage._buildForwardMessage(
-                p, routingType, routingInfo, servers1, servers2,
+                p, routingType, routingInfo, path1, path2,
                 self.prng)
-            r.append( (msg, servers1[0]) )
+            r.append( (msg, path1[0]) )
+
         return r
 
-    def generateReplyMessage(self, payload, servers, surbList, now=None):
+    def generateReplyMessage(self, directory, address, pathSpec, message,
+                             surbList, startAt, endAt):
         """Generate a forward message, but do not send it.  Returns
            a tuple of (the message body, a ServerInfo for the first hop.)
 
@@ -313,20 +324,30 @@ class MixminionClient:
                used, and mark it used.
             """
         #XXXX write unit tests
-        if now is None:
-            now = time.time()
+        assert address.isReply
+
+        payloads = mixminion.BuildMessage.encodeMessage(message, 0, "")
+        
         surbLog = self.openSURBLog() # implies lock
+        result = []
         try:
-            surb = surbLog.findUnusedSURB(surbList, verbose=1, now=now)
-            if surb is None:
-                raise UIError("No usable reply blocks found; all were used or expired.")
+            surbs = surbLog.findUnusedSURB(surbList, len(payloads), 
+                                           verbose=1, now=startAt)
+            if len(surbs) <= len(payloads):
+                raise UIError("Not enough usable reply blocks found; all were used or expired.")
+            
 
-            LOG.info("Generating packet...")
-            msg = mixminion.BuildMessage.buildReplyMessage(
-                payload, servers, surb, self.prng)
-
-            surbLog.markSURBUsed(surb)
-            return msg, servers[0]
+            for (surb,payload,(path1,path2)) in zip(surbs,payloads,
+                  directory.generatePaths(len(payloads),pathSpec, address,
+                                          startAt,endAt)):
+                assert path1 and not path2
+                LOG.info("Generating packet...")
+                msg = mixminion.BuildMessage.buildReplyMessage(
+                    payload, path1, surb, self.prng)
+                
+                surbLog.markSURBUsed(surb)
+                result.append( (msg, path1[0]) )
+            
         finally:
             surbLog.close() #implies unlock
 
@@ -365,6 +386,8 @@ class MixminionClient:
 
            If warnIfLost is true, log a warning if we fail to deliver
            the message, and we don't queue it.
+
+           DOCDOC never raises
            """
         #XXXX write unit tests
         timeout = self.config['Network'].get('ConnectionTimeout')
@@ -392,6 +415,7 @@ class MixminionClient:
                                                   timeout)
                 LOG.info("... %s sent", mword)
             except:
+                e = sys.exc_info()[1]
                 if noQueue and warnIfLost:
                     LOG.error("Error with queueing disabled: %s lost", mword)
                 elif lazyQueue:
@@ -401,7 +425,8 @@ class MixminionClient:
                 else:
                     LOG.info("Error while delivering %s; leaving in queue",
                              mword)
-                raise
+
+                LOG.info("Error was: %s",e)
             try:
                 clientLock()
                 for h in handles:
@@ -527,63 +552,6 @@ class MixminionClient:
                 if not isPrintingAscii(p,allowISO=1):
                     raise UIError("Not writing binary message to terminal: Use -F to do it anyway.")
         return results
-
-def parseAddress(s):
-    """Parse and validate an address; takes a string, and returns an Address
-       object.
-
-       Accepts strings of the format:
-              mbox:<mailboxname>@<server>
-           OR smtp:<email address>
-           OR <email address> (smtp is implicit)
-           OR drop
-           OR 0x<routing type>:<routing info>
-    """
-    # ???? Should this should get refactored into clientmodules, or someplace?
-    if s.lower() == 'drop':
-        return Address(DROP_TYPE, "", None)
-    elif s.lower() == 'test':
-        return Address(0xFFFE, "", None)
-    elif ':' not in s:
-        if isSMTPMailbox(s):
-            return Address(SMTP_TYPE, s, None)
-        else:
-            raise ParseError("Can't parse address %s"%s)
-    tp,val = s.split(':', 1)
-    tp = tp.lower()
-    if tp.startswith("0x"):
-        try:
-            tp = int(tp[2:], 16)
-        except ValueError:
-            raise ParseError("Invalid hexidecimal value %s"%tp)
-        if not (0x0000 <= tp <= 0xFFFF):
-            raise ParseError("Invalid type: 0x%04x"%tp)
-        return Address(tp, val, None)
-    elif tp == 'mbox':
-        if "@" in val:
-            mbox, server = val.split("@",1)
-            return Address(MBOX_TYPE, parseMBOXInfo(mbox).pack(), server)
-        else:
-            return Address(MBOX_TYPE, parseMBOXInfo(val).pack(), None)
-    elif tp == 'smtp':
-        # May raise ParseError
-        return Address(SMTP_TYPE, parseSMTPInfo(val).pack(), None)
-    elif tp == 'test':
-        return Address(0xFFFE, val, None)
-    else:
-        raise ParseError("Unrecognized address type: %s"%s)
-
-class Address:
-    """Represents the target address for a Mixminion message.
-       Consists of the exitType for the final hop, the routingInfo for
-       the last hop, and (optionally) a server to use as the last hop.
-       """
-    def __init__(self, exitType, exitAddress, lastHop=None):
-        self.exitType = exitType
-        self.exitAddress = exitAddress
-        self.lastHop = lastHop
-    def getRouting(self):
-        return self.exitType, self.exitAddress, self.lastHop
 
 def readConfigFile(configFile):
     """Given a configuration file (possibly none) as specified on the command
@@ -713,7 +681,7 @@ class CLIArgumentParser:
 
         self.path = None
         self.nHops = None
-        self.address = None
+        self.exitAddress = None
         self.lifetime = None
         self.replyBlockFiles = []
 
@@ -744,10 +712,10 @@ class CLIArgumentParser:
                 self.download = dl
             elif o in ('-t', '--to'):
                 assert wantForwardPath or wantReplyPath
-                if self.address is not None:
+                if self.exitAddress is not None:
                     raise UIError("Multiple addresses specified.")
                 try:
-                    self.address = parseAddress(v)
+                    self.exitAddress = mixminion.ClientDirectory.parseAddress(v)
                 except ParseError, e:
                     raise UsageError(str(e))
             elif o in ('-R', '--reply-block'):
@@ -818,7 +786,7 @@ class CLIArgumentParser:
         if self.wantClientDirectory:
             assert self.wantConfig
             LOG.debug("Configuring server list")
-            self.directory = ClientDirectory(userdir)
+            self.directory = mixminion.ClientDirectory.ClientDirectory(userdir)
 
         if self.wantDownload:
             assert self.wantClientDirectory
@@ -833,22 +801,20 @@ class CLIArgumentParser:
             self.directory.checkClientVersion()
 
     def parsePath(self):
-        """Parse the path specified on the command line and generate a
-           new list of servers to be retrieved by getForwardPath or
-           getReplyPath."""
-        if self.wantReplyPath and self.address is None:
+        # Sets: exitAddress, pathSpec.
+        if self.wantReplyPath and self.exitAddress is None:
             address = self.config['Security'].get('SURBAddress')
             if address is None:
                 raise UIError("No recipient specified; exiting.  (Try "
                               "using -t <your-address>)")
             try:
-                self.address = parseAddress(address)
+                self.exitAddress = mixminion.ClientDirectory.parseAddress(address)
             except ParseError, e:
                 raise UIError("Error in SURBAddress:"+str(e))
-        elif self.address is None and self.replyBlockFiles == []:
+        elif self.exitAddress is None and self.replyBlockFiles == []:
             raise UIError("No recipients specified; exiting. (Try using "
                           "-t <recipient-address>")
-        elif self.address is not None and self.replyBlockFiles:
+        elif self.exitAddress is not None and self.replyBlockFiles:
             raise UIError("Cannot use both a recipient and a reply block")
         elif self.replyBlockFiles:
             useRB = 1
@@ -866,66 +832,44 @@ class CLIArgumentParser:
                         surbs.extend(parseReplyBlocks(s))
                 except ParseError, e:
                         raise UIError("Error parsing %s: %s" % (fn, e))
+            self.surbList = surbs
         else:
-            assert self.address is not None
+            assert self.exitAddress is not None
             useRB = 0
 
+        isSURB = isReply = 0
+        if self.wantReplyPath:
+            p = 'SURBPath'; isSURB = 1
+            defHops = self.config['Security'].get("SURBPathLength", 4)
+        elif useRB:
+            p = 'ReplyPath'; isReply = 1
+            defHops = self.config['Security'].get("PathLength", 6)
+        else:
+            p = 'ForwardPath'
+            defHops = self.config['Security'].get("PathLength", 6)
         if self.path is None:
-            if self.wantReplyPath:
-                p = 'SURBPath'
-            elif useRB:
-                p = 'ReplyPath'
-            else:
-                p = 'ForwardPath'
             self.path = self.config['Security'].get(p, "*")
 
-        if self.wantReplyPath:
+        if isSURB:
             if self.lifetime is not None:
                 duration = self.lifetime * 24*60*60
             else:
                 duration = int(self.config['Security']['SURBLifetime'])
-
-            self.endTime = succeedingMidnight(time.time() + duration)
-
-            defHops = self.config['Security'].get("SURBPathLength", 4)
-            self.path1 = parsePathLeg(self.directory, self.config, self.path,
-                                      self.nHops, self.address,
-                                      startAt=time.time(),
-                                      endAt=self.endTime,
-                                      defaultNHops=defHops)
-            self.path2 = None
-            LOG.info("Selected path is %s",
-                     ",".join([ s.getNickname() for s in self.path1 ]))
-        elif useRB:
-            assert self.wantForwardPath
-            defHops = self.config['Security'].get("PathLength", 6)
-            self.path1 = parsePathLeg(self.directory, self.config, self.path,
-                                      self.nHops, defaultNHops=defHops)
-            self.path2 = surbs
-            self.usingSURBList = 1
-            LOG.info("Selected path is %s:<reply block>",
-                     ",".join([ s.getNickname() for s in self.path1 ]))
         else:
-            assert self.wantForwardPath
-            defHops = self.config['Security'].get("PathLength", 6)
-            self.path1, self.path2 = \
-                        parsePath(self.directory, self.config, self.path,
-                                  self.address, self.nHops,
-                                  defaultNHops=defHops)
-            self.usingSURBList = 0
-            LOG.info("Selected path is %s:%s",
-                     ",".join([ s.getNickname() for s in self.path1 ]),
-                     ",".join([ s.getNickname() for s in self.path2 ]))
+            duration = 24*60*60
 
-    def getForwardPath(self):
-        """Return a 2-tuple of lists of ServerInfo for the most recently
-           parsed forward path."""
-        return self.path1, self.path2
+        self.startAt = time.time()
+        self.endAt = previousMidnight(self.startAt+duration)
 
-    def getReplyPath(self):
-        """Return a list of ServerInfo for the most recently parsed reply
-           block path."""
-        return self.path1
+        self.pathSpec = mixminion.ClientDirectory.parsePath(
+            self.config, self.path, self.nHops, isReply=isReply, isSURB=isSURB,
+            defaultNHops = defHops)
+        self.directory.validatePath2(self.pathSpec, self.exitAddress,
+                                     self.startAt, self.endAt)
+
+    def generatePaths(self, n):
+        return self.directory.generatePaths(n,self.pathSpec,self.exitAddress,
+                                            self.startAt,self.endAt)
 
 _SEND_USAGE = """\
 Usage: %(cmd)s [options] <-t address>|<--to=address>|
@@ -1067,35 +1011,12 @@ def runClient(cmd, args):
 
     parser.init()
     client = parser.client
-
-    #XXXX006 the logic here is wrong for large messages.  Instead of
-    #XXXX006 [parse pathspec, parse address, generate path, read message,
-    #XXXX006 encode message, build packets, send packets], it should be
-    #XXXX006 [parse pathspec, parse address, check pathspec, read message,
-    #XXXX006 encode message, generate paths, build packets, send packets].
     parser.parsePath()
-
-    path1, path2 = parser.getForwardPath()
-    address = parser.address
-
-    #XXXX006 remove these ad hoc checks
-    if not parser.usingSURBList and len(headerStr) > 2:
-        sware = path2[-1]['Server'].get('Software', "")
-        if sware.startswith("Mixminion 0.0.4") or sware.startswith("Mixminion 0.0.5alpha1"):
-            LOG.warn("Exit server %s is running old software that may not support headers correctly.", path2[-1].getNickname())
-    elif not parser.usingSURBList and h_from:
-        sware = path2[-1]['Server'].get('Software', "")
-        if sware != 'Mixminion 0.0.5':
-            bad = 0
-            if address.getRouting()[0] == SMTP_TYPE and not path2[-1]['Delivery/SMTP'].get("Allow-From"):
-                bad = 1
-            elif address.getRouting()[0] == MBOX_TYPE and not path2[-1]['Delivery/MBOX'].get("Allow-From"):
-                bad = 1
-            if bad:
-                LOG.warn("Exit server %s does not support user-supplied From addresses", path2[-1].getNickname())
+    address = parser.exitAddress
+    address.setHeaders(parseMessageAndHeaders(headerStr+"\n")[1])
 
     # Get our surb, if any.
-    if parser.usingSURBList and inFile in ('-', None):
+    if address.isReply and inFile in ('-', None):
         # We check to make sure that we have a valid SURB before reading
         # from stdin.
         surblog = client.openSURBLog()
@@ -1106,6 +1027,7 @@ def runClient(cmd, args):
         finally:
             surblog.close()
 
+    # Read the message.
     # XXXX Clean up this ugly control structure.
     if address and inFile is None and address.getRouting()[0] == DROP_TYPE:
         message = None
@@ -1128,44 +1050,22 @@ def runClient(cmd, args):
             print "Interrupted.  Message not sent."
             sys.exit(1)
 
-    message = "%s%s" % (headerStr, message)
+        message = "%s%s" % (headerStr, message)
 
-    if parser.usingSURBList:
-        assert isinstance(path2, ListType)
-        client.sendReplyMessage(message, path1, path2,
-                                forceQueue, forceNoQueue)
+        address.setExitSize(len(message))
+
+
+    if parser.exitAddress.isReply:
+        client.sendReplyMessage(
+            parser.directory, parser.exitAddress, parser.pathSpec,
+            parser.surbList, message, 
+            parser.startAt, parser.endAt, forceQueue, forceNoQueue)
     else:
-        # If our message is too large for the exit node to reconstruct,
-        # either choose a new exit node (for SMTP) or bail (for MBOX or
-        # other).
-        #
-        #XXXX006 This logic is wrong; when we refactor paths again, it'll
-        #XXXX006 have to be fixed.  
-        if message:
-            msgLen = len(message)
-            if address.exitType == SMTP_TYPE:
-                maxLen = path2[-1]["Delivery/SMTP"]["Maximum-Size"] * 1024
-                if msgLen > maxLen:
-                    LOG.warn("Message is too long for server %s--looking for another..."
-                             % path2[-1].getNickname())
-                    LOG.warn("(This behavior is a hack, and will go away in 0.0.6.)")
-                    server = parser.directory.findByExitTypeAndSize(SMTP_TYPE, msgLen, 1)
-                    if not server:
-                        raise UIError("No such server found")
-                    LOG.warn("Replacing %s with %s",
-                             path2[-1].getNickname(),
-                             server.getNickname())
-                    path2[-1] = server
-            elif address.exitType == MBOX_TYPE:
-                maxLen = path2[-1]["Delivery/MBOX"]["Maximum-Size"] * 1024
-                if msgLen > maxLen:
-                    raise UIError("Message is too long for MBOX server %s, and client-side reconstruction is not yet supported"
-                                  % path2[-1].getNickname())
-            elif msgLen > 32*1024:
-                LOG.warn("Delivering long message via unrecognized delivery type")
-        
-        client.sendForwardMessage(address, message, path1, path2,
-                                  forceQueue, forceNoQueue)
+        client.sendForwardMessage(
+            parser.directory, parser.exitAddress, parser.pathSpec,
+            message, parser.startAt, parser.endAt, forceQueue, forceNoQueue)
+            
+            
 
 _PING_USAGE = """\
 Usage: mixminion ping [options] serverName
@@ -1495,9 +1395,6 @@ def generateSURB(cmd, args):
 
     parser.parsePath()
 
-    path1 = parser.getReplyPath()
-    address = parser.address
-
     if outputFile == '-':
         out = sys.stdout
     elif binary:
@@ -1505,16 +1402,15 @@ def generateSURB(cmd, args):
     else:
         out = open(outputFile, 'w')
 
-    for i in xrange(count):
-        surb = client.generateReplyBlock(address, path1, name=identity,
-                                         expiryTime=parser.endTime)
+    for path1,path2 in parser.generatePaths(count):
+        assert path2 and not path1
+        surb = client.generateReplyBlock(parser.exitAddress, path2, 
+                                         name=identity,
+                                         expiryTime=parser.endAt)
         if binary:
             out.write(surb.pack())
         else:
             out.write(surb.packAsText())
-        if i != count-1:
-            parser.parsePath()
-            path1 = parser.getReplyPath()
 
     out.close()
 

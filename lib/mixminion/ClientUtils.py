@@ -234,14 +234,14 @@ class SURBLog(mixminion.Filestore.DBBase):
             self.clean()
         self.sync()
 
-    def findUnusedSURB(self, surbList, verbose=0, now=None):
+    def findUnusedSURBs(self, surbList, nSURBs=1, verbose=0, now=None):
         """Given a list of ReplyBlock objects, find the first that is neither
            expired, about to expire, or used in the past.  Return None if
-           no such reply block exists."""
+           no such reply block exists. DOCDOC returns list, nSurbs"""
         if now is None:
             now = time.time()
         nUsed = nExpired = nShortlived = 0
-        result = None
+        result = []
         for surb in surbList: 
             expiry = surb.timestamp
             timeLeft = expiry - now
@@ -252,8 +252,9 @@ class SURBLog(mixminion.Filestore.DBBase):
             elif timeLeft < 3*60*60:
                 nShortlived += 1
             else:
-                result = surb
-                break
+                result.append(surb)
+                if len(result) >= nSURBs:
+                    break
 
         if verbose:
             if nUsed:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.56 2003/10/06 20:55:06 nickm Exp $
+# $Id: ServerInfo.py,v 1.57 2003/10/09 15:26:16 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,6 +15,7 @@ import time
 
 import mixminion.Config
 import mixminion.Crypto
+import mixminion.Packet
 
 from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
     formatBase64, formatDate, formatTime, readPossiblyGzippedFile
@@ -266,10 +267,34 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def getIdentity(self):
         return self['Server']['Identity']
 
-    def canDeliverTo(self, otherDesc):
-        #DOCDOC
-        return 1
+    def canRelayTo(self, otherDesc):
+        """DOCDOC"""
+        if self.hasSameNicknameAs(otherDesc):
+            return 1
+        myOut = self['Outgoing/MMTP']
+        if not myOut.get("Version"):
+            return 0
+        otherIn = otherDesc['Incoming/MMTP']
+        if not otherIn.get("Version"):
+            return 0
+        myOutProtocols = [ s.strip() for s in ",".split(myOut["Protocols"]) ]
+        otherInProtocols = [s.strip() for s in ",".split(otherIn["Protocols"])]
+        for out in myOutProtocols:
+            if out in otherInProtocols:
+                return 1
+        return 0
 
+    def getRoutingFor(self, otherDesc, swap=0):
+        """DOCDOC"""
+        #XXXX006 use this
+        assert self.canRelayTo(otherDesc)
+        if swap:
+            rt = mixminion.Packet.SWAP_FWD_IPV4_TYPE
+        else:
+            rt = mixminion.Packet.FWD_IPV4_TYPE
+        ri = other.getRoutingInfo().pack()
+        return rt, ri
+        
     def getCaps(self):
         # FFFF refactor this once we have client addresses.
         caps = []
@@ -285,6 +310,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
         if self['Delivery/Fragmented'].get('Version'):
             caps.append('frag')
         return caps
+
+    def isSameDescriptorAs(self, other):
+        """DOCDOC"""
+        return self.getDigest() == other.getDigest()
+
+    def hasSameNicknameAs(self, other):
+        """DOCDOC"""
+        return self.getNickname().lower() == other.getNickname().lower()
 
     def isValidated(self):
         """Return true iff this ServerInfo has been validated"""

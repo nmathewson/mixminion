@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.156 2003/10/07 21:57:46 nickm Exp $
+# $Id: test.py,v 1.157 2003/10/09 15:26:16 nickm Exp $
 
 """mixminion.tests
 
@@ -1754,7 +1754,7 @@ class BuildMessageTests(TestCase):
         self.do_header_test(head,
                             (self.pk1, self.pk2),
                             ["9"*16, "1"*16],
-                            (FWD_TYPE, 99),
+                            (FWD_IPV4_TYPE, 99),
                             (ipv4("127.0.0.2",3,"Z"*20).pack(),
                              "Hi mom"))
 
@@ -1765,7 +1765,7 @@ class BuildMessageTests(TestCase):
         head = bhead([self.server1, self.server2, self.server3], secrets,
                       99, "Hi mom", AESCounterPRNG())
         pks = (self.pk1,self.pk2,self.pk3)
-        rtypes = (FWD_TYPE, FWD_TYPE, 99)
+        rtypes = (FWD_IPV4_TYPE, FWD_IPV4_TYPE, 99)
         rinfo = (mixminion.Packet.IPV4Info("127.0.0.2", 3, "Z"*20).pack(),
                  mixminion.Packet.IPV4Info("127.0.0.3", 5, "Q"*20).pack(),
                  "Hi mom")
@@ -1880,7 +1880,7 @@ class BuildMessageTests(TestCase):
                      longStr,
                      AESCounterPRNG())
         pks = (self.pk2,self.pk1)
-        rtypes = (FWD_TYPE,99)
+        rtypes = (FWD_IPV4_TYPE,99)
         rinfo = (tag+longStr2,longStr)
         self.do_header_test(head, pks, secrets, rtypes, rinfo)
 
@@ -2009,11 +2009,11 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ( (self.pk1, self.pk2), None,
-                               (FWD_TYPE, SWAP_FWD_TYPE),
+                               (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE),
                                (self.server2.getRoutingInfo().pack(),
                                 self.server3.getRoutingInfo().pack()) ),
                              ( (self.pk3, self.pk2), None,
-                               (FWD_TYPE, 500),
+                               (FWD_IPV4_TYPE, 500),
                                (self.server2.getRoutingInfo().pack(),
                                 "Goodbye") ),
                              "Hello!!!!")
@@ -2027,7 +2027,7 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
-                               (SWAP_FWD_TYPE,),
+                               (SWAP_FWD_IPV4_TYPE,),
                                (self.server3.getRoutingInfo().pack(),) ),
                              ( (self.pk3,), None,
                                (500,),
@@ -2045,7 +2045,7 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
-                               (SWAP_FWD_TYPE,),
+                               (SWAP_FWD_IPV4_TYPE,),
                                (self.server3.getRoutingInfo().pack(),) ),
                              ( (self.pk3,), None,
                                (DROP_TYPE,),
@@ -2068,11 +2068,11 @@ class BuildMessageTests(TestCase):
                 return payload.getUncompressedContents()
             self.do_message_test(m,
                                  ( (self.pk1, self.pk2), None,
-                                   (FWD_TYPE, SWAP_FWD_TYPE),
+                                   (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE),
                                    (self.server2.getRoutingInfo().pack(),
                                     self.server3.getRoutingInfo().pack()) ),
                                  ( (self.pk3, self.pk2), None,
-                                   (FWD_TYPE, 500),
+                                   (FWD_IPV4_TYPE, 500),
                                    (self.server2.getRoutingInfo().pack(),
                                     "Phello") ),
                                  payload,
@@ -2136,11 +2136,11 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
-                              (FWD_TYPE,SWAP_FWD_TYPE),
+                              (FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE),
                               (self.server1.getRoutingInfo().pack(),
                                self.server3.getRoutingInfo().pack())),
                              (pks_1, hsecrets,
-                              (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,SMTP_TYPE),
+                              (FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,SMTP_TYPE),
                               infos+("no-such-user@invalid",)),
                              "Information???",
                              decoder=decoder)
@@ -2150,14 +2150,14 @@ class BuildMessageTests(TestCase):
                      "fred", "Tyrone Slothrop", 3)
 
         sec,(loc,), _ = self.do_header_test(reply.header, pks_1, None,
-                            (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
+                            (FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,MBOX_TYPE),
                             infos+(None,))
 
         self.assertEquals(loc[20:], "fred")
 
         # (Test reply block formats)
         self.assertEquals(reply.timestamp, 3)
-        self.assertEquals(reply.routingType, SWAP_FWD_TYPE)
+        self.assertEquals(reply.routingType, SWAP_FWD_IPV4_TYPE)
         self.assertEquals(reply.routingInfo,
                           self.server3.getRoutingInfo().pack())
         self.assertEquals(reply.pack(),
@@ -2214,11 +2214,11 @@ class BuildMessageTests(TestCase):
         
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
-                              (FWD_TYPE,SWAP_FWD_TYPE),
+                              (FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE),
                               (self.server1.getRoutingInfo().pack(),
                                self.server3.getRoutingInfo().pack())),
                              (pks_1, None,
-                              (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
+                              (FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,MBOX_TYPE),
                               infos+("fred",)),
                              payload,
                              decoder=decoder2)
@@ -2430,7 +2430,7 @@ class PacketHandlerTests(TestCase):
             res = sp.processMessage(m)
             self.assert_(isinstance(res, DeliveryPacket) or
                          isinstance(res, RelayedPacket))
-            if rt in (FWD_TYPE, SWAP_FWD_TYPE):
+            if rt in (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE):
                 self.assert_(not res.isDelivery())
                 self.assertEquals(res.getAddress().pack(), ri)
                 m = res.getPacket()
@@ -2454,7 +2454,7 @@ class PacketHandlerTests(TestCase):
 
         self.do_test_chain(m,
                            [self.sp1,self.sp2,self.sp3],
-                           [FWD_TYPE, FWD_TYPE, SMTP_TYPE],
+                           [FWD_IPV4_TYPE, FWD_IPV4_TYPE, SMTP_TYPE],
                            [self.server2.getRoutingInfo().pack(),
                             self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"],
@@ -2466,7 +2466,7 @@ class PacketHandlerTests(TestCase):
 
         self.do_test_chain(m,
                            [self.sp1,self.sp3],
-                           [FWD_TYPE, SMTP_TYPE],
+                           [FWD_IPV4_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"],
                            p)
@@ -2474,7 +2474,7 @@ class PacketHandlerTests(TestCase):
         # Try servers with multiple keys
         m = bfm("\n"+p,
                 SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])
-        self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_TYPE, SMTP_TYPE],
+        self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_IPV4_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"], p)
 
@@ -2488,8 +2488,8 @@ class PacketHandlerTests(TestCase):
             self.do_test_chain(m,
                                [self.sp1,self.sp2,self.sp1,
                                 self.sp3,self.sp1,self.sp2],
-                               [FWD_TYPE,FWD_TYPE,FWD_TYPE,
-                                FWD_TYPE,FWD_TYPE,SMTP_TYPE],
+                               [FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,
+                                FWD_IPV4_TYPE,FWD_IPV4_TYPE,SMTP_TYPE],
                                [self.server2.getRoutingInfo().pack(),
                                 self.server1.getRoutingInfo().pack(),
                                 self.server3.getRoutingInfo().pack(),
@@ -2510,7 +2510,7 @@ class PacketHandlerTests(TestCase):
 
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_TYPE, SMTP_TYPE],
+                                 [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  p)
@@ -2534,7 +2534,7 @@ class PacketHandlerTests(TestCase):
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_TYPE, SMTP_TYPE],
+                                 [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  pbin)
@@ -2550,7 +2550,7 @@ class PacketHandlerTests(TestCase):
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_TYPE, SMTP_TYPE],
+                                 [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2564,7 +2564,7 @@ class PacketHandlerTests(TestCase):
                  [self.server3], getRSAKey(0,1024))
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_TYPE, SMTP_TYPE],
+                                 [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2582,7 +2582,7 @@ class PacketHandlerTests(TestCase):
         m = bfm(p, SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
         pkt = self.do_test_chain(m, 
                                  [self.sp1, self.sp3],
-                                 [FWD_TYPE, SMTP_TYPE],
+                                 [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2597,7 +2597,7 @@ class PacketHandlerTests(TestCase):
         m = bfm(p, SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
         pkt = self.do_test_chain(m, 
                                  [self.sp1, self.sp3],
-                                 [FWD_TYPE, SMTP_TYPE],
+                                 [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2674,16 +2674,21 @@ class PacketHandlerTests(TestCase):
             # (We temporarily override the setting from 'BuildMessage',
             #  not Packet; BuildMessage has already imported a copy of this
             #  constant.)
-            save = mixminion.BuildMessage.SWAP_FWD_TYPE
-            mixminion.BuildMessage.SWAP_FWD_TYPE = 50
+            save = mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE
+            mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE = 50
             m_x = bfm("Z", 500, "", [self.server1], [self.server2])
         finally:
-            mixminion.BuildMessage.SWAP_FWD_TYPE = save
+            mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE = save
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
 
-        # Subhead we can't parse
+        # Subhead with bad length
         m_x = pk_encrypt("foo", self.pk1)+m[256:]
-        self.failUnlessRaises(ParseError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+
+        # Subhead we can't parse.
+        m_x = pk_encrypt("f"*(256-42), self.pk1)+m[256:]
+        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+
 
         # Bad IPV4 info
         subh_real = pk_decrypt(m[:256], self.pk1)
@@ -6046,26 +6051,25 @@ class ClientDirectoryTests(TestCase):
         try:
             ### Try out getPath.
             # 1. Fully-specified paths.
-            p = ks.getPath(None, ['Joe', 'Lisa', 'Alice', 'Joe'])
+            p = ks.getPath(['Joe', 'Lisa', 'Alice', 'Joe'])
 
             # 2. Partly-specified paths...
             # 2a. With plenty of servers
-            p = ks.getPath(None, [None, None])
+            p = ks.getPath([None, None])
             eq(2, len(p))
             neq(p[0].getNickname(), p[1].getNickname())
 
-            p = ks.getPath(None, ["Joe", None, None])
+            p = ks.getPath(["Joe", None, None])
             eq(3, len(p))
             self.assertSameSD(p[0], joe[0])
             neq(p[1].getNickname(), "Joe")
-            neq(p[2].getNickname(), "Joe")
             neq(p[1].getNickname(), p[2].getNickname())
 
-            p = ks.getPath(None, [None, None, "Joe"])
+            p = ks.getPath([None, None, "Joe"])
             eq(3, len(p))
             self.assertSameSD(joe[0], p[2])
 
-            p = ks.getPath(None, ["Alice", None, None, "Joe"])
+            p = ks.getPath(["Alice", None, None, "Joe"])
             eq(4, len(p))
             self.assertSameSD(alice[0], p[0])
             self.assertSameSD(joe[0], p[3])
@@ -6074,7 +6078,7 @@ class ClientDirectoryTests(TestCase):
             self.assert_(nicks.count("Joe")>=1)
             neq(nicks[1],nicks[2])
 
-            p = ks.getPath(None, ["Joe", None, "Alice", "Joe"])
+            p = ks.getPath(["Joe", None, "Alice", "Joe"])
             eq(4, len(p))
             self.assertSameSD(alice[0], p[2])
             self.assertSameSD(joe[0], p[0])
@@ -6088,22 +6092,22 @@ class ClientDirectoryTests(TestCase):
             ks2.importFromFile(os.path.join(impdirname, "Lisa1"))
             ks2.importFromFile(os.path.join(impdirname, "Bob0"))
 
-            p = ks2.getPath(None, [None]*9)
+            p = ks2.getPath([None]*9)
             eq(9, len(p))
             self.failIf(nRuns([s.getNickname() for s in p]))
 
-            p = ks2.getPath(None, ["Joe"]+[None]*6+["Joe"])
+            p = ks2.getPath(["Joe"]+[None]*6+["Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(8, len(p))
             self.assertSameSD(joe[0], p[0])
             self.assertSameSD(joe[0], p[-1])
 
-            p = ks2.getPath(None, ["Joe"]+[None]*6)
+            p = ks2.getPath(["Joe"]+[None]*6)
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(7, len(p))
             self.assertSameSD(joe[0], p[0])
 
-            p = ks2.getPath(None, [None]*6+["Joe"])
+            p = ks2.getPath([None]*6+["Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(7, len(p))
             self.assertSameSD(joe[0], p[-1])
@@ -6111,56 +6115,49 @@ class ClientDirectoryTests(TestCase):
             # 2c. With 2 servers
             ks2.expungeByNickname("Alice")
             ks2.expungeByNickname("Bob")
-            p = ks2.getPath(None, [None]*4)
+            p = ks2.getPath([None]*4)
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
-            p = ks2.getPath(None, ["Joe",None,None,None])
+            p = ks2.getPath(["Joe",None,None,None])
 
             self.failIf(nRuns([s.getNickname() for s in p]) > 2)
-            p = ks2.getPath(None, [None, None, None, "Joe"])
+            p = ks2.getPath([None, None, None, "Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
-            p = ks2.getPath(None, [None,None,None,None,None, "Joe"])
+            p = ks2.getPath([None,None,None,None,None, "Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
             # 2d. With only 1.
             ks2.expungeByNickname("Lisa")
-            p = ks2.getPath(None,[None]*4)
+            p = ks2.getPath([None]*4)
             eq(len(p), 4)
-            p = ks2.getPath(None,["Joe",None,None,None])
+            p = ks2.getPath(["Joe",None,None,None])
             eq(len(p), 4)
-            p = ks2.getPath(None,[None,None,None,"Joe"])
+            p = ks2.getPath([None,None,None,"Joe"])
             eq(len(p), 4)
 
             # 2e. With 0
             self.assertRaises(MixError, ks.getPath,
-                              None, [None]*4, startAt=now+100*oneDay)
+                              [None]*4, startAt=now+100*oneDay)
         finally:
             s = resumeLog()
         self.assertEquals(4, s.count("to avoid same-server hops"))
         self.assertEquals(3, s.count("Only one relay known"))
 
-        # 3. With capabilities.
-        p = ks.getPath("smtp", [None]*5)
-        eq(5, len(p))
-        self.assertSameSD(p[-1], joe[0]) # Only Joe has SMTP
-
-        p = ks.getPath("mbox", [None]*4)
-        eq(4, len(p))
-        self.assertSameSD(p[-1], lola[1]) # Only Lola has MBOX
-
-        p = ks.getPath("mbox", ["Alice", None, None, None, None])
-        eq(5, len(p))
-        self.assertSameSD(p[-1], lola[1]) # Only Lola has MBOX
-        self.assertSameSD(p[0], alice[0])
-
-        p = ks.getPath("mbox", [None,None,None,None, "Alice"])
-        eq(5, len(p))
-        self.assertSameSD(p[-1], alice[0]) # We ignore endCap with endServers
-
-        ### Now try parsePath.  This should exercise resolvePath as well.
-        ppath = mixminion.ClientDirectory.parsePath
-        paddr = mixminion.ClientMain.parseAddress
+        # wrap path parsing and verification and generation.
+        def ppath(dir, cfg, path, addr, nHops=None, startAt=None, endAt=None,
+                  halfPath=0, defaultNHops=None):
+            isReply = halfPath and (addr is None)
+            isSURB = halfPath and (addr is not None)
+            pathSpec = mixminion.ClientDirectory.parsePath(
+                cfg, path, nHops=nHops, isReply=isReply,
+                isSURB=isSURB, defaultNHops=defaultNHops)
+            dir.validatePath(pathSpec, addr, startAt=startAt, endAt=endAt)
+            paths = dir.generatePaths(1, pathSpec, addr, startAt,endAt)
+            assert len(paths) == 1
+            return paths[0]
+        
+        paddr = mixminion.ClientDirectory.parseAddress
         email = paddr("smtp:lloyd@dobler.com")
         mboxWithServer = paddr("mbox:Granola@Lola")
         mboxWithoutServer = paddr("mbox:Granola")
@@ -6369,7 +6366,7 @@ class ClientMainTests(TestCase):
     def testAddress(self):
         def parseEq(s, tp, addr, server, eq=self.assertEquals):
             "Helper: return true iff parseAddress(s).getRouting() == t,s,a."
-            t, a, s = mixminion.ClientMain.parseAddress(s).getRouting()
+            t, a, s = mixminion.ClientDirectory.parseAddress(s).getRouting()
             eq(t, tp)
             eq(s, server)
             eq(a, addr)
@@ -6391,7 +6388,7 @@ class ClientMainTests(TestCase):
         parseEq("0x999:", 0x999, "", None)
 
         def parseFails(s, f=self.failUnlessRaises):
-            f(ParseError, mixminion.ClientMain.parseAddress, s)
+            f(ParseError, mixminion.ClientDirectory.parseAddress, s)
 
         # Check failing cases
         parseFails("sxtp:foo@bar.com") # unknown module
@@ -6437,11 +6434,16 @@ class ClientMainTests(TestCase):
             s = SURBLog(fname)
             self.assert_(s.isSURBUsed(surbs[0]))
             self.assert_(not s.isSURBUsed(surbs[1]))
-            self.assert_(s.findUnusedSURB(surbs) is surbs[1])
+            self.assert_(s.findUnusedSURBs(surbs)[0] is surbs[1])
+            one = s.findUnusedSURBs(surbs,1)
+            self.assertEquals(len(one),1)
+            two = s.findUnusedSURBs(surbs,2)
+            self.assert_(two[0] is surbs[1])
+            self.assert_(two[1] is surbs[2])
             s.markSURBUsed(surbs[1])
-            self.assert_(s.findUnusedSURB(surbs) is surbs[2])
+            self.assert_(s.findUnusedSURBs(surbs)[0] is surbs[2])
             s.markSURBUsed(surbs[2])
-            self.assert_(s.findUnusedSURB(surbs) is None)
+            self.assert_(s.findUnusedSURBs(surbs) == [])
         finally:
             s.close()
 
@@ -6478,11 +6480,26 @@ class ClientMainTests(TestCase):
 
     def testMixminionClient(self):
         # Create and configure a MixminionClient object...
-        parseAddress = mixminion.ClientMain.parseAddress
+        parseAddress = mixminion.ClientDirectory.parseAddress
+        parsePath = mixminion.ClientDirectory.parsePath
         userdir = mix_mktemp()
         usercfgstr = "[User]\nUserDir: %s\n[DirectoryServers]\n"%userdir
         usercfg = mixminion.Config.ClientConfig(string=usercfgstr)
         client = mixminion.ClientMain.MixminionClient(usercfg)
+
+        # Create a directory...
+        dirname = mix_mktemp()
+        directory = mixminion.ClientDirectory.ClientDirectory(dirname)
+        
+        edesc = getExampleServerDescriptors()
+        fname = mix_mktemp()
+        for server, descriptors in edesc.items():
+            for d in descriptors:
+                writeFile(fname, d)
+                try:
+                    directory.importFromFile(fname)
+                except UIError:
+                    pass
 
         # Now try with some servers...
         edesc = getExampleServerDescriptors()
@@ -6490,9 +6507,11 @@ class ClientMainTests(TestCase):
         Lola = ServerInfo(string=edesc["Lola"][1], assumeValid=1)
         Joe = ServerInfo(string=edesc["Joe"][0], assumeValid=1)
         Alice = ServerInfo(string=edesc["Alice"][1], assumeValid=1)
-
+        
         # ... and for now, we need to restart the client.
         client = mixminion.ClientMain.MixminionClient(usercfg)
+
+        pathSpec1 = parsePath(usercfg, "lola,joe:alice,joe")
 
         ##  Test generateForwardMessage.
         # We replace 'buildForwardMessage' to make this easier to test.
@@ -6504,14 +6523,17 @@ class ClientMainTests(TestCase):
             # First, two forward messages that end with 'joe' and go via
             # SMTP
             payload = "Hey Joe, where you goin' with that gun in your hand?"
-            client.generateForwardMessage(
+            client.generateForwardPayloads(
+                directory,
                 parseAddress("joe@cledonism.net"),
-                payload,
-                servers1=[Lola, Joe], servers2=[Alice, Joe])
-            client.generateForwardMessage(
+                pathSpec1,
+                payload, time.time(), time.time()+200)
+            client.generateForwardPayloads(
+                directory,
                 parseAddress("smtp:joe@cledonism.net"),
+                pathSpec1,
                 "Hey Joe, where you goin' with that gun in your hand?",
-                servers1=[Lola, Joe], servers2=[Alice, Joe])
+                time.time(), time.time()+200)
 
             for fn, args, kwargs in getCalls():
                 self.assertEquals(fn, "buildForwardMessage")
@@ -6524,15 +6546,18 @@ class ClientMainTests(TestCase):
 
             # Now try an mbox message, with an explicit last hop.
             payload = "Hey, Lo', where you goin' with that pun in your hand?"
-            client.generateForwardMessage(
+            client.generateForwardPayloads(
+                directory,
                 parseAddress("mbox:granola"),
-                payload,
-                servers1=[Lola, Joe], servers2=[Alice, Lola])
+                parsePath(usercfg, "lola,joe:alice,lola"),
+                payload, time.time(), time.time()+200)
             # And an mbox message with a last hop implicit in the address
-            client.generateForwardMessage(
+            client.generateForwardPayloads(
+                directory,
                 parseAddress("mbox:granola@Lola"),
-                payload,
-                servers1=[Lola, Joe], servers2=[Alice, Lola])
+                parsePath(usercfg, "Lola,Joe:Alice"),
+                payload, time.time(), time.time()+200)
+                
 
             for fn, args, kwargs in getCalls():
                 self.assertEquals(fn, "buildForwardMessage")
@@ -6547,11 +6572,6 @@ class ClientMainTests(TestCase):
             clearCalls()
 
         ### Now try some failing cases for generateForwardMessage:
-        # Empty path...
-        self.assertRaises(MixError,
-                          client.generateForwardMessage,
-                          parseAddress("0xFFFE:zed"),
-                          "Z", [], [Alice])
 
         # Temporarily replace BlockingClientConnection so we can try the client
         # without hitting the network.
@@ -6577,9 +6597,11 @@ class ClientMainTests(TestCase):
                          FakeBCC)
         try:
             client.sendForwardMessage(
+                directory,
                 parseAddress("mbox:granola@Lola"),
+                parsePath(usercfg,"alice,lola,joe,alice:joe,alice"),
                 "You only give me your information.",
-                [Alice, Lola, Joe, Alice], [Joe, Alice])
+                time.time(), time.time()+300)
             bcc = BCC_INSTANCE
             # first hop is alice
             self.assertEquals(bcc.addr, "10.0.0.9")

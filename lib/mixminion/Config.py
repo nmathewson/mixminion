@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.59 2003/10/06 20:53:02 nickm Exp $
+# $Id: Config.py,v 1.60 2003/10/09 15:26:16 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -67,7 +67,7 @@ import mixminion.Common
 import mixminion.Crypto
 
 from mixminion.Common import MixError, LOG, ceilDiv, englishSequence, \
-   isPrintingAscii, stripSpace, stringContains
+   isPrintingAscii, stripSpace, stringContains, UIError
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.27 2003/10/09 03:55:07 nickm Exp $
+# $Id: PacketHandler.py,v 1.28 2003/10/09 15:26:16 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -212,7 +212,7 @@ class PacketHandler:
 
         # If we're not an exit node, make sure that what we recognize our
         # routing type.
-        if rt not in (Packet.SWAP_FWD_TYPE, Packet.FWD_TYPE):
+        if rt not in (Packet.SWAP_FWD_IPV4_TYPE, Packet.FWD_IPV4_TYPE):
             raise ContentError("Unrecognized Mixminion routing type")
 
         # Decrypt header 2.
@@ -222,7 +222,7 @@ class PacketHandler:
         # If we're the swap node, (1) decrypt the payload with a hash of
         # header2... (2) decrypt header2 with a hash of the payload...
         # (3) and swap the headers.
-        if rt == Packet.SWAP_FWD_TYPE:
+        if Packet.typeIsSwap(rt):
             hkey = Crypto.lioness_keys_from_header(header2)
             payload = Crypto.lioness_decrypt(payload, hkey)
 

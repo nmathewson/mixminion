@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.58 2003/08/31 19:29:29 nickm Exp $
+# $Id: BuildMessage.py,v 1.59 2003/10/09 15:26:15 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -286,7 +286,7 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
                           paddingPRNG=Crypto.getCommonPRNG())
 
     return ReplyBlock(header, expiryTime,
-                      SWAP_FWD_TYPE,
+                      SWAP_FWD_IPV4_TYPE,
                       path[0].getRoutingInfo().pack(), sharedKey), secrets, tag
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
@@ -334,7 +334,7 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     err = 0 # 0: no error. 1: 1st leg too big. 2: 1st leg okay, 2nd too big.
     if path1 is not None:
         try:
-            _getRouting(path1, SWAP_FWD_TYPE, path2[0].getRoutingInfo().pack())
+            _getRouting(path1, SWAP_FWD_IPV4_TYPE, path2[0].getRoutingInfo().pack())
         except MixError:
             err = 1
     # Add a dummy tag as needed to last exitinfo.
@@ -537,7 +537,7 @@ def _buildMessage(payload, exitType, exitInfo,
         path1exittype = reply.routingType
         path1exitinfo = reply.routingInfo
     else:
-        path1exittype = SWAP_FWD_TYPE
+        path1exittype = SWAP_FWD_IPV4_TYPE
         path1exitinfo = path2[0].getRoutingInfo().pack()
 
     # Generate secrets for path1.
@@ -726,7 +726,7 @@ def _getRouting(path, exitType, exitInfo):
        Raises MixError if the routing info is too big to fit into a single
        header. """
     # Construct a list 'routing' of exitType, exitInfo.
-    routing = [ (FWD_TYPE, node.getRoutingInfo().pack()) for
+    routing = [ (FWD_IPV4_TYPE, node.getRoutingInfo().pack()) for
                 node in path[1:] ]
     routing.append((exitType, exitInfo))
 

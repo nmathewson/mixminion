@@ -8,7 +8,7 @@
    DOCDOC
      """
 
-__all__ = [ 'ClientDirectory', 'parsePath', 'parsePathLeg', 'parseAddress2' ]
+__all__ = [ 'ClientDirectory', 'parsePath', 'parseAddress' ]
 
 import cPickle
 import errno
@@ -25,13 +25,15 @@ import urllib2
 import mixminion.ClientMain #XXXX
 import mixminion.Config
 import mixminion.Crypto
+import mixminion.Packet
 import mixminion.ServerInfo
 
 from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
      ceilDiv, createPrivateDir, formatDate, formatFnameTime, openUnique, \
      previousMidnight, readPickled, readPossiblyGzippedFile, \
-     replaceFile, tryUnlink, writePickled, floorDiv
-from mixminion.Packet import MBOX_TYPE, SMTP_TYPE, DROP_TYPE
+     replaceFile, tryUnlink, writePickled, floorDiv, isSMTPMailbox
+from mixminion.Packet import MBOX_TYPE, SMTP_TYPE, DROP_TYPE, FRAGMENT_TYPE, \
+     parseMBOXInfo, parseSMTPInfo, ParseError
 
 # FFFF This should be made configurable and adjustable.
 MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
@@ -52,6 +54,7 @@ class ClientDirectory:
     # digestMap: Map of (Digest -> 'D'|'D-'|'I:filename').
     # byNickname: Map from nickname.lower() to list of (ServerInfo, source)
     #   tuples.
+    # byKeyID: Map from desc.getKeyID() to list of ServerInfo.
     # byCapability: Map from capability ('mbox'/'smtp'/'relay'/None) to
     #    list of (ServerInfo, source) tuples.
     # allServers: Same as byCapability[None]
@@ -346,10 +349,12 @@ class ClientDirectory:
         return n
 
     def __rebuildTables(self):
-        """Helper method.  Reconstruct byNickname, allServers, and byCapability
-           from the internal start of this object.
-        """
+
+        """Helper method.  Reconstruct byNickname, byKeyID,
+           allServers, and byCapability from the internal start of
+           this object.  """
         self.byNickname = {}
+        self.byKeyID = {}
         self.allServers = []
         self.byCapability = { 'mbox': [],
                               'smtp': [],
@@ -360,7 +365,9 @@ class ClientDirectory:
 
         for info, where in self.serverList:
             nn = info.getNickname().lower()
-            lists = [ self.allServers, self.byNickname.setdefault(nn, []) ]
+            keyid = info.getKeyID()
+            lists = [ self.allServers, self.byNickname.setdefault(nn, []),
+                      self.byKeyID.setdefault(info.getKeyID(), []) ]
             for c in info.getCaps():
                 lists.append( self.byCapability[c] )
             for lst in lists:
@@ -372,7 +379,6 @@ class ClientDirectory:
             if self.goodServerNicknames.get(nn):
                 continue
             self.byNickname.setdefault(nn, []).append((info, where))
-
 
     def listServers(self):
         """Returns a linewise listing of the current servers and their caps.
@@ -403,18 +409,6 @@ class ClientDirectory:
                 lines.append(line)
         return lines
 
-    def __findOne(self, lst, startAt, endAt):
-        """Helper method.  Given a list of (ServerInfo, where), return a
-           single element that is valid for all time between startAt and
-           endAt.
-
-           Watch out: this element is _not_ randomly chosen.
-           """
-        res = self.__find(lst, startAt, endAt)
-        if res:
-            return res[0]
-        return None
-
     def __find(self, lst, startAt, endAt):
         """Helper method.  Given a list of (ServerInfo, where), return all
            elements that are valid for all time between startAt and endAt.
@@ -439,6 +433,28 @@ class ClientDirectory:
 
         return u.values()
 
+    def getNicknameByKeyID(self, keyid):
+        s = self.bykeyID.get(keyid)
+        if not s:
+            return None
+        r = []
+        for d in s:
+            if d.getNickname().lower() not in r:
+                r.append(d.getNickname())
+        return "/".join(r)
+
+    def getNameByRelay(self, routingType, routingInfo):
+        assert routingType in (mixminion.Packet.FWD_IPV4_TYPE,
+                               mixminion.Packet.SWAP_FWD_IPV4_TYPE)
+        if type(routingInfo) == types.StringType:
+            routingInfo = mixminion.Packet.parseIPV4Info(routingInfo)
+        assert isinstance(routingInfo, mixminion.Packet.IPV4Info)
+        nn = self.getNicknameByKeyID(self, routingInfo.keyinfo)
+        if nn is None:
+            return "%s:%s"%(routingInfo.ip, routingInfo.port)
+        else:
+            return nn
+
     def getLiveServers(self, startAt=None, endAt=None):
         """DOCDOC"""
         if startAt is None:
@@ -446,24 +462,6 @@ class ClientDirectory:
         if endAt is None:
             endAt = time.time()+self.DEFAULT_REQUIRED_LIFETIME
         return self.__find(self.serverList, startAt, endAt)
-
-    def findByExitTypeAndSize(self, exitType, size, nPackets):
-        #XXXX006 remove this method.  It's not really a good interface,
-        #XXXX006 and only gets used by the kludgy choose-a-new-last-hop logic
-        """Return a server that supports exitType 'exittype' (currently must be
-           SMTP_TYPE), and messages of size 'size' bytes."""
-        assert exitType == SMTP_TYPE
-        servers = self.__find(self.byCapability['smtp'], time.time(),
-                              time.time()+24*60*60)
-        servers = servers[:]
-        mixminion.Crypto.getCommonPRNG().shuffle(servers)
-        for s in servers:
-            maxSize = s['Delivery/SMTP']['Maximum-Size'] * 1024
-            maxPackets = s['Delivery/Fragmented'].get('Maximum-Fragments',1)
-            if maxSize >= size and maxPackets >= nPackets:
-                return s
-
-        return None
 
     def clean(self, now=None):
         """Remove all expired or superseded descriptors from DIR/servers."""
@@ -524,13 +522,14 @@ class ClientDirectory:
                 LOG.error("Server is not currently valid")
         elif self.byNickname.has_key(name.lower()):
             # If it's a nickname, return a serverinfo with that name.
-            s = self.__findOne(self.byNickname[name.lower()], startAt, endAt)
+            s = self.__find(self.byNickname[name.lower()], startAt, endAt)
 
             if not s:
                 raise UIError(
                     "Couldn't find any currently live descriptor with name %s"
                     % name)
 
+            s = s[0]
             if not self.goodServerNicknames.has_key(s.getNickname().lower()):
                 LOG.warn("Server %s is not recommended",name)
             
@@ -552,7 +551,8 @@ class ClientDirectory:
         else:
             return None
 
-    def generatePaths(self, nPaths, pathSpec, exitAddress, startAt=None, endAt=None,
+    def generatePaths(self, nPaths, pathSpec, exitAddress, 
+                      startAt=None, endAt=None,
                       prng=None):
         """Return a list of pairs of lists of serverinfo DOCDOC."""
 
@@ -567,7 +567,7 @@ class ClientDirectory:
             plausibleExits = exitAddress.getExitServers(self,startAt,endAt)
             if exitAddress.isSSFragmented:
                 # We _must_ have a single common last hop.
-                plauxibleExits = [ prng.pick(plausibleExits) ]
+                plausibleExits = [ prng.pick(plausibleExits) ]
 
         for _ in xrange(nPaths):
             p1 = []
@@ -590,12 +590,20 @@ class ClientDirectory:
             else:
                 n1 = len(p1)
 
-            path = self.getPath(None, p, startAt=startAt, endAt=endAt)
-            paths.append( (path[:n1], path[n1:]) )
-            
+            path = self.getPath(p, startAt=startAt, endAt=endAt)
+            path1,path2 = path[:n1], path[n1:]
+            paths.append( (path1,path2) )
+            if exitAddress.isReply or exitAddress.isSURB:
+                LOG.info("Selected path is %s",
+                         ",".join([s.getNickname() for s in path]))
+            else:
+                LOG.info("Selected path is %s:%s",
+                         ",".join([s.getNickname() for s in path1]),
+                         ",".join([s.getNickname() for s in path2]))
+
         return paths
     
-    def getPath(self, endCap, template, startAt=None, endAt=None, prng=None):
+    def getPath(self, template, startAt=None, endAt=None, prng=None):
         """Workhorse method for path selection.  Given a template, and
            a capability that must be supported by the exit node, return
            a list of serverinfos that 'matches' the template, and whose
@@ -606,9 +614,7 @@ class ClientDirectory:
            getPath should select a corresponding server.
 
            All servers are chosen to be valid continuously from
-           startAt to endAt.  The last server is not set) is selected
-           to have 'endCap' (typically 'mbox' or 'smtp').  Set endCap
-           to 'None' if you don't care.
+           startAt to endAt.
 
            The path selection algorithm perfers to choose without
            replacement it it can.
@@ -619,8 +625,9 @@ class ClientDirectory:
                considered equivalent if their nicknames are the same,
                ignoring case.
             """
-            n = [ inf.getNickname().lower() for inf in s2 ]
-            return [ inf for inf in s1 if inf.getNickname().lower() not in n]
+            n = [ inf.getNickname().lower() for inf in s2 if inf is not None ]
+            return [ inf for inf in s1 
+                     if inf is not None and inf.getNickname().lower() not in n]
 
         # Fill in startAt, endAt, prng if not provided
         if startAt is None:
@@ -638,33 +645,7 @@ class ClientDirectory:
             else:
                 servers.append(self.getServerInfo(name, startAt, endAt, 1))
 
-        # If we need to pick the last server, pick it first.
-        if servers[-1] is None:
-            # Who has the required exit capability....
-            endCandidates = self.__find(self.byCapability[endCap],
-                                        startAt,endAt)
-            if not endCandidates:
-                raise UIError("Can't build path: no %s servers known"%endCap)
-            # ....that we haven't used yet?
-            used = filter(None, servers)
-            unusedEndCandidates = setSub(endCandidates, used)
-            if unusedEndCandidates:
-                # Somebody with the capability is unused
-                endCandidates = unusedEndCandidates
-            elif len(endCandidates) > 1 and servers[-2] is not None:
-                # We can at least avoid of picking someone with the
-                # capability who isn't the penultimate node.
-                penultimate = servers[-2].getNickname().lower()
-                endCandidates = setSub(endCandidates, [penultimate])
-            else:
-                # We're on our own.
-                assert len(endCandidates)
-
-            # Finally, fill in the last server.
-            servers[-1] = prng.pick(endCandidates)
-
         # Now figure out which relays we haven't used yet.
-        used = filter(None, servers)
         relays = self.__find(self.byCapability['relay'], startAt, endAt)
         if not relays:
             raise UIError("No relays known")
@@ -679,37 +660,78 @@ class ClientDirectory:
                 continue
             # Find the servers adjacent to it, if any...
             if i>0:
-                abutters = filter(None,[ servers[i-1], servers[i+1]])
+                prev = servers[i-1]
             else:
-                abutters = filter(None,[ servers[i+1] ])
-            # ...and see if there are any relays left that aren't adjacent.
-            candidates = setSub(relays, abutters)
+                prev = None
+            if i+1<len(servers):
+                next = servers[i+1]
+            else:
+                next = None
+            # ...and see if there are any relays left that aren't adjacent?
+            candidates = []
+            for c in relays:
+                if ((prev and c.hasSameNicknameAs(prev)) or
+                    (next and c.hasSameNicknameAs(next)) or
+                    (prev and not prev.canRelayTo(c)) or 
+                    (next and not c.canRelayTo(next))):
+                    continue
+                candidates.append(c)                    
             if candidates:
                 # Good.  There are.
                 servers[i] = prng.pick(candidates)
             else:
-                # Nope.  Choose a random relay.
-                servers[i] = prng.pick(relays)
+                # Nope.  Can we duplicate a relay?
+                LOG.warn("Repeating a relay because of routing restrictions.")
+                if prev and next: 
+                    if prev.canRelayTo(next):
+                        servers[i] = prev
+                    elif next.canRelayTo(next):
+                        servers[i] = next
+                    else:
+                        raise UIError("Can't generate path %s->???->%s"%(
+                                      prev.getNickname(),next.getNickname()))
+                elif prev and not next:
+                    servers[i] = prev
+                elif next and not prev:
+                    servers[i] = next
+                else:
+                    raise UIError("No servers known.")
 
         # FFFF We need to make sure that the path isn't totally junky.
 
         return servers
 
-    def validatePath2(self, pathSpec, exitAddress, startAt=None, endAt=None):
+    def validatePath(self, pathSpec, exitAddress, startAt=None, endAt=None):
         """DOCDOC 
            takes pathspec; raises UIError or does nothing."""
         if startAt is None: startAt = time.time()
         if endAt is None: endAt = startAt+self.DEFAULT_REQUIRED_LIFETIME
 
         p = pathSpec.path1+pathSpec.path2
+        # Make sure all elements are valid.
         for e in p:
             e.validate(self, startAt, endAt)
+
+        # When there are 2 elements in a row, make sure each can route to
+        # the next.
+        prevFixed = None
+        for e in p:
+            fixed = e.getFixedServer(self, startAt, endAt)
+            if prevFixed and fixed and not prevFixed.canRelayTo(fixed):
+                raise UIError("Server %s can't relay to %s",
+                              prevFixed.getNickname(), fixed.getNickname())
+            prevFixed = fixed
+
         fs = p[-1].getFixedServer(self,startAt,endAt)
         lh = exitAddress.getLastHop()
         if lh is not None:
-            fs = self.getServerInfo(lh, startAt, endAt)
-            if fs is None:
+            lh_s = self.getServerInfo(lh, startAt, endAt)
+            if lh_s is None:
                 raise UIError("No known server descriptor named %s",lh)
+            if fs and not fs.canRelayTo(lh_s):
+                raise UIError("Server %s can't relay to %s",
+                              fs.getNickname(), lh)
+            fs = lh_s
         if fs is not None:
             exitAddress.checkSupportedByServer(fs)
         elif exitAddress.isServerRelative():
@@ -748,244 +770,6 @@ class ClientDirectory:
             LOG.warn("This software is newer than any version "
                      "on the recommended list.")
 
-def parsePath(directory, config, path, address, nHops=None,
-              startAt=None, endAt=None, halfPath=0,
-              defaultNHops=None):
-    """Wrap new path parsing methods to provide functionality of old parsePath
-       method.  The old methods has been (for now) renamed to 'parsePathOrig'.
-       """
-    isReply = halfPath and (address is None)
-    isSURB = halfPath and (address is not None)
-    if not isReply:
-        rt, ri, lastHop = address.getRouting()
-        exitAddress = ExitAddress(rt, ri, lastHop)
-    else:
-        exitAddress = ExitAddress(isReply=1)
-    pathSpec = parsePath2(config, path, nHops=nHops, isReply=isReply,
-                          isSURB=isSURB, defaultNHops=defaultNHops)
-    directory.validatePath2(pathSpec, exitAddress, startAt=startAt,endAt=endAt)
-    paths = directory.generatePaths(1, pathSpec, exitAddress, startAt,endAt)
-    assert len(paths) == 1
-    return paths[0]
-
-def parsePathOrig(directory, config, path, address, nHops=None,
-              startAt=None, endAt=None, halfPath=0,
-              defaultNHops=None):
-    """Resolve a path as specified on the command line.  Returns a
-       (path-leg-1, path-leg-2) tuple, where each leg is a list of ServerInfo.
-
-       directory -- the ClientDirectory to use.
-       config -- unused for now.
-       path -- the path, in a format described below.  If the path is
-          None, all servers are chosen as if the path were '*'.
-       address -- the address to deliver the message to; if it specifies
-          an exit node, the exit node is appended to the second leg of the
-          path and does not count against the number of hops.  If 'address'
-          is None, the exit node must support relay.
-       nHops -- the number of hops to use.  Defaults to defaultNHops.
-       startAt/endAt -- A time range during which all servers must be valid.
-       halfPath -- If true, we generate only the second leg of the path
-          and leave the first leg empty.
-       defaultNHops -- The default path length to use when we encounter a
-          wildcard in the path.  Defaults to 6.
-
-       Paths are ordinarily comma-separated lists of server nicknames or
-       server descriptor filenames, as in:
-             'foo,bar,./descriptors/baz,quux'.
-
-       You can use a colon as a separator to divides the first leg of the path
-       from the second:
-             'foo,bar:baz,quux'.
-       If nSwap and a colon are both used, they must match, or MixError is
-       raised.
-
-       You can use a question mark to indicate a randomly chosen server:
-             'foo,bar,?,quux,?'.
-       As an abbreviation, you can use star followed by a number to indicate
-       that number of randomly chosen servers:
-             'foo,bar,*2,quux'.
-       You can use a star without a number to specify a fill point
-       where randomly-selected servers will be added:
-             'foo,bar,*,quux'.
-       Finally, you can use a tilde followed by a number to specify an
-       approximate number of servers to add.  (The actual number will be
-       chosen randomly, according to a normal distribution with standard
-       deviation 1.5):
-             'foo,bar,~2,quux'
-
-       The nHops argument must be consistent with the path, if both are
-       specified.  Specifically, if nHops is used _without_ a star on the
-       path, nHops must equal the path length; and if nHops is used _with_ a
-       star on the path, nHops must be >= the path length.
-    """
-    if not path:
-        path = '*'
-    # Break path into a list of entries of the form:
-    #        Nickname
-    #     or "<swap>"
-    #     or "?"
-    p = []
-    while path:
-        if path[0] == "'":
-            m = re.match(r"'([^']+|\\')*'", path)
-            if not m: 
-                raise UIError("Mismatched quotes in path.")
-            p.append(m.group(1).replace("\\'", "'"))
-            path = path[m.end():]
-            if path and path[0] not in ":,":
-                raise UIError("Invalid quotes in path.")
-        elif path[0] == '"':
-            m = re.match(r'"([^"]+|\\")*"', path)
-            if not m: 
-                raise UIError("Mismatched quotes in path.")
-            p.append(m.group(1).replace('\\"', '"'))
-            path = path[m.end():]
-            if path and path[0] not in ":,":
-                raise UIError("Invalid quotes in path.")
-        else:
-            m = re.match(r"[^,:]+",path)
-            if not m:
-                raise UIError("Invalid path") 
-            p.append(m.group(0))
-            path = path[m.end():]
-        if not path:
-            break 
-        elif path[0] == ',':
-            path = path[1:]
-        elif path[0] == ':':
-            path = path[1:]
-            p.append("<swap>")
-
-    path = []
-    for ent in p:
-        if re.match(r'\*(\d+)', ent):
-            path.extend(["?"]*int(ent[1:]))
-        elif re.match(r'\~(\d+)', ent):
-            avg = int(ent[1:])
-            n = int(mixminion.Crypto.getCommonPRNG().getNormal(avg, 1.5)+0.5)
-            if n < 0: n = 0
-            path.extend(['?']*n)
-        else:
-            path.append(ent)
-
-    # set explicitSwap to true iff the user specified a swap point.
-    explicitSwap = path.count("<swap>")
-    # set colonPos to the index of the explicit swap point, if any.
-    if path.count("<swap>") > 1:
-        raise UIError("Can't specify swap point twice")
-
-    # set starPos to the index of the var-length wildcard, if any.
-    if path.count("*") > 1:
-        raise UIError("Can't have two variable-length wildcards in a path")
-    elif path.count("*") == 1:
-        starPos = path.index("*")
-    else:
-        starPos = None
-
-    # If there's a variable-length wildcard...
-    if starPos is not None:
-        # Find out how many hops we should have.
-        myNHops = nHops or defaultNHops or 6
-        # Figure out how many nodes we need to add.
-        haveHops = len(path) - 1
-        # A colon will throw the count off.
-        if explicitSwap:
-            haveHops -= 1
-        path[starPos:starPos+1] = ["?"]*max(0,myNHops-haveHops)
-
-    # Figure out how long the first leg should be.
-    if explicitSwap:
-        # Calculate colon position
-        colonPos = path.index("<swap>")
-        if halfPath:
-            raise UIError("Can't specify swap point with replies")
-        firstLegLen = colonPos
-        del path[colonPos]
-    elif halfPath:
-        firstLegLen = 0
-    else:
-        firstLegLen = ceilDiv(len(path), 2)
-
-    # Do we have the right # of hops?
-    if nHops is not None and len(path) != nHops:
-        raise UIError("Mismatch between specified path lengths")
-
-    # Replace all '?'s in path with [None].
-    for i in xrange(len(path)):
-        if path[i] == '?': path[i] = None
-
-    # Figure out what capability we need in our exit node, so that
-    # we can tell the directory.
-    if address is None:
-        rt, ri, exitNode = None, None, None
-        exitCap = 'relay'
-    else:
-        rt, ri, exitNode = address.getRouting()
-        if rt == MBOX_TYPE:
-            exitCap = 'mbox'
-        elif rt == SMTP_TYPE:
-            exitCap = 'smtp'
-        else:
-            exitCap = None
-
-    # If we have an explicit exit node from the address, append it.
-    if exitNode is not None:
-        path.append(exitNode)
-
-    # Get a list of serverinfo.
-    path = directory.getPath(endCap=exitCap,
-                             template=path, startAt=startAt, endAt=endAt)
-
-    # Now sanity-check the servers.
-
-    # Make sure all relay servers support relaying.
-    for server in path[:-1]:
-        if "relay" not in server.getCaps():
-            raise UIError("Server %s does not support relay"
-                          % server.getNickname())
-
-    # Make sure the exit server can support the exit capability.
-    if exitCap and exitCap not in path[-1].getCaps():
-        raise UIError("Server %s does not support %s capability"
-                      % (path[-1].getNickname(), exitCap))
-
-
-    # Split the path into 2 legs.
-    path1, path2 = path[:firstLegLen], path[firstLegLen:]
-    if not halfPath and len(path1)+len(path2) < 2:
-        raise UIError("Path is too short")
-    if not halfPath and (not path1 or not path2):
-        raise UIError("Each leg of the path must have at least 1 hop")
-
-    # Make sure the path can fit into the headers.
-    mixminion.BuildMessage.checkPathLength(path1, path2,
-                                           rt,ri,
-                                           explicitSwap)
-
-    # Return the two legs of the path.
-    return path1, path2
-
-def parsePathLeg(directory, config, path, nHops, address=None,
-                 startAt=None, endAt=None, defaultNHops=None):
-    """Parse a single leg of a path.  Used for generating SURBs (second leg
-       only) or reply messages (first leg only).  Returns a list of
-       ServerInfo.
-
-       directory -- the ClientDirectory to use.
-       config -- unused for now.
-       path -- The path, as described in parsePath, except that ':' is not
-           allowed.
-       nHops -- the number of hops to use.  Defaults to defaultNHops.
-       startAt/endAt -- A time range during which all servers must be valid.
-       defaultNHops -- The default path length to use when we encounter a
-          wildcard in the path.  Defaults to 6.
-       """
-    path1, path2 = parsePath(directory, config, path, address, nHops,
-                             startAt=startAt, endAt=endAt, halfPath=1,
-                             defaultNHops=defaultNHops)
-    assert path1 == []
-    return path2
-
 #----------------------------------------------------------------------
 
 KNOWN_STRING_EXIT_TYPES = [
@@ -995,7 +779,7 @@ KNOWN_STRING_EXIT_TYPES = [
 class ExitAddress:
     #FFFF Perhaps this crams too much into ExitAddress.
     def __init__(self,exitType=None,exitAddress=None,lastHop=None,isReply=0, 
-                 isSSFragmented=0):
+                 isSURB=0,isSSFragmented=0):
         if isReply:
             assert exitType is None
             assert exitAddress is None
@@ -1014,18 +798,22 @@ class ExitAddress:
         self.exitAddress = exitAddress
         self.lastHop = lastHop
         self.isReply = isReply
+        self.isSURB = isSURB
         self.isSSFragmented = isSSFragmented #server-side frag reassembly only.
         self.nFragments = self.exitSize = 0
         self.headers = {}
+    def getFragmentedMessagePrefix(self):
+        routingType, routingInfo, _ = self.getRouting()
+        return mixminion.Packet.ServerSideFragmentedMessage(
+            routingType, routingInfo, "").pack()
+        
     def setFragmented(self, isSSFragmented, nFragments):
-        self.isSSFragmented = isFragmented
+        self.isSSFragmented = isSSFragmented
         self.nFragments = nFragments
     def setExitSize(self, exitSize):
         self.exitSize = exitSize
     def setHeaders(self, headers):
         self.headers = headers
-    def isReply(self):
-        return self.isReply
     def getLastHop(self):
         return self.lastHop
     def isSupportedByServer(self, desc):
@@ -1038,6 +826,14 @@ class ExitAddress:
         if self.isReply:
             return
         nickname = desc.getNickname()
+
+        if self.headers:
+            #XXXX006 remove this eventually.
+            sware = desc['Server'].get("Software")
+            if (sware.startswith("Mixminion 0.0.4") or 
+                sware.startswith("Mixminion 0.0.5alpha1")):
+                raise UIError("Server %s is running old software that doesn't support exit headers.", nickname)
+
         if self.isSSFragmented:
             dfsec = desc['Delivery/Fragmented']
             if not dfsec.get("Version"):
@@ -1076,9 +872,9 @@ class ExitAddress:
 
     def getPrettyExitType(self):
         if type(self.exitType) == types.IntType:
-            prettyExit = "0x%04X"%self.exitType
+            return "0x%04X"%self.exitType
         else:
-            prettyExit = `self.exitType`
+            return self.exitType
 
     def isServerRelative(self):
         return self.exitType in ('mbox', MBOX_TYPE)
@@ -1092,12 +888,24 @@ class ExitAddress:
                    if self.isSupportedByServer(desc) ]
         return result
 
-    def getRouting(self, desc):
+    def getRouting(self):
         """DOCDOC"""
-        #XXXX
-        assert 0
+        ri = self.exitAddress
+        if self.isSSFragmented:
+            rt = FRAGMENT_TYPE
+            ri = ""
+        elif self.exitType == 'smtp':
+            rt = SMTP_TYPE
+        elif self.exitType == 'drop':
+            rt = DROP_TYPE
+        elif self.exitType == 'mbox':
+            rt = MBOX_TYPE
+        else:
+            assert type(self.exitType) == types.IntType
+            rt = self.exitType
+        return rt, ri, self.lastHop
 
-def parseAddress2(s):
+def parseAddress(s):
     """Parse and validate an address; takes a string, and returns an
        ExitAddress object.
 
@@ -1144,15 +952,13 @@ def parseAddress2(s):
 
 class PathElement:
     def validate(self, directory, start, end):
-        raise NotImplemented
-    def getServers(self, directory, start, end):
-        raise NotImplemented
+        raise NotImplemented()
     def getFixedServer(self, directory, start, end):
-        raise NotImplemented
+        raise NotImplemented()
     def getServerNames(self):
-        raise NotImplemented
+        raise NotImplemented()
     def getMinLength(self):
-        raise NotImplemented
+        raise NotImplemented()
 
 class ServerPathElement(PathElement):
     def __init__(self, nickname):
@@ -1226,6 +1032,7 @@ class PathSpecifier:
         self.isReply=isReply
         self.isSURB=isSURB
         self.lateSplit=lateSplit
+
     def getFixedLastServer(self,directory,startAt,endAt):
         """DOCDOC"""
         if self.path2:
@@ -1234,9 +1041,57 @@ class PathSpecifier:
             return None
 
 #----------------------------------------------------------------------
-def parsePath2(config, path, nHops=None, isReply=0, isSURB=0,
-               defaultNHops=None):
-    """DOCDOC ; Returns a pathSpecifier.
+def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
+              defaultNHops=None):
+    """DOCDOC ; Returns a pathSpecifier.  This documentation is no longer
+       even vaguely accurate.
+
+       Resolve a path as specified on the command line.  Returns a
+       (path-leg-1, path-leg-2) tuple, where each leg is a list of ServerInfo.
+
+       directory -- the ClientDirectory to use.
+       config -- unused for now.
+       path -- the path, in a format described below.  If the path is
+          None, all servers are chosen as if the path were '*'.
+       address -- the address to deliver the message to; if it specifies
+          an exit node, the exit node is appended to the second leg of the
+          path and does not count against the number of hops.  If 'address'
+          is None, the exit node must support relay.
+       nHops -- the number of hops to use.  Defaults to defaultNHops.
+       startAt/endAt -- A time range during which all servers must be valid.
+       halfPath -- If true, we generate only the second leg of the path
+          and leave the first leg empty.
+       defaultNHops -- The default path length to use when we encounter a
+          wildcard in the path.  Defaults to 6.
+
+       Paths are ordinarily comma-separated lists of server nicknames or
+       server descriptor filenames, as in:
+             'foo,bar,./descriptors/baz,quux'.
+
+       You can use a colon as a separator to divides the first leg of the path
+       from the second:
+             'foo,bar:baz,quux'.
+       If nSwap and a colon are both used, they must match, or MixError is
+       raised.
+
+       You can use a question mark to indicate a randomly chosen server:
+             'foo,bar,?,quux,?'.
+       As an abbreviation, you can use star followed by a number to indicate
+       that number of randomly chosen servers:
+             'foo,bar,*2,quux'.
+       You can use a star without a number to specify a fill point
+       where randomly-selected servers will be added:
+             'foo,bar,*,quux'.
+       Finally, you can use a tilde followed by a number to specify an
+       approximate number of servers to add.  (The actual number will be
+       chosen randomly, according to a normal distribution with standard
+       deviation 1.5):
+             'foo,bar,~2,quux'
+
+       The nHops argument must be consistent with the path, if both are
+       specified.  Specifically, if nHops is used _without_ a star on the
+       path, nHops must equal the path length; and if nHops is used _with_ a
+       star on the path, nHops must be >= the path length.
     """
     halfPath = isReply or isSURB
     if not path:
@@ -1300,7 +1155,7 @@ def parsePath2(config, path, nHops=None, isReply=0, isSURB=0,
             raise UIError("Only one '*' is permitted in a single path")
         approxHops = reduce(operator.add,
                             [ ent.getMinLength() for ent in pathEntries
-                              if ent not in ("*", "<swap>") ])
+                              if ent not in ("*", "<swap>") ], 0)
         myNHops = nHops or defaultNHops or 6
         extraHops = max(myNHops-approxHops, 0)
         pathEntries[starPos:starPos+1] =[RandomServersPathElement(n=extraHops)]
@@ -1333,7 +1188,7 @@ def parsePath2(config, path, nHops=None, isReply=0, isSURB=0,
             raise UIError("Each leg of the path must have at least 1 hop")
     else:
         minLen = reduce(operator.add,
-                        [ ent.getMinLength() for ent in pathEntries ])
+                        [ ent.getMinLength() for ent in pathEntries ], 0)
         if halfPath and minLen < 1:
             raise UIError("The path must have at least 1 hop")
         if not halfPath and minLen < 2:

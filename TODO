@@ -26,15 +26,18 @@ TCP latency, and me.)
                   parsing, and path generation into a new module.
                 o Separate SURB logging, keystores, and client queues into
                   client support module.
-                . Refactor path selection to have a nicer interface.
+                o Refactor path selection to have a nicer interface.
                         X Generic, cross-module notion of "address".
                         X Better capability infrastructure.
-                        - Better ExitAddress notion.
-                        . Separate parsing path str into specifier list, 
+                        o Better ExitAddress notion.
+                        o Separate parsing path str into specifier list, 
                           checking specifier list for sanity, and generating
                           path from specifier list.
-                - Rewrite ClientMain path generation to do the right
+                        o Switch unit tests to test new interface to ClientDir
+                . Rewrite ClientMain path generation to do the right
                   thing with multi-packet messages
+                        - Hand-test multi-packet and single-packet fwd
+                          messages and replies.
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
                 - Make processing thread and module thread general
@@ -49,7 +52,7 @@ TCP latency, and me.)
                   message is confusing.
                 - Better error message when opening db with unsupported
                   database type.
-                - List servers by nickname, not by IP.
+                . List servers by nickname, not by IP.
                 - Make TRACE mode less verbose, or make DEBUG mode more useful.
         - Large reply messages and efwd messages
                 - Relay non-FRAGMENT fragment messages
@@ -72,10 +75,20 @@ TCP latency, and me.)
                    ServerInfo.  If we're routing S1->S2, and both have
                    'Hostname', use FWD/HOST.  Else use FWD/IPv4.  In 0.0.7,
                    drop FWD/IPv4 support, and remove IP from ServerInfo.]
+                        o Rename *FWD_TYPE to FWD_IPV4_TYPE
                         - Implement DNS farm
                         - ServerInfo changes
                         - Path generation changes
+                                o Implement stub canRelayTo and getRoutingFor
+                                  in ServerInfo.
+                                - Design functionality for can-i-relay-to and
+                                  how-to-i-route-to. (impl too)
+                                . Use above functions whenever appropriate
+                                - Extend above functions to use IPV4 or HOST.
                         - Implement *FWD/HOST
+                                o Changes in Packet.py
+                                - Test changes in Packet.py
+                                - Multiplex on routingtype.
          - Spec conformance
                 - Directory Spec
                         - Implement Packet-Versions
