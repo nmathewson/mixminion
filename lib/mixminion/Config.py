@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.47 2003/06/05 18:41:40 nickm Exp $
+# $Id: Config.py,v 1.48 2003/06/21 21:47:50 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -287,37 +287,57 @@ def _parsePublicKey(s):
         raise ConfigError("Invalid exponent on public key")
     return key
 
-# Regular expression to match YYYY/MM/DD
-_date_re = re.compile(r"^(\d\d\d\d)/(\d\d)/(\d\d)$")
+# FFFF006 begin generating YYYY-MM-DD
+# FFFF007 stop accepting YYYYY/MM/DD
+# Regular expression to match YYYY/MM/DD or YYYY-MM-DD
+_date_re = re.compile(r"^(\d\d\d\d)([/-])(\d\d)([/-])(\d\d)$")
 def _parseDate(s):
-    """Validation function.  Converts from YYYY/MM/DD format to a (long)
-       time value for midnight on that date."""
+    """Validation function.  Converts from YYYY-MM-DD or YYYY/MM/DD
+       format to a (long) time value for midnight on that date."""
     m = _date_re.match(s.strip())
+    if not m or m.group(2) != m.group(4):
+        raise ConfigError("Invalid date %r"%s)
     try:
-        yyyy, MM, dd = map(int, m.groups())
+        yyyy = int(m.group(1))
+        MM = int(m.group(3))
+        dd = int(m.group(5))
     except (ValueError,AttributeError):
         raise ConfigError("Invalid date %r"%s)
     if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
             (1970 <= yyyy)):
-        raise ConfigError("Invalid date %s"%s)
+        raise ConfigError("Invalid date %r"%s)
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
+
+# FFFF006 begin generating YYYY-MM-DD
+# FFFF007 stop accepting YYYYY/MM/DD
 # Regular expression to match YYYY/MM/DD HH:MM:SS
-_time_re = re.compile(r"^(\d\d\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)$")
+_time_re = re.compile(r"^(\d\d\d\d)([/-])(\d\d)([/-])(\d\d)\s+"
+                      r"(\d\d):(\d\d):(\d\d)((?:\.\d\d\d)?)$")
 def _parseTime(s):
     """Validation function.  Converts from YYYY/MM/DD HH:MM:SS format
        to a (float) time value for GMT."""
     m = _time_re.match(s.strip())
-    if not m:
+    if not m or m.group(2) != m.group(4):
         raise ConfigError("Invalid time %r" % s)
 
-    yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
+    yyyy = int(m.group(1))
+    MM = int(m.group(3))
+    dd = int(m.group(5))
+    hh = int(m.group(6))
+    mm = int(m.group(7))
+    ss = int(m.group(8))
+    if m.group(9):
+        fsec = float(m.group(9))
+    else:
+        fsec = 0.0
+
     if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
             (1970 <= yyyy)  and (0 <= hh < 24) and
             (0 <= mm < 60)  and (0 <= ss <= 61)):
         raise ConfigError("Invalid time %r" % s)
 
-    return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))
+    return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))+fsec
 
 _NICKNAME_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
                    "abcdefghijklmnopqrstuvwxyz"+
