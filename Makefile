@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.11 2002/12/02 02:51:41 nickm Exp $
+# $Id: Makefile,v 1.12 2002/12/02 03:43:15 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -9,6 +9,8 @@
 # called 'python2'.)
 #
 # (If anybody can think of a better way to do this, please let me know.)
+
+# XXXX This fails when PYTHON is set to a version of Python earlier than 1.3
 
 ifdef PYTHON
 FINDPYTHON = PYTHON="$(PYTHON)"
