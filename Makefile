@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.66 2004/03/07 21:25:15 nickm Exp $
+# $Id: Makefile,v 1.67 2004/03/08 06:01:02 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -171,6 +171,7 @@ sdist: clean
 signdist: sdist
 	gpg -ba dist/Mixminion*.tar.gz
 
+
 #======================================================================
 # Packaging related targets
 
@@ -187,6 +188,22 @@ bdist_debian:
 		--preserve \
 		'Build unofficial debian package.'
 	#dpkg-buildpackage -rfakeroot -uc -us
+
+bdist_wininst:
+	@$(FINDPYTHON); \
+	echo $$PYTHON -tt setup.py bdist_wininst; \
+	$$PYTHON -tt setup.py bdist_wininst
+
+bdist_py2exe:
+	@$(FINDPYTHON); \
+	VERSION=`grep '^VERSION = ' setup.py | sed -e "s/.*'\(.*\)'.*/\1/"`; \
+	rm -rf dist Mixminion-$$VERSION; \
+	echo $$PYTHON -tt setup.py py2exe; \
+	$$PYTHON -tt setup.py py2exe; \
+	mv dist Mixminion-$$VERSION; \
+	zip -9 Mixminion-$$VERSION.win32.zip Mixminion-$$VERSION/* \
+           Mixminion-$$VERSION/lib/*
+	
 
 #======================================================================
 # OpenSSL-related targets
