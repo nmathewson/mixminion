@@ -228,8 +228,8 @@ class MixminionClient:
             if isinstance(firstHop, mixminion.ServerInfo.ServerInfo):
                 ri = firstHop.getRoutingInfo()
             else:
-                assert isinstance(firstHop, (mixminion.Packet.MMTPHostInfo,
-                                             mixminion.Packet.IPV4Info))
+                assert (isinstance(firstHop, mixminion.Packet.MMTPHostInfo) or
+                        isinstance(firstHop, mixminion.Packet.IPV4Info))
                 ri = firstHop
             d.setdefault(ri,[]).append(packet)
         result = d.items()

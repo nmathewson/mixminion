@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.67 2003/12/08 02:22:56 nickm Exp $
+# $Id: ServerInfo.py,v 1.68 2003/12/08 07:13:58 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -54,8 +54,8 @@ def displayServer(s):
         else:
             addr = "%s:%s" % (s.getIP(), s.getPort())
         nickname = "'%s'" % s.getNickname()
-    elif isinstance(s, (mixminion.Packet.IPV4Info,
-                       mixminion.Packet.MMTPHostInfo)):
+    elif (isinstance(s, mixminion.Packet.IPV4Info) or
+          isinstance(s, mixminion.Packet.MMTPHostInfo)):
         nickname = getNicknameByKeyID(s.keyinfo)
         if nickname:
             nickname = "'%s'" % nickname

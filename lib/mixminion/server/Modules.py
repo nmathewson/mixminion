@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.65 2003/12/08 02:22:56 nickm Exp $
+# $Id: Modules.py,v 1.66 2003/12/08 07:13:58 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -560,7 +560,8 @@ class FragmentModule(DeliveryModule):
         deliverySecs = [ 'Delivery/MBOX', 'Delivery/SMTP',
                          'Delivery/SMTP-Via-Mixmaster' ]
         enabled = [ config.get(s,{}).get("Enabled") for s in deliverySecs ]
-        if not max(enabled):
+        
+        if not [ e for e in enabled if e ]:
             raise ConfigError("You've specified Fragmented delivery, but no actual delivery method.  This doesn't make much sense.")
 
         # Second, we warn if our MaximumSize settings aren't wildly out of
