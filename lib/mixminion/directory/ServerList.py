@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.44 2003/11/28 04:14:04 nickm Exp $
+# $Id: ServerList.py,v 1.45 2003/12/08 02:22:56 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -153,7 +153,7 @@ class ServerList:
                 if self.idCache.containsServer(server):
                     LOG.warn("Server %s already known", nickname)
             except mixminion.directory.MismatchedID:
-                raise MixFatalError("Mismatched ID for server %s", nickname)
+                raise MixFatalError("Mismatched ID for server %s" % nickname)
 
             LOG.info("Learning identity for new server %s", nickname)
             self.idCache.insertServer(server)
@@ -451,11 +451,11 @@ class ServerList:
                 try:
                     ident = self.serverIDs[lcn]
                 except KeyError:
-                    raise UIError("No stored key for server %s",
+                    raise UIError("No stored key for server %s" %
                                   s.getNickname())
 
                 if not pk_same_public_key(ident, s.getIdentity()):
-                    raise UIError("Inconsistent stored key for server %s",
+                    raise UIError("Inconsistent stored key for server %s" %
                                   s.getNickname())
 
             # Then, rebuild self.serversByNickname

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.64 2003/11/28 04:14:04 nickm Exp $
+# $Id: Modules.py,v 1.65 2003/12/08 02:22:56 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -1378,7 +1378,7 @@ def checkMailHeaders(headers):
 
     fromAddr = headers['FROM']
     if re.search(r'[\[\]:"]', fromAddr):
-        raise ParseError("Invalid FROM address: %r", fromAddr)
+        raise ParseError("Invalid FROM address: %r" % fromAddr)
 
 #----------------------------------------------------------------------
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.44 2003/11/28 04:14:04 nickm Exp $
+# $Id: MMTPClient.py,v 1.45 2003/12/08 02:22:56 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -248,8 +248,8 @@ def sendPackets(routing, packetList, connectTimeout=None, callback=None):
         LOG.trace("Looking up %s...",routing.hostname)
         family, addr, _ = mixminion.NetUtils.getIP(routing.hostname)
         if family == "NOENT":
-            raise MixProtocolError("Couldn't resolve hostname %s: %s",
-                                   routing.hostname, addr)
+            raise MixProtocolError("Couldn't resolve hostname %s: %s" % (
+                                   routing.hostname, addr))
 
     con = BlockingClientConnection(family,addr,routing.port,routing.keyinfo,
                                    serverName=serverName)

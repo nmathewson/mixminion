@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.122 2003/12/04 05:02:50 nickm Exp $
+# $Id: Common.py,v 1.123 2003/12/08 02:22:56 nickm Exp $
 
 """mixminion.Common
 
@@ -1476,7 +1476,7 @@ class Lockfile:
     def replaceContents(self, contents):
         """Replace the current contents of the lockfile with 'contents',
            without releasing the lock.  Invokers must hold the lock."""
-        # XXXX Actually, on Win32, this actually replaces the first 
+        # XXXX Actually, on Win32, this actually replaces the first
         # XXXX len(contents) characters of the lockfile.  This is a bug.
         assert self.count > 0 and self.fd is not None
         SEEK_SET = 0

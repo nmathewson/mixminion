@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.106 2003/12/04 05:02:50 nickm Exp $
+# $Id: ServerMain.py,v 1.107 2003/12/08 02:22:56 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -10,7 +10,7 @@
 
 #XXXX make usage messages have the same format.
 
-## Directory layout:  
+## Directory layout:
 #    ${BASEDIR}/current-desc [Filename of current server descriptor.]
 #               version      [Version of homedir format.]
 #
@@ -589,8 +589,8 @@ class _RecurringEvent:
             LOG.warn("Not rescheduling %s", self.name)
             return
         elif nextTime < time.time():
-            raise MixFatalError("Tried to schedule event %s in the past! (%s)",
-                                self.name, formatTime(nextTime,1))
+            raise MixFatalError("Tried to schedule event %s in the past! (%s)"
+                                %(self.name, formatTime(nextTime,1)))
 
         self.scheduler.scheduleOnce(nextTime, self.name, self)
 
@@ -680,11 +680,11 @@ class MixminionServer(_Scheduler):
                 raise UIError("The server homedir contains keys for an "
                               "unrecognized version of the server.")
             else:
-                raise UIError("""\
-For some reason, your generated server descriptors cannot be parsed.  You
-may want to delete all your keysets with server-DELKEYS and have the server
-generate new ones.  [Messages sent to the old keys will be lost].\n
-The original error message was '%s'."""%e)
+                raise UIError((
+"For some reason, your generated server descriptors cannot be parsed.  You\n"
+"may want to delete all your keysets with server-DELKEYS and have the server\n"
+"generate new ones.  [Messages sent to the old keys will be lost].\n"
+"The original error message was '%s'.")%e)
 
         self.keyring.removeDeadKeys()
         self.keyring.createKeysAsNeeded()

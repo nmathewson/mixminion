@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.71 2003/12/04 05:52:20 nickm Exp $
+# $Id: Config.py,v 1.72 2003/12/08 02:22:56 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -248,7 +248,7 @@ def _parseHost(host):
        Raises ConfigError on failure."""
     host = host.strip()
     if not mixminion.Common.isPlausibleHostname(host):
-        raise ConfigError("%r doesn't look like a valid hostname",host)
+        raise ConfigError("%r doesn't look like a valid hostname"%host)
     return host
 
 # Regular expression to match 'address sets' as used in Allow/Deny
@@ -266,11 +266,11 @@ def _parseAddressSet_allow(s, allowMode=1):
     s = s.strip()
     m = _address_set_re.match(s)
     if not m:
-        raise ConfigError("Misformatted address rule %r", s)
+        raise ConfigError("Misformatted address rule %r" % s)
     ip, mask, port, porthi = m.groups()
     if ip == '*':
         if mask != None:
-            raise ConfigError("Misformatted address rule %r", s)
+            raise ConfigError("Misformatted address rule %r" % s)
         ip,mask = '0.0.0.0','0.0.0.0'
     else:
         ip = _parseIP(ip)
@@ -444,7 +444,7 @@ def _parseUser(s):
         try:
             return _parseInt(s)
         except ConfigError:
-            raise ConfigError("Expected a user name or UID, but got %r",s)
+            raise ConfigError("Expected a user name or UID, but got %r"%s)
 
 #----------------------------------------------------------------------
 

@@ -625,6 +625,7 @@ def readConfigFile(configFile):
           - as specified on the command line,
           - as specifed in $MIXMINIONRC
           - in ~/.mixminionrc.
+          - in ~/mixminionrc
 
        If the configuration file is not found in the specified location,
        we create a fresh one.
@@ -632,8 +633,17 @@ def readConfigFile(configFile):
     if configFile is None:
         configFile = os.environ.get("MIXMINIONRC")
     if configFile is None:
-        configFile = "~/.mixminionrc"
-    configFile = os.path.expanduser(configFile)
+        for candidate in ["~/.mixminionrc", "~/mixminionrc"]:
+            if os.path.exists(os.path.expanduser(candidate)):
+                configFile = candidate
+                break
+    if configFile is None:
+        if sys.platform == 'win32':
+            configFile = "~/mixminionrc"
+        else:
+            configFile = "~/.mixminionrc"
+    if configFile is not None:
+        configFile = os.path.expanduser(configFile)
 
     if not os.path.exists(configFile):
         print >>sys.stderr,"Writing default configuration file to %r"%configFile
@@ -793,7 +803,7 @@ class CLIArgumentParser:
                 try:
                     self.nHops = int(v)
                     if minHops and self.nHops < minHops:
-                        raise UIError("Must have at least %s hops", minHops)
+                        raise UIError("Must have at least %s hops" % minHops)
                 except ValueError:
                     raise UIError("%s expects an integer"%o)
             elif o in ('-P', '--path'):
@@ -884,7 +894,7 @@ class CLIArgumentParser:
             try:
                 self.exitAddress = mixminion.ClientDirectory.parseAddress(address)
             except ParseError, e:
-                raise UIError("Error in SURBAddress:"+str(e))
+                raise UIError("Error in SURBAddress: %s" % e)
         elif self.exitAddress is None and self.replyBlockFiles == []:
             raise UIError("No recipients specified; exiting. (Try using "
                           "-t <recipient-address>")
@@ -966,6 +976,10 @@ Options:
                              or '-' for a reply block read from stdin.
   --subject=<str>, --from=<str>, --in-reply-to=<str>, --references=<str>
                              Specify an email header for the exiting message.
+  --deliver-fragments        If the message is too long to fit in a single
+                             packet, then deliver multiple fragmented packets
+                             to the recipient instead of having the server
+                             reassemble the message.
 %(extra)s
 
 EXAMPLES:
@@ -1237,7 +1251,7 @@ def importServer(cmd, args):
     print "Done."
 
 _LIST_SERVERS_USAGE = """\
-Usage: %(cmd)s [options]
+Usage: %(cmd)s [options] [server names]
 Options:
   -h, --help:                Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
@@ -1252,6 +1266,7 @@ Options:
   -s <str>,--separator=<str> Separate features with <str> instead of tab.
   -c, --cascade              Pretty-print results, cascading by descriptors.
   -C, --cascade-features     Pretty-print results, cascading by features.
+  -J, --justify              Justify features into columns
   -F <name>,--feature=<name> Select which server features to list.
   --list-features            Display a list of all recognized features.
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.66 2003/12/03 23:14:26 nickm Exp $
+# $Id: ServerInfo.py,v 1.67 2003/12/08 02:22:56 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -224,7 +224,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         # Check 'Server' section.
         server = self['Server']
         if server['Descriptor-Version'] != '0.2':
-            raise ConfigError("Unrecognized descriptor version %r",
+            raise ConfigError("Unrecognized descriptor version %r" %
                               server['Descriptor-Version'])
 
         ####

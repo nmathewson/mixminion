@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.33 2003/11/28 04:14:04 nickm Exp $
+# $Id: PacketHandler.py,v 1.34 2003/12/08 02:22:56 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -328,7 +328,7 @@ class DeliveryPacket:
         elif state[0] == 'V0':
             self.__dict__.update(state[1])
         else:
-            raise MixError("Unrecognized state version %s", state[0])
+            raise MixError("Unrecognized state version %s" % state[0])
 
     def isDelivery(self):
         """Return true iff this packet is a delivery (non-relay) packet."""

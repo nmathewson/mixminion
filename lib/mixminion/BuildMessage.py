@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.64 2003/11/28 04:14:03 nickm Exp $
+# $Id: BuildMessage.py,v 1.65 2003/12/08 02:22:56 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -328,8 +328,8 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     if err and not explicitSwap:
         raise UIError("Address and path will not fit in one header")
     elif err:
-        raise UIError("Address and %s leg of path will not fit in one header",
-                      ["first", "second"][err-1])
+        raise UIError("Address and %s leg of path will not fit in one header"
+                      % ["first", "second"][err-1])
 
 #----------------------------------------------------------------------
 # MESSAGE DECODING
