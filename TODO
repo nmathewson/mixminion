@@ -5,6 +5,7 @@ SPEC	- Spec not finalized
 	* Top priority
 	. Partially done
 	o Done
+	D Deferred
 	X Abandoned
 
 NEEDS TO BE WRITTEN
@@ -12,9 +13,12 @@ NEEDS TO BE WRITTEN
 For 0.0.2: [The 'desireable features' release.  This should contain
     user-visible improvements to address the most glaring defects in 0.0.1.]
 
-	!- Real SMTP module
-		- Exit filtering support
-	- Interface for reply blocks
+	o Real SMTP module
+		o Exit filtering support
+		o Tests for blacklist
+		o Tests for SMTP module
+		- Actually try it out.
+	D Interface for reply blocks
 	. Minimal directory support
 		o Make everything resistant to newline corruption
 		       o Signatures are independent of newline style
@@ -28,7 +32,8 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Integrated server list management
 			o Tests for backend
 			o CLI support
-				- Import support
+				- 'Import' support
+				- 'Remove' support
 				o Actually invoke 'downloadDirectory'
 			o Tests for new server lists
 			o Tests for CLI support
@@ -44,8 +49,8 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		o Test backend
 		o Test CLI code
 		- Test CLI
-	. Minimal DOS prevention
-		!- SMTP-address blacklisting (for SMTP module)
+	o Minimal DOS prevention
+		o SMTP-address blacklisting (for SMTP module)
 		o Prevent bogus nicknames from bombing server.
 		o Prevent zlib bombing: minimal version.
 		        o Implement
@@ -72,12 +77,12 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		o Add examples to mixminiond.conf
 	o Refactor main loop to be event based
 	o Balance =-signs on "==ANONYMOUS MESSAGE BEGINS"
-	!- Acknowledgments
-	!- History.
-	!- Triage XXXX'S for 002.
+	. Acknowledgments
+	o Triage XXXX'S for 002.
+	- Fix all XXXX002's.
 	. Document everything
 	o Make __version__ get set automatically, from only one place.
-	- Write a "whatsnew".
+	- Write a "whatsnew" as a part of the README.
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out
@@ -98,6 +103,10 @@ Required for "1.0":
 		  dirs
 		o Make hashlog code use journaling if underlying dbs are
 		  unreliable.
+	- Performance:
+		- Directory servers should cache intermediate information
+		- The server's control structures need to change to
+		  avoid latency problems.
 	- Server core
 		- Cleaner shutdown
 		- Good reset handling
@@ -128,6 +137,9 @@ Required for "1.0":
 		o Make batching algorithm configurable
 		o Infer server IP
 		. Freak out properly on missing/unpublishable IP.
+		- Make all filenames in server config relative to
+		  server home
+		- Directory generation should be configurable somehow.
 		- Make listening configurable for multiple ports/ips, not
 		  all of which need be published.  Perhaps allow different
 		  rules for each listener.
@@ -215,6 +227,8 @@ SPEC		o Patch to address George's 15August attack
 		- Write guide for module developers
 		- Write complete user's manual
 		- Complete all other docs
+		- History.
+
 
 Unspecified:
 	[We don't have any specification for this functionality, or any
