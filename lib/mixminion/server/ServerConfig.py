@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.5 2002/12/21 01:54:23 nickm Exp $
+# $Id: ServerConfig.py,v 1.6 2002/12/31 04:36:35 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -45,7 +45,6 @@ class ServerConfig(mixminion.Config._ConfigFile):
         mixminion.Config._validateHostSection(sections.get('Host', {}))
         # Server section
         server = sections['Server']
-        serverents = entries['Server']
         bits = server['IdentityKeyBits']
         if not (2048 <= bits <= 4096):
             raise ConfigError("IdentityKeyBits must be between 2048 and 4096")
