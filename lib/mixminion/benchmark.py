@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.13 2002/12/02 03:30:07 nickm Exp $
+# $Id: benchmark.py,v 1.14 2002/12/02 20:18:44 nickm Exp $
 
 """mixminion.benchmark
 
@@ -288,6 +288,7 @@ def hashlogTiming():
 def _hashlogTiming(fname, load):
     from mixminion.HashLog import HashLog
 
+    # Try more realistic access patterns.
     prng = AESCounterPRNG("a"*16)
     
     print "Testing hash log (%s entries)"%load
@@ -299,6 +300,7 @@ def _hashlogTiming(fname, load):
     t = time()
     for n in xrange(len(hashes)):
         h.logHash(hashes[n])
+    h.sync()
     t = time()-t
     print "Add entry (up to %s entries)" %load, timestr(t/float(load))
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.40 2002/12/02 10:13:49 nickm Exp $
+# $Id: test.py,v 1.41 2002/12/02 20:18:44 nickm Exp $
 
 """mixminion.tests
 
@@ -805,47 +805,47 @@ class HashLogTests(unittest.TestCase):
         notseen("\000"*10)
         notseen("\000")
         notseen("\277"*10)
-        log("a")
+        log("a"*20)
         notseen("a*10")
         notseen("\000"*10)
         notseen("b")
-        seen("a")
+        seen("a"*20)
 
-        log("b")
-        seen("b")
-        seen("a")
+        log("b"*20)
+        seen("b"*20)
+        seen("a"*20)
 
-        log("\000")
-        seen("\000")
+        log("\000"*20)
+        seen("\000"*20)
         notseen("\000"*10)
 
-        log("\000"*10)
-        seen("\000"*10)
+        log("\000"*20)
+        seen("\000"*20)
 
         log("\277"*20)
         seen("\277"*20)
 
-        log("abcdef"*4)
-        seen("abcdef"*4)
+        log("abcde"*4)
+        seen("abcde"*4)
 
         h[0].close()
         h[0] = HashLog(fname, "Xyzzy")
-        seen("a")
-        seen("b")
+        seen("a"*20)
+        seen("b"*20)
         seen("\277"*20)
-        seen("abcdef"*4)
-        seen("\000")
-        seen("\000"*10)
+        seen("abcde"*4)
+        seen("\000"*20)
         notseen(" ")
         notseen("\000"*5)
+        notseen("\001"*20)
 
-        notseen("ddddd")
-        log("ddddd")
-        seen("ddddd")
+        notseen("ddddd"*4)
+        log("ddddd"*4)
+        seen("ddddd"*4)
 
         h[0].close()
         h[0] = HashLog(fname, "Xyzzy")
-        seen("ddddd")
+        seen("ddddd"*4)
 
         h[0].close()
 

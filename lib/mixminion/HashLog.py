@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.11 2002/09/10 14:45:30 nickm Exp $
+# $Id: HashLog.py,v 1.12 2002/12/02 20:18:44 nickm Exp $
 
 """mixminion.HashLog
 
@@ -8,13 +8,14 @@
 import os
 import anydbm, dumbdbm
 from mixminion.Common import MixFatalError, getLog, createPrivateDir
+from mixminion.Packet import DIGEST_LEN
 
 __all__ = [ 'HashLog' ]
 
 # FFFF Mechanism to force a different default db module.
 
-# FFFF Journaling for dbs that don't recover from catastrophic failure during
-# FFFF writes.
+# FFFF two-copy journaling to protect against catastrophic failure that
+# FFFF underlying DB code can't handle.
 
 class HashLog:
     """A HashLog is a file containing a list of message digests that we've
@@ -38,6 +39,16 @@ class HashLog:
 
        The base HashLog implementation assumes an 8-bit-clean database that
        maps strings to strings."""
+    ##
+    # Internally, we also keep a flat 'journal' file to which we append
+    # values that we've seen but not yet written to the database.  This way
+    # we can survive crashes between 'logHash' and 'sync'.
+    #
+    # Fields:
+    #   log
+    #   journalFileName
+    #   journalFile
+    #   journal
     def __init__(self, filename, keyid):
         """Create a new HashLog to store data in 'filename' for the key
            'keyid'."""
@@ -52,9 +63,23 @@ class HashLog:
         except KeyError:
             self.log["KEYID"] = keyid
 
+	self.journalFileName = filename+"_jrnl"
+	self.journal = {}
+	if os.path.exists(self.journalFileName):
+	    f = open(self.journalFileName, 'r')
+	    j = f.read()
+	    for i in xrange(0, len(j), DIGEST_LEN):
+		self.journal[j[i:i+DIGEST_LEN]] = 1
+	    f.close()
+
+	self.journalFile = os.open(self.journalFileName, 
+		    os.O_WRONLY|os.O_CREAT|os.O_APPEND|os.O_SYNC, 0700)
+
     def seenHash(self, hash):
         """Return true iff 'hash' has been logged before."""
         try:
+	    if self.journal.get(hash,0):
+		return 1
             _ = self.log[hash]
             return 1
         except KeyError:
@@ -62,15 +87,26 @@ class HashLog:
 
     def logHash(self, hash):
         """Insert 'hash' into the database."""
-        self.log[hash] = "1"
+	assert len(hash) == DIGEST_LEN
+	self.journal[hash] = 1
+	#self.journalFile.write(hash)
+	os.write(self.journalFile, hash)
 
     def sync(self):
         """Flushes changes to this log to the filesystem."""
+	for hash in self.journal.keys():
+	    self.log[hash] = "1"
         if hasattr(self.log, "sync"):
             self.log.sync()
+	os.close(self.journalFile)
+	self.journalFile = os.open(self.journalFileName,
+		os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_SYNC, 0700)
+	self.journal = {}
 
     def close(self):
         """Closes this log."""
         self.sync()
         self.log.close()
+	os.close(self.journalFile)
+	
 
