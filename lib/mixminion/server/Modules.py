@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.56 2003/09/28 04:12:29 nickm Exp $
+# $Id: Modules.py,v 1.57 2003/09/28 05:26:32 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -200,9 +200,12 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 try:
                     packet = handle.getMessage()
                 except mixminion.Filestore.CorruptedFile:
-                    continue
-                result = self.module.processMessage(packet)
-                if result == DELIVER_OK:
+                    packet = None
+                if packet:
+                    result = self.module.processMessage(packet)
+                if not packet:
+                    pass # Python<2.1 doesn't allow 'continue' inside 'try'.
+                elif result == DELIVER_OK:
                     LOG.debug("Successfully delivered message MOD:%s", dh)
                     handle.succeeded()
                     EventStats.log.successfulDelivery() #FFFF
