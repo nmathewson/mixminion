@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.46 2003/02/05 05:34:55 nickm Exp $
+# $Id: ClientMain.py,v 1.47 2003/02/05 06:30:53 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1451,13 +1451,17 @@ def clientDecode(cmd, args):
             s = f.read()
             f.close()
         except OSError, e:
-            LOG.error("Could not read file %s: %s", fn, e)
+            LOG.error("Could not read file %s: %s", inputFile, e)
     # XXXX003 catch exceptions
     res = client.decodeMessage(s, force=force)
     for r in res:
         out.write(r)
     out.close()
 
+_CLIENT_DECODE_USAGE = """\
+Usage: %s [options] <files>
+  This space is temporarily left blank.
+"""
 def generateSURB(cmd, args):
     options, args = getopt.getopt(args, "hf:o:t:H:P:D:vb",
                                   ['help', 'config=', 'output=', 'to=',

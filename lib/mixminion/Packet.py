@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.26 2003/02/05 06:28:31 nickm Exp $
+# $Id: Packet.py,v 1.27 2003/02/05 06:30:53 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -30,7 +30,6 @@ import struct
 import sys
 import zlib
 from socket import inet_ntoa, inet_aton
-import mixminion.BuildMessage
 from mixminion.Common import MixError, MixFatalError, floorDiv, isSMTPMailbox,\
      LOG
 
