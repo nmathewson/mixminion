@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.11 2003/05/28 05:26:48 nickm Exp $
+# $Id: DirMain.py,v 1.12 2003/05/28 06:37:37 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -11,7 +11,6 @@ __all__ = [ ]
 import gzip
 import os
 import shutil
-import stat
 import sys
 import time
 from mixminion.Common import createPrivateDir, formatTime, LOG, UIError
@@ -85,7 +84,7 @@ def cmd_list(args):
 def cmd_import(args):
     d = getDirectory()
     inbox = d.getInbox()
-    serverLsit = d.getServerList()
+    serverList = d.getServerList()
 
     if not args:
         print "(No server names given)"

@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.6 2003/05/28 05:32:09 nickm Exp $
+# $Id: Directory.py,v 1.7 2003/05/28 06:37:37 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -104,11 +104,11 @@ class Directory:
         fname = os.path.join(self.directoryBase, "identity")
         if not os.path.exists(fname):
             print "No public key found; generating new key..."
-            key = pk_generate(2048)
-            pk_PEM_save(key, fname)
+            key = mixminion.Crypto.pk_generate(2048)
+            mixminion.Crypto.pk_PEM_save(key, fname)
             return key
         else:
-            return pk_PEM_load(fname)
+            return mixminion.Crypto.pk_PEM_load(fname)
             
 class DirectoryConfig(C._ConfigFile):
     _restrictFormat = 0
@@ -131,7 +131,7 @@ class DirectoryConfig(C._ConfigFile):
         } }
     def __init__(self, filename=None, string=None):
         C._ConfigFile.__init__(self, filename, string)
-
+        
     def validate(self, lines, contents):
         import pwd
         import grp

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.25 2003/05/28 04:53:34 nickm Exp $
+# $Id: ServerKeys.py,v 1.26 2003/05/28 06:37:43 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -148,7 +148,6 @@ class ServerKeyring:
     def checkDescriptorConsistency(self, regen=1):
         """DOCDOC"""
         identity = None
-        config = None
         bad = []
         for ks,_,_ in self.keySets:
             ok = ks.checkConsistency(self.config, 0)
@@ -604,7 +603,7 @@ class ServerKeyset:
 
     def checkConsistency(self, config, log=1):
         """DOCDOC"""
-        return checkDecsriptorConsistency(config,log,self.published)
+        return checkDescriptorConsistency(config,log,self.published)
 
     def publish(self, url):
         """DOCDOC Returns 'accept', 'reject', 'error'. """
@@ -671,10 +670,8 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
        Return true iff info may have come from 'config'.  If 'log' is
        true, warn as well.  Does not check keys.
     """
-
     warn = _WarnWrapper(silence = not log, isPublished=isPublished)
 
-    fixable = 1
     config_s = config['Server']
     info_s = info['Server']
     if config_s['Nickname'] and (info_s['Nickname'] != config_s['Nickname']):
@@ -686,8 +683,7 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
     if idBits != confIDBits:
         warn("Mismatched identity bits: %s in configuration; %s published.",
              confIDBits, idBits)
-        warn.called -= 1
-        fixable = 0
+        warn.called -= 1 # We can't do anything about this!
 
     if config_s['Contact-Email'] != info_s['Contact']:
         warn("Mismatched contacts: %s in configuration; %s published.",

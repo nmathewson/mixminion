@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.29 2003/05/26 20:04:24 nickm Exp $
+# $Id: MMTPServer.py,v 1.30 2003/05/28 06:37:37 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -267,7 +267,7 @@ class SimpleTLSConnection(Connection):
         if address is not None:
             self.address = "%s (fd %s)" % (address, self.fd)
         else:
-            self.address = "remote host (fd %s)" % (address, self.fd)
+            self.address = "remote host (fd %s)" % self.fd
 
     def isShutdown(self):
         """Returns true iff this connection is finished shutting down"""

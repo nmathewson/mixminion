@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.35 2003/05/26 20:04:19 nickm Exp $
+# $Id: benchmark.py,v 1.36 2003/05/28 06:37:35 nickm Exp $
 
 """mixminion.benchmark
 
@@ -820,8 +820,8 @@ def testLeaks4():
     while 1:
         if 1:
             context = _ml.TLSContext_new(fn, p, dh)
-            s1 = context.sock(0, 0)
-            s2 = context.sock(0, 1)
+            _ = context.sock(0, 0)
+            _ = context.sock(0, 1)
 
 def testLeaks5():
     from mixminion.test import _getMMTPServer
@@ -842,7 +842,7 @@ def testLeaks5_send():
     import mixminion.MMTPClient
     routing = IPV4Info("127.0.0.1", TEST_PORT, None)
 
-    msg = "X" * 32 * 1024
+    #msg = "X" * 32 * 1024
     n = 0
     while 1:
         mixminion.MMTPClient.sendMessages(routing, [])

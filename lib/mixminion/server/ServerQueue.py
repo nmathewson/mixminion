@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.15 2003/05/26 20:04:27 nickm Exp $
+# $Id: ServerQueue.py,v 1.16 2003/05/28 06:37:44 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -438,7 +438,6 @@ class DeliveryQueue(Queue):
     def _rescan(self, now=None):
         """Helper: Rebuild the internal state of this queue from the
            underlying directory.  Trashes 'pending' and 'sendable'."""
-        fname = os.path.join(self.dir, "metadata")
         try:
             self._lock.acquire()
             self.pending = {}

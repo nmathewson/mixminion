@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.43 2003/05/25 17:07:31 nickm Exp $
+# $Id: Packet.py,v 1.44 2003/05/28 06:37:35 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -405,20 +405,23 @@ def parseReplyBlocks(s):
             s = s[1:]
         if not s:
             break
-        block, length = parseReplyBlock(s, allowMore=1, returnLen=1)
+        block, length = _parseReplyBlock(s)
         blocks.append(block)
         s = s[length:]
     return blocks
 
-def parseReplyBlock(s, allowMore=0, returnLen=0):
+def parseReplyBlock(s):
     """Return a new ReplyBlock object for an encoded reply block.
-       If allowMore is true, accept a string that only begins with a
-       reply block.  If returnLen is true, return a 2-tuple of the
-       reply block, and its length when encoded.
 
        Raise ParseError on failure.
     """
+    block, length = _parseReplyBlock(s)
+    if length > len(s):
+        raise ParseError("Misformatted reply block: extra data.")
+    return block
 
+def _parseReplyBlock(s):
+    """DOCDOC"""
     if len(s) < MIN_RB_LEN:
         raise ParseError("Reply block too short")
     try:
@@ -436,16 +439,10 @@ def parseReplyBlock(s, allowMore=0, returnLen=0):
 
     ri = s[MIN_RB_LEN:]
     length = rlen + MIN_RB_LEN
-    if allowMore:
-        ri = ri[:rlen]
-    elif len(ri) != rlen:
-        raise ParseError("Misformatted reply block")
+    ri = ri[:rlen]
 
     surb =  ReplyBlock(header, timestamp, rt, ri, key)
-    if returnLen:
-        return surb, length
-    else:
-        return surb
+    return surb, length
 
 class ReplyBlock:
     """A mixminion reply block, including the address of the first hop

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.79 2003/05/28 04:53:34 nickm Exp $
+# $Id: Common.py,v 1.80 2003/05/28 06:37:32 nickm Exp $
 
 """mixminion.Common
 
@@ -261,6 +261,8 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
         result.append((tp, fields, value))
         
         s = s[mEnd.end()+1:]
+
+    raise MixFatalError("Unreachable code somehow reached.")
 
 #----------------------------------------------------------------------
 def checkPrivateFile(fn, fix=1):

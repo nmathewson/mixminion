@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.77 2003/05/28 05:27:11 nickm Exp $
+# $Id: ClientMain.py,v 1.78 2003/05/28 06:37:32 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -20,7 +20,6 @@ import re
 import signal
 import socket
 import stat
-import string
 import sys
 import time
 import urllib2
@@ -739,7 +738,7 @@ def parsePath(directory, config, path, address, nHops=None,
     path = []
     for ent in p:
         if re.match(r'\*(\d+)', ent):
-            path.extend(("?")*string.atoi(ent[1:]))
+            path.extend(("?")* int(ent[1:]))
         else:
             path.append(ent)
 
@@ -1577,7 +1576,6 @@ class MixminionClient:
         """
         #XXXX004 write unit tests
         results = []
-        idx = 0
         for msg in parseTextEncodedMessages(s, force=force):
             if msg.isOvercompressed() and not force:
                 LOG.warn("Message is a possible zlib bomb; not uncompressing")

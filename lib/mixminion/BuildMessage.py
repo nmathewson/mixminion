@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.45 2003/05/17 00:08:41 nickm Exp $
+# $Id: BuildMessage.py,v 1.46 2003/05/28 06:37:30 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -270,7 +270,7 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
 # MESSAGE DECODING
 
 def decodePayload(payload, tag, key=None,
-                  userKeys={}):
+                  userKeys=None):
     """Given a 28K payload and a 20-byte decoding tag, attempt to decode and
        decompress the original message.
 
@@ -282,7 +282,9 @@ def decodePayload(payload, tag, key=None,
        might be able to decrypt the payload given more/different keys,
        we return None.  If the payload is corrupt, we raise MixError.
     """
-    if type(userKeys) is types.StringType:
+    if userKeys is None:
+        userKeys = {}
+    elif type(userKeys) is types.StringType:
         userKeys = { "" : userKeys }
 
     if len(payload) != PAYLOAD_LEN or len(tag) != TAG_LEN:

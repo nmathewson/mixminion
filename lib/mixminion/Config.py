@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.43 2003/05/28 05:26:47 nickm Exp $
+# $Id: Config.py,v 1.44 2003/05/28 06:37:32 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -128,7 +128,7 @@ def _parseInterval(interval):
         num = float(num)
     else:
         num = int(num)
-    nsec = num * _seconds_per_unit[unit]
+    nsec = int(num * _seconds_per_unit[unit])
     return mixminion.Common.Duration(nsec,
                     _canonical_unit_names.get(unit,unit), num)
 

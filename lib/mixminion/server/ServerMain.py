@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.58 2003/05/28 04:53:34 nickm Exp $
+# $Id: ServerMain.py,v 1.59 2003/05/28 06:37:43 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -43,7 +43,6 @@ import getopt
 import os
 import sys
 import signal
-import string
 import time
 import threading
 from types import *
@@ -80,12 +79,12 @@ def getHomedirVersion(config):
     elif not os.path.exists(versionFile):
         dirVersion = "1000"
     else:
-        dirVersion = readFile(f).strip()
+        dirVersion = readFile(versionFile).strip()
 
     return dirVersion
 
 def checkHomedirVersion(config):
-    dirVersion = getDirVersion(config)
+    dirVersion = getHomedirVersion(config)
 
     if dirVersion is None:
         return None
@@ -608,7 +607,7 @@ class MixminionServer(_Scheduler):
         #XXXX004 Catch ConfigError for bad serverinfo.
         try:
             self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
-        except ConfigError, e:
+        except mixminion.Config.ConfigError, e:
             if str(e).startswith("Unrecognized descriptor version: 0.1"):
                 raise UIError("This server homedir contains keys in an old "
                               "format.\nConsider running 'mixminion server"
@@ -778,7 +777,7 @@ class MixminionServer(_Scheduler):
                     return
                 elif GOT_HUP:
                     LOG.info("Caught sighup")
-                    self.reset()
+                    self.doReset()
                     GOT_HUP = 0
                 # Make sure that our worker threads are still running.
                 if not (self.cleaningThread.isAlive() and
@@ -1064,7 +1063,7 @@ def runUpgrade(cmd, args):
 
     homeDir = config['Server']['Homedir']
     keyDir = os.path.join(homeDir, 'keys')
-    hashDir = os.path.join(hashDir, 'hashlogs')
+    hashDir = os.path.join(homeDir, 'work', 'hashlogs')
     keysets = []
     if not os.path.exists(keyDir):
         print >>sys.stderr, "No server keys to upgrade."
@@ -1076,13 +1075,12 @@ def runUpgrade(cmd, args):
                     keyDir, name, hashDir))
 
     errors = 0
-    remove = 0
     keep = 0
     for keyset in keysets:
         try:
             keyset.load()
             keep += 1
-        except ConfigError, e:
+        except mixminion.Config.ConfigError, e:
             errors += 1
             if e.startswith("Unrecognized descriptor version: 0.1"):
                 print "Removing old keyset %s"%keyset.keyname
@@ -1109,7 +1107,7 @@ def runUpgrade(cmd, args):
     for qd in queueDirs:
         if not os.path.exists(qd): continue
         files = os.listdir(qd)
-        print "   (Deleting %s files from %s)" %(len(files,qd))
+        print "   (Deleting %s files from %s.)" %(len(files),qd)
         secureDelete([os.path.join(qd,f) for f in files])
 
     print "Homedir is upgraded"
@@ -1143,20 +1141,16 @@ Options:
 """.strip()
 
 def signalServer(cmd, args):
-    config = configFromServerArgs(cmd, args, usage=_SIGNAL_SERVER_USAGE)
+    config = configFromServerArgs(cmd, args, usage=_SIGNAL_SERVER_USAGE%cmd)
     LOG.setMinSeverity("ERROR")
 
-    checkHomedirVersion(config)
-    
     if cmd.endswith("stop-server") or cmd.endswith("server-stop"):
         reload = 0
     else:
         assert cmd.endswith("reload-server") or cmd.endswith("server-reload")
         reload = 1
 
-    if usage:
-        print _SIGNAL_SERVER_USAGE % { 'cmd' : cmd }
-        return
+    checkHomedirVersion(config)
 
     _signalServer(config, reload)
 
@@ -1171,10 +1165,7 @@ def _signalServer(config, reload):
         raise UIError("No server seems to be running.")
 
     try:
-        f = open(pidFile, 'r')
-        s = f.read()
-        f.close()
-        pid = string.atoi(s)
+        pid = int(readFile(pidFile))
     except (IOError, ValueError), e:
         raise UIError("Couldn't read pid file: %s"%e)
 

@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirCGI.py,v 1.2 2003/05/27 04:56:48 nickm Exp $
+# $Id: DirCGI.py,v 1.3 2003/05/28 06:37:36 nickm Exp $
 
 """mixminion.directory.DirCGI
 
@@ -15,32 +15,39 @@ import os
 import sys
 from mixminion.directory.Directory import Directory
 
-assert sys.version_info[:3] >= (2,2,0)
-
 try:
-    import cgitb; cgitb.enable()
+    import cgitb
 except ImportError:
-    pass
+    cgitb = None
 
-def err(s):
-    print "Status: 0\nMessage:",s
-    sys.exit(0)
+def run():
+    if cgitb is not None:
+        cgitb.enable()
+    assert sys.version_info[:3] >= (2,2,0)
 
-print "Content-type: text/plain\n\n"
+    def err(s):
+        print "Status: 0\nMessage:",s
+        sys.exit(0)
 
-form = cgi.FieldStorage()
-if not form.has_key['desc']:
-    err("no desc field found")
+    print "Content-type: text/plain\n\n"
 
-desc = form['desc']
+    form = cgi.FieldStorage()
+    if not form.has_key('desc'):
+        err("no desc field found")
 
-if type(desc) == type([]):
-    err("too many desc fields")
+    desc = form['desc']
 
-d = Directory(location=DIRECTORY_BASE)
-inbox = d.getInbox()
+    if type(desc) == type([]):
+        err("too many desc fields")
 
-address = "<%s:%s>" % (os.environ.get("REMOTE_ADDR"),
-                       os.environ.get("REMOTE_PORT"))
+    d = Directory(location=DIRECTORY_BASE)
+    inbox = d.getInbox()
 
-inbox.receiveServer(desc, address)
+    address = "<%s:%s>" % (os.environ.get("REMOTE_ADDR"),
+                           os.environ.get("REMOTE_PORT"))
+
+    inbox.receiveServer(desc, address)
+
+if not sys.modules.has_key('pychecker'):
+    run()
+    

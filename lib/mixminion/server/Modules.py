@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.38 2003/05/26 20:04:25 nickm Exp $
+# $Id: Modules.py,v 1.39 2003/05/28 06:37:43 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -28,9 +28,9 @@ else:
 import mixminion.BuildMessage
 import mixminion.Config
 import mixminion.Packet
-import mixminion.server.EventStats as EventStats
 import mixminion.server.ServerQueue
 import mixminion.server.ServerConfig
+import mixminion.server.EventStats as EventStats
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand, \
      _parseIntervalList
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
