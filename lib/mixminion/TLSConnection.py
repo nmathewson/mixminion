@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.15 2004/03/07 06:31:46 nickm Exp $
+# $Id: TLSConnection.py,v 1.16 2004/03/24 20:35:21 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -391,6 +391,10 @@ class TLSConnection:
     def __doRead(self, cap):
         "Helper function: read as much data as we can."
         self.__readBlockedOnWrite = 0
+        readSome = 0
+        # Keep reading until we decide to stop or run out of bandwidth
+        #    (or break because we [1] need to wait for network events or
+        #     [2] we get a shutdown.)
         while self.__reading and cap > 0:
             try:
                 s = self.tls.read(min(_READLEN,cap))
@@ -400,14 +404,14 @@ class TLSConnection:
                     LOG.trace("read returned 0: shutting down connection to %s"
                               , self.address)
                     self.startShutdown()
-                    return cap
+                    break
                 else:
                     # We got some data; add it to the inbuf.
-                    LOG.trace("Read got %s bytes from %s",
-                              len(s), self.address)
+                    LOG.trace("Read got %s bytes from %s",len(s), self.address)
                     self.inbuf.append(s)
                     self.inbuflen += len(s)
                     cap -= len(s)
+                    readSome = 1
                     if (not self.tls.pending()) and cap > 0:
                         # Only call onRead when we've got all the pending
                         # data from self.tls, or we've just run out of
@@ -415,11 +419,13 @@ class TLSConnection:
                         self.onRead()
             except _ml.TLSWantRead:
                 self.wantRead = 1
+                break
             except _ml.TLSWantWrite:
                 self.wantRead = 0
                 self.wantWrite = 1
                 self.__readBlockedOnWrite = 1
-            return cap
+                break
+        return cap
 
     def process(self, r, w, x, maxBytes=None):
         """Given that we've received read/write events as indicated in r/w,
