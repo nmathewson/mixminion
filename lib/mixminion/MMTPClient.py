@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.25 2003/03/28 15:36:22 nickm Exp $
+# $Id: MMTPClient.py,v 1.26 2003/04/07 01:14:12 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -22,7 +22,7 @@ import signal
 import socket
 import mixminion._minionlib as _ml
 from mixminion.Crypto import sha1, getCommonPRNG
-from mixminion.Common import MixProtocolError, LOG, MixError
+from mixminion.Common import MixProtocolError, LOG, MixError, formatBase64
 
 class TimeoutError(MixProtocolError):
     """Exception raised for protocol timeout."""
@@ -265,11 +265,10 @@ class PeerCertificateCache:
 
         peer_pk = tls.get_peer_cert_pk()
         hashed_peer_pk = sha1(peer_pk.encode_key(public=1))
-        #XXXX Remove this option
+        #XXXX005 Remove this option
         if targetKeyID == hashed_peer_pk:
             LOG.warn("Non-rotatable keyid from server at %s", address)
             return # raise MixProtocolError
-
         try:
             if self.cache[hashed_peer_pk] == targetKeyID:
                 return # All is well.
@@ -285,8 +284,8 @@ class PeerCertificateCache:
             raise MixProtocolError("Invalid KeyID from server at %s: %s"
                                    %(address, e))
 
-        hashed_identity = sha1(peer_pk.encode_key(public=1))
+        hashed_identity = sha1(identity.encode_key(public=1))
         self.cache[hashed_peer_pk] = hashed_identity
         if hashed_identity != targetKeyID:
-            raise MixProtocolError("Invalid KeyID for server at %s", address)
+            raise MixProtocolError("Invalid KeyID for server at %s" % address)
 
