@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.39 2003/02/03 22:00:50 nickm Exp $
+# $Id: setup.py,v 1.40 2003/02/05 06:19:28 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -29,13 +29,18 @@ USE_OPENSSL=1
 if USE_OPENSSL:
     # For now, we assume that openssl-0.9.7 hasn't been released.  When this
     # changes, we can fix this rigamarole.
-    openssl_inc = os.environ.get("MM_OPENSSL_INCLUDE",
-                                 "./contrib/openssl/include")
-    INCLUDE_DIRS=[openssl_inc]
-    STATIC_LIBS=['./contrib/openssl/libssl.a', './contrib/openssl/libcrypto.a']
-##      openssl_lib = os.environ.get("MM_OPENSSL_LIB", "./contrib/openssl")
-##      LIB_DIRS=[openssl_lib]
-##      LIBRARIES=['ssl','crypto']
+    if os.path.exists("./contrib/openssl"):
+        print "Using OpenSSL from ./contrib/openssl"
+        openssl_inc = "./contrib/openssl/include"
+        INCLUDE_DIRS = [openssl_inc]
+        STATIC_LIBS=['./contrib/openssl/libssl.a',
+                     './contrib/openssl/libcrypto.a']
+        LIBRARIES=[]
+    else:
+        print "Using platform OpenSSL."
+        INCLUDE_DIRS=[]
+        STATIC_LIBS=[]
+        LIBRARIES=['ssl','crypto']
 
 MACROS=[]
 MODULES=[]
@@ -221,6 +226,7 @@ extmodule = Extension("mixminion._minionlib",
                       include_dirs=INCLUDE_DIRS,
                       extra_objects=STATIC_LIBS,
                       extra_compile_args=["-Wno-strict-prototypes" ],
+                      libraries=LIBRARIES,
                       define_macros=MACROS)
 
 setup(name='Mixminion',
