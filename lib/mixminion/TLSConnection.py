@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.6 2004/01/22 05:42:07 nickm Exp $
+# $Id: TLSConnection.py,v 1.7 2004/01/22 09:47:34 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -237,9 +237,15 @@ class TLSConnection:
     #####
     # Implementation
     #####
-    def __close(self):
+    def __close(self, gotClose=0):
         """helper: close the underlying socket without cleaning up the TLS
            connection."""
+        if gotClose:
+            if self.__stateFn == self.__connectFn:
+                LOG.warn("Couldn't connect to %s",self.address)
+            else:
+                LOG.warn("Unexpectedly closed connection to %s", self.address)
+            self.onTLSError()
         self.sock.close()
         self.sock = None
         self.tls = None
@@ -389,9 +395,7 @@ class TLSConnection:
            advance the state of the connection as much as possible.  Return
            is as in 'getStatus'."""
         if x and (self.sock is not None):
-            LOG.warn("Received exception on connection to %s; closing.",
-                     self.address)
-            self.__close()
+            self.__close(gotClose=1)
             return 0,0,0
         elif not (r or w):
             return self.wantRead, self.wantWrite, (self.sock is not None)
@@ -404,12 +408,7 @@ class TLSConnection:
         except _ml.TLSClosed:
             # We get this error if the socket unexpectedly closes underneath
             # the TLS connection.
-            if self.__stateFn == self.__connectFn:
-                LOG.warn("Couldn't connect to %s",self.address)
-            else:
-                LOG.warn("Unexpectedly closed connection to %s", self.address)
-            self.onTLSError()
-            self.__close()
+            self.__close(gotClose=1)
         except _ml.TLSWantRead:
             self.wantRead = 1
             self.wantWrite = 0
