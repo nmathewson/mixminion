@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.21 2003/05/28 08:37:49 nickm Exp $
+# $Id: ServerList.py,v 1.22 2003/05/28 19:12:14 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -298,7 +298,7 @@ class ServerList:
                 for _, _, fn in included:
                     includedDigests[self.servers[fn]['Server']['Digest']] = 1
                 foundDigests = {}
-                for s in parsed.getServers():
+                for s in parsed.getAllServers():
                     foundDigests[s['Server']['Digest']] = 1
                 assert foundDigests == includedDigests
 

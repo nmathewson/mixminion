@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.44 2003/05/28 17:26:53 nickm Exp $
+# $Id: ServerInfo.py,v 1.45 2003/05/28 19:12:13 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -343,12 +343,17 @@ class ServerDirectory:
         servers = [ ServerInfo(string=s,
                                validatedDigests=validatedDigests)
                     for s in servercontents ]
+        self.allServers = servers[:] #DOCDOC
         self.servers = [ s for s in servers
                          if s.getNickname().lower() in goodServers ]
 
     def getServers(self):
         """Return a list of ServerInfo objects in this directory"""
         return self.servers
+
+    def getAllServers(self):
+        """DOCDOC"""
+        return self.allServers
 
     def __getitem__(self, item):
         return self.header[item]
