@@ -1,6 +1,6 @@
 #!/usr/bin/python2
-# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.19 2003/01/05 13:16:38 nickm Exp $
+# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Main.py,v 1.20 2003/01/05 13:19:53 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -127,7 +127,7 @@ _COMMANDS = {
 def printVersion(cmd,args):
     import mixminion
     print "Mixminion version %s" % mixminion.__version__
-    print ("Copyright 2003-2003 Nick Mathewson.  "+
+    print ("Copyright 2002-2003 Nick Mathewson.  "+
            "See LICENSE for licensing information.")
     print "Run '%s help' for more information." % cmd
     sys.exit(0)

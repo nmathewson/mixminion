@@ -1,5 +1,5 @@
-# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.46 2003/01/05 13:16:38 nickm Exp $
+# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Common.py,v 1.47 2003/01/05 13:19:53 nickm Exp $
 
 """mixminion.Common
 

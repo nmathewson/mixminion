@@ -1,5 +1,5 @@
-# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.26 2003/01/05 13:16:38 nickm Exp $
+# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ClientMain.py,v 1.27 2003/01/05 13:19:53 nickm Exp $
 
 """mixminion.ClientMain
 
