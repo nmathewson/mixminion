@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.69 2003/06/05 02:27:30 nickm Exp $
+# $Id: ServerMain.py,v 1.70 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -66,8 +66,8 @@ import mixminion.server.EventStats as EventStats
 from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
      UIError, ceilDiv, createPrivateDir, formatBase64, formatTime, \
-     installSIGCHLDHandler, Lockfile, readFile, secureDelete, waitForChildren,\
-     writeFile
+     installSIGCHLDHandler, Lockfile, readFile, secureDelete, tryUnlink, \
+     waitForChildren, writeFile
 
 #DOCDOC
 # For backward-incompatible changes only.
@@ -758,9 +758,7 @@ class MixminionServer(_Scheduler):
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         global GOT_HUP
-        f = open(self.pidFile, 'wt')
-        f.write("%s\n" % os.getpid())
-        f.close()
+        writeFile(self.pidFile, "%s\n"%os.getpid(), mode=0644)
 
         self.cleanQueues()
 
@@ -900,9 +898,8 @@ class MixminionServer(_Scheduler):
 
         try:
             self.lockFile.release()
-            os.unlink(self.pidFile)
-        except OSError:
-            pass
+        finally:
+            tryUnlink(self.pidFile)
 
 #----------------------------------------------------------------------
 def daemonize():

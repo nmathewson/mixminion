@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.85 2003/05/30 03:11:46 nickm Exp $
+# $Id: Common.py,v 1.86 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.Common
 
@@ -13,8 +13,8 @@ __all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
             'previousMidnight', 'readFile', 'readPickled',
             'readPossiblyGzippedFile', 'secureDelete', 'stringContains',
-            'succeedingMidnight', 'unarmorText', 'waitForChildren',
-            'writeFile', 'writePickled' ]
+            'succeedingMidnight', 'tryUnlink', 'unarmorText',
+            'waitForChildren', 'writeFile', 'writePickled' ]
 
 import binascii
 import bisect
@@ -172,7 +172,6 @@ def armorText(s, type, headers=(), base64=1):
        headers 'header'.
        
        If base64 is false, uses cleartext armor."""
-    #XXXX004 testme
     result = []
     result.append("-----BEGIN %s-----\n" %type)
     for k,v in headers:
@@ -189,7 +188,7 @@ def armorText(s, type, headers=(), base64=1):
     return "".join(result)
 
 # Matches a begin line.
-BEGIN_LINE_RE = re.compile(r'^-----BEGIN ([^-]+)-----\s*$',re.M)
+BEGIN_LINE_RE = re.compile(r'^-----BEGIN ([^-]+)-----[ \t]*$',re.M)
 
 # Matches a header line.
 ARMOR_KV_RE = re.compile(r'([^:\s]+): ([^\n]+)')
@@ -204,7 +203,6 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
        base64fn -- if provided, called with (type, headers) to tell whether
           we do cleartext armor.
     """
-    #XXXX004 testme
     result = []
     
     while 1:
@@ -217,7 +215,7 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
             return result
 
         tp = mBegin.group(1)
-        endPat = r"^-----END %s-----$" % tp
+        endPat = r"^-----END %s-----[ \t]*$" % tp
 
         endRE = re.compile(endPat, re.M)
         mEnd = endRE.search(s, mBegin.start())
@@ -225,15 +223,17 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
             raise ValueError("Couldn't find end line for '%s'"%tp.lower())
 
         if tp not in findTypes:
-            idx = mEnd.end+1
+            s = s[mEnd.end()+1:]
             continue
-        
+
         idx = mBegin.end()+1
         endIdx = mEnd.start()
+
         assert s[idx-1] == s[endIdx-1] == '\n'
         while idx < endIdx:
             nl = s.index("\n", idx, endIdx)
             line = s[idx:nl]
+            idx = nl+1
             if ":" in line:
                 m = ARMOR_KV_RE.match(line)
                 if not m:
@@ -241,12 +241,10 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
                 fields.append((m.group(1), m.group(2)))
             elif line.strip() == '':
                 break
-            idx = nl+1
 
         if base64fn:
             base64 = base64fn(tp,fields)
 
-        idx = nl+1
         if base64:
             try:
                 value = binascii.a2b_base64(s[idx:endIdx])
@@ -419,8 +417,7 @@ class AtomicFile:
             LOG.error("Atomic file not closed/discarded: %s",self.tmpname)
 
 def readFile(fn, binary=0):
-    """DOCDOC"""
-    #XXXX004 use more.
+    """Return the contents of the file named <fn>."""
     f = open(fn, ['r', 'rb'][binary])
     try:
         return f.read()
@@ -428,8 +425,14 @@ def readFile(fn, binary=0):
         f.close()
 
 def writeFile(fn, contents, mode=0600, binary=0):
-    """DOCDOC"""
-    #XXXX004 use more.
+    """Atomically write a string <contents> into a file <file> with mode
+       <mode>.  If <binary>, binary mode will be used.
+
+       If the file exists, it will be replaced.
+
+       If two processes attempt to writeFile the same file at once,
+       the one finishing last wins.
+       """
     tmpname = fn+".tmp"
     f, tmpname = openUnique(tmpname, ['w','wb'][binary], mode)
     try:
@@ -468,6 +471,18 @@ def writePickled(fn, obj, mode=0600):
         raise
 
     os.rename(tmpname, fn)
+
+def tryUnlink(fname):
+    """Try to remove the file named fname.  If the file is erased, return 1.
+       If the file didn't exist in the first place, return 0.  Otherwise
+       propagate an exception."""
+    try:
+        os.unlink(fname)
+        return 1
+    except OSError, e:
+        if e.errno == errno.ENOENT:
+            return 0
+        raise
 
 #----------------------------------------------------------------------
 # Secure filesystem operations.
@@ -621,9 +636,9 @@ class _FileLogHandler:
             if not os.path.exists(parent):
                 createPrivateDir(parent)
             self.file = open(self.fname, 'a')
-        except OSError:
+        except OSError, e:
             self.file = None
-            raise MixError("Unable to open log file %r"%self.fname)
+            raise MixError("Unable to open log file %r: %s"%self.fname, e)
     def close(self):
         "Close the underlying file"
         self.file.close()
@@ -1250,11 +1265,7 @@ class Lockfile:
 
     def getContents(self):
         """Return the contents of the lock file."""
-        try:
-            f = open(self.filename, 'r')
-            return f.read()
-        finally:
-            f.close()
+        return readFile(self.filename)
 
     def acquire(self, contents="", blocking=0):
         """Acquire this lock.  If we're acquiring the lock for the first time,

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.18 2003/05/31 12:52:55 nickm Exp $
+# $Id: ServerQueue.py,v 1.19 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -15,7 +15,7 @@ import threading
 import types
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
-     createPrivateDir, readPickled, writePickled, formatTime
+     createPrivateDir, readPickled, writePickled, formatTime, readFile
 from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ 'Queue', 'DeliveryQueue', 'TimedMixPool', 'CottrellMixPool',
@@ -195,10 +195,7 @@ class Queue:
            message."""
         try:
             self._lock.acquire()
-            f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
-            s = f.read()
-            f.close()
-            return s
+            return readFile(os.path.join(self.dir, "msg_"+handle), 1)
         finally:
             self._lock.release()
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.36 2003/06/02 17:49:51 nickm Exp $
+# $Id: __init__.py,v 1.37 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion
 
@@ -77,7 +77,7 @@ def parse_version_string(s):
         try:
             patch = int(patch)
         except ValueError:
-            pass
+            patch = patch
     return (int(major), int(minor), int(sub), status, patch)
 
 def cmp_versions(a,b):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.4 2003/05/17 00:08:44 nickm Exp $
+# $Id: EventStats.py,v 1.5 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -12,7 +12,7 @@ from threading import RLock
 from time import time
 
 from mixminion.Common import formatTime, LOG, previousMidnight, floorDiv, \
-     createPrivateDir, MixError, readPickled, writePickled
+     createPrivateDir, MixError, readPickled, tryUnlink, writePickled
 
 # _EVENTS: a list of all recognized event types.
 _EVENTS = [ 'ReceivedPacket',
@@ -161,10 +161,7 @@ class EventLog(NilEventLog):
         LOG.debug("Syncing statistics to disk")
         if not now: now = time()
         tmpfile = self.filename + "_tmp"
-        try:
-            os.unlink(tmpfile)
-        except:
-            pass
+        tryUnlink(tmpfile)
         self.accumulatedTime += int(now-self.lastSave)
         self.lastSave = now
         writePickled(self.filename, { 'count' : self.count,

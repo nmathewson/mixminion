@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.44 2003/05/28 06:37:35 nickm Exp $
+# $Id: Packet.py,v 1.45 2003/06/05 05:24:23 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -360,24 +360,6 @@ def parseTextReplyBlocks(s):
     """Given a string holding one or more text-encoded reply blocks,
        return a list containing the reply blocks.  Raise ParseError on
        failure."""
-
-##     while 1:
-##         m = RB_TEXT_RE.search(s[idx:])
-##         if m is None:
-##             # FFFF Better errors on malformatted reply blocks.
-##             break
-##         version, text = m.group(1), m.group(2)
-##         idx += m.end()
-##         if version != '0.1':
-##             LOG.warn("Skipping reply block with unrecognized version: %s",
-##                      version)
-##             continue
-##         try:
-##             val = binascii.a2b_base64(text)
-##         except (TypeError, binascii.Incomplete, binascii.Error), e:
-##             raise ParseError("Bad reply block encoding: %s"%e)
-##         blocks.append(parseReplyBlock(val))
-##     return blocks
 
     try:
         res = unarmorText(s, (RB_ARMOR_NAME,), base64=1)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.115 2003/06/03 17:28:11 nickm Exp $
+# $Id: test.py,v 1.116 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.tests
 
@@ -106,24 +106,6 @@ def floatEq(f1,f2):
         return abs(f1-f2)/min(f1,f2) < .00001
     else:
         return abs(f1-f2) < .00001
-
-def readFile(fname):
-    """Return the contents of the file named 'fname'.  We could just say
-       'open(fname).read()' instead, but that isn't as clean."""
-    f = open(fname, 'r')
-    try:
-        return f.read()
-    finally:
-        f.close()
-
-def writeFile(fname, contents):
-    """Create a new file named fname, replacing any such file that exists,
-       with the contents 'contents'."""
-    f = open(fname, 'w')
-    try:
-        f.write(contents)
-    finally:
-        f.close()
 
 #----------------------------------------------------------------------
 # RSA key caching functionality
@@ -454,6 +436,20 @@ class MiscTests(unittest.TestCase):
         t(36 not in fromSquareToSquare)
         t(100 not in fromSquareToSquare)
 
+    def _intervalEq(self, a, *others):
+        eq = self.assertEquals
+        for b in others:
+            if isinstance(b, IntervalSet):
+                eq(a,b)
+                b._checkRep()
+            elif isinstance(b, types.StringType):
+                eq(repr(a), b)
+            elif isinstance(b, types.ListType):
+                eq(a.getIntervals(), b)
+            else:
+                raise MixError()
+            a._checkRep()
+
     def test_openUnique(self):
         d = mix_mktemp()
         os.mkdir(d)
@@ -524,20 +520,94 @@ class MiscTests(unittest.TestCase):
                 self.assertEquals(len(line), max)
             self.assert_(len(lines[-1]) <= max)
 
-    def _intervalEq(self, a, *others):
-        eq = self.assertEquals
-        for b in others:
-            if isinstance(b, IntervalSet):
-                eq(a,b)
-                b._checkRep()
-            elif isinstance(b, types.StringType):
-                eq(repr(a), b)
-            elif isinstance(b, types.ListType):
-                eq(a.getIntervals(), b)
-            else:
-                raise MixError()
-            a._checkRep()
+    def test_armor(self):
+        inp1 = "xyzzy111"*10
+        inp2 = "Hello\nWorld!\n--Me.\n"
+        # Simple base64
+        self.assertEquals(armorText(inp1, "FOO BAR", (), 1),
+"""-----BEGIN FOO BAR-----
 
+eHl6enkxMTF4eXp6eTExMXh5enp5MTExeHl6enkxMTF4eXp6eTExMXh5enp5MTEx
+eHl6enkxMTF4eXp6eTExMXh5enp5MTExeHl6enkxMTE=
+-----END FOO BAR-----\n""")
+        # With headers
+        self.assertEquals(armorText(inp1, "FOO BAR",
+                                    [("H1", "xyz"),("H2", "a b")], 1),
+"""-----BEGIN FOO BAR-----
+H1: xyz
+H2: a b
+
+eHl6enkxMTF4eXp6eTExMXh5enp5MTExeHl6enkxMTF4eXp6eTExMXh5enp5MTEx
+eHl6enkxMTF4eXp6eTExMXh5enp5MTExeHl6enkxMTE=
+-----END FOO BAR-----\n""")
+
+        # No base64
+        self.assertEquals(armorText(inp1, "FOO BAR", (), 0),
+"""-----BEGIN FOO BAR-----
+
+xyzzy111xyzzy111xyzzy111xyzzy111xyzzy111xyzzy111xyzzy111xyzzy111xyzzy111xyzzy111
+-----END FOO BAR-----\n""")
+
+        # No base64, hyphen escape.
+        self.assertEquals(armorText(inp2, "FOO BAR", [("H3", "text")], 0),
+"""-----BEGIN FOO BAR-----
+H3: text
+
+Hello
+World!
+- --Me.
+-----END FOO BAR-----\n""")
+
+        # Test unarmor, succeeding cases.
+        for inp in inp1, inp2:
+            for mode in 0,1:
+                for headers in [], [("H-x", "abcde fg")]:
+                    enc = armorText(inp, "THIS THAT", headers, mode)
+                    enc = "asdasdkjlasd\nHey kids!\n"+enc
+                    tp, h, b = unarmorText(enc, ["THIS THAT", "FRED"],
+                                           mode)[0]
+                    self.assertEquals(tp, "THIS THAT")
+                    self.assertEquals(h, headers)
+                    self.assertEquals(b.strip(), inp.strip())
+                    if not mode:
+                        self.assert_(b.endswith("\n"))
+
+        # Test base64fn and concatenation.
+        enc1 = armorText(inp2, "THIS THAT", [("H-64", "0")], 0)
+        enc2 = armorText(inp2, "THIS THAT", [("H-64", "1")], 1)
+        def base64fn(tp, h, assert_=self.assert_):
+            assert_(tp=="THIS THAT")
+            assert_(len(h) == 1)
+            assert_(len(h[0]) == 2)
+            assert_(h[0][0] == "H-64")
+            return int(h[0][1])
+        dec = unarmorText(enc1+enc2, ["THIS THAT"], base64fn=base64fn)
+        self.assertEquals(len(dec), 2)
+        for mode in 0, 1:
+            tp,h,b = dec[mode]
+            self.assertEquals(tp, "THIS THAT")
+            self.assertEquals(h, [("H-64", str(mode))])
+            self.assertEquals(b, inp2)
+
+        # Test skipping unwanted types
+        enc3 = armorText(inp2, "OTHER", [("H-64", "1")], 1)
+        dec2 = unarmorText(enc1+enc3+enc2, ["THIS THAT"], base64fn=base64fn)
+        self.assertEquals(dec2, dec)
+
+        # Test skipping broken armor.
+        self.assertRaises(ValueError,
+                          unarmorText,"-----BEGIN X-----\n\n", ["Y"], 1)
+        self.assertRaises(ValueError,
+                          unarmorText,
+                          "-----BEGIN X-----\n"
+                          ":B:C\n\n"
+                          "A B C\n-----END X-----\n", ["X"], 0)
+        self.assertRaises(ValueError,
+                          unarmorText,
+                          "-----BEGIN X-----\n"
+                          "A: X\n\n"
+                          "A B C\n-----END X-----\n", ["X"], 1)
+        
 #----------------------------------------------------------------------
 
 class MinionlibCryptoTests(unittest.TestCase):
@@ -5746,7 +5816,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(MiscTests))
         return suite
 
     suite.addTest(tc(MiscTests))

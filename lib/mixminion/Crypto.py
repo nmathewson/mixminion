@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.43 2003/05/17 00:08:42 nickm Exp $
+# $Id: Crypto.py,v 1.44 2003/06/05 05:24:23 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -51,7 +51,8 @@ def init_crypto(config=None):
     except MixFatalError:
         raise
     except:
-        raise MixFatalError("Error initializing entropy source")
+        info = sys.exc_info()
+        raise MixFatalError("Error initializing entropy source: %s", info[0])
     openssl_seed(40)
 
 def sha1(s):

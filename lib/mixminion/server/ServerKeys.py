@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.37 2003/05/31 12:59:12 nickm Exp $
+# $Id: ServerKeys.py,v 1.38 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -11,6 +11,7 @@ __all__ = [ "ServerKeyring", "generateServerDescriptorAndKeys",
             "generateCertChain" ]
 
 import os
+import errno
 import socket
 import re
 import sys
@@ -28,11 +29,10 @@ import mixminion.server.ServerMain
 
 from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
      signServerInfo
-
 from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
-     ceilDiv, createPrivateDir, \
-     checkPrivateFile, formatBase64, formatDate, formatTime, previousMidnight,\
-     secureDelete, writeFile
+     ceilDiv, createPrivateDir, checkPrivateFile, formatBase64, formatDate, \
+     formatTime, previousMidnight, readFile, secureDelete, tryUnlink, \
+     writeFile
 
 #----------------------------------------------------------------------
 
@@ -594,27 +594,18 @@ class ServerKeyset:
         return self.published
     def markAsPublished(self):
         """DOCDOC"""
-        f = open(self.publishedFile, 'w')
-        try:
-            f.write(formatTime(time.time(), 1))
-            f.write("\n")
-        finally:
-            f.close()
+        contents = "%s\n"%formatTime(time.time(),1)
+        writeFile(self.publishedFile, contents, mode=0600)
         self.published = 1
     def markAsUnpublished(self):
-        try:
-            os.unlink(self.publishedFile)
-        except OSError:
-            pass
+        """DOCDOC"""
+        tryUnlink(self.publishedFile)
         self.published = 0
     def regenerateServerDescriptor(self, config, identityKey):
         """DOCDOC"""
         self.load()
+        self.markAsUnpublished()
         validAt,validUntil = self.getLiveness()
-        try:
-            os.unlink(self.publishedFile)
-        except OSError:
-            pass
         LOG.info("Regenerating descriptor for keyset %s (%s--%s)",
                  self.keyname, formatTime(validAt,1),
                  formatTime(validUntil,1))
@@ -623,7 +614,6 @@ class ServerKeyset:
                          validAt=validAt, validUntil=validUntil,
                          useServerKeys=1)
         self.serverinfo = self.validAfter = self.validUntil = None
-        self.markAsUnpublished()
 
     def checkConsistency(self, config, log=1):
         """DOCDOC"""
@@ -635,11 +625,7 @@ class ServerKeyset:
     def publish(self, url):
         """DOCDOC Returns 'accept', 'reject', 'error'. """
         fname = self.getDescriptorFileName()
-        f = open(fname, 'r')
-        try:
-            descriptor = f.read()
-        finally:
-            f.close()
+        descriptor = readFile(fname)
         fields = urllib.urlencode({"desc" : descriptor})
         try:
             try:
@@ -957,13 +943,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     info = signServerInfo(info, identityKey)
 
     # Write the desciptor
-    f = AtomicFile(serverKeys.getDescriptorFileName(), 'w')
-    try:
-        f.write(info)
-        f.close()
-    except:
-        f.discard()
-        raise
+    writeFile(serverKeys.getDescriptorFileName(), info, mode=0644)
 
     # This is for debugging: we try to parse and validate the descriptor
     #   we just made.
@@ -1059,24 +1039,14 @@ def generateCertChain(filename, mmtpKey, identityKey, nickname,
                                    "%s<MMTP>" %nickname,
                                    nickname,
                                    certStarts, certEnds)
-    try:
-        f = open(fname)
-        certText = f.read()
-    finally:
-        f.close()
+    certText = readFile(fname)
     os.unlink(fname)
     mixminion.Crypto.generate_cert(fname,
                                    identityKey, identityKey,
                                    nickname, nickname,
                                    certStarts, certEnds)
-    try:
-        f = open(fname)
-        identityCertText = f.read()
-        f.close()
-        os.unlink(fname)
-        f = open(filename, 'w')
-        f.write(certText)
-        f.write(identityCertText)
-    finally:
-        f.close()
+
+    identityCertText = readFile(fname)
+    os.unlink(fname)
+    writeFile(filename, certText+identityCertText, 0600)
 

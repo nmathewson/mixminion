@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.86 2003/05/30 03:28:26 nickm Exp $
+# $Id: ClientMain.py,v 1.87 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -33,15 +33,15 @@ from mixminion.Common import AtomicFile, IntervalSet, LOG, floorDiv, \
      MixError, MixFatalError, MixProtocolError, MixProtocolBadAuth, UIError, \
      UsageError, ceilDiv, createPrivateDir, isPrintingAscii, isSMTPMailbox, \
      formatDate, formatFnameTime, formatTime, Lockfile, openUnique, \
-     previousMidnight, readPickled, readPossiblyGzippedFile, secureDelete, \
-     stringContains, succeedingMidnight, writePickled
+     previousMidnight, readFile, readPickled, readPossiblyGzippedFile, \
+     secureDelete, stringContains, succeedingMidnight, tryUnlink, writeFile, \
+     writePickled
 from mixminion.Crypto import sha1, ctr_crypt, trng
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
 from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
-     parseSMTPInfo, parseTextEncodedMessages, parseTextReplyBlocks,\
-     ReplyBlock,\
-     MBOX_TYPE, SMTP_TYPE, DROP_TYPE
+     parseSMTPInfo, parseTextEncodedMessages, parseTextReplyBlocks, \
+     ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
 MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
@@ -207,11 +207,7 @@ class ClientDirectory:
         if fp and mixminion.Crypto.pk_fingerprint(identity) != fp:
             raise MixFatalError("Bad identity key on directory")
 
-        try:
-            os.unlink(os.path.join(self.dir, "cache"))
-        except OSError, e:
-            if e.errno != errno.ENOENT:
-                raise
+        tryUnlink(os.path.join(self.dir, "cache"))
 
         # Install the new directory
         if gz:
@@ -702,7 +698,7 @@ class ClientDirectory:
         for a in allowed:
             try:
                 t = mixminion.parse_version_string(a)
-            except:
+            except ValueError:
                 LOG.warn("Couldn't parse recommended version %s", a)
                 continue
             try:
@@ -987,10 +983,7 @@ class ClientKeyring:
     def _checkMagic(self, fn, magic):
         """Make sure that the magic string on a given key file %s starts with
            is equal to 'magic'.  Raise MixError if it isn't."""
-        f = open(fn, 'rb')
-        s = f.read()
-        f.close()
-        if not s.startswith(magic):
+        if not readFile(fn, 1).startswith(magic):
             raise MixError("Invalid versioning on key file")
 
     def _save(self, fn, data, magic, password):
@@ -1007,11 +1000,10 @@ class ClientKeyring:
     def _load(self, fn, magic, password):
         """Load and return the key stored in 'fn' using the magic string
            'magic' and the password 'password'.  Raise MixError on failure."""
-        f = open(fn, 'rb')
-        s = f.read()
-        f.close()
+        s = readFile(fn, 1)
         if not s.startswith(magic):
-            raise MixError("Invalid key file")
+            raise MixError("Invalid versioning on key file")
+
         s = s[len(magic):]
         if len(s) < 8:
             raise MixError("Key file too short")
@@ -1068,8 +1060,9 @@ def installDefaultConfig(fname):
     """Create a default, 'fail-safe' configuration in a given file"""
     LOG.warn("No configuration file found. Installing default file in %s",
                   fname)
-    f = open(os.path.expanduser(fname), 'w')
-    f.write("""\
+
+    writeFile(os.path.expanduser(fname), 
+              """\
 # This file contains your options for the mixminion client.
 [Host]
 ## Use this option to specify a 'secure remove' command.
@@ -1107,7 +1100,7 @@ def installDefaultConfig(fname):
 ConnectionTimeout: 20 seconds
 
 """)
-    f.close()
+
 
 class SURBLog:
     """A SURBLog manipulates a database on disk to remember which SURBs we've
@@ -1964,11 +1957,10 @@ class CLIArgumentParser:
                 if fn == '-':
                     s = sys.stdin.read()
                 else:
-                    f = open(fn, 'rb')
-                    s = f.read()
-                    f.close()
+                    s = readFile(fn, 1)
                 try:
-                    if stringContains(s, "== BEGIN TYPE III REPLY BLOCK =="):
+                    if stringContains(s,
+                                      "-----BEGIN TYPE III REPLY BLOCK-----"):
                         surbs.extend(parseTextReplyBlocks(s))
                     else:
                         surbs.extend(parseReplyBlocks(s))
@@ -2175,15 +2167,12 @@ def runClient(cmd, args):
         if inFile is None:
             inFile = "-"
 
-        if inFile == '-':
-            f = sys.stdin
-            print "Enter your message now.  Type Ctrl-D when you are done."
-        else:
-            f = open(inFile, 'r')
-
         try:
-            payload = f.read()
-            f.close()
+            if inFile == '-':
+                print "Enter your message now.  Type Ctrl-D when you are done."
+                payload = sys.stdin.read()
+            else:
+                payload = readFile(inFile)
         except KeyboardInterrupt:
             print "Interrupted.  Message not sent."
             sys.exit(1)
@@ -2423,9 +2412,7 @@ def clientDecode(cmd, args):
         s = sys.stdin.read()
     else:
         try:
-            f = open(inputFile, 'r')
-            s = f.read()
-            f.close()
+            s = readFile(inputFile)
         except OSError, e:
             LOG.error("Could not read file %s: %s", inputFile, e)
     try:
@@ -2578,12 +2565,10 @@ def inspectSURBs(cmd, args):
 
     try:
         for fn in args:
-            f = open(fn, 'rb')
-            s = f.read()
-            f.close()
+            s = readFile(fn, 1)
             print "==== %s"%fn
             try:
-                if stringContains(s, "== BEGIN TYPE III REPLY BLOCK =="):
+                if stringContains(s, "-----BEGIN TYPE III REPLY BLOCK-----"):
                     surbs = parseTextReplyBlocks(s)
                 else:
                     surbs = parseReplyBlocks(s)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.28 2003/06/02 20:55:23 nickm Exp $
+# $Id: ServerList.py,v 1.29 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -26,10 +26,9 @@ import mixminion.directory.Directory
 from mixminion.Crypto import pk_decode_public_key, pk_encode_public_key, \
      pk_same_public_key
 from mixminion.Common import IntervalSet, LOG, MixError, MixFatalError, \
-     UIError, createPrivateDir, \
-     formatBase64, formatDate, formatFnameTime, formatTime, Lockfile, \
-     openUnique, \
-     previousMidnight, readPickled, readPossiblyGzippedFile, stringContains, \
+     UIError, createPrivateDir, formatBase64, formatDate, formatFnameTime, \
+     formatTime, Lockfile, openUnique, previousMidnight, readFile, \
+     readPickled, readPossiblyGzippedFile, stringContains, writeFile, \
      writePickled
 from mixminion.Config import ConfigError
 from mixminion.ServerInfo import ServerDirectory, ServerInfo, \
@@ -287,9 +286,8 @@ class ServerList:
 
             contents = [ ]
             for _, _, fn in included:
-                f = open(os.path.join(self.serverDir, fn), 'r')
-                contents.append(f.read())
-                f.close()
+                txt = readFile(os.path.join(self.serverDir, fn))
+                contents.append(txt)
 
             goodServers = [n for n,_,_ in included if n not in badServers]
             g = {}
@@ -336,9 +334,9 @@ class ServerList:
                     foundDigests[s['Server']['Digest']] = 1
                 assert foundDigests == includedDigests
 
-            f = open(os.path.join(self.baseDir, "directory"), 'w')
-            f.write(directory)
-            f.close()
+            writeFile(os.path.join(self.baseDir, "directory"),
+                      directory, 
+                      mode=0644)
 
             f, _ = openUnique(os.path.join(self.dirArchiveDir,
                                             "dir-"+formatFnameTime()))

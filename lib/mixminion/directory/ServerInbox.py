@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.6 2003/05/28 08:37:49 nickm Exp $
+# $Id: ServerInbox.py,v 1.7 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -12,7 +12,7 @@ __all__ = [ 'ServerInbox' ]
 import os
 
 from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
-     readPickled, writePickled,formatBase64
+     formatBase64, readPickled, tryUnlink, writePickled
 from mixminion.ServerInfo import ServerInfo
 
 from mixminion.directory.Directory import getIDFingerprint, MismatchedID
@@ -195,9 +195,7 @@ class IncomingQueue:
 
     def delPendingServers(self, fnames):
         for fname in fnames:
-            try:
-                os.unlink(os.path.join(self.incomingDir, fname))
-            except OSError:
+            if not tryUnlink(os.path.join(self.incomingDir, fname)):
                 LOG.warn("delPendingServers: no such server %s"%fname)
 
 class ServerQueuedException(Exception):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.39 2003/05/28 06:37:43 nickm Exp $
+# $Id: Modules.py,v 1.40 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -34,7 +34,7 @@ import mixminion.server.EventStats as EventStats
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand, \
      _parseIntervalList
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
-     isPrintingAscii, waitForChildren
+     isPrintingAscii, readFile, waitForChildren
 from mixminion.Packet import ParseError, CompressedDataTooLong
 
 # Return values for processMessage
@@ -174,28 +174,28 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
     def _deliverMessages(self, msgList):
         for handle, packet in msgList:
             try:
-                EventStats.log.attemptedDelivery() #XXXX
+                EventStats.log.attemptedDelivery() #FFFF
                 result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
                     LOG.debug("Successfully delivered message MOD:%s", handle)
                     self.deliverySucceeded(handle)
-                    EventStats.log.successfulDelivery() #XXXX
+                    EventStats.log.successfulDelivery() #FFFF
                 elif result == DELIVER_FAIL_RETRY:
                     LOG.debug("Unable to deliver message MOD:%s; will retry",
                               handle)
                     self.deliveryFailed(handle, 1)
-                    EventStats.log.failedDelivery() #XXXX
+                    EventStats.log.failedDelivery() #FFFF
                 else:
                     assert result == DELIVER_FAIL_NORETRY
                     LOG.error("Unable to deliver message MOD:%s; giving up",
                               handle)
                     self.deliveryFailed(handle, 0)
-                    EventStats.log.unretriableDelivery() #XXXX
+                    EventStats.log.unretriableDelivery() #FFFF
             except:
                 LOG.error_exc(sys.exc_info(),
                                    "Exception delivering message")
                 self.deliveryFailed(handle, 0)
-                EventStats.log.unretriableDelivery() #XXXX
+                EventStats.log.unretriableDelivery() #FFFF
 
 class DeliveryThread(threading.Thread):
     """A thread object used by ModuleManager to send messages in the
@@ -503,9 +503,7 @@ class EmailAddressSet:
     def __init__(self, fname=None, string=None, includeStr="deny"):
         """Read the address set from a file or a string."""
         if string is None:
-            f = open(fname, 'r')
-            string = f.read()
-            f.close()
+            string = readFile(fname)
 
         self.addresses = {}
         self.domains = {}
@@ -680,26 +678,26 @@ class MBoxModule(DeliveryModule):
         # Parse the address file.
         self.addresses = {}
         f = open(self.addressFile)
-        address_line_re = re.compile(r'\s*([^\s:=]+)\s*[:=]\s*(\S+)')
         try:
-            lineno = 0
-            while 1:
-                line = f.readline()
-                if not line:
-                    break
-                line = line.strip()
-                lineno += 1
-                if line == '' or line[0] == '#':
-                    continue
-                m = address_line_re.match(line)
-                if not m:
-                    raise ConfigError("Bad address on line %s of %s"%(
-                        lineno,self.addressFile))
-                self.addresses[m.group(1)] = m.group(2)
-                LOG.trace("Mapping MBOX address %s -> %s", m.group(1),
-                               m.group(2))
+            lines = f.readlines()
         finally:
             f.close()
+        
+        address_line_re = re.compile(r'([^\s:=]+)\s*[:=]\s*(\S+)')
+
+        lineno = 0
+        for line in lines:
+            line = line.strip()
+            lineno += 1
+            if line == '' or line[0] == '#':
+                continue
+            m = address_line_re.match(line)
+            if not m:
+                raise ConfigError("Bad address on line %s of %s"%(
+                    lineno,self.addressFile))
+            self.addresses[m.group(1)] = m.group(2)
+            LOG.trace("Mapping MBOX address %s -> %s", m.group(1),
+                           m.group(2))
 
         moduleManager.enableModule(self)
 

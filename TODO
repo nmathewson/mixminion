@@ -168,7 +168,7 @@ For 0.0.4:
         o Partially superceded descriptors should get replaced in dir,
           right?
         o Resolve all the memory leaks.
-        - Finish all documentation, resolve all XXXX004s
+        . Finish all documentation, resolve all XXXX004s
         - Add a warning banner.
         - Remaining unit tests
                 - Tests for remembering whether keys are published

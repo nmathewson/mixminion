@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.12 2003/05/30 14:02:05 nickm Exp $
+# $Id: HashLog.py,v 1.13 2003/06/05 05:24:23 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -7,11 +7,13 @@
    PacketHandler to prevent replay attacks."""
 
 import binascii
+import errno
 import os
 import stat
 import anydbm, dumbdbm
 import threading
-from mixminion.Common import MixFatalError, LOG, createPrivateDir
+from mixminion.Common import MixFatalError, LOG, createPrivateDir, readFile, \
+     tryUnlink
 from mixminion.Packet import DIGEST_LEN
 
 __all__ = [ 'HashLog' ]
@@ -87,11 +89,14 @@ class HashLog:
         # Catch empty logfiles: these can be created if we exit before
         # syncing the log for the first time.
         try:
-            if os.stat(filename)[stat.ST_SIZE] == 0:
-                LOG.warn("Half-created database %s found; cleaning up.")
-                os.unlink(filename)
-        except os.error:
-            pass
+            st = os.stat(filename)
+        except OSError, e:
+            if e.errno != errno.ENOENT:
+                raise
+            st = None
+        if st and st[stat.ST_SIZE] == 0:
+            LOG.warn("Half-created database %s found; cleaning up.")
+            tryUnlink(filename)
 
         LOG.debug("Opening database %s for packet digests", filename)
         self.log = anydbm.open(filename, 'c')
@@ -108,11 +113,9 @@ class HashLog:
         self.journalFileName = filename+"_jrnl"
         self.journal = {}
         if os.path.exists(self.journalFileName):
-            f = open(self.journalFileName, 'r')
-            j = f.read()
+            j = readFile(self.journalFileName, 1)
             for i in xrange(0, len(j), DIGEST_LEN):
                 self.journal[j[i:i+DIGEST_LEN]] = 1
-            f.close()
 
         self.journalFile = os.open(self.journalFileName,
                     _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
