@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.81 2003/05/29 03:37:02 nickm Exp $
+# $Id: ClientMain.py,v 1.82 2003/05/29 04:39:59 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -83,7 +83,7 @@ class ClientDirectory:
     # lastDownload: time when we last downloaded a directory
     # serverList: List of (ServerInfo, 'D'|'D-'|'I:filename') tuples.  The
     #   second element indicates whether the ServerInfo comes from a
-    #   directory or a file. DOCDOC D-
+    #   directory or a file.  ('D-' is an unrecommended server.)
     # fullServerList: List of (ServerInfo, 'D'|'D-'|'I:filename')
     #   tuples, including servers not on the Recommended-Servers list.
     # digestMap: Map of (Digest -> 'D'|'D-'|'I:filename').
@@ -95,7 +95,8 @@ class ClientDirectory:
     # __scanning: Flag to prevent recursive invocation of self.rescan().
     # clientVersions: String of allowable client versions as retrieved
     #    from most recent directory.
-    # goodServerNicknames: DOCDOC
+    # goodServerNicknames: A map from lowercased nicknames of recommended
+    #    servers to 1.
     ## Layout:
     # DIR/cache: A cPickled tuple of ("ClientKeystore-0.2",
     #         lastModified, lastDownload, clientVersions, serverlist,
@@ -304,7 +305,7 @@ class ClientDirectory:
                 self.__rebuildTables()
                 return
             else:
-                LOG.warn("Bad magic on directory cache; rebuilding...")
+                LOG.warn("Bad version on directory cache; rebuilding...")
         except (OSError, IOError):
             LOG.info("Couldn't read directory cache; rebuilding")
         except (cPickle.UnpicklingError, ValueError), e:
@@ -987,7 +988,7 @@ class ClientKeyring:
         s = f.read()
         f.close()
         if not s.startswith(magic):
-            raise MixError("Invalid magic on key file")
+            raise MixError("Invalid versioning on key file")
 
     def _save(self, fn, data, magic, password):
         """Save the key data 'data' into the file 'fn' using the magic string
@@ -1109,8 +1110,6 @@ class SURBLog:
     """A SURBLog manipulates a database on disk to remember which SURBs we've
        used, so we don't reuse them accidentally.
        """
-    # XXXX004 write unit tests
-
     #FFFF Using this feature should be optional.
 
     ##Fields
@@ -2215,8 +2214,8 @@ def runPing(cmd, args):
     options, args = getopt.getopt(args, "hvf:D:",
              ["help", "verbose", "config=", "download-directory=", ])
 
-    if len(args) != 1:
-        raise UsageError("mixminion ping requires a single server name")
+    if len(args) == 0:
+        raise UsageError("(No servers provided)")
 
 
     print "==========================================================="
@@ -2236,13 +2235,14 @@ def runPing(cmd, args):
     directory = parser.directory
     client = parser.client
 
-    info = directory.getServerInfo(args[0],
-                                   startAt=time.time(), endAt = time.time(),
-                                   strict=1)
+    for arg in args:
+        info = directory.getServerInfo(arg,
+                                       startAt=time.time(), endAt=time.time(),
+                                       strict=1)
 
-    ok, status = client.pingServer(info.getRoutingInfo())
-    print ">>>", status
-    print info.getNickname(), (ok and "is up" or "is down")
+        ok, status = client.pingServer(info.getRoutingInfo())
+        print ">>>", status
+        print info.getNickname(), (ok and "is up" or "is down")
 
 _IMPORT_SERVER_USAGE = """\
 Usage: %(cmd)s [options] <filename> ...

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.111 2003/05/29 01:56:08 nickm Exp $
+# $Id: test.py,v 1.112 2003/05/29 04:39:59 nickm Exp $
 
 """mixminion.tests
 
@@ -5555,6 +5555,17 @@ class ClientMainTests(unittest.TestCase):
         parseFails("0x9999") # No data
         parseFails("0xFEEEF:zymurgy") # Hex literal out of range
 
+    def testSURBLog(self):
+        SURBLog = mixminion.ClientMain.SURBLog
+        dirname = mix_mktemp()
+        fname = os.path.join(dirname, "surblog")
+        s = SURBLog(fname)
+        try:
+            #XXXX writeme
+            pass
+        finally:
+            s.close()
+
     def testClientKeyring(self):
         keydir = mix_mktemp()
         keyring = mixminion.ClientMain.ClientKeyring(keydir)
@@ -5736,7 +5747,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(QueueTests))
+        suite.addTest(tc(ClientMainTests))
         return suite
 
     suite.addTest(tc(MiscTests))
