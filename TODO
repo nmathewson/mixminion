@@ -10,151 +10,178 @@ SPEC	- Spec not finalized
 NEEDS TO BE WRITTEN
 
 FOR 0.0.1: (The first alpha)
-	o Refactor brokenness
-		o Configuration stuff should go into servermain/clientmain.
-		   Forget this broken system of today.
-		o Reset logic should also go into servermain/clientmain.
-		o Document changes to Queue, MMTPServer
-		o DeliveryQueue
-			o Tests for Queue.*Object*
-			o Implement
-			o Change to be dumber about time.
-			o Document
-			o Test
-		o MixQueue
-			o Implement
-			o Test
-		o Document and refactor ModuleManager (it needs to know about
-                  queues).
-			o Document
-			o Add queues
-			o Test
-		o Make Timing run again
-		o Make slow stuff suck less.
-		X "Enabled" should leave config
-		o Key sets are their own class
-		o Make individual queues into special classes.
-		o A server is its own class, and has a better method breakdown
-		o Clean out deleted stuff every so often
-		o Document all changes; resolve XXXXs
-	o Need hooks for undeliverable messages in MMTPServer.
-	o Not even test should really use mktemp.
-	. Module system
-		o Stub classes
-		o Modules are configurable
-		o Modules are loadable
-			o Implement
-			o Test
-		o Modules are self-describing
-			o Implement
-			o Test
-		*. MBox module
-			o Implement
-			*- Test
+	[Requirements: hackers can use this system to try sending messages
+         around.  At least one delivery method works.  The code may be
+         DOS'able, but must not have remote exploits.  Dirservers need not
+         work.  There need not be an interface for replies.  Key rotation
+         need not be automated.]
+
+	- MMTP
+		- Is it okay to just bind 127.0.0.1?
+	*. MBox module
+		o Implement
+		*- Test
 	*. Server
-		o Main loop for server
 		*. Startup, config
-		o Load keys
-		o Receive messages
-		o Process messages
-		o Deliver MBOX messages.
-		o Design directory layout
-		- Automatic keygen as needed
+		- Hardwired code to drop undeliverable messages
 		- Unit test for keyset and various queues.
 		- Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
-
 	- Add traceback-dumping functionality to Log class. 
-	  (When did trceback.py get added to Python?)
+	  (When did traceback.py get added to Python?)
 	- Better log messages at all points throughout system.
-	- Move boilerplate into outside files.  Add a generic 'Boilerplate'
-	  functionality.
-	- Test createPrivateDir
-		- Normal cases
-		- Failing cases
-	- Support for one-side-only MMTP configurations.
-	- Make Mix algorithm configurable
+	- createPrivateDir
+	       	- Warn about group-writable parent dirs
+		- Refactor 'create' and 'check' code.
+		- Test normal cases
+		- Test failing cases
 	*- CLI for server
 		*- Run server
 		*- Generate future key/publish to dirserver
 	- CLI client
 		- Send a message
 		- Generate a message
-		- Generate a reply block
-		- Read message from reply block
 		- Design directory layout
 	- Config
 		o Infer nickname
-		- Infer IP
-		- Validation function for client
-		- Validation function for server		
+		- Stub validation function for client
+		- Stub validation function for server		
 		- Example config
+		- Warn about unimplemented allow/deny
+	- Build
+		- Ability to pull and build ssl.
+		- Marginal 'make install'
+	- Integration testing
+		- Fake delivery module for MBOX-less testing of core
+		- Automated tests for several servers running on one machine.
+		- Tests for servers on several different machines.
 	- Rename versions to 0.1.
-	- Clean shutdown for server
-	- MMTP	
-		. Tests for all cases:
+	- Marginally clean shutdown for server
+	- Versioning :)
+	- Final license
+	- Documentation
+		- Contributor's guide
+		- Basic HOWTO
+		- Difference between XXXX FFFF ????
+		- Overall design
+
+
+Required for "1.0":
+	 [These features must be in place before we can take the system out
+          of alpha.  We'll do a series of point releases between 0.0.1 and
+          the first beta.]
+
+	- Key rotation and expiry
+		- Automatic keygen as needed
+		- Automatic key rotation
+		- Password-protected private identity keys
+		- Password-protected private link/packet keys
+	- Security
+		- Make createPrivateDirs gripe about group-writable parent
+		  dirs
+	- Server core
+		- Clean shutdown
+		- Good reset handling
+		- Drop undeliverable messages in a sane way
+	- Modules and module support
+		- MBOX
+			- Use async or threading to cope with blocking MTAs
+			- Full config validation
+			- Full boilerplate
+		- Move boilerplate into outside files.  Add a generic 
+		  'Boilerplate' functionality.
+		- Tell ModuleManager about asyncore
+		- Support for forking delivery
+		- SMTP module
+		- Incoming email gateway
+	- Configurablity
+	  	- Support for one-side-only MMTP configurations.
+		- Make Mix algorithm configurable
+		- Infer server IP
+		- Full validation function for client
+		- Full validation function for server
+		- Make 'push' and 'retry' delivery rates independant and
+		  module-adjustable
+		- Make 'drop undeliverable' rate configurable.
+		- Implement allow/deny code
+	- Client support
+		- Generate a reply block
+		- Read message from reply block
+		- Path selection
+	- MMTP / async
+		- Make listen options configurable (backlog, IP)
+		- Code to send junk
+SPEC!!		- Timeout old connections
+		- Test new features
+		- Renegotiate connections
+		- Session managment and resumption (security issues?)
+		- Tests for all cases:
 			- Junk
 			- Multiple senders
 			- Bad senders
 			- Bad recipients
 			- Hunt down leaks
-			o Bad KeyID
-	- External reply block format
-	- End-to-end payload encryption, if we ever agree on a spec.
-SPEC		- Reading messages sent to reply blocks
-	- Versioning :)
-	- make sure all FFFF and ???? and XXXX are on this list.
-
-FOR 0.0.2: (The first hacker release)
-	- Key rotation and expiry
-	- MMTP
-		- Code to send junk
-SPEC!!		- Timeout old connections
-		- Test new features
-	- Very clean build process
+	- Build and install process
 		- Get SSL as needed
-	- RPMS
-	- Configurable mix rules.
-	- Drop undeliverable messages
-	- Key management
+		- Well-tested 'make install'
+		- RPMS, debs, and so on
+		- Make sure we run on solaris and *BSD.
+		- "Somebody" should do a Windows port of the client code
+	- Protocol support
+		- External reply block format
+		- End-to-end payload encryption, if we ever agree on a spec.
+		- Reading messages sent to reply blocks
+		- Correct implementation of stateless reply blocks
+SPEC		- Patch to address George's 15August attack
 	- Test on other (non-redhat, non-linux) systems
-	- Final license
-	- Handle HUPs sensibly
-SPEC!!	- Key rotation
-	- Generate new keys as needed
-	- Publishing to directory servers
-	- Downloading from directory servers
-	- Basic HOWTO and documentation
+	- Directories
+		- Implementation for directory servers
+		- Publishing to directory servers
+			- Support
+			- Automation
+		- Downloading from directory servers
+			- Support
+			- Automation
+	- Full documentation
+		- Complete docs for all code, with comments and examples.
+		- Write guide for module developers
+		- Write complete user's manual
+		- Complete all other docs
 
-FOR 0.0.3: (First non-guru release)
-	- MMTP
-SPEC		- Renegotiate connections
-SPEC		- Session managment and resumption (security issues?)
-SPEC!!	- Path selection
-SPEC!!	- SMTP module
-	- Good user documentation
-SPEC!!	- Link padding
-SPEC!!	- Dummy messages
-SPEC	- Directory services
-SPEC	- Automated key rotation, server management
+Unspecified:
+	[We don't have any specification for this functionality, or any
+	 mandate to include it in 1.0.  If it's specified before 1.0 is
+	 done, however, it should go in.]
+
+	- Generate link padding
+	- Generate dummy messages
 
 WHEN WE GET THE CHANCE:
-	- NSS or GNUTLS or MyCrypt or M2Crypto? (for a GPL-compatible license)
+	[This stuff could be for any version 1.0 or later; it's not a
+ 	 requirement for 1.0.]
+	- License-friendliness:
+		- Switch from OpenSSL to NSS or GNUTLS
 	- GUI
 	- Multithreaded design to scale to multiple CPUs
-	- Password protection for private keys.
-	- Memlockall wrapper
-	- Generic secure delete
-	- Works on windows, mac
-	- Support for loopback fs automation and shredding.
+	- Security
+		- Memlockall wrapper
+		- Generic secure delete
+		- Support for loopback fs automation and shredding.
+	- Portability
+		- Server running on windows.
+	- Time the rest of the system
+	- Make DB module choice configurable?
+
+	- ServerInfo: complete validate rules
+	- Password-protected key storage
+	- ModuleManager knows about async code.
+	- Configurable mix times.
 
 NEED TO BE TESTED
 - Signals
 
 NEED TO BE DOCUMENTED
-- Difference between XXXX FFFF ????
-- Overall design
 
 NEEDS TO BE BENCHMARKED
 - TLS for leaks
