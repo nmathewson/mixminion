@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.214 2004/12/13 07:06:10 nickm Exp $
+# $Id: test.py,v 1.215 2004/12/17 20:40:03 nickm Exp $
 
 """mixminion.tests
 
@@ -7864,7 +7864,7 @@ class PingerTests(TestCase):
         t += 3600
         log.startup(now=t)
         log.calculateUptimes(t-3600, t+100, now=t+100)
-        log.calculateOneHopResults(t)
+        log.calculateOneHopResult(t)
         log.calculateChainStatus(t)
 
 
@@ -7910,7 +7910,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ServerInfoTests))
+        suite.addTest(tc(PingerTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
