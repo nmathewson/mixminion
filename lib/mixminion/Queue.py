@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.15 2002/08/25 05:58:02 nickm Exp $
+# $Id: Queue.py,v 1.16 2002/08/29 03:30:21 nickm Exp $
 
 """mixminion.Queue
 
@@ -373,19 +373,19 @@ class CottrellMixQueue(TimedMixQueue):
     """A CottrellMixQueue holds a group of files, and returns some of them
        as requested, according the Cottrell (timed dynamic-pool) mixing
        algorithm from Mixmaster."""
-    def __init__(self, location, interval=600, minPoolSize=6, maxSendRate=.3):
+    def __init__(self, location, interval=600, threshold=6, retainRate=.7):
 	"""Create a new queue that yields a batch of message every 'interval'
-	   seconds, never allows its pool size to drop below 'minPoolSize',
-	   and never sends more than maxSendRate * the current pool size."""
+	   seconds, never sends unless it has more than <threshold> messages,
+	   and always keeps <retainRate> * the current pool size."""
 	TimedMixQueue.__init__(self, location, interval)
-	self.minPoolSize = minPoolSize
-	self.maxBatchSize = int(maxSendRate*minPoolSize)
-	if self.maxBatchSize < 1: 
-	    self.maxBatchSize = 1
+	self.threshold = threshold
+	self.sendRate = 1.0 - retainRate
 
     def getBatch(self):
 	pool = self.count()
-	nTransmit = min(pool-self.minPoolSize, self.maxBatchSize)
+	if pool <= self.threshold:
+	    return []
+	nTransmit = int(pool * self.sendRate)
 	return self.pickRandom(nTransmit)
 
 class BinomialCottrellMixQueue(CottrellMixQueue):
@@ -393,8 +393,9 @@ class BinomialCottrellMixQueue(CottrellMixQueue):
        from the pool of size P, sends each message with probability N/P."""
     def getBatch(self):
 	pool = self.count()
-	nTransmit = min(pool-self.minPoolSize, self.maxBatchSize)
-	msgProbability = float(nTransmit) / pool
+	if pool <= self.threshold:
+	    return []
+	msgProbability = self.sendRate
 	return self.rng.shuffle([ h for h in self.getAllMessages() 
 				    if self.rng.getFloat() < msgProbability ])
 

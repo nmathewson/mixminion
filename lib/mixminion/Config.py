@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.12 2002/08/25 05:58:02 nickm Exp $
+# $Id: Config.py,v 1.13 2002/08/29 03:30:21 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -124,7 +124,7 @@ def _parseInterval(interval):
 def _parseInt(integer):
     """Validation function.  Converts a config value to an int.
        Raises ConfigError on failure."""
-    i = integer.strip().lower()
+    i = integer.strip()
     try:
         return int(i)
     except ValueError, _:
@@ -268,9 +268,7 @@ def _parseDate(s,_timeMode=0):
 	    (0 <= mm < 60)  and (0 <= ss <= 61)):
 	raise ConfigError("Invalid %s %r" % (("date","time")[_timeMode],s))
 
-    # we set the DST flag to zero so that subtracting time.timezone always
-    # gives us gmt.
-    return time.mktime((yyyy,MM,dd,hh,mm,ss,0,0,0))-time.timezone
+    return mixminion.Common.mkgmtime(yyyy, MM, dd, hh, mm, ss)
 
 def _parseTime(s):
     """Validation function.  Converts from DD/MM/YYYY HH:MM:SS format
@@ -644,7 +642,8 @@ SERVER_SYNTAX =  {
                      'LogLevel' : ('ALLOW', _parseSeverity, "WARN"),
                      'EchoMessages' : ('ALLOW', _parseBoolean, "no"),
                      'EncryptIdentityKey' : ('REQUIRE', _parseBoolean, "yes"),
-                     'PublicKeyLifetime' : ('REQUIRE', _parseInterval,
+		     'IdentityKeyBits': ('ALLOW', _parseInt, "2048"),
+                     'PublicKeyLifetime' : ('ALLOW', _parseInterval,
                                             "30 days"),
                      'PublicKeySloppiness': ('ALLOW', _parseInterval,
                                              "5 minutes"),

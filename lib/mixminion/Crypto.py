@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.18 2002/08/25 06:10:34 nickm Exp $
+# $Id: Crypto.py,v 1.19 2002/08/29 03:30:21 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -427,6 +427,8 @@ class RNG:
         # FFFF This implementation is about 2-4x as good as the last one, but
 	# FFFF still could be better.  It's faster than getFloat()*max.
 
+	# XXXX (This code assumes that integers are at least 32 bits.)
+
         assert 0 < max < 0x3fffffff
 	_ord = ord
 	while 1:
@@ -440,12 +442,12 @@ class RNG:
 		return o % max
 
     def getFloat(self):
-	"""Return a floating-point number between 0 and 1.  The number
-	   will have 'bytes' bytes of resolution."""
+	"""Return a floating-point number between 0 and 1."""
 	b = self.getBytes(4)
 	_ord = ord
 	o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) + 
 	      _ord(b[2]))<<8) + _ord(b[3])
+	#return o / float(0x7fffffff)
 	return o / 2147483647.0
 
     def _prng(self, n):

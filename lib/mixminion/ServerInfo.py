@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.12 2002/08/25 06:10:35 nickm Exp $
+# $Id: ServerInfo.py,v 1.13 2002/08/29 03:30:21 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -249,6 +249,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     comments = config['Server']['Comments']
     if not validAt:
         validAt = time.time()
+
+    # Round validAt to previous mignight.
+    validAt = mixminion.Common.previousMidnight(validAt+30)
 
     validUntil = validAt + config['Server']['PublicKeyLifetime'][2]
     certStarts = validAt - CERTIFICATE_EXPIRY_SLOPPINESS

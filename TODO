@@ -16,25 +16,31 @@ FOR 0.0.1: (The first alpha)
          work.  There need not be an interface for replies.  Key rotation
          need not be automated.]
 
-	*. MBox module
+	. MBox module
 		o Implement
-		*- Test
-	*. Server
+		- Test
+	. Server
 		o Startup, config
 		o Hardwired code to drop undeliverable messages
-		- Unit test for keyset and various queues.
+		o Document ServerMain
+		o Unit test for keyset 
+		- Unit tests for various queues.
 		*- Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
 	- Better log messages at all points throughout system.
-	*- CLI for server
-		o Common CLI code.
-		*. Run server
-		*- Generate future key/publish to dirserver
-	- CLI client
+	. CLI for server
+		o Common CLI code.	
+		o Run server
+		. Generate future key
+			o Keygen in server keyring
+			o CLI
+			*- Tests for CLI
+	*- CLI client
 		- Send a message
 		- Generate a message
 		- Design directory layout
+		- Test CLI client
 	- Config
 		o Infer nickname
 		- Stub validation function for client
@@ -43,7 +49,7 @@ FOR 0.0.1: (The first alpha)
 		- Warn about unimplemented allow/deny
 		- Warn about all unimplemented features
 	. Build
-		- Ability to pull ssl.
+		. Ability to pull ssl.
 		o Ability to build ssl.
 		- Marginal 'make install'
 	- Integration testing

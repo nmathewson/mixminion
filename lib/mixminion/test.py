@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.24 2002/08/25 06:10:35 nickm Exp $
+# $Id: test.py,v 1.25 2002/08/29 03:30:21 nickm Exp $
 
 """mixminion.tests
 
@@ -22,6 +22,7 @@ import re
 import base64
 import stat
 import cPickle
+import cStringIO
 
 from mixminion.testSupport import mix_mktemp
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, getLog
@@ -45,6 +46,73 @@ def hexread(s):
 
 def floatEq(f1,f2):
     return abs(f1-f2) < .00001
+
+def suspendLog():
+    """Temporarily suppress logging output."""
+    log = getLog()
+    if hasattr(log, '_storedHandlers'):
+	resumeLog()
+    buf = cStringIO.StringIO()
+    h = mixminion.Common._ConsoleLogHandler(cStringIO.StringIO())
+    log._storedHandlers = log.handlers
+    log._testBuf = buf
+    log.handlers = []
+    log.addHandler(h)
+
+def resumeLog():
+    """Resume logging output.  Return all new log messages since the last
+       suspend."""
+    log = getLog()
+    if not hasattr(log, '_storedHandlers'):
+	return None
+    buf = log._testBuf
+    del log._testBuf
+    log.handlers = log._storedHandlers
+    del log._storedHandlers
+    return str(buf)
+
+#----------------------------------------------------------------------
+# Tests for common functionality
+
+class MiscTests(unittest.TestCase):
+    def testDiv(self):
+	from mixminion.Common import floorDiv, ceilDiv
+
+	self.assertEquals(floorDiv(10,1), 10)
+	self.assertEquals(floorDiv(10,2), 5)
+	self.assertEquals(floorDiv(10,3), 3)
+	self.assertEquals(floorDiv(10,11), 0)
+	self.assertEquals(floorDiv(0,11), 0)
+	self.assertEquals(floorDiv(-1,1), -1)
+	self.assertEquals(floorDiv(-1,2), -1)
+	self.assertEquals(floorDiv(-10,3), -4)
+	self.assertEquals(floorDiv(-10,-3), 3)
+
+	self.assertEquals(ceilDiv(10,1), 10)
+	self.assertEquals(ceilDiv(10,2), 5)
+	self.assertEquals(ceilDiv(10,3), 4)
+	self.assertEquals(ceilDiv(10,11), 1)
+	self.assertEquals(ceilDiv(0,11), 0)
+	self.assertEquals(ceilDiv(-1,1), -1)
+	self.assertEquals(ceilDiv(-1,2), 0)
+	self.assertEquals(ceilDiv(-10,3), -3)
+	self.assertEquals(ceilDiv(-10,-3), 4)
+
+    def testTimeFns(self):
+	from mixminion.Common import floorDiv, mkgmtime, previousMidnight
+	# This isn't a very good test.
+	now = int(time.time())
+	max_sec_per_day = 24*60*60+ 1
+	for t in xrange(10, now, floorDiv(now, 1000)):
+	    yyyy,MM,dd,hh,mm,ss = time.gmtime(t)[:6]
+	    self.assertEquals(t, mkgmtime(yyyy,MM,dd,hh,mm,ss))
+	    pm = previousMidnight(t)
+	    yyyy2,MM2,dd2,hh2,mm2,ss2 = time.gmtime(pm)[:6]
+	    self.assertEquals((yyyy2,MM2,dd2), (yyyy,MM,dd))
+	    self.assertEquals((0,0,0), (hh2,mm2,ss2))
+	    self.failUnless(pm <= t and 0 <= (t-pm) <= max_sec_per_day)
+	    self.assertEquals(previousMidnight(t), pm)
+	    self.assertEquals(previousMidnight(pm), pm)
 
 #----------------------------------------------------------------------
 import mixminion._minionlib as _ml
@@ -367,7 +435,7 @@ class CryptoTests(unittest.TestCase):
 
     def test_aesprng(self):
         # Make sure that AESCounterPRNG is really repeatable.
-        key ="aaaa"*4
+        key ="aaab"*4
         PRNG = AESCounterPRNG(key)
         self.assert_(prng(key,100000) == (
                           PRNG.getBytes(5)+PRNG.getBytes(16*1024-5)+
@@ -380,6 +448,15 @@ class CryptoTests(unittest.TestCase):
         for i in xrange(1,10000,17):
             self.failUnless(0 <= PRNG.getInt(10) < 10)
             self.failUnless(0 <= PRNG.getInt(i) < i)
+
+##  	itot=ftot=0
+##  	for i in xrange(1000000):
+##  	    itot += PRNG.getInt(10)
+##  	    ftot += PRNG.getFloat()
+
+##  	print "AVG INT", itot/1000000.0
+##  	print "AVG FLT", ftot/1000000.0
+	
 	for i in xrange(100):
 	    self.failUnless(0 <= PRNG.getFloat() < 1)
 
@@ -1403,8 +1480,8 @@ class QueueTests(unittest.TestCase):
 	b.sort()
 	self.assertEquals(msgs,b)
 	
-	cmq = CottrellMixQueue(d_m, 600, 6, .5)
-	# Not enough messages
+	cmq = CottrellMixQueue(d_m, 600, 6, .7)
+	# Not enough messages (<= 6)
 	self.assertEquals([], cmq.getBatch())
 	self.assertEquals([], cmq.getBatch())
 	# 8 messages: 2 get sent
@@ -1421,19 +1498,19 @@ class QueueTests(unittest.TestCase):
 	    if b != b1:
 		allEq = 0; break
 	self.failIf(allEq)
-	# Don't send more than 3.
-	for x in xrange(100):
+	# Send 30 when there are 100 messages.
+	for x in xrange(92):
 	    cmq.queueMessage("Hello2 %s"%x)
 	for x in xrange(10):
-	    self.assertEquals(3, len(cmq.getBatch()))
+	    self.assertEquals(30, len(cmq.getBatch()))
 
-	bcmq = BinomialCottrellMixQueue(d_m, 600, 6, .5)
-	allThree = 1
+	bcmq = BinomialCottrellMixQueue(d_m, 600, 6, .7)
+	allThirty = 1
 	for i in range(10):
 	    b = bcmq.getBatch()
-	    if not len(b)==3:
-		allThree = 0
-	self.failIf(allThree)
+	    if not len(b)==30:
+		allThirty = 0
+	self.failIf(allThirty)
 
 	bcmq.removeAll()
 	bcmq.cleanQueue()
@@ -1442,7 +1519,6 @@ class QueueTests(unittest.TestCase):
 # LOGGING
 class LogTests(unittest.TestCase):
     def testLogging(self):
-        import cStringIO
         from mixminion.Common import Log, _FileLogHandler, _ConsoleLogHandler
         log = Log("INFO")
         self.assertEquals(log.getMinSeverity(), "INFO")
@@ -1753,8 +1829,8 @@ class MMTPTests(unittest.TestCase):
                 async.process(2)
             
         severity = getLog().getMinSeverity()
-        getLog().setMinSeverity("ERROR") #suppress warning
         try:
+	    suspendLog() # suppress warning
             server.process(0.1)
             t = threading.Thread(None, clientThread)
 
@@ -1763,7 +1839,7 @@ class MMTPTests(unittest.TestCase):
                 server.process(0.1)
             t.join()
         finally:
-            getLog().setMinSeverity(severity) #unsuppress warning
+            resumeLog()  #unsuppress warning
                     
 #----------------------------------------------------------------------
 # Config files
@@ -2242,10 +2318,10 @@ Foo: 99
 	self.assertEquals(exampleMod.processedMessages, [])
 	try:
 	    severity = getLog().getMinSeverity()
-	    getLog().setMinSeverity("FATAL") #suppress warning
+	    suspendLog()
 	    manager.sendReadyMessages()
 	finally:
-            getLog().setMinSeverity(severity) #unsuppress warning
+            resumeLog()
 	self.assertEquals(1, queue.count())
 	self.assertEquals(3, len(exampleMod.processedMessages))
 	manager.sendReadyMessages()
@@ -2295,11 +2371,125 @@ Foo: 100
 	# FFFF Add tests for catching exceptions from buggy modules
 
 #----------------------------------------------------------------------
+import mixminion.ServerMain
+
+#XXXX DOC
+SERVERCFG = """
+[Server]
+Homedir: %(home)s
+Mode: local
+EncryptIdentityKey: No
+PublicKeyLifetime: 10 days
+IdentityKeyBits: 2048
+EncryptPrivateKey: no
+"""
+
+_FAKE_HOME = None
+def _getKeyring():
+    global _FAKE_HOME
+    if _FAKE_HOME is None:
+	_FAKE_HOME = mix_mktemp()	
+    cfg = SERVERCFG % { 'home' : _FAKE_HOME }
+    conf = mixminion.Config.ServerConfig(string=cfg)
+    return mixminion.ServerMain.ServerKeyring(conf)
+
+_IDENTITY_KEY = None
+def _getIdentityKey():
+    global _IDENTITY_KEY
+    if _IDENTITY_KEY is None:
+	_IDENTITY_KEY = _getKeyring().getIdentityKey()
+    return _IDENTITY_KEY
+
+class ServerMainTests(unittest.TestCase):
+    def testServerKeyring(self):
+	keyring = _getKeyring()
+	home = _FAKE_HOME
+
+	# Test creating identity key
+	identity = _getIdentityKey()
+	fn = os.path.join(home, "keys", "identity.key")
+	identity2 = mixminion.Crypto.pk_PEM_load(fn)
+	self.assertEquals(mixminion.Crypto.pk_get_modulus(identity),
+			  mixminion.Crypto.pk_get_modulus(identity2))
+	# (Make sure warning case can occur.)
+	pk = _ml.rsa_generate(128, 65537)
+	mixminion.Crypto.pk_PEM_save(pk, fn)
+	suspendLog()
+	keyring.getIdentityKey()
+	msg = resumeLog()
+	self.failUnless(len(msg))
+	mixminion.Crypto.pk_PEM_save(identity, fn)
+
+	# Now create a keyset
+	keyring.createKeys(1)
+	# check internal state
+	ivals = keyring.keyIntervals
+	start = mixminion.Common.previousMidnight(time.time())
+	finish = mixminion.Common.previousMidnight(start+(10*24*60*60)+30)
+	self.assertEquals(1, len(ivals))
+	self.assertEquals((start,finish,"0001"), ivals[0])
+
+	keyring.createKeys(2)
+
+	# Check the first key we created
+	va, vu, curKey = keyring._getLiveKey()
+	self.assertEquals(va, start)
+	self.assertEquals(vu, finish)
+	self.assertEquals(vu, keyring.getNextKeyRotation())
+	self.assertEquals(curKey, "0001")
+	keyset = keyring.getServerKeyset()
+	self.assertEquals(keyset.getHashLogFileName(),
+			  os.path.join(home, "work", "hashlogs", "hash_0001"))
+	
+	# Check the second key we created.
+	va, vu, curKey = keyring._getLiveKey(vu + 3600)
+	self.assertEquals(va, finish)
+	self.assertEquals(vu, mixminion.Common.previousMidnight(
+	    finish+10*24*60*60+60))
+
+	# Make a key in the past, to see if it gets scrubbed.
+	keyring.createKeys(1, mixminion.Common.previousMidnight(
+	    start - 10*24*60*60 +60))
+	self.assertEquals(4, len(keyring.keyIntervals))
+	keyring.removeDeadKeys()
+	self.assertEquals(3, len(keyring.keyIntervals))
+	getLog().info("foo")
+	
+	if 0:
+	    # These are slow, since they regenerate the DH params.
+	    # Test getDHFile
+	    f = keyring.getDHFile()
+	    f2 = keyring.getDHFile()
+	    self.assertEquals(f, f2)
+	    
+	    # Test getTLSContext
+	    keyring.getTLSContext()
+
+	# Test getPacketHandler
+	ph = keyring.getPacketHandler()
+
+    def testIncomingQueue(self):
+	# Test deliverMessage.
+	pass
+
+    def testMixPool(self):
+	# Test 'mix' method
+	pass
+
+    def testOutgoingQueue(self):
+	# Test deliverMessage
+	pass
+
+#----------------------------------------------------------------------
 def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
+    suite.addTest(tc(ServerMainTests))
+    if 0: return suite
+
+    suite.addTest(tc(MiscTests))
     suite.addTest(tc(MinionlibCryptoTests))
     suite.addTest(tc(CryptoTests))
     suite.addTest(tc(PacketTests))

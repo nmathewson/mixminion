@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.2 2002/08/25 05:58:02 nickm Exp $
+# $Id: testSupport.py,v 1.3 2002/08/29 03:30:21 nickm Exp $
 
 """mixminion.testSupport
 
@@ -33,18 +33,18 @@ class DirectoryStoreModule(DeliveryModule):
 		   'UseQueue': ('REQUIRE', _parseBoolean, None) } }
     
     def validateConfig(self, sections, entries, lines, contents):
-	loc = sections['Testing/DirectoryDump'].get('Location')
-	if loc and not os.path.isdir(loc):
-	    raise ConfigError("Directory does not exist: %r"%loc)
+	# loc = sections['Testing/DirectoryDump'].get('Location')
+	pass 
+    
     
     def configure(self, config, manager):
-	self.loc = sections['Testing/DirectoryDump'].get('Location')
+	self.loc = config['Testing/DirectoryDump'].get('Location')
 	if not self.loc:
 	    return
-	self.useQueue = sections['Testing/DirectoryDump']['UseQueue']
-	manager.registerModule(self)
+	self.useQueue = config['Testing/DirectoryDump']['UseQueue']
+	#manager.registerModule(self)
 	
-	if not os.path.exits(self.loc):
+	if not os.path.exists(self.loc):
 	    createPrivateDir(self.loc)
 
 	max = -1

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.18 2002/08/25 06:10:33 nickm Exp $
+# $Id: Common.py,v 1.19 2002/08/29 03:30:21 nickm Exp $
 
 """mixminion.Common
 
@@ -307,7 +307,10 @@ class Log:
     def _log(self, severity, message, args):
         if _SEVERITIES.get(severity, 100) < self.severity:
             return
-        m = message % args
+	if args is None:
+	    m = message
+	else:
+	    m = message % args
         for h in self.handlers:
             h.write(severity, m)
 
@@ -337,7 +340,7 @@ class Log:
 	indented = "".join(formatted)
 	if indented.endswith('\n'):
 	    indented = indented[:-1]
-	self._log(severity, indented, ())
+	self._log(severity, indented, None)
 
     def error_exc(self, (exclass, ex, tb), message=None, *args):
 	self.log_exc("ERROR", (exclass, ex, tb), message, *args)
@@ -353,6 +356,23 @@ def getLog():
         _THE_LOG = Log('WARN')
 
     return _THE_LOG
+
+#----------------------------------------------------------------------
+# Time processing
+
+def mkgmtime(yyyy,MM,dd,hh,mm,ss):
+    """Analogously to time.mktime, return a number of seconds since the
+       epoch when GMT is yyyy/MM/dd hh:mm:ss"""
+    
+    # we set the DST flag to zero so that subtracting time.timezone always
+    # gives us gmt.
+    return time.mktime((yyyy,MM,dd,hh,mm,ss,0,0,0))-time.timezone
+
+def previousMidnight(when):
+    """Given a time_t 'when', return the greatest time_t <= when that falls
+       on midnight, GMT."""
+    yyyy,MM,dd = time.gmtime(when)[0:3]
+    return mkgmtime(yyyy,MM,dd,0,0,0)
 
 #----------------------------------------------------------------------
 # Signal handling

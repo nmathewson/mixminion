@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.9 2002/08/25 05:58:02 nickm Exp $
+# $Id: Modules.py,v 1.10 2002/08/29 03:30:21 nickm Exp $
 
 """mixminion.Modules
 
@@ -218,7 +218,7 @@ class ModuleManager:
         try:
 	    sys.path[0:0] = self.path
 	    try:
-		m = __import__(pyPkg, {}, {}, [])
+		m = __import__(pyPkg, {}, {}, [pyClassName])
 	    except ImportError, e:
 		raise MixError("%s while importing %s" %(str(e),className))
         finally:
