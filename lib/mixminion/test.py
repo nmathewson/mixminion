@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.64 2003/01/05 13:19:53 nickm Exp $
+# $Id: test.py,v 1.65 2003/01/06 03:26:36 nickm Exp $
 
 """mixminion.tests
 
@@ -3721,18 +3721,18 @@ zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3g==
 """
 
 EXAMPLE_ADDRESS_SET = """
-User freD
-User  mr-ed
+deny User freD
+Deny User  mr-ed
 # Comment
-Domain sally
-Domain  HOGWARTS.k12
+Deny onehost sally
+DENY onehost  HOGWARTS.k12
 # Another comment, followed by a blank line
-Subdomains  deathstar.gov
-Subdomains selva-Oscura.it
-Domain selva-Oscura.it
+dENY allhosts  deathstar.gov
+deny allhosts selva-Oscura.it
+deny onehost selva-Oscura.it
 
-Address  jim@sMith.com
-Pattern    /nyet.*Nyet/
+deny Address  jim@sMith.com
+deny pattern    /nyet.*Nyet/
 
 """
 
@@ -3769,7 +3769,7 @@ class ModuleTests(unittest.TestCase):
             has(set,"octavio.nyet.jones@nyet.net")
             has(set,"octavio.jones@nyet.nyet.net")
 
-            # Basic tfunctinoality: Don't match anything else.
+            # Basic functinoality: Don't match anything else.
             hasNo(set,"mojo@jojo.com")
             hasNo(set,"mr-fred@wilburs-barn.com") # almost by user
             hasNo(set,"joe@sally.com") # almost by domain...
@@ -3793,21 +3793,22 @@ class ModuleTests(unittest.TestCase):
                               mixminion.server.Modules.EmailAddressSet,
                               string=s)
 
-        bad("Address foo@bar@baz")
-        bad("Rumplestiltskin")
-        bad("bob@bob.com")
-        bad("user fred@bob")
-        bad("address foo")
-        bad("domain foo@")
-        bad("domain @foo")
-        bad("subdomains foo@bar")
-        bad("pattern a.*b")
-        bad("pattern /a.*b")
-        bad("pattern a.*b/")
-        bad("domain")
-        bad("user")
-        bad("pattern")
-        bad("subdomains")
+        bad("Address foo@bar.baz")
+        bad("deny Address foo@bar@baz")
+        bad("deny Rumplestiltskin")
+        bad("deny bob@bob.com")
+        bad("deny user fred@bob")
+        bad("deny address foo")
+        bad("deny onehost foo@")
+        bad("deny onehost @foo")
+        bad("deny allhosts foo@bar")
+        bad("deny pattern a.*b")
+        bad("deny pattern /a.*b")
+        bad("deny pattern a.*b/")
+        bad("deny onehost")
+        bad("deny user")
+        bad("deny pattern")
+        bad("deny allhosts")
 
     def testMixmasterSMTP(self):
         """Check out the SMTP-Via-Mixmaster module.  (We temporarily relace
@@ -3859,7 +3860,7 @@ class ModuleTests(unittest.TestCase):
         """Check out the SMTP module.  (We temporarily relace sendSMTPMessage
            with a stub function so that we don't actually send anything.)"""
         blacklistFile = mix_mktemp()
-        writeFile(blacklistFile, "Domain wangafu.net\nUser fred\n")
+        writeFile(blacklistFile, "Deny onehost wangafu.net\nDeny user fred\n")
 
         manager = self.getManager("""[Delivery/SMTP]
 Enabled: yes

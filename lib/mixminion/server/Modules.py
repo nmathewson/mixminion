@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.14 2003/01/05 13:19:54 nickm Exp $
+# $Id: Modules.py,v 1.15 2003/01/06 03:26:35 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -390,18 +390,18 @@ class EmailAddressSet:
     """A set of email addresses stored on disk, for use in blacklisting email
        addresses.  The file format is line-based.  Lines starting with #
        and empty lines are ignored.  Whitespace is ignored.  All other
-       lines take the format 'command value', where command is one of the
+       lines take the format 'deny type value', type is one of the
        following...
-             address: match an email address, exactly.  "Address fred@fred"
+             address: match an email address, exactly. "Deny address fred@fred"
                matches "fred@fred" and 'FRED@FRED'.
              user: match the part of an email address before the @, exactly.
-               "User fred" matches "fred@fred" and "fred@alice", but not
+               "Deny user fred" matches "fred@fred" and "fred@alice", but not
                "bob@fred" or "mr-fred@alice".
-             domain: match the part of an email address after the @, exactly.
-               "Domain fred" matches "bob@fred" but not "bob@fred.com" or
+             onehost: match the part of an email address after the @, exactly.
+               "Deny onehost fred" matches "bob@fred" but not "bob@fred.com" or
                "bob@host.fred".
-             subdomains: match the part of an email address after the @,
-               or any parent domain thereof.  "Subdomains fred.com" matches
+             allhosts: match the part of an email address after the @,
+               or any parent domain thereof.  "Deny allhosts fred.com" matches
                "bob@fred.com" and "bob@host.fred.com", but not "bob@com".
              pattern: match the email address if the provided regex appears
                anywhere in it.  "Pattern /./" matches everything;
@@ -414,7 +414,9 @@ class EmailAddressSet:
     #   If the value for a key is 'SUB', all subdomains are also included.
     # users -- A dict whose keys are lowercased users ("foo")
     # patterns -- A list of regular expression objects.
-    def __init__(self, fname=None, string=None):
+    # includeStr -- a string the casuses items to get included in this set.
+    #   defaults to 'deny'
+    def __init__(self, fname=None, string=None, includeStr="deny"):
         """Read the address set from a file or a string."""
         if string is None:
             f = open(fname, 'r')
@@ -425,6 +427,7 @@ class EmailAddressSet:
         self.domains = {}
         self.users = {}
         self.patterns = []
+        self.includeStr = includeStr
 
         lines = string.split("\n")
         lineno = 0
@@ -434,11 +437,14 @@ class EmailAddressSet:
             if not line or line[0] == '#':
                 # Blank line or comment; skip.
                 continue
-            line = line.split(" ", 1)
-            if len(line) != 2:
-                raise ConfigError("Invalid line at %s"%lineno)
-            cmd = line[0].lower()
-            arg = line[1].strip()
+            line = line.split(" ", 2)
+            if len(line) != 3:
+                raise ConfigError("Invalid line at %s: %s"%(lineno, line))
+            deny = line[0].lower()
+            if deny != self.includeStr:
+                raise ConfigError("Line on %s doesn't start with 'Deny'")
+            cmd = line[1].lower()
+            arg = line[2].strip()
             if cmd == 'address':
                 if not isSMTPMailbox(arg):
                     raise ConfigError("Address %s on %s doesn't look valid"%(
@@ -449,13 +455,13 @@ class EmailAddressSet:
                     raise ConfigError("User %s on %s doesn't look valid"%(
                         arg, lineno))
                 self.users[arg.lower()] = 1
-            elif cmd == 'domain':
+            elif cmd == 'onehost':
                 if not isSMTPMailbox("x@"+arg):
                     raise ConfigError("Domain %s on %s doesn't look valid"%(
                         arg, lineno))
                 if not self.domains.has_key(arg.lower()):
                     self.domains[arg.lower()] = 1
-            elif cmd == 'subdomains':
+            elif cmd == 'allhosts':
                 if not isSMTPMailbox("x@"+arg):
                     raise ConfigError("Domain %s on %s doesn't look valid"%(
                         arg, lineno))
@@ -470,8 +476,12 @@ class EmailAddressSet:
                 # FFFF the critical path any time soon, though.
                 self.patterns.append(re.compile(arg, re.I))
             else:
-                raise ConfigError("Unrecognized command %s on line %s",
-                                  cmd, lineno)
+                if 'host' in cmd:
+                    dym = '. Did you mean "OneHost" or "AllHosts"?'
+                else:
+                    dym = ''
+                raise ConfigError("Unrecognized command '%s %s' on line %s%s"%(
+                    deny, cmd, lineno, dym))
 
     def contains(self, address):
         """Return true iff this this address set contains the address
