@@ -170,6 +170,11 @@ For 0.0.3:
                         o Installation insns for weird OpenSSL situations
                         o Note that we break backward compatibility
         - Release
+                . Resolve XXXX003's.
+                - Better (more prominent) error messages when missing
+                  openssl.
+                - Better errors when missing pythondev.
+                o Add 'stop-server', 'reload-server' functions.
                 - Come up with way to deal with servers as they
                   upgrade.
                 - Go over CVS commit logs for all contents of 'what's
@@ -245,6 +250,9 @@ Required for "1.0":
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
                 - Incoming email gateway
+                        - Insert encoded packet into net.
+                        - Reply to a reply block
+                        - "Anonymize" is 
                 - Some notion of 'client modules' would be a good idea.
                 - Put 'address' someplace more reasonable.
         - End-to-end issues
@@ -253,7 +261,7 @@ Required for "1.0":
         - Configurability
                 - Better, documented support for http proxies for
                   downloading directories.
-                - Make pooling configurable.
+                - Make pooling configurable and more sophisticated.
                 - Make SURB logging configurable.
                 - Reload configuration on SIGHUP
                 - Support for one-side-only MMTP configurations.

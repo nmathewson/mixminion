@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.31 2003/02/13 10:56:40 nickm Exp $
+# $Id: Main.py,v 1.32 2003/02/14 17:22:21 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -129,6 +129,9 @@ _COMMANDS = {
     "flush" :          ( 'mixminion.ClientMain', 'flushPool' ),
     "inspect-pool" :   ( 'mixminion.ClientMain', 'listPool' ),
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
+    "start-server" :   ( 'mixminion.server.ServerMain', 'runServer' ),
+    "stop-server" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
+    "reload-server" :  ( 'mixminion.server.ServerMain', 'signalServer' ),  
     "server-keygen" :  ( 'mixminion.server.ServerMain', 'runKeygen'),
     "server-DELKEYS" : ( 'mixminion.server.ServerMain', 'removeKeys'),
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
@@ -151,6 +154,8 @@ _USAGE = (
   "       inspect-surbs  [Describe a single-use reply block]\n"+
   "                               (For Servers)\n"+
   "       server         [Begin running a Mixminon server]\n"+
+  "       stop-server    [Halt a running Mixminon server]\n"+
+  "       reload-server  [Make running Mixminon server reload its config]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
   "       server-DELKEYS [Remove generated keys for a Mixminion server]\n"+
   "                             (For Developers)\n"+

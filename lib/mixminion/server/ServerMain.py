@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.40 2003/02/13 10:56:40 nickm Exp $
+# $Id: ServerMain.py,v 1.41 2003/02/14 17:22:21 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -14,6 +14,7 @@ import getopt
 import os
 import sys
 import signal
+import string
 import time
 import threading
 # We pull this from mixminion.Common, just in case somebody still has
@@ -752,6 +753,66 @@ def runServer(cmd, args):
     LOG.info("Server is shut down")
 
     sys.exit(0)
+
+#----------------------------------------------------------------------
+_SIGNAL_SERVER_USAGE = """\
+Usage: %s [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than the default.
+""".strip()
+
+def signalServer(cmd, args):
+    options, args = getopt.getopt(args, "hf:", ["help", "config="])
+    usage = 0
+    # XXXX Refactor this and configFromServerArgs to raise UsageError
+    if args:
+        usage = 1
+    configFile = None
+    for o,v in options:
+        if o in ('-h', '--help'):
+            usageAndExit(cmd)
+        elif o in ('-f', '--config'):
+            configFile = v
+
+    LOG.setMinSeverity("ERROR")
+    config = readConfigFile(configFile)
+    if cmd.endswith("stop-server"):
+        reload = 0
+    else:
+        assert cmd.endswith("reload-server")
+        reload = 1
+
+    if usage:
+        print _SIGNAL_SERVER_USAGE % { 'cmd' : cmd }
+        return
+
+    homeDir = config['Server']['Homedir']
+    pidFile = os.path.join(homeDir, "pid")
+    if not os.path.exists(pidFile):
+        raise UIError("No server seems to be running.")
+
+    try:
+        f = open(pidFile, 'r')
+        s = f.read()
+        f.close()
+        pid = string.atoi(s)
+    except (IOError, ValueError), e:
+        raise UIError("Couldn't read pid file: %s"%e)
+
+    if reload:
+        signal_num = signal.SIGHUP
+        signal_name = "SIGHUP"
+    else:
+        signal_num = signal.SIGTERM
+        signal_name = "SIGTERM"
+
+    try:
+        print "Sending %s to server (pid=%s)"%(signal_name, pid)
+        os.kill(pid, signal_num)
+        print "Done."
+    except OSError, e:
+        print UIError("Couldn't send signal: %s"%e)
 
 #----------------------------------------------------------------------
 _KEYGEN_USAGE = """\
