@@ -1,5 +1,5 @@
 Source: mixminion
-Section: misc
+Section: net
 Priority: optional
 Maintainer: Peter Palfrader <weasel@debian.org>
 Build-Depends: debhelper (>= 4.1.65), libssl-dev (>=0.9.7), python2.3, python2.3-dev, dpatch
