@@ -928,14 +928,28 @@ class ClientFragmentPool:
         pool.expireMessages(cutoff)
         self.cleanQueue()
 
-    def getMessage(self, msgid):
-        """Return the string value of the reassembled message with ID 'msgid',
-           or raise an error explaining why we can't."""
+    def getMessage(self, msgid, force=0):
+        """Return the string value of the (compressed) reassembled
+           message with ID 'msgid', or raise an error explaining why
+           we can't.
+
+           If 'force' is true, return the message even if it seems
+           overcompressed.  Otherwise raise a CompressedDataTooLong
+           exception.
+        """
         pool = self.__getPool()
         state = pool.getStateByMsgID(msgid)
-        msg = pool.getReadyMessage(state.messageid)
-        if msg is not None:
-            return msg
+        if state is not None:
+            msg = pool.getReadyMessage(state.messageid)
+            if msg is not None:
+                try:
+                    if force:
+                        maxSize = None
+                    else:
+                        maxSize = msg*20
+                    return mixminion.Packet.uncompressData(msg,maxSize)
+                except ParseError, e:
+                    raise UIError("Invalid message %s: %s"%(msgid,e))
 
         if state is None:
             raise UIError("No such message as '%s'" % msgid)

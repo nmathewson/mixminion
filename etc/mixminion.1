@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.5 2004/03/23 00:20:52 nickm Exp $
+.\" $Id: mixminion.1,v 1.6 2004/03/24 20:39:56 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -79,6 +79,7 @@ Receiving messages:
 .Op Fl f Ar file | Fl \-config= Ns Ar file
 .Op Fl P | Fl \-purge
 .Op Fl o Ar file | Fl \-output= Ns Ar file
+.Op Fl F | Fl \-force
 .Ar msgid ...
 .Ek
 .Pp
@@ -522,7 +523,7 @@ environment variable, and the
 .Xr mixminionrc 5
 format.
 .It Fl F | Fl \-force
-.Brq decode
+.Brq decode, reassemble
 Mixminion compresses messages before sending them.  Thus, a
 malicious person might try to mailbomb you by sending you highly
 compressed single packet that contained up to 28MB of compressed

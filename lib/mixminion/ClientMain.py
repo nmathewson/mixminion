@@ -29,7 +29,8 @@ from mixminion.Common import LOG, Lockfile, LockfileLocked, MixError, \
      previousMidnight
 from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
-     parseTextReplyBlocks, ReplyBlock, parseMessageAndHeaders
+     parseTextReplyBlocks, ReplyBlock, parseMessageAndHeaders, \
+     CompressedDataTooLong
 
 from mixminion.ServerInfo import displayServerByRouting, ServerInfo
 
@@ -1962,12 +1963,12 @@ Usage: %(cmd)s [options] <message-id> ...
 """.strip()
 
 def reassemble(cmd, args):
-    options, args = getopt.getopt(args, "hvQf:D:Po:",
+    options, args = getopt.getopt(args, "hvQf:D:Po:F",
                                   ["help", "verbose", "quiet", "config=",
                                    'download-directory=','--purge',
-                                   '--output'])
+                                   '--output', '--force'])
     reassemble = 1
-    if cmd.endswith("purge-fragments"):
+    if cmd.endswith("purge-fragments") or cmd.endswith("purge-fragment"):
         reassemble = 0
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
@@ -1975,18 +1976,24 @@ def reassemble(cmd, args):
     except UsageError, e:
         e.dump()
         print _REASSEMBLE_USAGE % { 'cmd' : cmd }
-        print """\
+        if reassemble:
+            print """\
   -P, --purge                Remove the message from the pool.
+  -F, --force:               Decode the message, even if it seems
+                             overcompressed.
   -o <file>, --output=<file> Write the message to a file instead of stdout
 """.strip()
         sys.exit(1)
     purge = not reassemble
     outfilename = None
+    force = 0
     for o,v in options:
         if o in ('-o', '--output'):
             outfilename = v
         elif o in ("-P", "--purge"):
             purge = 1
+        elif o ("-F", "--force"):
+            force = 1
 
     if not args:
         print "No message IDs provided."
@@ -1996,24 +2003,27 @@ def reassemble(cmd, args):
     client = parser.client
 
     closeoutfile = 0
-    if reassemble:
-        out = sys.stdout
-        if outfilename not in ('-',None):
-            out = open(outfilename, 'wb')
-            closeoutfile = 1
-
+    out = None
     clientLock()
     try:
         removed = []
         for msgid in args:
             if reassemble:
-                msg = client.pool.getMessage(msgid)
+                try:
+                    msg = client.pool.getMessage(msgid, force=force)
+                except CompressedDataTooLong:
+                    raise UIError("Can't reassemble message %s: possible zlib bomb.")
+                if out == None:
+                    if outfilename in ('-',None):
+                        out = sys.stdout
+                    else:
+                        out = open(outfilename, 'wb')
+                        closeoutfile = 1
+                out.write(msg)
             if purge:
                 removed.append(msgid)
         client.pool.removeMessages(removed)
-        if reassemble:
-            out.write(msg)
     finally:
-        if reassemble and closeoutfile:
+        if closeoutfile:
             out.close()
         clientUnlock()
