@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.152 2003/09/05 00:46:24 nickm Exp $
+# $Id: test.py,v 1.153 2003/09/06 21:49:48 nickm Exp $
 
 """mixminion.tests
 
@@ -40,6 +40,7 @@ from mixminion.testSupport import mix_mktemp, suspendLog, resumeLog, \
 
 import mixminion.BuildMessage as BuildMessage
 import mixminion.ClientMain
+import mixminion.ClientUtils
 import mixminion.Config
 import mixminion.Crypto as Crypto
 import mixminion.Filestore
@@ -5872,6 +5873,27 @@ def getDirectory(servers, identity):
 # variable to hold the latest instance of FakeBCC.
 BCC_INSTANCE = None
 
+
+class ClientUtilTests(TestCase):
+    def testEncryptedFiles(self):
+        CU = mixminion.ClientUtils
+        d = mix_mktemp()
+        createPrivateDir(d)
+        f1 = os.path.join(d, "foo")
+        CU.writeEncryptedFile(f1, password="x", magic="ABC", data="xyzzyxyzzy")
+        contents = readFile(f1)
+        self.assertEquals(contents[:3], "ABC")
+        salt = contents[3:11]
+        key = mixminion.Crypto.sha1(salt+"x"+salt)[:16]
+        decrypted = mixminion.Crypto.ctr_crypt(contents[11:], key)
+        self.assertEquals(decrypted, "xyzzyxyzzy"+mixminion.Crypto.sha1(
+            "xyzzyxyzzy"+salt+"ABC"))
+        
+        self.assertEquals("xyzzyxyzzy",
+              CU.readEncryptedFile(f1, "x", "ABC"))
+
+        #XXXX006 finish testing corner cases and pickles.
+
 class ClientMainTests(TestCase):
     def testClientDirectory(self):
         """Check out ClientMain's directory implementation"""
@@ -6406,7 +6428,6 @@ class ClientMainTests(TestCase):
         keyring = mixminion.ClientMain.ClientKeyring(keydir)
         # Check for some nonexistent keys.
         self.assertEquals({}, keyring.getSURBKeys(password="pwd"))
-
         self.assertEquals(None, keyring.getSURBKey(create=0))
         # Reload, try again:
         kfirst = None
@@ -6414,17 +6435,10 @@ class ClientMainTests(TestCase):
             keyring = mixminion.ClientMain.ClientKeyring(keydir)
             self.assertEquals(kfirst, keyring.getSURBKey(
                 create=0,password="pwd"))
-            try:
-                suspendLog()
-                k1 = keyring.getSURBKey(create=1,password="pwd")
-            finally:
-                s = resumeLog()
+            k1 = keyring.getSURBKey(create=1,password="pwd")
             if kfirst:
-                self.assertEquals(s, "")
                 self.assertEquals(k1, kfirst)
-            else:
-                self.assert_(stringContains(s, "No keyring found"))
-                kfirst = k1
+            kfirst = k1
             self.assertEquals(20, len(k1))
             k2 = keyring.getSURBKey(name="Bob",create=1)
             self.assertEquals(20, len(k2))
@@ -6764,7 +6778,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ServerInfoTests))
+        suite.addTest(tc(ClientMainTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

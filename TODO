@@ -15,21 +15,24 @@ NEEDS TO BE WRITTEN:
 For 0.0.6:  (The release for integrators, Windows users, senders of
 large replies, people with dynamically assigned IPs, people with high
 TCP latency, and me.)
-        - Infrastructure -- low level
-                - Generic 'encrypted storage' abstraction for
+        . Infrastructure -- low level
+                . Generic 'encrypted storage' abstraction for
                   possibly-encrypted singleton pickled objects.
+                        o Implement
+                        o Integrate
+                        . Test
         - Infrastructure -- high level
-                - Servers need to download and use directories
                 - Refactor ClientMain to use a standard ClientAPI module.
                         - Port ClientAPI from C API document.
                         - Move other functionality into ClientSupport module.
                         - ClientMain should only have CLI functionality.
                 - Rewrite ClientMain path generation to do the right
                   thing with multi-packet messages
-                - Make processing thread and module thread general
-                  cases of a thread pool abstraction
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
+                - Make processing thread and module thread general
+                  cases of a thread pool abstraction
+                - Servers need to download and use directories
         - UI improvements:
                 - Add some convenient way to list arbitrary server features.
                 - Separate 'mixminiond' wrapper; 'mixminiond' confuses folk.

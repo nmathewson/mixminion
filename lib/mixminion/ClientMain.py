@@ -45,6 +45,7 @@ from mixminion.ServerInfo import ServerInfo, ServerDirectory
 from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
      parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE
+import mixminion.ClientUtils
 
 # FFFF This should be made configurable and adjustable.
 MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
@@ -101,7 +102,7 @@ class ClientDirectory:
     ## Layout:
     # DIR/cache: A cPickled tuple of ("ClientKeystore-0.2",
     #         lastModified, lastDownload, clientVersions, serverlist,
-    #         fullServerList, digestMap)
+    #         fullServerList, digestMap) DOCDOC is this correct?
     # DIR/dir.gz *or* DIR/dir: A (possibly gzipped) directory file.
     # DIR/imported/: A directory of server descriptors.
     MAGIC = "ClientKeystore-0.3"
@@ -949,30 +950,21 @@ class ClientKeyring:
        is limited to a single SURB decryption key.  In the future, we may
        include more SURB keys, as well as end-to-end encryption keys.
     """
-    ## Fields:
-    # keyDir: The directory where we store our keys.
-    # keyring: Dict to map from strings of the form "SURB-keyname" to SURB
-    #     secrets.
-    # keyringPassword: The password for our encrypted keyfile
-    ## Format:
-    # We store keys in a file holding:
-    #  variable         [File specific magic]       "KEYRING1"
-    #  8                [8 bytes of salt]
-    #  variable         ENCRYPTED DATA:KEY=sha1(salt+password+salt)
-    #                                  DATA=encrypted_pickled_data+
-    #                                                   sha1(data+salt+magic)
-    
-    # XXXX There needs to be some way to rotate and expire SURB secrets.
-    # XXXX Otherwise, we're very vulnerable to compromise.
-    
-    def __init__(self, keyDir):
-        """Create a new ClientKeyring to store data in keyDir"""
-        self.keyDir = keyDir
-        createPrivateDir(self.keyDir)
-        self.keyring = None
-        self.keyringPassword = None
+    # XXXX006 Are the error messages here still reasonable?
+    def __init__(self, keyDir, passwordManager=None):
+        """DOCDOC"""
+        if passwordManager is None:
+            passwordManager = mixminion.ClientUtils.CLIPasswordManager()
+        createPrivateDir(keyDir)
+        fn = os.path.join(keyDir, "keyring")
+        self.keyring = mixminion.ClientUtils.LazyEncryptedPickled(
+            fn, passwordManager, pwdName="ClientKeyring",
+            queryPrompt="Enter password for keyring:",
+            newPrompt="keyring",
+            magic="KEYRING1",
+            initFn=lambda:{})
 
-    def getKey(self, keyid, create=0, createFn=None, password=None):
+    def _getKey(self, keyid, create=0, createFn=None, password=None):
         """Helper function. Return a key for a given keyid.
 
            keyid -- the name of the key.
@@ -980,175 +972,49 @@ class ClientKeyring:
            createFn -- a callback to return a new key.
            password -- Optionally, a password for the keyring.
         """
-        if self.keyring is None:
-            self.getKeyring(create=create,password=password)
-            if self.keyring is None:
+        if not self.keyring.isLoaded():
+            try:
+                self.keyring.load(create=create,password=password)
+            except mixminion.ClientUtils.BadPassword:
+                LOG.error("Incorrect password")
+                return None
+            if not self.keyring.isLoaded():
                 return None
         try:
-            return self.keyring[keyid]
+            return self.keyring.get()[keyid]
         except KeyError:
             if not create:
                 return None
             else:
                 LOG.info("Creating new key for identity %r", keyid)
                 key = createFn()
-                self.keyring[keyid] = key
-                self._saveKeyring()
+                self.keyring.get()[keyid] = key
+                self.keyring.save()
                 return key
-
-    def getKeyring(self, create=0, password=None):
-        """Return a the current keyring, loading it if necessary.
-
-           create -- if true, create a new keyring if none is found.
-           password -- optionally, a password for the keyring.
-        """
-        if self.keyring is not None:
-            return self.keyring
-        fn = os.path.join(self.keyDir, "keyring")
-        magic = "KEYRING1"
-        if os.path.exists(fn):
-            # If the keyring exists, make sure the magic is correct.
-            self._checkMagic(fn, magic)
-            # ...then see if we can load it without a password...
-            try:
-                data = self._load(fn, magic, "")
-                self.keyring = cPickle.loads(data)
-                self.keyringPassword = ""
-                return self.keyring
-            except MixError, e:
-                pass
-            # ...then ask the user for a password 'till it loads.
-            while 1:
-                if password is not None:
-                    p = password
-                else:
-                    p = self._getPassword("Enter password for keyring:")
-                try:
-                    data = self._load(fn, magic, p)
-                    self.keyring = cPickle.loads(data)
-                    self.keyringPassword = p
-                    return self.keyring
-                except (MixError, cPickle.UnpicklingError), e:
-                    LOG.error("Cannot load keyring: %s", e)
-                    if password is not None: return None
-        elif create:
-            # If the key file doesn't exist, and 'create' is set, create it.
-            LOG.warn("No keyring found; generating.")
-            if password is not None:
-                self.keyringPassword = password
-            else:
-                self.keyringPassword = self._getNewPassword("keyring")
-            self.keyring = {}
-            self._saveKeyring()
-            return self.keyring
-        else:
-            return {}
-
-    def _saveKeyring(self):
-        """Save the current keyring to disk."""
-        assert self.keyringPassword is not None
-        fn = os.path.join(self.keyDir, "keyring")
-        LOG.trace("Saving keyring to %s", fn)
-        self._save(fn+"_tmp",
-                   cPickle.dumps(self.keyring,1),
-                   "KEYRING1", self.keyringPassword)
-        replaceFile(fn+"_tmp", fn)
 
     def getSURBKey(self, name="", create=0, password=None):
         """Return the key for a given SURB identity."""
-        k = self.getKey("SURB-"+name,
+        k = self._getKey("SURB-"+name,
                         create=create, createFn=lambda: trng(20),
                         password=password)
         if k is not None and len(k) != 20:
             raise MixError("Bad length on SURB key")
         return k
 
-    def getSURBKeys(self,password=None):
-        """Return the keys for _all_ SURB identities as a map from name
-           to key."""
-        self.getKeyring(create=0,password=password)
-        if not self.keyring: return {}
-        r = {}
-        for k in self.keyring.keys():
-            if k.startswith("SURB-"):
-                r[k[5:]] = self.keyring[k]
-        return r
-
-    def _checkMagic(self, fn, magic):
-        """Make sure that the magic string on a given key file %s starts with
-           is equal to 'magic'.  Raise MixError if it isn't."""
-        if not readFile(fn, 1).startswith(magic):
-            raise MixError("Invalid versioning on key file")
-
-    def _save(self, fn, data, magic, password):
-        """Save the key data 'data' into the file 'fn' using the magic string
-           'magic' and the password 'password'."""
-        salt = mixminion.Crypto.getCommonPRNG().getBytes(8)
-        key = sha1(salt+password+salt)[:16]
-        f = open(fn, 'wb')
-        f.write(magic)
-        f.write(salt)
-        f.write(ctr_crypt(data+sha1(data+salt+magic), key))
-        f.close()
-
-    def _load(self, fn, magic, password):
-        """Load and return the key stored in 'fn' using the magic string
-           'magic' and the password 'password'.  Raise MixError on failure."""
-        s = readFile(fn, 1)
-        if not s.startswith(magic):
-            raise MixError("Invalid versioning on key file")
-
-        s = s[len(magic):]
-        if len(s) < 8:
-            raise MixError("Key file too short")
-        salt = s[:8]
-        s = s[8:]
-        if len(s) < 20:
-            raise MixError("Key file too short")
-        key = sha1(salt+password+salt)[:16]
-        s = ctr_crypt(s, key)
-        data, hash = s[:-20], s[-20:]
-        if hash != sha1(data+salt+magic):
-            raise MixError("Incorrect password")
-        return data
-
-    def _getPassword(self, message):
-        """Read a password from the console, then return it.  Use the string
-           'message' as a prompt."""
-        # getpass.getpass uses stdout by default .... but stdout may have
-        # been redirected.  If stdout is not a terminal, write the message
-        # to stderr instead.
-        if os.isatty(sys.stdout.fileno()):
-            f = sys.stdout
-            nl = 0
-        else:
-            f = sys.stderr
-            nl = 1
-        f.write(message)
-        f.flush()
+    def getSURBKeys(self, name="", password=None):
+        """Return the keys for _all_ SURB identities as a map from
+           name to key."""
         try:
-            p = getpass.getpass("")
-        except KeyboardInterrupt:
-            if nl: print >>f
-            raise UIError("Interrupted")
-        if nl: print >>f
-        return p
-
-    def _getNewPassword(self, which):
-        """Read a new password from the console, then return it."""
-        s1 = "Enter new password for %s:"%which
-        s2 = "Verify password:".rjust(len(s1))
-        if os.isatty(sys.stdout.fileno()):
-            f = sys.stdout
-        else:
-            f = sys.stderr
-        while 1:
-            p1 = self._getPassword(s1)
-            p2 = self._getPassword(s2)
-            if p1 == p2:
-                return p1
-            f.write("Passwords do not match.\n")
-            f.flush()
+            self.keyring.load(create=0,password=password)
+        except mixminion.ClientUtils.BadPassword:
+            LOG.error("Incorrect password")
+        if not self.keyring.isLoaded(): return {}
+        r = {}
+        d = self.keyring.get()
+        for k,v in d.items():
+            if k.startswith("SURB-"):
+                r[k[5:]] = v
+        return r
 
 def installDefaultConfig(fname):
     """Create a default, 'fail-safe' configuration in a given file"""
@@ -1424,7 +1290,8 @@ class MixminionClient:
         userdir = self.config['User']['UserDir']
         createPrivateDir(userdir)
         keyDir = os.path.join(userdir, "keys")
-        self.keys = ClientKeyring(keyDir)
+        self.pwdManager = mixminion.ClientUtils.CLIPasswordManager()
+        self.keys = ClientKeyring(keyDir, self.pwdManager)
         self.surbLogFilename = os.path.join(userdir, "surbs", "log")
 
         # Initialize PRNG
