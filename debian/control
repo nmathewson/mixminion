@@ -7,7 +7,7 @@ Standards-Version: 3.6.1
 
 Package: mixminion
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, logrotate
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, logrotate, adduser
 Suggests: tor, anon-proxy, mixmaster
 Description: Anonymous remailer client and server for the Type III network
  Mixminion is the standard implementation of the Type III anonymous remailer
