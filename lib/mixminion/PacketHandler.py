@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.9 2002/11/22 21:12:05 nickm Exp $
+# $Id: PacketHandler.py,v 1.10 2002/12/02 03:24:46 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -31,14 +31,14 @@ class PacketHandler:
            provided for each private key.
         """
         try:
-            # Check whether we have a key or a tuple of keys.
+            # Check whether we have a key or a sequence of keys.
             _ = privatekey[0]
             assert len(hashlog) == len(privatekey)
             
             self.privatekey = privatekey
             self.hashlog = hashlog
-        except:
-	    # XXXX Don't do except:; name an exception.
+        except TypeError, _:
+	    # Privatekey must not be subscriptable; we have only one.
             self.privatekey = (privatekey, )
             self.hashlog = (hashlog, )
 
