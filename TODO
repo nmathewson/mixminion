@@ -37,17 +37,20 @@ For 0.0.4:
                 - Document log and events
                 - Test use of event log
                 - Full statistics (ask Len what the list is.)
-        - Security:
-                - Increase key length to 2048 bits
-                . Support multiple SURB keys
+        . Security:
+                o Support multiple SURB keys
                         o Better keyrings: implement
                         o Better keyrings: test
                         o Backend support: implement
                         o Backend support: test
                         o CLI support for identities
                         o Test CLI support
-                        - Specify behavior
-                        - Document in --help and README
+                        o Specify behavior
+                        o Document in --help and README
+                - Increase key length to 2048 bits
+                        - Specify
+                        - Come up with an upgrade path?
+                        - Implement
         - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.
@@ -77,7 +80,16 @@ Deferred from 0.0.4:
                   server home, if not absolute.
         - Security:
         	- Password-protect dirserver keys
-                - Code to generate dummy packets. ????
+                - Client queues should be locked, and have
+                  max-packets-to-send option.
+        
+New in spec: (27Mar2003)
+        - "SecureConfiguration" flag in serverdesc
+        - Self->self shouldn't hit the network
+        - Dummies in outgoing batch (??)
+        - MMTP: "REJECTED" reply
+        - MMTP: bursting
+        - Contact fingerprint
 
 Required for "1.0":
          [These features must be in place before we can take the system out
