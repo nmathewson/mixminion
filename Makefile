@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.59 2003/12/08 04:06:42 arma Exp $
+# $Id: Makefile,v 1.60 2003/12/14 03:25:24 weasel Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -168,6 +168,15 @@ sdist: clean
 
 signdist: sdist
 	gpg -ba dist/Mixminion*.tar.gz
+
+#======================================================================
+# Packaging related targets
+
+# create a Debian package
+# requires you installed at least build-essential, fakeroot, and
+# whatever is listed as Build-Depends: in debian/control.
+bdist_debian:
+	dpkg-buildpackage -rfakeroot -uc -us
 
 #======================================================================
 # OpenSSL-related targets

@@ -7,3 +7,4 @@ include etc/mixminion.init
 #include etc/mixminion.1
 # Old versions of distutils miss header files
 include src/_minionlib.h
+recursive-include debian *
