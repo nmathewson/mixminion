@@ -93,6 +93,7 @@ For 0.0.6:
                 - Notice when out of disk space, die more cleanly.
                   (support max-disk-usage).
                 - List servers by nickname, not by IP.
+        - Refactor ClientMain to use a standard ClientAPI module.
         - Servers need to download and use directories
         - Servers redirect to latest IP if old IP is down.  (Dynamic
           IP support, after a fashion)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.28 2003/07/24 17:37:16 nickm Exp $
+# $Id: ServerQueue.py,v 1.29 2003/07/24 18:01:29 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -344,7 +344,7 @@ class DeliveryQueue:
         try:
             self._lock.acquire()
             #XXXX
-            for h, ds in self._metadata_cache.items():
+            for h, ds in self.store._metadata_cache.items():
                 if ds.isRemovable():
                     self.removeMessage(h)
         finally:

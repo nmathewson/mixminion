@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.54 2003/07/13 02:59:30 nickm Exp $
+# $Id: Main.py,v 1.55 2003/07/24 18:01:29 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -190,10 +190,11 @@ def printVersion(cmd,args):
 
 def rejectCommand(cmd,args):
     cmd = cmd.split()[-1]
-    newCmd = { "client" : "send",
-               "pool" : "queue",
-               "inspect-pool" : "inspect-queue",
-               "server" : "server-start" }.get(cmd)
+    cmdDict = { "client" : "send",
+                "pool" : "queue",
+                "inspect-pool" : "inspect-queue",
+                "server" : "server-start" }
+    newCmd = cmdDict.get(cmd)
     if newCmd:
         print "The command %r is obsolete.  Use %r instead."%(cmd,newCmd)
     else:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.2 2003/07/24 17:37:16 nickm Exp $
+# $Id: Filestore.py,v 1.3 2003/07/24 18:01:29 nickm Exp $
 
 """mixminion.Filestore
 
@@ -169,22 +169,6 @@ class BaseStore:
         finally:
             self._lock.release()
 
-    def moveMessage(self, handle, other):
-        """Given a handle and a queue, moves the corresponding message
-           from this filestore to the filestore provided.  Returns a
-           new handle for the message in the destination queue."""
-
-        # Since we're switching handles, we don't want to just rename;
-        # We really want to copy and delete the old file.
-        try:
-            self._lock.acquire()
-            newHandle = other.queueMessage(self.messageContents(handle))
-            self.removeMessage(handle)
-        finally:
-            self._lock.release()
-
-        return newHandle
-
     def getMessagePath(self, handle):
         """Given a handle for an existing message, return the name of the
            file that contains that message."""
@@ -298,6 +282,22 @@ class StringStoreMixin:
         f.write(contents)
         self.finishMessage(f, handle) # handles locking
         return handle
+
+    def moveMessage(self, handle, other):
+        """Given a handle and a queue, moves the corresponding message
+           from this filestore to the filestore provided.  Returns a
+           new handle for the message in the destination queue."""
+
+        # Since we're switching handles, we don't want to just rename;
+        # We really want to copy and delete the old file.
+        try:
+            self._lock.acquire()
+            newHandle = other.queueMessage(self.messageContents(handle))
+            self.removeMessage(handle)
+        finally:
+            self._lock.release()
+
+        return newHandle    
 
 class ObjectStoreMixin:
     def __init__(self): pass

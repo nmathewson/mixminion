@@ -15,7 +15,6 @@ import errno
 import cPickle
 import getopt
 import getpass
-import math
 import os
 import re
 import signal
