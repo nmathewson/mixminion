@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.42 2003/02/14 21:48:17 nickm Exp $
+# $Id: ServerMain.py,v 1.43 2003/02/19 03:41:22 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -777,11 +777,17 @@ def signalServer(cmd, args):
 
     LOG.setMinSeverity("ERROR")
     config = readConfigFile(configFile)
-    if cmd.endswith("stop-server"):
+    if cmd.endswith("stop-server") or cmd.endswith("server-stop"):
         reload = 0
     else:
-        assert cmd.endswith("reload-server")
+        assert cmd.endswith("reload-server") or cmd.endswith("server-reload")
         reload = 1
+
+    #XXXX004 remove this.
+    if cmd.endswith("stop-server"):
+        print "Obsolete command. Use 'mixminion server-stop' instead."
+    elif cmd.endswith("reload-server"):
+        print "Obsolete command. Use 'mixminion server-reload' instead."
 
     if usage:
         print _SIGNAL_SERVER_USAGE % { 'cmd' : cmd }

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.34 2003/02/17 16:14:37 nickm Exp $
+# $Id: Main.py,v 1.35 2003/02/19 03:41:22 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -130,8 +130,12 @@ _COMMANDS = {
     "inspect-pool" :   ( 'mixminion.ClientMain', 'listPool' ),
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
     "start-server" :   ( 'mixminion.server.ServerMain', 'runServer' ),
+    # obsolete; use server-stop #XXXX004 remove.
     "stop-server" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
-    "reload-server" :  ( 'mixminion.server.ServerMain', 'signalServer' ),  
+    # obsolete; use server-reload #XXXX004 remove.
+    "reload-server" :  ( 'mixminion.server.ServerMain', 'signalServer' ),
+    "server-stop" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
+    "server-reload" :  ( 'mixminion.server.ServerMain', 'signalServer' ),  
     "server-keygen" :  ( 'mixminion.server.ServerMain', 'runKeygen'),
     "server-DELKEYS" : ( 'mixminion.server.ServerMain', 'removeKeys'),
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
@@ -154,8 +158,8 @@ _USAGE = (
   "       inspect-surbs  [Describe a single-use reply block]\n"+
   "                               (For Servers)\n"+
   "       server         [Begin running a Mixminion server]\n"+
-  "       stop-server    [Halt a running Mixminion server]\n"+
-  "       reload-server  [Make running Mixminion server reload its config\n"+
+  "       server-stop    [Halt a running Mixminion server]\n"+
+  "       server-reload  [Make running Mixminion server reload its config\n"+
   "                        (Not implemented yet; only restarts logging.)]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
   "       server-DELKEYS [Remove generated keys for a Mixminion server]\n"+

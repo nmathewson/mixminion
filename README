@@ -1,6 +1,6 @@
-$Id: README,v 1.33 2003/02/14 17:51:24 nickm Exp $
+$Id: README,v 1.34 2003/02/19 03:41:22 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.3rc1.
+This is Mixminion version 0.0.3rc2.
 
  WARNING!  Mixminion 0.0.3 breaks backward compatibility with version 0.0.2.
  Versions older than 0.0.3 are no longer supported; you should upgrade now.
@@ -42,6 +42,21 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.3rc2:
+   Numerous bugfixes, including:
+      - More verbose client locking
+      - More reasonable log messages
+      - Better messages on missing openssl
+      - Improved documentation
+      - Better support for confused permissions on build
+      - Better errors on failing directory retrieval
+      - Less verbose description of reply blocks skipped.
+      - Base64 encoding should no longer get corrupted by outlook
+      - Fix nasty race on queue cleaning.
+      - The code compiles (but doesn't run) under cygwin.
+   New features:
+      - mixminion stop-server and mixminion reload-server commands.
 
 NEW IN VERSION 0.0.3rc1:
 
@@ -424,10 +439,10 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
    {This step will be more automated in later versions.}
 
 To shut down a server:
-    mixminion stop-server [-f configfile]
+    mixminion server-stop [-f configfile]
 
 To make a server reload its configuration:
-    mixminion reload-server [-f configfile]
+    mixminion server-reload [-f configfile]
 
     (Right now, this just closes and re-opens the log files.)
    
