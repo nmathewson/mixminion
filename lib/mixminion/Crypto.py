@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.29 2002/12/20 23:51:22 nickm Exp $
+# $Id: Crypto.py,v 1.30 2002/12/29 20:28:01 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -20,8 +20,9 @@ from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, LOG
 __all__ = [ 'AESCounterPRNG', 'CryptoError', 'Keyset', 'bear_decrypt',
             'bear_encrypt', 'ctr_crypt', 'getCommonPRNG', 'init_crypto',
             'lioness_decrypt', 'lioness_encrypt', 'openssl_seed',
-            'pk_check_signature', 'pk_decode_private_key', 'pk_decrypt',
-            'pk_encode_private_key', 'pk_encrypt', 'pk_from_modulus',
+            'pk_check_signature', 'pk_decode_private_key',
+            'pk_decode_public_key', 'pk_decrypt', 'pk_encode_private_key',
+            'pk_encode_public_key', 'pk_encrypt', 'pk_from_modulus',
             'pk_generate', 'pk_get_modulus', 'pk_sign', 'prng', 'sha1',
             'strxor', 'trng', 'AES_KEY_LEN', 'DIGEST_LEN',
             'HEADER_SECRET_MODE', 'PRNG_MODE', 'RANDOM_JUNK_MODE',
@@ -277,12 +278,12 @@ def pk_PEM_load(filename, password=None):
     return rsa
 
 def _pickle_rsa(rsa):
-    return _ml.rsa_make_public_key, rsa.get_public_key()
+    return _ml.rsa_decode_key, (rsa.encode_key(1),1)
 
 # Register this function to make RSA keys pickleable.  Note that we only
 # pickle the public part of an RSA key; for long-term storage of private
 # keys, you should use PEM so we can support encryption.
-copy_reg.pickle(_ml.RSA, _pickle_rsa, _ml.rsa_make_public_key)
+copy_reg.pickle(_ml.RSA, _pickle_rsa, _ml.rsa_decode_key)
 
 #----------------------------------------------------------------------
 # OAEP Functionality
