@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.58 2004/04/27 13:12:52 weasel Exp $
+# $Id: MMTPClient.py,v 1.59 2004/07/27 03:32:22 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -353,7 +353,6 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         """
         return self._isAlive
 
-
 class DeliverableString(DeliverableMessage):
     """Subclass of DeliverableMessage suitable for use by ClientMain and
        sendPackets.  Sends str(s) for some object s; invokes a callback on
@@ -494,14 +493,19 @@ class PeerCertificateCache:
             tls.check_cert_alive()
         except _ml.TLSError, e:
             s = str(e)
+            skewed=0
             notBefore,notAfter = tls.get_cert_lifetime()
             # XXXX 'stringContains' is not the best possible check here...
             if stringContains(s, "expired"):
-                s = "%s [at %s]"%(s,notAfter)
+                s = "%s [expired at %s]"%(s,notAfter)
+                skewed = 1
             elif stringContains(s,"not yet valid"):
-                s = "%s [until %s"%(s,notBefore)
-            raise MixProtocolBadAuth("Invalid certificate from %s: %s" % (
-                serverName, s))
+                s = "%s [not valid until %s]"%(s,notBefore)
+                skewed = 1
+            if skewed:
+                s +=" (One of you may have a skewed clock or wrong time zone)"
+            raise MixProtocolBadAuth("Invalid certificate from %s: %s " % (
+                serverName, s)
 
         # If we don't care whom we're talking to, we don't need to check
         # them out.
