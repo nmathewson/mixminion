@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.16 2004/12/13 00:23:11 nickm Exp $
+# $Id: Pinger.py,v 1.17 2004/12/13 00:56:48 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -417,10 +417,12 @@ class PingLog:
             for at, success in cur:
                 assert success in (0,1)
                 upAt, downAt = myIntervals.getIntervalContaining(at)
-                if upAt == None:
-                    # Event outside edge of interval.
-                    continue
-                if lastTime is None or upAt > lastTime:
+                #if upAt == None:
+                #    # Event outside edge of interval.  This means that
+                #    # it happened after a heartbeat, but we never actually
+                #    # shut down.  That's fine.
+                #    pass
+                if lastTime is None or (upAt and upAt > lastTime):
                     lastTime = upAt
                     lastStatus = None
                 if lastStatus is not None:
