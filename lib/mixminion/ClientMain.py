@@ -1980,7 +1980,7 @@ EXAMPLES:
 """.strip()
 
 def cleanQueue(cmd, args):
-    options, args = getOptions(args, "d:" ["days"])
+    options, args = getOptions(args, "d:", ["days"])
     days = 60
     for o,v in options:
         if o in ('-d','--days'):
