@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.17 2003/01/12 04:27:19 nickm Exp $
+# $Id: MMTPServer.py,v 1.18 2003/01/13 06:18:01 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -306,10 +306,6 @@ class SimpleTLSConnection(Connection):
         self.__state = self.__writeFn
         self.__server.registerWriter(self)
 
-    def get_num_renegotiations(self):
-        "DOCDOC"
-        return self.__con.get_num_renegotiations()
-
     def __acceptFn(self):
         """Hook to implement server-side handshake."""
         self.__con.accept() #may throw want*
@@ -516,7 +512,6 @@ class MMTPServerConnection(SimpleTLSConnection):
     # finished: callback when we're done with a read or write; see
     #     SimpleTLSConnection.
     # DOCDOC protocol
-    # DOCDOC nrenegotiations: renegotiations when last message received.
     PROTOCOL_VERSIONS = [ '0.2', '0.1' ]
     def __init__(self, sock, tls, consumer):
         """Create an MMTP connection to receive messages sent along a given
@@ -525,6 +520,7 @@ class MMTPServerConnection(SimpleTLSConnection):
         SimpleTLSConnection.__init__(self, sock, tls, 1,
                                      "%s:%s"%sock.getpeername())
         self.messageConsumer = consumer
+        self.junkCallback = lambda : None
         self.finished = self.__setupFinished
         self.protocol = None
 
@@ -534,7 +530,6 @@ class MMTPServerConnection(SimpleTLSConnection):
         """
         self.finished = self.__receivedProtocol
         self.expectRead(1024, '\n')
-        self.nRenegotiations = self.get_num_renegotiations()
 
     def __receivedProtocol(self):
         """Called once we're done reading the protocol string.  Either
@@ -598,12 +593,13 @@ class MMTPServerConnection(SimpleTLSConnection):
             self.shutdown(err=1)
             return
         else:
-            self.nRenegotiations = self.get_num_renegotiations()
             debug("%s packet received from %s; Checksum valid.",
                   data[:4], self.address)
             self.finished = self.__sentAck
             self.beginWrite(RECEIVED_CONTROL+replyDigest)
-            if not isJunk:
+            if isJunk:
+                self.junkCallback()
+            else:
                 self.messageConsumer(msg)
 
     def __sentAck(self):
@@ -615,6 +611,8 @@ class MMTPServerConnection(SimpleTLSConnection):
         self.expectRead(SEND_RECORD_LEN)
 
 #----------------------------------------------------------------------
+
+NULL_KEYID = "\x00"*20
 
 # FFFF We need to note retriable situations better.
 class MMTPClientConnection(SimpleTLSConnection):
@@ -678,7 +676,9 @@ class MMTPClientConnection(SimpleTLSConnection):
         """
         keyID = sha1(self.getPeerPK().encode_key(public=1))
         if self.keyID is not None:
-            if keyID != self.keyID:
+            if self.keyID == NULL_KEYID:
+                trace("Ignoring Key ID from %s", self.address)
+            elif keyID != self.keyID:
                 warn("Got unexpected Key ID from %s; shutting down connection",
                      self.address)
                 # The keyid may start being good in a while.
