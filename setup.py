@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.28 2003/01/06 12:18:45 nickm Exp $
+# $Id: setup.py,v 1.29 2003/01/07 00:03:15 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -19,6 +19,8 @@ except ImportError:
     sys.exit(0)
 
 import os, re, struct, shutil
+
+os.umask(022)
 
 VERSION= '0.0.2rc1'
 
@@ -162,6 +164,13 @@ import distutils.core
 from distutils.core import setup, Extension
 from distutils import sysconfig
 
+if os.environ.get("PREFIX") and 'install' in sys.argv:
+    # Try to suppress the warning about sys.path by appending to the end of
+    # the path temporarily.
+    sys.path.append(os.path.join(os.environ.get("PREFIX"),
+                                 "lib",
+                                 "python%s"%sys.version[:3],
+                                 "site-packages"))
 
 
 INCLUDE_DIRS.append("src")

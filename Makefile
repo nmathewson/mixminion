@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.33 2003/01/06 18:44:45 nickm Exp $
+# $Id: Makefile,v 1.34 2003/01/07 00:03:16 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -91,8 +91,10 @@ install: do_build
 	  export PREFIX;                                                     \
 	  echo $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1; \
 	  $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1;\
-	  echo "MIXMINION SAYS: Ignore that warning about sys.path--It's taken care of.";\
 	fi
+
+#	  echo "MIXMINION SAYS: Please ignore the warning about sys.path:"
+#	  echo "  The installed script will adjust sys.path automatically."
 
 update:
 	@$(FINDPYTHON);                                                      \
