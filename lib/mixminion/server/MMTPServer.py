@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.10 2003/01/06 12:57:48 nickm Exp $
+# $Id: MMTPServer.py,v 1.11 2003/01/07 05:33:39 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -745,7 +745,7 @@ class MMTPAsyncServer(AsyncServer):
             port = config['Incoming/MMTP']['ListenPort']
         else:
             port = config['Incoming/MMTP']['Port']
-            
+
         self.listener = ListenConnection(IP, port,
                                          LISTEN_BACKLOG,
                                          self._newMMTPConnection)

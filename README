@@ -38,7 +38,7 @@ II. WHAT'S NEW IN THIS VERSION?
 
 NEW IN VERSION 0.0.2:
    - A real SMTP exit module to relay messages via a local MTA.  Blacklisting
-     is supported by address, by username, by host, by entire domain, and 
+     is supported by address, by username, by host, by entire domain, and
      by regular expression.
    - Integrated directory support for clients.
    - Automatic path selection, along with a better user interface to specify
@@ -205,7 +205,7 @@ To send a dummy message, specify "drop" instead of an email address, as in:
       mixminion send -t drop
       mixminion send -t drop -P '*,Foo'
       mixminion send -t drop -H 8
-    
+
 
 If you need to use a proxy server to use the web you can specify it using the
 http_proxy environment variable.
@@ -213,12 +213,12 @@ http_proxy environment variable.
       export http_proxy=http://proxy:3128/
       mixminion send -D yes
 
-  
+
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 ========================================
 
 1) Create a copy of the "etc/mixminiond.conf" file from the
-   mixminion distribution and place it where you like.  Mixminion will 
+   mixminion distribution and place it where you like.  Mixminion will
    automatically look in ~/.mixminiond.conf, ~/etc/mixminiond.conf, and
    /etc/mixminiond.conf.  However, you can store it anywhere.
 
@@ -228,8 +228,8 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
         "mixminion server -f <path to mixminiond.conf>"
 
-    (The -f flag and path is only necessary if you placed the 
-    configuration file somehwere other than ~/.mixminiond.conf, 
+    (The -f flag and path is only necessary if you placed the
+    configuration file somehwere other than ~/.mixminiond.conf,
     ~/etc/mixminiond.conf, or /etc/mixminiond.conf.)
 
 5) To try out your server, clients will need a copy of your server
@@ -244,7 +244,7 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
            "/home/mixminion/spool/keys/key_0001/ServerDesc".
 
    Mixminion supports a global directory of server descriptors.  Until you
-   are listed in that directory, clients can import your ServerDesc file 
+   are listed in that directory, clients can import your ServerDesc file
    (if they have a copy) by hand by running:
 
            mixminion import-server <filename>
@@ -253,9 +253,9 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
    (PGP-signed, if possible) to <nickm@freehaven.net>.  I'll try out your
    server for a while and then add it to the directory.
 
-   WARNING: We don't have statistics yet, so the system isn't robust in 
-   the presence of unreliable servers in the directory.  Please let me 
-   know if you're going to take down a server, and please don't publish a 
+   WARNING: We don't have statistics yet, so the system isn't robust in
+   the presence of unreliable servers in the directory.  Please let me
+   know if you're going to take down a server, and please don't publish a
    server if you don't think you can keep it up for a good while.
 
    {This step will be more automated in later versions.}

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.36 2003/01/07 05:04:55 nickm Exp $
+# $Id: ClientMain.py,v 1.37 2003/01/07 05:33:39 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1095,9 +1095,9 @@ def runClient(cmd, args):
     else:
         if address.getRouting()[0] == DROP_TYPE:
             LOG.warn("Sending a payload with a dummy message makes no sense")
-        
+
         if inFile is None:
-            inFile = "-"        
+            inFile = "-"
 
         if inFile == '-':
             f = sys.stdin
@@ -1105,7 +1105,7 @@ def runClient(cmd, args):
                   "Enter your message now.  Type Ctrl-D when you are done."
         else:
             f = open(inFile, 'r')
-        
+
         try:
             payload = f.read()
             f.close()
