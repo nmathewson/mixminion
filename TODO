@@ -47,6 +47,11 @@ For 0.0.5:
                 o Implement
                 - Give error messages on bad headers
                 - Test
+        . Refactor filestore logic out of ServerQueue
+                o Refactor
+                - Rephrase tests to use new names.
+                - Refactor deliveryqueue from is-a to has-a.
+                - Refactor clientqueue
         . Support for large messages and K-of-N
                 o fec backend code
                 o Tests and timing for fec backend
