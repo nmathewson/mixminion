@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.88 2003/06/05 18:41:40 nickm Exp $
+# $Id: Common.py,v 1.89 2003/06/06 06:04:57 nickm Exp $
 
 """mixminion.Common
 
@@ -353,7 +353,8 @@ def checkPrivateDir(d, recurse=1):
             raise MixFatalError("Bad owner (uid=%s) on directory %s"
                                 % (owner, d))
         if (mode & 02) and not (mode & stat.S_ISVTX):
-            raise MixFatalError("Bad mode (%o) on directory %s" %(mode, d))
+            raise MixFatalError("Bad mode (%o) on directory %s" %
+                                (mode&0777, d))
 
         if (mode & 020) and not (mode & stat.S_ISVTX):
             # FFFF We may want to give an even stronger error here.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.73 2003/06/05 18:41:40 nickm Exp $
+# $Id: ServerMain.py,v 1.74 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -14,14 +14,12 @@
 #    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
 #                            mix/ [Mix pool]
 #                            outgoing/ [Messages for mmtp delivery]
-#                            deliver/mbox/ [DOCDOC]
-#                            deliver/smtp/
-#                            deliver/*/
+#                            deliver/*/ [Messages for delivery via modules]
 #                      tls/dhparam [Diffie-Hellman parameters]
 #                      hashlogs/hash_1*  [HashLogs of packet hashes
 #                               hash_2*    corresponding to key sets]
 #                                ...
-#                      stats.tmp [DOCDOC]
+#                      stats.tmp [Cache of stats from latest period]
 #                log [Messages from the server]
 #                keys/identity.key [Long-lived identity PK]
 #                     key_0001/ServerDesc [Server descriptor]
@@ -31,12 +29,11 @@
 #                              published [present if this desc is published]
 #                     key_0002/...
 #                conf/miniond.conf [configuration file]
-#                current-desc
-#                stats [DOCDOC]
-#                version [DOCDOC]
+#                current-desc [Filename of current server descriptor.]
+#                stats [Log of server statistics]
+#                version [Version of homedir format.]
 
 # FFFF Support to put keys/queues in separate directories.
-
 
 __all__ = [ 'MixminonServer' ]
 
@@ -69,11 +66,14 @@ from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
      installSIGCHLDHandler, Lockfile, readFile, secureDelete, tryUnlink, \
      waitForChildren, writeFile
 
-#DOCDOC
+# Version number for server home-directory.
+#
 # For backward-incompatible changes only.
 SERVER_HOMEDIR_VERSION = "1001"
 
 def getHomedirVersion(config):
+    """Return the version of the server's homedir.  If no version is found,
+       the version must be '1000'. """
     homeDir = config['Server']['Homedir']
     versionFile = os.path.join(homeDir, "version")
     if not os.path.exists(homeDir):
@@ -95,6 +95,10 @@ def getHomedirVersion(config):
     return dirVersion
 
 def checkHomedirVersion(config):
+    """Check the version of the server's homedir.  If it's too old, tell
+       the user to upgrade and raise UIError.  If it's too new, tell the
+       user we're confused and raise UIError.  Otherwise, return silently.
+    """
     dirVersion = getHomedirVersion(config)
 
     if dirVersion is None:
@@ -530,12 +534,10 @@ class _Scheduler:
 
     def scheduleRecurringComplex(self, first, name, cb):
         """Schedule a callback function 'cb' to be invoked at time 'first,'
-           and thereafter at times returned by 'nextFn'.
+           and thereafter at times returned by 'cb'.
 
-           (nextFn is called immediately after the callback is invoked,
-           every time it is invoked, and should return a time at which.)
-
-           DOCDOC
+           (Every time the callback is invoked, if it returns a non-None value,
+           the event is rescheduled for the time it returns.)
         """
         assert type(name) is StringType
         assert type(first) in (IntType, LongType, FloatType)
@@ -718,10 +720,12 @@ class MixminionServer(_Scheduler):
         self.moduleManager.startThreading()
 
     def updateKeys(self, lock=1):
-        """DOCDOC"""
-        # We don't dare to block here -- we could block the main thread for 
-        # as long as it takes to generate several new RSA keys, which would
-        # stomp responsiveness on slow computers.
+        """Change the keys used by the PacketHandler and MMTPServer objects
+           to reflect the currently keys."""
+        # We don't want to block here -- If key generation is in process, we
+        # could block the main thread for as long as it takes to generate
+        # several new RSA keys, which would stomp responsiveness on slow
+        # computers.  Instead, we reschedule for 2 minutes later
         # ???? Could there be a more elegant approach to this?
         if lock and not self.keyring.lock(0):
             LOG.warn("generateKeys in progress:"
@@ -738,8 +742,13 @@ class MixminionServer(_Scheduler):
             if lock: self.keyring.unlock()
 
     def generateKeys(self):
-        """DOCDOC"""
-        
+        """Callback used to schedule key-generation"""
+
+        # We generate and publish keys in the processing thread, so we don't
+        # slow down the server.  We also reschedule from the processing thread,
+        # so that we can take the new keyset into account when calculating
+        # when keys are next needed.
+
         def c(self=self):
             try:
                 self.keyring.lock()
@@ -747,7 +756,7 @@ class MixminionServer(_Scheduler):
                 self.updateKeys(lock=0)
                 if self.config['DirectoryServers'].get('Publish'):
                     self.keyring.publishKeys()
-                self.scheduleOnce(self.keyring.getNextKeyRotation(),
+                self.scheduleOnce(self.keyring.getNextKeygen(),
                                   "KEY_GEN",
                                   self.generateKeys)
             finally:
@@ -835,20 +844,27 @@ class MixminionServer(_Scheduler):
             self.processEvents()
 
     def doReset(self):
+        """Called when server receives SIGHUP.  Flushes logs to disk,
+           regenerates/republishes descriptors as needed.
+        """
         LOG.info("Resetting logs")
         LOG.reset()
         EventStats.log.save()
+        self.packetHandler.syncLogs()
         LOG.info("Checking for key rotation")
         self.keyring.checkKeys()
         self.generateKeys()
 
     def doMix(self):
+        """Called when the server's mix is about to fire.  Picks some
+           messages to send, and sends them to the appropriate queues.
+        """
+        
         now = time.time()
         # Before we mix, we need to log the hashes to avoid replays.
         try:
-            # There's a potential threading problem here... in
-            # between this sync and the 'mix' below, nobody should
-            # insert into the mix pool.
+            # There's a threading issue here... in between this sync and the
+            # 'mix' below, nobody should insert into the mix pool.
             self.mixPool.lock()
             self.packetHandler.syncLogs()
 
@@ -864,6 +880,7 @@ class MixminionServer(_Scheduler):
         # Send exit messages
         self.moduleManager.sendReadyMessages()
 
+        #XXXX005 use new schedulerecurringcomplex interface
         # Choose next mix interval
         nextMix = self.mixPool.getNextMixTime(now)
         self.scheduleOnce(nextMix, "MIX", self.doMix)
@@ -940,41 +957,32 @@ def closeUnusedFDs():
     sys.stdout = sys.__stdout__ = LogStream("STDOUT", "WARN")
     sys.stderr = sys.__stderr__ = LogStream("STDERR", "WARN")
 
-_SERVER_USAGE = """\
-Usage: %s [options]
-Options:
-  -h, --help:                Print this usage message and exit.
-  -f <file>, --config=<file> Use a configuration file other than the default.
-""".strip()
-
-def usageAndExit(cmd):
-    print _SERVER_USAGE %cmd
-    sys.exit(0)
-
-def configFromServerArgs(cmd, args, usage=None):
-    """DOCDOC"""
+def configFromServerArgs(cmd, args, usage):
+    """Given cmd and args as passed to one of the entry commands,
+       parses the standard '-h/--help' and '-f/--config' options.
+       If the user wanted a usage message, print the usage message and exit.
+       Otherwise, find and parse the configuration file.
+    """
     options, args = getopt.getopt(args, "hf:", ["help", "config="])
     if args:
-        if usage:
-            print usage
-            sys.exit(0)
-        else:
-            usageAndExit(cmd)
+        print >>sys.stderr, "No arguments expected."
+        print usage
+        sys.exit(0)
     configFile = None
     for o,v in options:
         if o in ('-h', '--help'):
-            if usage:
-                print usage
-                sys.exit(0)
-            else:
-                usageAndExit(cmd)
+            print usage
+            sys.exit(0)
         if o in ('-f', '--config'):
             configFile = v
 
     return readConfigFile(configFile)
 
 def readConfigFile(configFile):
-    """DOCDOC"""
+    """Given a filename from the command line (or None if the user didn't
+       specify a configuration file), find the configuration file, parse it,
+       and validate it.  Return the validated configuration file.
+    """
     if configFile is None:
         configFile = None
         for p in ["~/.mixminiond.conf", "~/etc/mixminiond.conf",
@@ -1000,11 +1008,20 @@ def readConfigFile(configFile):
     return None #never reached; here to suppress pychecker warning
 
 #----------------------------------------------------------------------
+_SERVER_START_USAGE = """\
+Usage: mixminion server-start [options]
+Start a Mixminion server.
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than the default.
+""".strip()
+
 def runServer(cmd, args):
+    """[Entry point]  Start a Mixminion server."""
     if cmd.endswith(" server"):
         print "Obsolete command. Use 'mixminion server-start' instead."
 
-    config = configFromServerArgs(cmd, args)
+    config = configFromServerArgs(cmd, args, _SERVER_START_USAGE)
     try:
         # Configure the log, but delay disabling stderr until the last
         # possible minute; we want to keep echoing to the terminal until
@@ -1085,6 +1102,7 @@ def runServer(cmd, args):
 #----------------------------------------------------------------------
 _UPGRADE_USAGE = """\
 Usage: mixminion server-upgrade [options]
+Upgrade the server's home directory from an earlier version.
 Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than
@@ -1092,8 +1110,9 @@ Options:
 """.strip()
 
 def runUpgrade(cmd, args):
-    """Remove all keys server descriptors for old versions of this
-       server.  If any are found, nuke the keysets, """
+    """[Entry point] Check the version on this server's homedir.  If it's
+       old, remove all the old keys and server descriptors, clean out the
+       queues, and mark the directory as up-to-date."""
 
     config = configFromServerArgs(cmd, args, usage=_UPGRADE_USAGE)    
     assert config
@@ -1171,6 +1190,7 @@ def runUpgrade(cmd, args):
 #----------------------------------------------------------------------
 _DELKEYS_USAGE = """\
 Usage: mixminion server-DELKEYS [options]
+Delete all keys for this server (except the identity key).
 Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than
@@ -1178,9 +1198,8 @@ Options:
 """.strip()
 
 def runDELKEYS(cmd, args):
-    """Remove all keys server descriptors for old versions of this
-       server.  If any are found, nuke the keysets, """
-
+    """[Entry point.] Remove all keys and server descriptors for this
+       server."""
     config = configFromServerArgs(cmd, args, usage=_DELKEYS_USAGE)
     assert config
 
@@ -1209,13 +1228,15 @@ def runDELKEYS(cmd, args):
 #----------------------------------------------------------------------
 _PRINT_STATS_USAGE = """\
 Usage: mixminion server-stats [options]
+Print server statistics for the current statistics interval.
 Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than the default.
 """.strip()
 
 def printServerStats(cmd, args):
-    """DOCDOC"""
+    """[Entry point]  Print server statistics for the current statistics
+       interval."""
     config = configFromServerArgs(cmd, args, _PRINT_STATS_USAGE)
     checkHomedirVersion(config)
     _signalServer(config, 1)
@@ -1224,21 +1245,27 @@ def printServerStats(cmd, args):
 
 #----------------------------------------------------------------------
 _SIGNAL_SERVER_USAGE = """\
-Usage: %s [options]
+Usage: mixminion %s [options]
+Tell a mixminion server to %s.
 Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than the default.
 """.strip()
 
 def signalServer(cmd, args):
-    config = configFromServerArgs(cmd, args, usage=_SIGNAL_SERVER_USAGE%cmd)
-    LOG.setMinSeverity("ERROR")
-
-    if cmd.endswith("stop-server") or cmd.endswith("server-stop"):
+    """[Entry point] Send a SIGHUP or a SIGTERM to a running mixminion
+       server."""
+    if cmd.endswith("server-stop"):
         reload = 0
+        usage = _SIGNAL_SERVER_USAGE % ("server-stop", "shut down")
     else:
-        assert cmd.endswith("reload-server") or cmd.endswith("server-reload")
+        assert cmd.endswith("server-reload")
         reload = 1
+        usage = _SIGNAL_SERVER_USAGE % ("server-reload",
+                                        "rescan its configuration")
+    
+    config = configFromServerArgs(cmd, args, usage=usage)
+    LOG.setMinSeverity("ERROR")
 
     checkHomedirVersion(config)
 
@@ -1276,6 +1303,7 @@ def _signalServer(config, reload):
 #----------------------------------------------------------------------
 _REPUBLISH_USAGE = """\
 Usage: mixminion server-republish [options]
+Force a mixminion server to republish its keys to the directory.
 Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than
@@ -1283,6 +1311,8 @@ Options:
 """.strip()
 
 def runRepublish(cmd, args):
+    """[Entry point] Mark all keys as unpublished, and send a SIGHUP to
+       the server."""
     config = configFromServerArgs(cmd, args, usage=_REPUBLISH_USAGE)
 
     checkHomedirVersion(config)    

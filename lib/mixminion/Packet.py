@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.45 2003/06/05 05:24:23 nickm Exp $
+# $Id: Packet.py,v 1.46 2003/06/06 06:04:57 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -403,7 +403,9 @@ def parseReplyBlock(s):
     return block
 
 def _parseReplyBlock(s):
-    """DOCDOC"""
+    """Helper function: Given a string containing one or more (binary) reply
+       blocks, extract the first one.  On success, return a tuple containing
+       a ReplyBlock, and the length of 's' taken up by the reply block."""
     if len(s) < MIN_RB_LEN:
         raise ParseError("Reply block too short")
     try:
@@ -556,19 +558,23 @@ class MBOXInfo:
 #----------------------------------------------------------------------
 # Ascii-encoded packets
 #
-# The format is HeaderLine, TagLine?, Body, FooterLine.
-#     TagLine is one of /Message-type: (overcompressed|binary)/
-#                    or /Decoding-handle: (base64-encoded-stuff)/.
-#DOCDOC
+# A packet is an ASCII-armored object, with the following headers:
+#     Message-type: (plaintext|encrypted|binary|overcompressed)
+#    [Decoding-handle: base64-encoded-stuff]
+#
+# If Message-type is 'plaintext', the body is dash-escaped.  Otherwise,
+# the body is base64-encoded.
 
 MESSAGE_ARMOR_NAME = "TYPE III ANONYMOUS MESSAGE"
  
 def parseTextEncodedMessages(msg,force=0):
-    """Given a text-encoded Type III packet, return a TextEncodedMessage
-       object or raise ParseError. DOCDOC
+
+    """Given a text-encoded Type III packet, return a list of
+       TextEncodedMessage objects or raise ParseError.
+       
           force -- uncompress the message even if it's overcompressed.
-          idx -- index within <msg> to search.
     """
+    
     def isBase64(t,f):
         for k,v in f:
             if k == "Message-type":

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.14 2003/06/05 18:41:40 nickm Exp $
+# $Id: HashLog.py,v 1.15 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -26,12 +26,17 @@ __all__ = [ 'HashLog' ]
 # We flush the log every MAX_JOURNAL hashes.
 MAX_JOURNAL = 128
 
+# Lock to pretect _OPEN_HASHLOGS
 _HASHLOG_DICT_LOCK = threading.Lock()
-
-#DOCDOC
+# Map from (filename,keyid) to the open HashLog object with that fname and
+# ID.  Needed to implement getHashLog.
 _OPEN_HASHLOGS = {}
 
 def getHashLog(filename, keyid):
+    """Given a filename and keyid, return a HashLog object with that fname
+       and ID, opening a new one if necessary.  This function is needed to
+       implement key rotation: we want to assemble a list of current
+       hashlogs, but we can't open the same HashLog database twice at once."""
     try:
         _HASHLOG_DICT_LOCK.acquire()
         try:

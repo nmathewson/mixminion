@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.39 2003/06/05 18:41:40 nickm Exp $
+# $Id: ServerKeys.py,v 1.40 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -47,7 +47,7 @@ PUBLICATION_LATENCY = (2*24+13)*60*60
 #FFFF Make this configurable?  (Set to 2 weeks).
 PREPUBLICATION_INTERVAL = 14*24*60*60
 
-# DOCDOC
+# URL to which we should post published servers.
 #
 #FFFF Make this configurable
 DIRECTORY_UPLOAD_URL = "http://mixminion.net/minion-cgi/publish"
@@ -55,20 +55,21 @@ DIRECTORY_UPLOAD_URL = "http://mixminion.net/minion-cgi/publish"
 #----------------------------------------------------------------------
 class ServerKeyring:
     """A ServerKeyring remembers current and future keys, descriptors, and
-       hash logs for a mixminion server.
-
-       DOCDOC
+       hash logs for a mixminion server.  It keeps track of key rotation
+       schedules, and generates new keys as needed.
        """
     ## Fields:
     # homeDir: server home directory
     # keyDir: server key directory
     # keyOverlap: How long after a new key begins do we accept the old one?
     # keySets: sorted list of (start, end, keyset)
-    # nextRotation: time_t when this key expires, DOCDOCDOC not so.
+    # nextUpdate: time_t when a new key should be added, or a current key
+    #      should be removed, or "None" for uncalculated.
     # keyRange: tuple of (firstKey, lastKey) to represent which key names
     #      have keys on disk.
-    #
-    #DOCDOC currentKeys
+    # currentKeys: None, if we haven't checked for currently live keys, or
+    #      a list of currently live ServerKeyset objects.
+    # _lock: A lock to prevent concurrent key generation or rotation.
 
     def __init__(self, config):
         "Create a ServerKeyring from a config object"
@@ -90,7 +91,8 @@ class ServerKeyring:
         """Internal method: read information about all this server's
            currently-prepared keys from disk.
 
-           DOCDOC raises configerror...
+           May raise ConfigError if any of the server descriptors on disk
+           are invalid.
            """
         self.keySets = []
         firstKey = sys.maxint
@@ -149,7 +151,9 @@ class ServerKeyring:
                               formatDate(end), formatDate(start))
 
     def checkDescriptorConsistency(self, regen=1):
-        """DOCDOC"""
+        """Check whether the server descriptors in this keyring are
+           consistent with the server's configuration.  If 'regen' are true,
+           inconsistent descriptors are regenerated."""
         identity = None
         state = []
         for _,_,ks in self.keySets:
@@ -196,7 +200,9 @@ class ServerKeyring:
         return key
 
     def publishKeys(self, allKeys=0):
-        """DOCDOC"""
+        """Publish server descriptors to the directory server.  Ordinarily,
+           only unpublished descriptors are sent.  If allKeys is true,
+           all descriptors are sent."""
         keySets = [ ks for _, _, ks in self.keySets ]
         if allKeys:
             LOG.info("Republishing all known keys to directory server")
@@ -241,7 +247,8 @@ class ServerKeyring:
             secureDelete([dhfile], blocking=1)
 
     def createKeysAsNeeded(self,now=None):
-        """DOCDOC"""
+        """Generate new keys and descriptors as needed, so that the next
+           PUBLICATION_LATENCY+PREPUBLICATION_INTERVAL seconds are covered."""
         if now is None:
             now = time.time()
 
@@ -292,7 +299,8 @@ class ServerKeyring:
 
             keyname = "%04d" % keynum
 
-            nextStart = startAt + self.config['Server']['PublicKeyLifetime'].getSeconds()
+            lifetime = self.config['Server']['PublicKeyLifetime'].getSeconds()
+            nextStart = startAt + lifetime
 
             LOG.info("Generating key %s to run from %s through %s (GMT)",
                      keyname, formatDate(startAt),
@@ -308,16 +316,16 @@ class ServerKeyring:
         self.checkKeys()
 
     def regenerateDescriptors(self):
-        """DOCDOC"""
+        """Regenerate all server descriptors for all keysets in this
+           keyring, but keep all old keys intact."""
         LOG.info("Regenerating server descriptors; keeping old keys.")
         identityKey = self.getIdentityKey()
         for _,_,ks in self.keySets:
             ks.regenerateServerDescriptor(self.config, identityKey)
 
     def getNextKeygen(self):
-        """DOCDOC
-
-           -1 => Right now!
+        """Return the time (in seconds) when we should next generate keys.
+           If -1 is returned, keygen should occur immediately.
         """
         if not self.keySets:
             return -1
@@ -373,9 +381,8 @@ class ServerKeyring:
                  if va < now and vu > cutoff ]
 
     def getServerKeysets(self, now=None):
-        """Return a ServerKeyset object for the currently live key.
-
-           DOCDOC"""
+        """Return list of ServerKeyset objects for the currently live keys.
+        """
         # FFFF Support passwords on keys
         keysets = [ ]
         for va, vu, ks in self._getLiveKeys(now):
@@ -414,7 +421,12 @@ class ServerKeyring:
                                                    self._getDHFile())
 
     def updateKeys(self, packetHandler, mmtpServer, statusFile=None,when=None):
-        """DOCDOC: Return next rotation."""
+        """Update the keys and certificates stored in a PacketHandler and an
+           MMTPServer object, so that they contain the currently correct
+           keys.  Also removes any dead keys.
+
+           This function is idempotent.
+        """
         self.removeDeadKeys()
         self.currentKeys = keys = self.getServerKeysets(when)
         LOG.info("Updating keys: %s currently valid", len(keys))
@@ -440,7 +452,8 @@ class ServerKeyring:
         self.getNextKeyRotation(keys)
 
     def getNextKeyRotation(self, curKeys=None):
-        """DOCDOC"""
+        """Calculate the next time at which we should change the set of live
+           keys."""
         if self.nextUpdate is None:
             if curKeys is None:
                 if self.currentKeys is None:
@@ -449,15 +462,18 @@ class ServerKeyring:
                     curKeys = self.currentKeys
             events = []
             curNames = {}
-            #DOCDOC
+            # For every current keyset, we'll remove it at keyOverlap
+            # seconds after its stated expiry time.
             for k in curKeys:
                 va, vu = k.getLiveness()
                 events.append((vu+self.keyOverlap, "RM"))
                 curNames[k.keyname] = 1
+            # For every other keyset, we'll add it when it becomes valid.
             for va, vu, k in self.keySets:
                 if curNames.has_key(k.keyname): continue
                 events.append((va, "ADD"))
 
+            # Which even happens first?
             events.sort()
             if not events:
                 LOG.info("No future key rotation events.")
@@ -504,13 +520,18 @@ class ServerKeyset:
        When we create a new ServerKeyset object, the associated keys are not
        read from disk unil the object's load method is called."""
     ## Fields:
+    # keydir: Directory to store this keyset's data.
     # hashlogFile: filename of this keyset's hashlog.
     # packetKeyFile, mmtpKeyFile: filename of this keyset's short-term keys
     # certFile: filename of this keyset's X509 certificate
     # descFile: filename of this keyset's server descriptor.
+    # publishedFile: filename to store this server's publication time.
     #
     # packetKey, mmtpKey: This server's actual short-term keys.
-    # DOCDOC serverinfo, validAfter, validUntil,published(File)?, keydir
+    #
+    # serverinfo: None, or a parsed server descriptor.
+    # validAfter, validUntil: This keyset's published lifespan, or None.
+    # published: has this boolean: has this server been published?
     def __init__(self, keyroot, keyname, hashroot):
         """Load a set of keys named "keyname" on a server where all keys
            are stored under the directory "keyroot" and hashlogs are stored
@@ -534,7 +555,7 @@ class ServerKeyset:
             createPrivateDir(keydir)
 
     def delete(self):
-        """DOCDOC"""
+        """Remove this keyset from disk."""
         files = [self.packetKeyFile,
                  self.mmtpKeyFile,
                  self.certFile,
@@ -577,31 +598,33 @@ class ServerKeyset:
         "Return the sha1 hash of the asn1 encoding of the packet public key"
         return mixminion.Crypto.sha1(self.packetKey.encode_key(1))
     def getServerDescriptor(self):
-        """DOCDOC"""
+        """Return a ServerInfo for this keyset, reading it from disk if
+           needed."""
         if self.serverinfo is None:
             self.serverinfo = ServerInfo(fname=self.descFile)
         return self.serverinfo
     def getLiveness(self):
-        """DOCDOC"""
+        """Return a 2-tuple of validAfter/validUntil for this server."""
         if self.validAfter is None or self.validUntil is None:
             info = self.getServerDescriptor()
             self.validAfter = info['Server']['Valid-After']
             self.validUntil = info['Server']['Valid-Until']
         return self.validAfter, self.validUntil
     def isPublished(self):
-        """DOCDOC"""
+        """Return true iff we have published this keyset."""
         return self.published
     def markAsPublished(self):
-        """DOCDOC"""
+        """Mark this keyset as published."""
         contents = "%s\n"%formatTime(time.time(),1)
         writeFile(self.publishedFile, contents, mode=0600)
         self.published = 1
     def markAsUnpublished(self):
-        """DOCDOC"""
+        """Mark this keyset as unpublished."""
         tryUnlink(self.publishedFile)
         self.published = 0
     def regenerateServerDescriptor(self, config, identityKey):
-        """DOCDOC"""
+        """Regenerate the server descriptor for this keyset, keeping the
+           original keys."""
         self.load()
         self.markAsUnpublished()
         validAt,validUntil = self.getLiveness()
@@ -615,14 +638,20 @@ class ServerKeyset:
         self.serverinfo = self.validAfter = self.validUntil = None
 
     def checkConsistency(self, config, log=1):
-        """DOCDOC"""
+        """Check whether this server descriptor is consistent with a
+           given configuration file.  Returns are as for
+           'checkDescriptorConsistency'.
+        """
         return checkDescriptorConsistency(self.getServerDescriptor(),
                                           config,
                                           log=log,
                                           isPublished=self.published)
 
     def publish(self, url):
-        """DOCDOC Returns 'accept', 'reject', 'error'. """
+        """Try to publish this descriptor to a given directory URL.  Returns
+           'accept' if the publication was successful, 'reject' if the
+           server refused to accept the descriptor, and 'error' if
+           publication failed for some other reason."""
         fname = self.getDescriptorFileName()
         descriptor = readFile(fname)
         fields = urllib.urlencode({"desc" : descriptor})
@@ -656,7 +685,8 @@ class ServerKeyset:
         LOG.info("Directory accepted descriptor: %r", msg)
         self.markAsPublished()
         return 'accept'
-            
+
+# Matches the reply a directory server gives.
 DIRECTORY_RESPONSE_RE = re.compile(r'^Status: (0|1)[ \t]*\nMessage: (.*)$',
                                    re.M)
 
@@ -681,10 +711,12 @@ class _WarnWrapper:
 def checkDescriptorConsistency(info, config, log=1, isPublished=1):
     """Given a ServerInfo and a ServerConfig, compare them for consistency.
 
-       Return true iff info may have come from 'config'.  If 'log' is
-       true, warn as well.  Does not check keys.
+       Returns 'good' iff info may have come from 'config'.
 
-       DOCDOC returns 'good', 'so-so', 'bad'
+       If the server is inconsistent with the configuration file and should
+       be regenerated, returns 'bad'.  Otherwise, returns 'so-so'.
+
+       If 'log' is true, warn as well.  Does not check keys.
     """
     warn = _WarnWrapper(silence = not log, isPublished=isPublished)
 
@@ -773,7 +805,6 @@ CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                                     hashdir, validAt=None, now=None,
                                     useServerKeys=0, validUntil=None):
-    #XXXX reorder args
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
 
@@ -783,10 +814,11 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           keyname -- The name of this new key set within keydir
           hashdir -- The root directory for storing hash logs.
           validAt -- The starting time (in seconds) for this key's lifetime.
-
-          DOCDOC useServerKeys, validUntil
-          """
-
+          useServerKeys -- If true, try to read an existing keyset from
+               (keydir,keyname,hashdir) rather than generating a fresh one.
+          validUntil -- Time at which the generated descriptor should
+               expire.
+    """
     if useServerKeys:
         serverKeys = ServerKeyset(keydir, keyname, hashdir)
         serverKeys.load()
@@ -1036,7 +1068,15 @@ def _guessLocalIP():
 
 def generateCertChain(filename, mmtpKey, identityKey, nickname,
                       certStarts, certEnds):
-    """Create a two-certificate chain DOCDOC"""
+    """Create a two-certificate chain for use in MMTP.
+
+       filename -- location to store certificate chain.
+       mmtpKey -- a short-term RSA key to use for connection
+           encryption (1024 bits).
+       identityKey -- our long-term signing key (2048-4096 bits).
+       nickname -- nickname to use in our certificates.
+       certStarts, certEnds -- certificate lifetimes.
+    """
     fname = filename+"_tmp"
     mixminion.Crypto.generate_cert(fname,
                                    mmtpKey, identityKey,

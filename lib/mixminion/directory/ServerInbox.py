@@ -1,10 +1,11 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.7 2003/06/05 05:24:23 nickm Exp $
+# $Id: ServerInbox.py,v 1.8 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
-   DOCDOC
-
+   A ServerInbox holds server descriptors received from the outside world
+   that are not yet ready to be included in the directory.  It is designed
+   to be written to by an untrusted user (e.g., CGI).
    """
 
 __all__ = [ 'ServerInbox' ]
@@ -19,7 +20,17 @@ from mixminion.directory.Directory import getIDFingerprint, MismatchedID
 from mixminion.directory.ServerList import _writeServer, _readServer
 
 class ServerInbox:
+    """A ServerInbox holds server descriptors received from the outside
+       world that are not yet ready to be included in the directory.
+       """
+    ## Fields:
+    # newQueue: IncomingQueue object to hold descriptors for previously
+    #      unknown servers.
+    # updateQueue:  IncomingQueue object to hold descriptors for currently
+    #      known servers.
     def __init__(self, base, idCache):
+        """Initialize a ServerInbox to store its files in 'base', and
+           check server descriptors against the IDCache 'idCache'."""
         self.newQueue = IncomingQueue(os.path.join(base, "new"),
                                       os.path.join(base, "reject"))
         self.updateQueue = IncomingQueue(os.path.join(base, "updates"),
@@ -27,10 +38,18 @@ class ServerInbox:
         self.idCache = idCache
 
     def receiveServer(self, text, source):
-        """DOCDOC
+        """Process a new server descriptor and store it for later action.
+           (To be run by the CGI user.)
 
-           Returns true on OK; raises UIError on failure; raises
-           ServerQueued on wait-for-admin.
+           If the server will be automatically inserted, return true.
+           If the server will be inserted (given administrator intervention),
+              raise ServerQueuedException.
+           If there is a problem, log it, and raise UIError.
+
+           text -- a string containing a new server descriptor.
+           source -- a (human readable) string describing the source
+               of the descriptor, used in error meessages.
+        
            """
         try:
             server = ServerInfo(string=text,assumeValid=0)
@@ -53,14 +72,27 @@ class ServerInbox:
             LOG.info("Received previously unknown server %s from %s",
                      nickname, source)
             self.newQueue.queueIncomingServer(text,server)
-            return
+            raise ServerQueuedException(
+                "Server queued pending manaul checking")
         else:
             LOG.info("Received update for server %s from %s",
                      nickname, source)
             self.updateQueue.queueIncomingServer(text,server)
-            return
+            return 1 
 
     def _doAccept(self, serverList, q, incoming, reject, knownOnly):
+        """Helper function: move servers from an IncomingQueue into
+           a ServerList.  (To be run by the directory user.)
+
+           serverList -- an instance of ServerList
+           q -- an instance of IncomingQueue
+           incoming -- a list of [filename, serverinfo, descriptor text,
+                fingerprint] for servers to insert.
+           reject -- a list of [filename, serverinfo, desc text, fprint]
+                for servers to reject.
+           knownOnly -- boolean: accept only servers with previously
+                known identity keys?
+        """
         accepted = []
         for fname, server, text, fp in incoming: 
             try:
@@ -79,11 +111,19 @@ class ServerInbox:
         q.delPendingServers(fnames)
 
     def acceptUpdates(self, serverList):
+        """Move updates for existing servers into the directory.  (To
+           be run by the directory user.)"""
         incoming = self.updateQueue.readPendingServers()
         self._doAccept(serverList, self.updateQueue, incoming, [],
                        knownOnly=1)
 
     def acceptNewServer(self, serverList, nickname):
+        """Move the descriptors for a new server with a given nickname
+           into the directory.  (To be run by a the directory user.)
+
+           If the nickname is of the format name:FINGERPRINT, then
+           only insert servers with the nickname/fingerprint pair.
+        """
         if ':' in nickname:
             nickname, fingerprint = nickname.split(":")
         else:
@@ -126,7 +166,8 @@ class ServerInbox:
             serverList._unlock()
 
     def listNewPendingServers(self, f):
-        """DOCDOC"""
+        """Print a list of new servers waiting admin attention to the file
+           f."""
         incoming = self.newQueue.readPendingServers()
         # lcnickname->fp->servers
         servers = {}
@@ -155,9 +196,11 @@ class ServerInbox:
                 print >>f, (format%(nickname,fp,len(s)))
 
 class IncomingQueue:
-    """DOCDOC"""
+    """Implementation helper: holds incoming server descriptors as
+       separate files in a directory."""
     def __init__(self, incomingDir, rejectDir):
-        """DOCDOC"""
+        """Create an IncomingQueue to hold incoming servers in incomingDir
+           and rejected servers in rejectDir."""
         self.incomingDir = incomingDir
         self.rejectDir = rejectDir
         if not os.path.exists(incomingDir):
@@ -166,19 +209,34 @@ class IncomingQueue:
             raise MixFatalError("Reject directory doesn't exist")
 
     def queueIncomingServer(self, contents, server):
-        """DOCDOC"""
+        """Write a server into the incoming directory.
+
+           contents -- the text of the server descriptor.
+           server -- the parsed server descriptor.
+        """
         nickname = server.getNickname()
         _writeServer(self.incomingDir, contents, nickname, 0644)
 
     def queueRejectedServer(self, contents, server):
+        """Write a server into the rejected directory.
+
+           contents -- the text of the server descriptor.
+           server -- the parsed server descriptor.
+        """
         nickname = server.getNickname()
         _writeServer(self.rejectDir, contents, nickname, 0644)
 
     def newServersPending(self, newServ):
-        """DOCDOC"""
+        """Return true iff there is a new server waiting in the incoming
+           directory."""
         return len(os.listdir(self.incomingDir)) > 0
 
     def readPendingServers(self):
+        """Scan all of the servers waiting in the incoming directory.  If
+           any are bad, remove them.  Return a list of
+              (filename, ServerInfo, server descriptor, ID Fingerprint)
+           tuples for all the servers in the directory.
+           """
         res = []
         for fname in os.listdir(self.incomingDir):
             path = os.path.join(self.incomingDir,fname)
@@ -186,18 +244,22 @@ class IncomingQueue:
                 text, server = _readServer(path)
             except MixError, e:
                 os.unlink(path)
-                LOG.warn("Removed a bad server descriptor %s from incoming dir: %s",
-                         fname, e)
+                LOG.warn(
+                    "Removed a bad server descriptor %s from incoming dir: %s",
+                    fname, e)
                 continue
             fp = formatBase64(getIDFingerprint(server))
             res.append((fname, server, text, fp))
         return res
 
     def delPendingServers(self, fnames):
+        """Remove a list of pending servers with filename 'filename' from
+           the incoming directory."""
         for fname in fnames:
             if not tryUnlink(os.path.join(self.incomingDir, fname)):
                 LOG.warn("delPendingServers: no such server %s"%fname)
 
 class ServerQueuedException(Exception):
-    """DOCDOC"""
+    """Exception: raised when an incoming server is received for a previously
+       unknown nickname."""
     pass

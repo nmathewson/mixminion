@@ -1,9 +1,10 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.29 2003/06/05 05:24:23 nickm Exp $
+# $Id: ServerList.py,v 1.30 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.directory.ServerList
 
-   Implements a store of serverinfos for a directory.
+   Implements a store of serverinfos for a directory, as well as functions
+   to generate and sign directories.
 
    FFFF Right now, this is about maximally slow.  There are a lot of tricks
    FFFF we could do to speed it up: not revalidating servers in our cache;
@@ -66,6 +67,7 @@ class ServerList:
     #  servers: Map from filename within <serverDir> to ServerInfo objects.
     #  serversByNickname: A map from lowercased server nickname to
     #       lists of filenames within <serverDir>
+    #  idCache: an instance of Directory.IDCache
     ##Layout:
     #  basedir
     #     server-ids/
@@ -86,8 +88,7 @@ class ServerList:
     #          dir-dategenerated.N ...
     #     identity
     #     .lock
-    #
-    # idCache: DOCDOC
+    
     def __init__(self, baseDir, idCache=None):
         """Initialize a ServerList to store servers under baseDir/servers,
            creating directories as needed.
@@ -130,7 +131,8 @@ class ServerList:
             self._unlock()
 
     def learnServerID(self, server):
-        """DOCDOC"""
+        """Mark the ID for a server descriptor as the canonical
+           identity key associated with that server's nickname."""
         try:
             self._lock()
             ident = server.getIdentity()
@@ -158,8 +160,8 @@ class ServerList:
                file containing the descriptor (possibly gzip'd)
            knownOnly -- if true, raise MixError is we don't already have
                a descriptor with this nickname.
-
-           DOCDOC
+           server -- If provided, a parsed ServerInfo corresponding to
+               'contents'.
         """
         # Raises ConfigError, MixError,
 
@@ -283,7 +285,6 @@ class ServerList:
             # FFFF We should probably not do all of this in RAM, but
             # FFFF what the hey.  It will only matter if we have many, many
             # FFFF servers in the system.
-
             contents = [ ]
             for _, _, fn in included:
                 txt = readFile(os.path.join(self.serverDir, fn))
@@ -462,8 +463,11 @@ class ServerList:
         self.lockfile.release()
         self.rlock.release()
 
-
 def _writeServer(directory, contents, nickname, mode=0600):
+    """Write a server descriptor in 'contents' into a new file in
+       'directory'.  The file will have permissions 'mode', and a name
+       of the form nickname-YYYYMMDDHHMMSS.n
+    """
     newFile = nickname+"-"+formatFnameTime()
     f, newFile = openUnique(os.path.join(directory, newFile), 'w', mode)
     newFile = os.path.split(newFile)[1]
@@ -472,6 +476,9 @@ def _writeServer(directory, contents, nickname, mode=0600):
     return newFile
 
 def _readServer(contents):
+    """Read a ServerInfo from the string 'contents', which is either a
+       server descriptor or the name of a file holding a descriptor.
+       Raise MixError on failure."""
     if stringContains(contents, "[Server]"):
         pass
     else:

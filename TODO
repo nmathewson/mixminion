@@ -169,7 +169,7 @@ For 0.0.4:
           right?
         o Resolve all the memory leaks.
         o resolve all XXXX004s
-        . Finish all documentation
+        o Finish all documentation
         - Add a warning banner.
         - Remaining unit tests
                 - Tests for remembering whether keys are published

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.47 2003/06/05 18:41:40 nickm Exp $
+# $Id: Main.py,v 1.48 2003/06/06 06:04:57 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -205,13 +205,9 @@ def main(args):
         printUsage()
         sys.exit(1)
 
-#    if args[1] not in ('unittests', 'benchmarks'):
-#        print "==========================================================="
-#        print "                     TURN  BACK  NOW  !!!"
-#        print "This version of Mixminion (0.0.4alpha3) is compatible with no"
-#        print "other version.  Go check out the maintenance branch if you"
-#        print "want to use this software to run a server or send messages."
-#        print "==========================================================="
+    if args[1] not in ('unittests', 'benchmarks'):
+        print "This software is for testing purposes only."\
+              "  Anonymity is not guaranteed."
 
     # Read the 'common' module to get the UIError class.  To simplify
     # command implementation code, we catch all UIError exceptions here.

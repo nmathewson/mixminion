@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.118 2003/06/05 18:41:40 nickm Exp $
+# $Id: test.py,v 1.119 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.tests
 
@@ -5864,8 +5864,9 @@ def testAll(name, args):
     LOG.setMinSeverity("FATAL")
     mixminion.Common.secureDelete([],1)
 
-    #DOCDOC
+    # Don't complain about owner on /tmp, no matter who is is.
     mixminion.Common._VALID_DIRECTORIES["/tmp"] = 1
+    mixminion.Common._VALID_DIRECTORIES["/var/tmp"] = 1
 
     # Disable TRACE and DEBUG log messages, unless somebody overrides from
     # the environment.

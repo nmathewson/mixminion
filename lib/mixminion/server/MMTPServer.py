@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.36 2003/06/05 18:41:40 nickm Exp $
+# $Id: MMTPServer.py,v 1.37 2003/06/06 06:04:58 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -235,8 +235,9 @@ class SimpleTLSConnection(Connection):
     #    __con: an underlying TLS object
     #    __state: a callback to use whenever we get a read or a write. May
     #           throw _ml.TLSWantRead or _ml.TLSWantWrite.  See __acceptFn,
-    #           __connectFn, __shutdownFn, __readFn, __writeFn.
-    #    __server: an AsyncServer.
+    #           __connectFn, __shutdownFn, __readFn, __writeFn.  If __state
+    #           is None, the connection should close immediately.
+    #    __server: an AsyncServer.  If None, the connection is closed.
     #    __inbuf: A list of strings that we've read since the last expectRead.
     #    __inbuflen: The total length of all the strings in __inbuf
     #    __expectReadLen: None, or the number of bytes to read before
@@ -246,9 +247,9 @@ class SimpleTLSConnection(Connection):
     #           writing.
     #    __servermode: If true, we're the server side of the connection.
     #           Else, we're the client side.
-    # DOCDOC __connecting
-    # DOCDOC __failed
-    # DOCDOC possibile None on state, server.
+    #    __connection: Are we currently trying to start a connection? (boolean)
+    #    __failed: Have we given up on this connection?
+
     def __init__(self, sock, tls, serverMode, address=None):
         """Create a new SimpleTLSConnection.
 
@@ -510,7 +511,8 @@ class SimpleTLSConnection(Connection):
         return "".join(self.__inbuf)
 
     def pullInput(self):
-        """DOCDOC"""
+        """Returns the current contents of the input buffer, and clears the
+           input buffer."""
         inp = "".join(self.__inbuf)
         del self.__inbuf[:]
         self.__inbuflen = 0
@@ -524,9 +526,15 @@ class SimpleTLSConnection(Connection):
         pass
 
     def remove(self):
-        """DOCDOC"""
+        """Called when this connection is shut down successfully or closed
+           with an error.  Removes all state associated with this connection.
+           """
         self.__server.unregister(self)
         self.__server = None
+
+        # Under heavy loads, having circular references through __state and
+        # __finished can keep the connection object alive for many garbage
+        # collections.  Let's nuke those so it is deleted right away.
         self.__state = None
         self.finished = None
 
@@ -695,6 +703,8 @@ class MMTPClientConnection(SimpleTLSConnection):
     # finishedCallback, certCache:
     #   As described in the docstring for __init__ below.  We remove entries
     #   from the front of messageList/handleList as we begin sending them.
+    # _curMessage, _curHandle: Correspond to the message and handle
+    #     that we are currently trying to deliver.    
     # junk: A list of 32KB padding chunks that we're going to send.  We
     #   pregenerate these to avoid timing attacks.  They correspond to
     #   the 'JUNK' entries in messageList.
@@ -705,10 +715,7 @@ class MMTPClientConnection(SimpleTLSConnection):
     #     if negotiation hasn't completed.
     # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
     #     in the order we offer them.
-    # _curMessage, _curHandle: Correspond to the message and handle
-    #     that we are currently trying to deliver.
-    # DOCDOC other callbacks
-    # DOCDOC active
+    # active: Are we currently able to send messages to a server?  Boolean.
 
     PROTOCOL_VERSIONS = [ '0.3' ]
     def __init__(self, context, ip, port, keyID, messageList, handleList,
@@ -772,7 +779,9 @@ class MMTPClientConnection(SimpleTLSConnection):
         debug("Opening client connection to %s", self.address)
 
     def isActive(self):
-        """DOCDOC"""
+        """Return true iff messages added to this connection via addMessages
+           will be delivered.  isActive() will return false if, for example,
+           the connection is currently shutting down."""
         return self.active
 
     def addMessages(self, messages, handles):
@@ -926,13 +935,10 @@ class MMTPClientConnection(SimpleTLSConnection):
         self._curMessage = self._curHandle = None
 
     def shutdown(self, err=0, retriable=0):
-        #DOCDOC
-
         self.active = 0
         SimpleTLSConnection.shutdown(self, err=err, retriable=retriable)
 
     def remove(self):
-        """DOCDOC"""
         self.active = 0
         if self.finishedCallback is not None:
             self.finishedCallback()
@@ -941,8 +947,6 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.sentCallback = None
         
         SimpleTLSConnection.remove(self)
-            
-
 
 
 LISTEN_BACKLOG = 128

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
+# Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -636,7 +636,6 @@ class ClientDirectory:
 
         # Now figure out which relays we haven't used yet.
         used = filter(None, servers)
-        nNeeded = len([info for info in servers if info is None])
         relays = self.__find(self.byCapability['relay'], startAt, endAt)
         if not relays:
             raise UIError("No relays known")
@@ -745,42 +744,51 @@ def parsePath(directory, config, path, address, nHops=None,
        path, nHops must equal the path length; and if nHops is used _with_ a
        star on the path, nHops must be >= the path length.
     """
-    #DOCDOC comment this.
     if not path:
         path = '*'
-    explicitSwap = 0
+    # Break path into a list of entries of the form:
+    #        Nickname
+    #     or "<swap>"
+    #     or "?"
     p = path.replace(":", ",<swap>,").split(",")
     path = []
     for ent in p:
         if re.match(r'\*(\d+)', ent):
-            path.extend(("?")* int(ent[1:]))
+            path.extend(["?"]*int(ent[1:]))
         else:
             path.append(ent)
 
-    starPos = None
-    colonPos = None
-    for i in xrange(len(path)):
-        if path[i] == '<swap>':
-            if colonPos is not None:
-                raise UIError("Can't specify swap point twise")
-            colonPos = i
-            explicitSwap = 1
-        elif path[i] == '*':
-            if starPos is not None:
-                raise UIError("Can't have two variable-length wildcards in a path")
-            starPos = i
+    # set explicitSwap to true iff the user specified a swap point.
+    explicitSwap = path.count("<swap>")
+    # set colonPos to the index of the explicit swap point, if any.
+    if path.count("<swap>") > 1:
+        raise UIError("Can't specify swap point twise")
 
-    myNHops = nHops or defaultNHops or 6
+    # set starPos to the index of the var-length wildcard, if any.
+    if path.count("*") > 1:
+        raise UIError("Can't have two variable-length wildcards in a path")
+    elif path.count("*") == 1:
+        starPos = path.index("*")
+    else:
+        starPos = None
+
+    # If there's a variable-length wildcard...
     if starPos is not None:
+        # Find out how many hops we should have.
+        myNHops = nHops or defaultNHops or 6
+        # Figure out how many nodes we need to add.
         haveHops = len(path) - 1
-        if colonPos is not None:
+        # A colon will throw the count off.
+        if explicitSwap:
             haveHops -= 1
         path[starPos:starPos+1] = ["?"]*max(0,myNHops-haveHops)
 
-    if colonPos is not None:
+    # Figure out how long the first leg should be.
+    if explicitSwap:
+        # Calculate colon position
+        colonPos = path.index("<swap>")
         if halfPath:
             raise UIError("Can't specify swap point with replies")
-        colonPos = path.index("<swap>")
         firstLegLen = colonPos
         del path[colonPos]
     elif halfPath:
@@ -788,13 +796,16 @@ def parsePath(directory, config, path, address, nHops=None,
     else:
         firstLegLen = ceilDiv(len(path), 2)
 
+    # Do we have the right # of hops?
     if nHops is not None and len(path) != nHops:
         raise UIError("Mismatch between specified path lengths")
 
+    # Replace all '?'s in path with [None].
     for i in xrange(len(path)):
         if path[i] == '?': path[i] = None
 
-    # DOCDOC Remark: why do this now
+    # Figure out what capability we need in our exit node, so that
+    # we can tell the directory.
     if address is None:
         rt, ri, exitNode = None, None, None
         exitCap = 'relay'
@@ -807,9 +818,11 @@ def parsePath(directory, config, path, address, nHops=None,
         else:
             exitCap = None
 
+    # If we have an explicit exit node from the address, append it.
     if exitNode is not None:
         path.append(exitNode)
 
+    # Get a list of serverinfo.
     path = directory.getPath(endCap=exitCap,
                              template=path, startAt=startAt, endAt=endAt)
 
@@ -827,16 +840,19 @@ def parsePath(directory, config, path, address, nHops=None,
                       % (path[-1].getNickname(), exitCap))
 
 
+    # Split the path into 2 legs.
     path1, path2 = path[:firstLegLen], path[firstLegLen:]
     if not halfPath and len(path1)+len(path2) < 2:
         raise UIError("Path is too short")
     if not halfPath and (not path1 or not path2):
         raise UIError("Each leg of the path must have at least 1 hop")
 
+    # Make sure the path can fit into the headers.
     mixminion.BuildMessage.checkPathLength(path1, path2,
                                            rt,ri,
                                            explicitSwap)
 
+    # Return the two legs of the path.
     return path1, path2
 
 def parsePathLeg(directory, config, path, nHops, address=None,
@@ -867,7 +883,8 @@ class ClientKeyring:
     """
     ## Fields:
     # keyDir: The directory where we store our keys.
-    # keyring: DICT DOCDOC
+    # keyring: Dict to map from strings of the form "SURB-keyname" to SURB
+    #     secrets.
     # keyringPassword: The password for our encrypted keyfile
     ## Format:
     # We store keys in a file holding:
@@ -876,7 +893,10 @@ class ClientKeyring:
     #  variable         ENCRYPTED DATA:KEY=sha1(salt+password+salt)
     #                                  DATA=encrypted_pickled_data+
     #                                                   sha1(data+salt+magic)
-
+    
+    # XXXX There needs to be some way to rotate and expire SURB secrets.
+    # XXXX Otherwise, we're very vulnerable to compromise.
+    
     def __init__(self, keyDir):
         """Create a new ClientKeyring to store data in keyDir"""
         self.keyDir = keyDir
@@ -885,6 +905,13 @@ class ClientKeyring:
         self.keyringPassword = None
 
     def getKey(self, keyid, create=0, createFn=None, password=None):
+        """Helper function. Return a key for a given keyid.
+
+           keyid -- the name of the key.
+           create -- If true, create a new key if none is found.
+           createFn -- a callback to return a new key.
+           password -- Optionally, a password for the keyring.
+        """
         if self.keyring is None:
             self.getKeyring(create=create,password=password)
             if self.keyring is None:
@@ -902,6 +929,11 @@ class ClientKeyring:
                 return key
 
     def getKeyring(self, create=0, password=None):
+        """Return a the current keyring, loading it if necessary.
+
+           create -- if true, create a new keyring if none is found.
+           password -- optionally, a password for the keyring.
+        """
         if self.keyring is not None:
             return self.keyring
         fn = os.path.join(self.keyDir, "keyring")
@@ -945,6 +977,7 @@ class ClientKeyring:
             return {}
 
     def _saveKeyring(self):
+        """Save the current keyring to disk."""
         assert self.keyringPassword is not None
         fn = os.path.join(self.keyDir, "keyring")
         LOG.trace("Saving keyring to %s", fn)
@@ -954,6 +987,7 @@ class ClientKeyring:
         os.rename(fn+"_tmp", fn)
 
     def getSURBKey(self, name="", create=0, password=None):
+        """Return the key for a given SURB identity."""
         k = self.getKey("SURB-"+name,
                         create=create, createFn=lambda: trng(20),
                         password=password)
@@ -962,6 +996,8 @@ class ClientKeyring:
         return k
 
     def getSURBKeys(self,password=None):
+        """Return the keys for _all_ SURB identities as a map from name
+           to key."""
         self.getKeyring(create=0,password=password)
         if not self.keyring: return {}
         r = {}
@@ -1819,7 +1855,7 @@ class CLIArgumentParser:
                         "Unrecognized value for %s. Expected 'yes' or 'no'"%o)
                 if self.download not in (None, dl):
                     raise UIError(
-                        "Value of %s for %o conflicts with earlier value" %
+                        "Value of %s for %s conflicts with earlier value" %
                         (v, o))
                 self.download = dl
             elif o in ('-t', '--to'):
@@ -2067,6 +2103,8 @@ EXAMPLES:
 """.strip()
 
 def sendUsageAndExit(cmd, error=None):
+    """Print a usage message for the mixminion send command (and family)
+       and exit."""
     if error:
         print >>sys.stderr, "ERROR: %s"%error
         print >>sys.stderr, "For usage, run 'mixminion send --help'"
@@ -2082,7 +2120,10 @@ def sendUsageAndExit(cmd, error=None):
     sys.exit(0)
 
 def runClient(cmd, args):
-    #DOCDOC Comment this function
+    """[Entry point]  Generate an outgoing mixminion message and possibly
+       send it.  Implements 'mixminion send' and 'mixminion queue'."""
+
+    # Are we queueing?
     queueMode = 0
     if cmd.endswith(" queue"):
         queueMode = 1
@@ -2090,6 +2131,8 @@ def runClient(cmd, args):
         LOG.warn("The 'pool' command is deprecated.  Use 'queue' instead.")
         queueMode = 1
 
+    ###
+    # Parse and validate our options.
     #XXXX005 remove obsolete swap-at option.
     options, args = getopt.getopt(args, "hvf:D:t:H:P:R:i:",
              ["help", "verbose", "config=", "download-directory=",
@@ -2135,6 +2178,7 @@ def runClient(cmd, args):
     path1, path2 = parser.getForwardPath()
     address = parser.address
 
+    # Get our surb, if any.
     if parser.usingSURBList and inFile in ('-', None):
         # We check to make sure that we have a valid SURB before reading
         # from stdin.
@@ -2142,7 +2186,7 @@ def runClient(cmd, args):
         try:
             s = surblog.findUnusedSURB(parser.path2)
             if s is None:
-                raise UIError("No unused, unexpired reply blocks found.")
+                raise UIError("No unused and unexpired reply blocks found.")
         finally:
             surblog.close()
 
@@ -2186,8 +2230,7 @@ Options
                             fresh directory.
 """
 def runPing(cmd, args):
-    #DOCDOC comment me
-
+    """[Entry point] Send link padding to servers to see if they're up."""
     if len(args) == 1 and args[0] in ('-h', '--help'):
         print _PING_USAGE
         sys.exit(0)
@@ -2241,6 +2284,7 @@ EXAMPLES:
 """.strip()
 
 def importServer(cmd, args):
+    """[Entry point] Manually add a server to the client directory."""
     options, args = getopt.getopt(args, "hf:v", ['help', 'config=', 'verbose'])
 
     try:
@@ -2283,11 +2327,13 @@ EXAMPLES:
 """.strip()
 
 def listServers(cmd, args):
+    """[Entry point] Print info about """
     options, args = getopt.getopt(args, "hf:D:v",
                                   ['help', 'config=', "download-directory=",
                                    'verbose'])
     try:
-        parser = CLIArgumentParser(options, wantConfig=1, wantClientDirectory=1,
+        parser = CLIArgumentParser(options, wantConfig=1,
+                                   wantClientDirectory=1,
                                    wantLog=1, wantDownload=1)
     except UsageError, e:
         e.dump()
@@ -2354,7 +2400,7 @@ EXAMPLES:
 """.strip()
 
 def clientDecode(cmd, args):
-    #DOCDOC Comment me
+    """[Entry point] Decode a message."""
     options, args = getopt.getopt(args, "hvf:o:Fi:",
           ['help', 'verbose', 'config=',
            'output=', 'force', 'input='])
@@ -2459,7 +2505,6 @@ EXAMPLES:
 """.strip()
 
 def generateSURB(cmd, args):
-    #DOCDOC Comment me
     options, args = getopt.getopt(args, "hvf:D:t:H:P:o:bn:",
           ['help', 'verbose', 'config=', 'download-directory=',
            'to=', 'hops=', 'path=', 'lifetime=',
@@ -2624,7 +2669,7 @@ EXAMPLES:
 
 def listQueue(cmd, args):
     options, args = getopt.getopt(args, "hvf:",
-             ["help", "verbose", "config=", ])
+                                  ["help", "verbose", "config=", ])
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
                                    wantClient=1)

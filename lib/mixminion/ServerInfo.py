@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.47 2003/06/05 18:41:40 nickm Exp $
+# $Id: ServerInfo.py,v 1.48 2003/06/06 06:04:57 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -309,7 +309,11 @@ class ServerDirectory:
        become very inefficient when directories get big, but we won't have
        that problem for a while."""
     ##Fields:
-    # servers: list of validated ServerInfo objects, in no particular order.
+    # allServers: list of validated ServerInfo objects, in no particular order.
+    # servers: sub-list of self.allServers, containing all of the servers
+    #    that are recommended.
+    # goodServerNames: list of lowercased nicknames for the recommended
+    #    servers in this directory.
     # header: a _DirectoryHeader object for the non-serverinfo part of this
     #    directory.
     def __init__(self, string=None, fname=None, validatedDigests=None):
@@ -338,26 +342,28 @@ class ServerDirectory:
         servercontents = [ "[Server]\n%s"%s for s in sections[1:] ]
 
         self.header = _DirectoryHeader(headercontents, digest)
-        #DOCDOC
-        self.goodServers = [name.strip().lower() for name in
+        self.goodServerNames = [name.strip().lower() for name in
                    self.header['Directory']['Recommended-Servers'].split(",")]
         servers = [ ServerInfo(string=s,
                                validatedDigests=validatedDigests)
                     for s in servercontents ]
-        self.allServers = servers[:] #DOCDOC
+        self.allServers = servers[:]
         self.servers = [ s for s in servers
-                         if s.getNickname().lower() in self.goodServers ]
+                         if s.getNickname().lower() in self.goodServerNames ]
 
     def getServers(self):
-        """Return a list of ServerInfo objects in this directory"""
+        """Return a list of recommended ServerInfo objects in this directory"""
         return self.servers
 
     def getAllServers(self):
-        """DOCDOC"""
+        """Return a list of all (even unrecommended) ServerInfo objects in
+           this directory."""
         return self.allServers
 
     def getRecommendedNicknames(self):
-        return self.goodServers
+        """Return a list of the (lowercased) nicknames of all of the
+           recommended servers in this directory."""
+        return self.goodServerNames
 
     def __getitem__(self, item):
         return self.header[item]

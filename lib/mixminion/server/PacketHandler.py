@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.16 2003/05/17 00:08:45 nickm Exp $
+# $Id: PacketHandler.py,v 1.17 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -32,7 +32,7 @@ class PacketHandler:
     # privatekeys: a list of 2-tuples of
     #      (1) a RSA private key that we accept
     #      (2) a HashLog objects corresponding to the given key
-    def __init__(self, privatekey=(), hashlog=()):
+    def __init__(self, privatekeys=(), hashlogs=()):
         """Constructs a new packet handler, given a sequence of
            private key object for header encryption, and a sequence of
            corresponding hashlog object to prevent replays.
@@ -45,9 +45,10 @@ class PacketHandler:
         self.privatekeys = []
         self.lock = threading.Lock()
 
-        assert type(privatekey) in (types.ListType, types.TupleType)
+        assert type(privatekeys) in (types.ListType, types.TupleType)
+        assert type(hashlogs) in (types.ListType, types.TupleType)
 
-        self.setKeys(privatekey, hashlog)
+        self.setKeys(privatekeys, hashlogs)
 
     def setKeys(self, keys, hashlogs):
         """Change the keys and hashlogs used by this PacketHandler.

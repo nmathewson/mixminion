@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.15 2003/05/29 05:32:11 nickm Exp $
+# $Id: DirMain.py,v 1.16 2003/06/06 06:04:58 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -22,22 +22,26 @@ from mixminion.directory.Directory import Directory, DirectoryConfig
 USAGE = """\
 Usage: mixminion dir <command>
    Where 'command' is one of:
-      initialize [DOCDOC]
-      import-new <nickname>  [Import a descriptor for a new server]
-      list [DOCDOC]
-      update [DOCDOC]
+      initialize               [Set up a new set of directory files]
+      import-new <nickname>    [Import a descriptor for a new server]
+      list                     [List descriptors waiting to be imported]
+      update                   [Process updates for currently known servers]
       generate                 [Generate and sign a new directory]
       fingerprint              [Return the fingerprint of this directory's pk]
 """.strip()
 
 def getDirectory():
+    """Return the Directory object for this directory.  Looks for a
+       configuration file first in $MINION_DIR_CONF, then in
+       ~/.mixminion_dir.cf, then in /etc/mixminion_dir.cf.
+    """
     fn = os.environ.get('MINION_DIR_CONF')
     if not fn:
         fn = os.path.expanduser("~/.mixminion_dir.cf")
         if not os.path.exists(fn):
             fn = None
     if not fn:
-        fn = "/etc/mixion_dir.cf"
+        fn = "/etc/mixminion_dir.cf"
         if not os.path.exists(fn):
             fn = None
     if not fn:
@@ -56,6 +60,7 @@ def usageAndExit():
     sys.exit(0)
 
 def cmd_init(args):
+    """[Entry point] Set up a new set of directory files."""
     if args:
         raise UIError("mixminion dir initialize takes no arguments")
     
@@ -65,6 +70,9 @@ def cmd_init(args):
     d.getInbox()
 
 def cmd_update(args):
+    """[Entry point] Process updates for currently known servers: copies
+       descriptors from the Inbox to ServerList.  This can be run automatically
+       as part of a cron job."""
     if args:
         raise UIError("mixminion dir update takes no arguments")
     
@@ -74,6 +82,7 @@ def cmd_update(args):
     inbox.acceptUpdates(serverList)
 
 def cmd_list(args):
+    """[Entry point] List descriptors waiting to be imported."""
     if args:
         raise UIError("mixminion dir list takes no arguments")
 
@@ -82,6 +91,7 @@ def cmd_list(args):
     inbox.listNewPendingServers(sys.stdout)
 
 def cmd_import(args):
+    """[Entry point] Import descriptors for new servers, by nickname."""
     d = getDirectory()
     inbox = d.getInbox()
     serverList = d.getServerList()
@@ -103,6 +113,8 @@ def cmd_import(args):
     print "\n%s servers imported, %s rejected." %(good,bad)
 
 def cmd_generate(args):
+    """[Entry point] generate a fresh directory.  Can be run from a cron
+       job."""
     if args:
         raise UIError("mixminion dir generate takes no arguments")
 
@@ -153,6 +165,8 @@ def cmd_generate(args):
     print "Published."
 
 def cmd_fingerprint(args):
+    """[Entry point] Print the fingerprint for this directory's key."""
+
     if args:
         raise UIError("mixminion dir fingerprint takes no arguments")
     d = getDirectory()
@@ -168,6 +182,7 @@ SUBCOMMANDS = { 'initialize' : cmd_init,
                 }
 
 def main(cmd, args):
+    """[Entry point] Multiplex among subcommands."""
     if len(args)<1 or ('-h', '--help') in args:
         usageAndExit()
     command = args[0]
