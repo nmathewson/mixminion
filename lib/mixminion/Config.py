@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.58 2003/09/28 05:27:56 nickm Exp $
+# $Id: Config.py,v 1.59 2003/10/06 20:53:02 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -569,6 +569,7 @@ class _ConfigFile:
     #   will be set to None.
 
     _syntax = None
+    _features = {}
     _restrictFormat = 0
     _restrictKeys = 1
     _restrictSections = 1
@@ -734,6 +735,41 @@ class _ConfigFile:
            override.  Returns a revised version of its input.
         """
         return contents
+
+    def resolveFeatureName(self, name):
+        """DOCDOC"""
+        #XXXX006 this should be case insensitive.
+        syn = self._syntax
+        if self._features.has_key(name):
+            return "-", name
+        elif ':' in name:
+            idx = name.index(':')
+            sec, ent = name[:idx], name[idx+1:]
+            if not syn.has_key(sec) or not syn[sec].has_key[ent]:
+                raise UIError("Section %s has no entry %s"%(sec,ent))
+            return sec,ent
+        elif syn.has_key(name):
+            raise UIError("No key given for section %s"%name)
+        else:
+            secs = []
+            for secname, secitems in syn.items():
+                if secitems.has_key(name):
+                    secs.append(name)
+            if len(secs) == 0:
+                raise UIError("No key named %s found"%name)
+            elif len(secs) > 1:
+                secs = [ "%s/%s"%(name, sec) for sec in secs ]
+                raise UIError("%s is ambiguous.  Did you mean %s?",
+                              name, englishSequence(secs,compound="or"))
+            else:
+                return secs[0],name
+
+    def getFeature(self,sec,name):
+        """DOCDOC"""
+        if sec == "-":
+            return "XXXX" #XXXX006 insert magic.
+        else:
+            return self[sec].get(name,"<none>")
 
     def validate(self, entryLines, fileContents):
         """Check additional semantic properties of a set of configuration
