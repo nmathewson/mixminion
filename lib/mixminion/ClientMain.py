@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.28 2003/01/06 03:29:45 nickm Exp $
+# $Id: ClientMain.py,v 1.29 2003/01/06 04:58:14 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -217,9 +217,6 @@ class ClientKeystore:
 
     def __load(self):
         """Helper method. Read the cached parsed descriptors from disk."""
-        #self.lastModified = self.lastDownload = -1
-        #self.serverList = []
-        #self.digestMap = {}
         try:
             f = open(os.path.join(self.dir, "cache"), 'rb')
             cached = cPickle.load(f)
@@ -408,10 +405,16 @@ class ClientKeystore:
         newServers = []
         for info, where in self.serverList:
             others = [ s for s, _ in self.byNickname[info.getNickname()] ]
+            inDirectory = [ s.getDigest()
+                            for s, w in self.byNickname[info.getNickname()]
+                            if w == 'D' ]
             if (where != 'D'
                 and (info.isExpiredAt(cutoff)
-                     or info.isSupersededBy(others))):
-                # Otherwise, remove it.
+                     or info.isSupersededBy(others)
+                     or info.getDigest() in inDirectory)):
+                # If the descriptor is not in the directory, and it is
+                # expired, is superseded, or is duplicated by a descriptor
+                # from the directory, remove it.
                 try:
                     os.unlink(os.path.join(self.dir, "imported", where[2:]))
                 except OSError, e:
@@ -779,10 +782,6 @@ def installDefaultConfig(fname):
 
 [Security]
 PathLength: 4
-
-## Not yet implemented:
-# SURBAddress: mbox:quux
-# SURBPathLength: 8
 
 """)
     f.close()
