@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.22 2002/12/31 17:40:54 nickm Exp $
+# $Id: benchmark.py,v 1.23 2003/01/05 05:51:49 nickm Exp $
 
 """mixminion.benchmark
 
@@ -368,7 +368,7 @@ PublicKeyLifetime: 1 day
 EncryptPrivateKey: no
 Homedir: %s
 Mode: relay
-Nickname: The Server
+Nickname: The-Server
 Contact-Email: a@b.c
 [Incoming/MMTP]
 Enabled: yes
