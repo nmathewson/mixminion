@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.66 2003/07/07 23:46:50 nickm Exp $
+# $Id: setup.py,v 1.67 2003/07/08 19:33:44 nickm Exp $
 import sys
 
 #
@@ -396,6 +396,10 @@ if 'install' in sys.argv:
             os.unlink(fn)
         except OSError, e:
             print "Couldn't unlink obsolete Queue.py: %s"%e
+
+# This is needed for a clean build on redhat 9.
+if os.path.exists("/usr/kerberos/include"):
+    INCLUDE_DIRS.append("/usr/kerberos/include")
 
 INCLUDE_DIRS.append("src")
 
