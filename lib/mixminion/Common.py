@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.82 2003/05/28 08:08:19 nickm Exp $
+# $Id: Common.py,v 1.83 2003/05/28 08:39:45 nickm Exp $
 
 """mixminion.Common
 
@@ -302,8 +302,8 @@ def createPrivateDir(d, nocreate=0):
             raise MixFatalError("Nonexistent directory %s" % d)
         try:
             os.makedirs(d, 0700)
-        except OSError:
-            raise MixFatalError("Unable to create directory %s" % d)
+        except OSError, e:
+            raise MixFatalError("Unable to create directory %s: %s" % d, e)
 
     checkPrivateDir(d)
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.79 2003/05/28 07:36:24 nickm Exp $
+# $Id: ClientMain.py,v 1.80 2003/05/28 08:39:45 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -204,8 +204,9 @@ class ClientDirectory:
 
         try:
             os.unlink(os.path.join(self.dir, "cache"))
-        except OSError:
-            pass
+        except OSError, e:
+            if e.errno != errno.ENOENT:
+                raise
 
         # Install the new directory
         if gz:
