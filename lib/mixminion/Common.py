@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.116 2003/11/07 08:02:23 nickm Exp $
+# $Id: Common.py,v 1.117 2003/11/24 19:59:04 nickm Exp $
 
 """mixminion.Common
 
@@ -223,9 +223,10 @@ def englishSequence(lst, empty="none", compound="and"):
 
 _HOST_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
                "abcdefghijklmnopqrstuvwxyz"+
-               "0123456789.")
+               "0123456789.-")
 def isPlausibleHostname(s):
-    """DOCDOC"""
+    """Return true iff 's' is made up only of characters that sometimes
+       appear in hostnames, and has a plausible arrangement of dots."""
     if not s:
         return 0
     if s.translate(_ALLCHARS, _HOST_CHARS):
@@ -1072,14 +1073,14 @@ def formatTime(when,localtime=0):
         gmt = time.localtime(when)
     else:
         gmt = time.gmtime(when)
-    return "%04d/%02d/%02d %02d:%02d:%02d" % (
+    return "%04d-%02d-%02d %02d:%02d:%02d" % (
         gmt[0],gmt[1],gmt[2],  gmt[3],gmt[4],gmt[5])
 
 def formatDate(when):
     """Given a time in seconds since the epoch, returns a date value in the
        format used by server descriptors (YYYY/MM/DD) in GMT"""
     gmt = time.gmtime(when+1) # Add 1 to make sure we round down.
-    return "%04d/%02d/%02d" % (gmt[0],gmt[1],gmt[2])
+    return "%04d-%02d-%02d" % (gmt[0],gmt[1],gmt[2])
 
 def formatFnameTime(when=None):
     """Given a time in seconds since the epoch, returns a date value suitable
@@ -1272,7 +1273,7 @@ class IntervalSet:
         """Returns a list of (start,end) tuples for a the intervals in this
            set."""
         s = []
-        for i in range(0, len(self.edges), 2):
+        for i in xrange(0, len(self.edges), 2):
             s.append((self.edges[i][0], self.edges[i+1][0]))
         return s
 
@@ -1280,7 +1281,7 @@ class IntervalSet:
         """Helper function: raises AssertionError if this set's data is
            corrupted."""
         assert (len(self.edges) % 2) == 0
-        for i in range(0, len(self.edges), 2):
+        for i in xrange(0, len(self.edges), 2):
             assert self.edges[i][0] < self.edges[i+1][0]
             assert self.edges[i][1] == '+'
             assert self.edges[i+1][1] == '-'
@@ -1578,12 +1579,19 @@ if BUILTIN_QUEUE_HAS_TIMEOUT:
     TimeoutQueue = ClearableQueue
 else:
     class TimeoutQueue(ClearableQueue):
-        """DOCDOC -- for python 2.2 and earlier."""
+        """Helper class for Python 2.2. and earlier: extends the 'get'
+           functionality of Queue.Queue to support a 'timeout' argument.
+           If 'block' is true and timeout is provided, wait for no more
+           than 'timeout' seconds before raising QueueEmpty.
+           
+           In Python 2.3 and later, this interface is standard.
+        """
         def get(self, block=1, timeout=None):
-            if timeout is None:
+            if timeout is None or not block:
                 return MessageQueue.get(self, block)
 
-            # Adapted from 'Condition'.
+            # This logic is adapted from 'Condition' in the Python 
+            # threading module.
             _time = time.time
             _sleep = time.sleep
             deadline = timeout+_time()

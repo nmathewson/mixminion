@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.31 2003/11/19 09:48:10 nickm Exp $
+# $Id: PacketHandler.py,v 1.32 2003/11/24 19:59:05 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -294,7 +294,7 @@ class DeliveryPacket:
         """Construct a new DeliveryPacket."""
         assert 0 <= routingType <= 0xFFFF
         assert len(applicationKey) == 16
-        #assert len(tag) == 20 #XXXX006 make tag system sane.
+        #assert len(tag) == 20 #XXXX007 make tag system sane.
         assert len(tag) == 20 or routingType == Packet.FRAGMENT_TYPE
         assert len(payload) == 28*1024
         self.exitType = routingType
@@ -314,7 +314,8 @@ class DeliveryPacket:
         
     def __setstate__(self, state):
         if type(state) == types.DictType:
-            #XXXX006 remove this case.
+            #XXXX007 remove this case.  (Not used since 0.0.5alpha)
+            LOG.warn("Found ancient packet format.")
             self.__dict__.update(state)
             if not hasattr(self, 'isfrag'):
                 self.isfrag = 0

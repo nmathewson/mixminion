@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.57 2003/11/10 04:12:20 nickm Exp $
+# $Id: ServerKeys.py,v 1.58 2003/11/24 19:59:05 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -623,7 +623,7 @@ class ServerKeyset:
         os.rmdir(self.keydir)
 
     def checkKeys(self):
-        """DOCDOC"""
+        """Check whether all the required keys exist and are private."""
         checkPrivateFile(self.packetKeyFile)
         checkPrivateFile(self.mmtpKeyFile)        
 
@@ -643,7 +643,7 @@ class ServerKeyset:
                                      password)
 
     def clear(self):
-        """DOCDOC"""
+        """Stop holding the keys in memory."""
         self.packetKey = self.mmtpKey = None
 
     def getCertFileName(self): return self.certFile
@@ -1196,7 +1196,8 @@ def _checkHostnameIsLocal(name):
                     LOG.warn("Hostname %r resolves to reserved address %s",
                              name,addr)
     except socket.error, e:
-        # XXXX006 Turn into a warning?
+        # ???? Turn this into a warning, if people have a real reason to
+        # ???? use a hostname that they themselves cannot resolve.
         raise UIError("Cannot resolve hostname %r: %s"%(name,e))
     _KNOWN_LOCAL_HOSTNAMES[name] = 1
 

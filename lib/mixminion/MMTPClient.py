@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.42 2003/11/19 09:48:09 nickm Exp $
+# $Id: MMTPClient.py,v 1.43 2003/11/24 19:59:04 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -35,6 +35,7 @@ class BlockingClientConnection:
     # targetKeyID -- sha1 hash of the ASN1 encoding of the public key we
     #   expect the server to use, or None if we don't care.
     # context: a TLSContext object; used to create connections.
+    # serverName: The name of the server to display in log messages.
     # sock: a TCP socket, open to the server.
     # tls: a TLS socket, wrapping sock.
     # protocol: The MMTP protocol version we're currently using, or None
@@ -58,7 +59,6 @@ class BlockingClientConnection:
         self.certCache = PeerCertificateCache()
         if serverName:
             self.serverName = serverName
-            #DOCDOC
         else:
             self.serverName = mixminion.ServerInfo.displayServer(
                 mixminion.Packet.IPV4Info(targetAddr, targetPort, targetKeyID))
@@ -283,11 +283,11 @@ class PeerCertificateCache:
     def __init__(self):
         self.cache = {}
 
-    #XXXX006 use displayName to 
     def check(self, tls, targetKeyID, serverName):
         """Check whether the certificate chain on the TLS connection 'tls'
            is valid, current, and matches the keyID 'targetKeyID'.  If so,
-           return.  If not, raise MixProtocolBadAuth.
+           return.  If not, raise MixProtocolBadAuth.  Display all messages
+           using the server 'serverName'.
         """
         
         # First, make sure the certificate is neither premature nor expired.
@@ -304,6 +304,7 @@ class PeerCertificateCache:
 
         # Get the KeyID for the peer (temporary) key.
         hashed_peer_pk = sha1(tls.get_peer_cert_pk().encode_key(public=1))
+
         # Before 0.0.4alpha, a server's keyID was a hash of its current
         # TLS public key.  In 0.0.4alpha, we allowed this for backward
         # compatibility.  As of 0.0.4alpha2, since we've dropped backward

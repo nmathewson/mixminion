@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.33 2003/10/13 17:11:09 nickm Exp $ */
+/* $Id: crypt.c,v 1.34 2003/11/24 19:59:05 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -39,6 +39,9 @@
 
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)
 #define KEY_IS_PRIVATE(rsa) ((rsa)->p)
+#ifdef MS_WINDOWS
+#define WIN_ERR(s) PyErr_SetString(PyExc_WindowsError, s)
+#endif
 
 char mm_CryptoError__doc__[] =
   "mixminion._minionlib.SSLError\n\n"
@@ -357,7 +360,8 @@ static int provider_set = 0;
 static HCRYPTPROV provider;
 
 /* Helper method: return a handle for a Windows Crypto API crypto provider,
- * initializing it if necessary. */
+ * initializing it if necessary.  Raise an exception and return 0 on failure.
+ */
 static HCRYPTPROV getProvider()
 {
         if (provider_set)
@@ -369,12 +373,12 @@ static HCRYPTPROV getProvider()
                                  PROV_RSA_FULL,
                                  0)) {
                 if (GetLastError() != NTE_BAD_KEYSET) {
-                        /* XXXX006 error */
+                        WIN_ERR("Can't get CryptoAPI provider [1]");
                         return 0;
                 }
                 if (!CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL,
                                         CRYPT_NEWKEYSET)) {
-                        /* XXXX006 error */
+                        WIN_ERR("Can't get CryptoAPI provider [2]");
                         return 0;
                 }
         }
@@ -408,8 +412,9 @@ mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
-        if (!(p = getProvider())) {
-                TYPE_ERR("XXXX006 internal error 2 ");
+        p = getProvider();
+        if (!provider_set) {
+                /* Exception is already set. */
                 return NULL;
         }
 
@@ -418,17 +423,14 @@ mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
                 PyErr_NoMemory(); return NULL;
         }
 
-                
-
         Py_BEGIN_ALLOW_THREADS
         r = CryptGenRandom(getProvider(), n, PyString_AS_STRING(result));
         Py_END_ALLOW_THREADS
         
         if (!r) {
-               /*XXXX006 error */
-               Py_DECREF(result);
-               TYPE_ERR("XXXX006 internal error ");
-               return NULL;
+                Py_DECREF(result);
+                WIN_ERR("Error generating random bytes");
+                return NULL;
         }
 
         return result;

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.61 2003/11/19 09:48:09 nickm Exp $
+# $Id: Main.py,v 1.62 2003/11/24 19:59:04 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -141,11 +141,6 @@ _COMMANDS = {
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
 
     "shell":           ( 'mixminion.Main',       'commandShell' ),
-    
-    # XXXX006 Obsolete commands.  Remove in 0.0.6
-    "server" :         ( 'mixminion.Main', 'rejectCommand' ),
-    "inspect-pool" :   ( 'mixminion.Main', 'rejectCommand' ),
-    "pool" :           ( 'mixminion.Main', 'rejectCommand' ),
 }
 
 _USAGE = (
@@ -191,11 +186,11 @@ def printVersion(cmd,args):
     print "      to be anonymous, and the code is too alpha to be reliable."
 
 def rejectCommand(cmd,args):
+    # This function gets called when we have an obsolete command 'cmd'.
+    # First, let's see whether we know an updated equivalent or not.
     cmd = cmd.split()[-1]
-    cmdDict = { "client" : "send",
-                "pool" : "queue",
-                "inspect-pool" : "inspect-queue",
-                "server" : "server-start" }
+    # Map from obsolete commands to current versions.
+    cmdDict = { } # Right now, there aren't any obsolete commands still in use.
     newCmd = cmdDict.get(cmd)
     if newCmd:
         print "The command %r is obsolete.  Use %r instead."%(cmd,newCmd)
@@ -210,6 +205,8 @@ def printUsage():
     print "      to be anonymous, and the code is too alpha to be reliable."
 
 def commandShell(cmd,args):
+    # Used to implement a 'mixminion shell' on systems (like windows) with
+    # somewhat bogus CLI support. 
     import mixminion
     import shlex
 

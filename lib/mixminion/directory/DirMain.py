@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.18 2003/11/20 04:03:47 nickm Exp $
+# $Id: DirMain.py,v 1.19 2003/11/24 19:59:04 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -28,6 +28,7 @@ Usage: mixminion dir <command>
       update                   [Process updates for currently known servers]
       generate                 [Generate and sign a new directory]
       fingerprint              [Return the fingerprint of this directory's pk]
+      rebuildcache             [Rebuild a corrupted or removed identity cache]
 """.strip()
 
 def getDirectory():
@@ -91,7 +92,9 @@ def cmd_list(args):
     inbox.listNewPendingServers(sys.stdout)
 
 def cmd_rebuildcache(args):
-    """DOCDOC"""
+    """[Entry point] Reconstruct the ID cache from the contents of the
+       'servers' directory.
+    """
     if args:
         raise UIError("mixminion dir rebuildcache takes no arguments")
     d = getDirectory()
@@ -193,7 +196,7 @@ SUBCOMMANDS = { 'initialize' : cmd_init,
                 'generate' : cmd_generate,
                 'fingerprint' : cmd_fingerprint,
                 'rebuildcache' : cmd_rebuildcache
-                }
+                } 
 
 def main(cmd, args):
     """[Entry point] Multiplex among subcommands."""

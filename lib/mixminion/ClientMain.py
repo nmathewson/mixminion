@@ -21,10 +21,11 @@ import mixminion.Config
 import mixminion.Crypto
 import mixminion.Filestore
 import mixminion.MMTPClient
+import mixminion.ServerInfo
 
 from mixminion.Common import LOG, Lockfile, LockfileLocked, MixError, \
      MixFatalError, MixProtocolBadAuth, MixProtocolError, UIError, \
-     UsageError, createPrivateDir, isPrintingAscii, isSMTPMailbox, readFile, \
+     UsageError, createPrivateDir, englishSequence, isPrintingAscii, isSMTPMailbox, readFile, \
      stringContains, succeedingMidnight, writeFile, previousMidnight, floorDiv
 from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
@@ -61,32 +62,42 @@ class ClientKeyring:
        is limited to a single SURB decryption key.  In the future, we may
        include more SURB keys, as well as end-to-end encryption keys.
     """
-    # XXXX Most of this class should go into ClientUtils?
-    # XXXX006 Are the error messages here still reasonable?
-    # DOCDOC -- very changed.
+    # XXXX Can any more of this class should go into ClientUtils?
+    ## Fields
+    # keyring: an instance of ClientUtils.Keyring
+
+    # We discard SURB keys after 3 months.
     KEY_LIFETIME = 3*30*24*60*60
+    # We don't make new SURBs with any key that will expire in the next
+    # month.
     MIN_KEY_LIFETIME_TO_USE = 30*24*60*60
     
     def __init__(self, keyDir, passwordManager=None):
-        """DOCDOC"""
+        """Create a new ClientKeyring, storing its keys in 'keyDir'"""
         if passwordManager is None:
             passwordManager = mixminion.ClientUtils.CLIPasswordManager()
         createPrivateDir(keyDir)
+
+        # XXXX008 remove this.
+        # We used to store our keys in a different format.  At this point,
+        # it's easier to change the filename.
         obsoleteFn = os.path.join(keyDir, "keyring")
         if os.path.exists(obsoleteFn):
             LOG.warn("Ignoring obsolete keyring stored in %r",obsoleteFn)
         fn = os.path.join(keyDir, "keyring.txt")
+
+        # Setup the keyring.
         self.keyring = mixminion.ClientUtils.Keyring(fn, passwordManager)
 
     def getSURBKey(self, name="", create=0, password=None):
-        """Helper function. Return a key for a given keyid.
+        """Return a SURB key for a given identity, asking for passwords and 
+           loading the keyring if necessary..  Return None on failure.
 
-           keyid -- the name of the key.
+           name -- the SURB key identity
            create -- If true, create a new key if none is found.
-           createFn -- a callback to return a new key.
            password -- Optionally, a password for the keyring.
-           DOCDOC
         """
+        # If we haven't loaded the keyring yet, try to do so.
         if not self.keyring.isLoaded():
             try:
                 self.keyring.load(create=create,password=password)
@@ -95,7 +106,8 @@ class ClientKeyring:
                 return None
             if not self.keyring.isLoaded():
                 return None
-
+        
+        
         try:
             key = self.keyring.getNewestSURBKey(
                 name,minLifetime=self.MIN_KEY_LIFETIME_TO_USE)
@@ -104,11 +116,14 @@ class ClientKeyring:
             elif not create:
                 return None
             else:
-                # No key, we're allowed to create.
+                # No key, but we're allowed to create a new one.
                 LOG.info("Creating new key for identity %r", name)
                 return self.keyring.newSURBKey(name,
                                                time.time()+self.KEY_LIFETIME)
         finally:
+            # Check whether we changed the keyring, and save it if we did.
+            # The keyring may have changed even if we didn't generate any
+            # new keys, so this check is always necessary.
             if self.keyring.isDirty():
                 self.keyring.save()
         
@@ -215,16 +230,22 @@ class MixminionClient:
                            startAt, endAt, forceQueue=0, forceNoQueue=0,
                            forceNoServerSideFragments=0):
         """Generate and send a forward message.
-            address -- the results of a parseAddress call
-            payload -- the contents of the message to send
-            servers1,servers2 -- lists of ServerInfos for the first and second
-               legs the path, respectively.
+            directory -- an instance of ClientDirectory; used to generate 
+               paths.
+            address -- an instance of ExitAddress, used to tell where to
+               deliver the message.
+            pathSpec -- an instance of PathSpec, describing the path to use.
+            message -- the contents of the message to send
+            startAt, endAt -- an interval over which all servers in the path
+               must be valid.
             forceQueue -- if true, do not try to send the message; simply
                queue it and exit.
             forceNoQueue -- if true, do not queue the message even if delivery
                fails.
-
-            DOCDOC forceNoServerSideFragments
+            forceNoServerSideFragments -- if true, and the message is too
+               large to fit in a single packet, deliver fragment packets to
+               the eventual recipient rather than having the exit server
+               defragment them.
         """
         assert not (forceQueue and forceNoQueue)
 
@@ -242,17 +263,22 @@ class MixminionClient:
                          startAt, endAt, forceQueue=0,
                          forceNoQueue=0):
         """Generate and send a reply message.
-            payload -- the contents of the message to send
-            servers -- a list of ServerInfos for the first leg of the path.
-            surbList -- a list of SURBs to consider for the second leg of
-               the path.  We use the first one that is neither expired nor
-               used, and mark it used.
+            directory -- an instance of ClientDirectory; used to generate 
+               paths.
+            address -- an instance of ExitAddress, used to tell where to
+               deliver the message.
+            pathSpec -- an instance of PathSpec, describing the path to use.
+            surbList -- a list of SURBs to consider using for the reply.  We
+               use the first N that are neither expired nor used, and mark them
+               used.
+            message -- the contents of the message to send
+            startAt, endAt -- an interval over which all servers in the path
+               must be valid.
             forceQueue -- if true, do not try to send the message; simply
                queue it and exit.
             forceNoQueue -- if true, do not queue the message even if delivery
                fails.
-
-               DOCDOC args are wrong."""
+        """
         #XXXX write unit tests
         allPackets = self.generateReplyPackets(
             directory, address, pathSpec, message, surbList, startAt, endAt)
@@ -267,6 +293,7 @@ class MixminionClient:
         """Generate an return a new ReplyBlock object.
             address -- the results of a parseAddress call
             servers -- lists of ServerInfos for the reply leg of the path.
+            name -- the name of the identity to use for the reply block.
             expiryTime -- if provided, a time at which the replyBlock must
                still be valid, and after which it should not be used.
         """
@@ -284,11 +311,21 @@ class MixminionClient:
         """Generate packets for a forward message, but do not send
            them.  Return a list of tuples of (the packet body, a
            ServerInfo for the first hop.)
-           
-           DOCDOC
+
+            directory -- an instance of ClientDirectory; used to generate 
+               paths.
+            address -- an instance of ExitAddress, used to tell where to
+               deliver the message.
+            pathSpec -- an instance of PathSpec, describing the path to use.
+            message -- the contents of the message to send
+            noSSFragments -- if true, and the message is too large to fit in a
+               single packet, deliver fragment packets to the eventual
+               recipient rather than having the exit server defragment them.
+            startAt, endAt -- an interval over which all servers in the path
+               must be valid.
             """
-        #XXXX006 we need to factor this long-message logic out to the
-        #XXXX006 common code.  For now, this is a temporary measure.
+        #XXXX we need to factor more of this long-message logic out to the
+        #XXXX common code.  For now, this is a temporary measure.
 
         if noSSFragments:
             fragmentedMessagePrefix = ""
@@ -326,14 +363,18 @@ class MixminionClient:
         """Generate a reply message, but do not send it.  Returns
            a tuple of (packet body, ServerInfo for the first hop.)
 
-            address -- the results of a parseAddress call
-            payload -- the contents of the message to send  (None for DROP
-              messages)
-            servers -- list of ServerInfo for the first leg of the path.
-            surbList -- a list of SURBs to consider for the second leg of
-               the path.  We use the first one that is neither expired nor
-               used, and mark it used.
-               DOCDOC: generates multiple packets
+
+            directory -- an instance of ClientDirectory; used to generate 
+               paths.
+            address -- an instance of ExitAddress, used to tell where to
+               deliver the message.
+            pathSpec -- an instance of PathSpec, describing the path to use.
+            message -- the contents of the message to send
+            surbList -- a list of SURBs to consider using for the reply.  We
+               use the first N that are neither expired nor used, and mark them
+               used.
+            startAt, endAt -- an interval over which all servers in the path
+               must be valid.
             """
         #XXXX write unit tests
         assert address.isReply
@@ -400,8 +441,6 @@ class MixminionClient:
 
            If warnIfLost is true, log a warning if we fail to deliver
            the packets, and we don't queue them.
-
-           DOCDOC never raises
            """
         #XXXX write unit tests
         timeout = self.config['Network'].get('ConnectionTimeout')
@@ -454,11 +493,11 @@ class MixminionClient:
             raise UIError(str(e))
 
     def flushQueue(self, maxPackets=None):
-        """Try to send all packets in the queue to their destinations.
-           DOCDOC maxPackets
+        """Try to send packets in the queue to their destinations.  Do not try
+           to send more than maxPackets packets.  If not all packets will be
+           sent, choose the ones to try at random.
         """
         #XXXX write unit tests
-
         class PacketProxy:
             def __init__(self,h,queue):
                 self.h = h
@@ -537,7 +576,6 @@ class MixminionClient:
             LOG.info("Packet queued")
         return handles
 
-    #XXXX006 rename to decodePacket ?
     def decodeMessage(self, s, force=0, isatty=0):
         """Given a string 's' containing one or more text-encoded messages,
            return a list containing the decoded messages.
@@ -1201,20 +1239,30 @@ Options:
                              Force the client to download/not to download a
                                fresh directory.
 
-   DOCDOC Somebody needs to explain this. :)
+  -R, --recommended          Only display recommended servers.
+  -T, --with-time            Display validity intervals for server descriptors.
+  --no-collapse              Don't combine descriptors with adjacent times.
+  -s <str>,--separator=<str> Separate features with <str> instead of tab.
+  -c, --cascade              Pretty-print results, cascading by descriptors.
+  -C, --cascade-features     Pretty-print results, cascading by features.
+  -F <name>,--feature=<name> Select which server features to list.
+  --list-features            Display a list of all recognized features.
                                
 EXAMPLES:
   List all currently known servers.
       %(cmd)s
+  Same as above, but explicitly name the features to be listed.
+      %(cmd)s -F caps -F status
 """.strip()
 
 def listServers(cmd, args):
     """[Entry point] Print info about """
-    options, args = getopt.getopt(args, "hf:D:vF:TVs:cC",
+    options, args = getopt.getopt(args, "hf:D:vF:JTRs:cC",
                                   ['help', 'config=', "download-directory=",
-                                   'verbose', 'feature=', 
-                                   'with-time', "no-collapse", "valid",
-                                   "separator=", "cascade","cascade-features"])
+                                   'verbose', 'feature=', 'justify',
+                                   'with-time', "no-collapse", "recommended",
+                                   "separator=", "cascade","cascade-features",
+                                   'list-features' ])
     try:
         parser = CLIArgumentParser(options, wantConfig=1,
                                    wantClientDirectory=1,
@@ -1226,37 +1274,61 @@ def listServers(cmd, args):
     features = []
     cascade = 0
     showTime = 0
-    validOnly = 0
-    separator = "\t"
+    goodOnly = 0
+    separator = None
+    justify = 0
+    listFeatures = 0
     for opt,val in options:
         if opt in ('-F', '--feature'):
             features.extend(val.split(","))
-        elif opt == ('-T'):
-            showTime += 1
-        elif opt == ('--with-time'):
+        elif opt in ('-T', '--with-time'):
             showTime = 1
         elif opt == ('--no-collapse'):
             showTime = 2
-        elif opt in ('-V', '--valid'):
-            validOnly = 1
+        elif opt in ('-R', '--recommended'):
+            goodOnly = 1
         elif opt in ('-s', '--separator'):
             separator = val
         elif opt in ('-c', '--cascade'):
             cascade = 1
         elif opt in ('-C', '--cascade-features'):
             cascade = 2
+        elif opt in ('-J', '--justify'):
+            justify = 1
+        elif opt == ('--list-features'):
+            listFeatures = 1
+
+    if listFeatures:
+        features = mixminion.Config.getFeatureList(
+            mixminion.ServerInfo.ServerInfo)
+        features.append(("caps",))
+        features.append(("status",))
+        for f in features:
+            fCanon = f[0]
+            if len(f)>1:
+                print "%-30s (abbreviate as %s)" % (
+                    f[0], englishSequence(f[1:],compound="or"))
+            else:
+                print f[0]
+        return
 
     if not features:
-        if validOnly:
+        if goodOnly:
             features = [ 'caps' ]
         else:
             features = [ 'caps', 'status' ]
+
+    if separator is None:
+        if justify:
+            separator = ' '
+        else:
+            separator = '\t'
 
     parser.init()
     directory = parser.directory
 
     # Look up features in directory.
-    featureMap = directory.getFeatureMap(features,goodOnly=validOnly)
+    featureMap = directory.getFeatureMap(features,goodOnly=goodOnly)
 
     # If any servers are listed on the command line, restrict to those
     # servers.
@@ -1270,7 +1342,7 @@ def listServers(cmd, args):
                 lcfound[nn.lower()] = 1
         for arg in args:
             if not lcfound.has_key(arg.lower()):
-                if validOnly:
+                if goodOnly:
                     raise UIError("No recommended descriptors found for %s"%
                                   arg)
                 else:
@@ -1284,7 +1356,7 @@ def listServers(cmd, args):
 
     # Now display the result.
     for line in mixminion.ClientDirectory.formatFeatureMap(
-        features,featureMap,showTime,cascade,separator):
+        features,featureMap,showTime,cascade,separator,justify):
         print line
         
 

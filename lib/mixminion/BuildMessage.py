@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.62 2003/11/20 08:51:27 nickm Exp $
+# $Id: BuildMessage.py,v 1.63 2003/11/24 19:59:03 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -83,7 +83,7 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
     return fragments
 
 def buildRandomPayload(paddingPRNG=None):
-    """DOCDOC"""
+    """Return a new random payload, suitable for use in a DROP packet."""
     if not paddingPRNG:
         paddingPRNG = Crypto.getCommonPRNG()
     return paddingPRNG.getBytes(PAYLOAD_LEN)
@@ -110,7 +110,7 @@ def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
         raise MixError("Second leg of path is empty")
 
     suppressTag = 0
-    #XXXX006 refactor _TYPES_WITHOUT_TAGS
+    #XXXX refactor _TYPES_WITHOUT_TAGS
     if exitType == DROP_TYPE or mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType):
         suppressTag = 1
 
@@ -333,14 +333,16 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     
 #----------------------------------------------------------------------
 # MESSAGE DECODING
-def decodePayload(payload, tag, key=None, userKeys=None):
+def decodePayload(payload, tag, key=None, userKeys=()):
     """Given a 28K payload and a 20-byte decoding tag, attempt to decode the
        original message.  Returns either a SingletonPayload instance, a
        FragmentPayload instance, or None.
 
            key: an RSA key to decode encrypted forward messages, or None
-           userKeys: a map from identity names to keys for reply blocks,
-                or None. DOCDOC : prefer list of (name,key)
+           userKeys: a sequence of (name,key) tuples maping identity names to 
+                SURB keys. For backward compatibility, 'userKeys' may also be
+                None (no SURBs known), a dict (from name to key), or a single
+                key (implied identity is "").
 
        If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,

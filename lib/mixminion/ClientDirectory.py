@@ -5,8 +5,8 @@
    dealing with mixminion directories.  This includes:
      - downloading and caching directories
      - path generation
-   DOCDOC
-     """
+     - address parsing.
+"""
 
 __all__ = [ 'ClientDirectory', 'parsePath', 'parseAddress' ]
 
@@ -64,9 +64,9 @@ class ClientDirectory:
     # goodServerNicknames: A map from lowercased nicknames of recommended
     #    servers to 1.
     ## Layout:
-    # DIR/cache: A cPickled tuple of ("ClientKeystore-0.2",
-    #         lastModified, lastDownload, clientVersions, serverlist,
-    #         fullServerList, digestMap) DOCDOC is this correct?
+    # DIR/cache: A cPickled tuple of ("ClientKeystore-0.3",
+    #         lastModified, lastDownload, clientVersions, serverList,
+    #         fullServerList, digestMap)
     # DIR/dir.gz *or* DIR/dir: A (possibly gzipped) directory file.
     # DIR/imported/: A directory of server descriptors.
     MAGIC = "ClientKeystore-0.3"
@@ -104,7 +104,8 @@ class ClientDirectory:
 
     def downloadDirectory(self, timeout=None):
         """Download a new directory from the network, validate it, and
-           rescan its servers. DOCDOC timeout"""
+           rescan its servers.  If the operation doesn't complete within
+           timeout seconds, raise an error."""
         # Start downloading the directory.
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
@@ -279,7 +280,8 @@ class ClientDirectory:
         writePickled(os.path.join(self.dir, "cache"), data)
 
     def _installAsKeyIDResolver(self):
-        """DOCDOC"""
+        """Use this ClientDirectory to identify servers in calls to 
+           ServerInfo.displayServer."""
         mixminion.ServerInfo._keyIDToNicknameFn = self.getNicknameByKeyID
 
     def importFromFile(self, filename):
@@ -743,11 +745,10 @@ class ClientDirectory:
         if endAt is None: endAt = startAt+self.DEFAULT_REQUIRED_LIFETIME
 
         p = pathSpec.path1+pathSpec.path2
+        assert p
         # Make sure all elements are valid.
         for e in p:
             e.validate(self, startAt, endAt)
-
-        #XXXX006 make sure p can never be empty!
 
         # If there is a 1st element, make sure we can route to it.
         fixed = p[0].getFixedServer(self, startAt, endAt)
@@ -875,7 +876,8 @@ def compressFeatureMap(featureMap, ignoreGaps=0, terse=0):
     
     return result
 
-def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" "):
+def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" ",
+                     just=0):
     """Given a list of features (by name; see Config.resolveFeatureName) and
        a featureMap as returned by ClientDirectory.getFeatureMap or
        compressFeatureMap, formats the map for display to an end users.
@@ -895,25 +897,42 @@ def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" "):
 
        'sep' is used to concatenate feauture values when putting them on
        the same line.
+
+       If 'just' is true, we left-justify features in columns.
        """
     nicknames = [ (nn.lower(), nn) for nn in featureMap.keys() ]
     nicknames.sort()
     lines = []
     if not nicknames: return lines
-    maxnicklen = max([len(nn) for nn in nicknames])
-    nnformat = "%-"+str(maxnicklen)+"s"
+
+    if just:
+        maxnicklen = max([len(nn) for nn in featureMap.keys()])
+        nnformat = "%-"+str(maxnicklen)+"s"
+        maxFeatureLength = {}
+        for f in features: maxFeatureLength[f] = 0
+        for byTime in featureMap.values():
+            for fMap in byTime.values():
+                for k, v in fMap.items():
+                    if maxFeatureLength[k] < len(v):
+                        maxFeatureLength[k] = len(v)
+        formatEntries = [ "%-"+str(maxFeatureLength[f])+"s" for 
+                          f in features ]
+        format = sep.join(formatEntries)
+    else:
+        nnformat = "%s"
+        format = sep.join(["%s"]*len(features))
+
     for _, nickname in nicknames:
         d = featureMap[nickname]
         if not d: continue
         items = d.items()
         items.sort()
         if cascade: lines.append("%s:"%nickname)
-        justified_nickname = nnformat%nickname
         for (va,vu),fmap in items:
             ftime = "%s to %s"%(formatDate(va),formatDate(vu))
+            fvals = tuple([fmap[f] for f in features])
             if cascade==1:
-                lines.append("  [%s] %s"%(ftime,
-                        sep.join([fmap[f] for f in features])))
+                lines.append("  [%s] %s"%(ftime, format%fvals))
             elif cascade==2:
                 if showTime:
                     lines.append("  [%s]"%ftime)
@@ -921,11 +940,10 @@ def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" "):
                     v = fmap[f]
                     lines.append("    %s:%s"%(f,v))
             elif showTime:
-                lines.append("%s:%s:%s" %(justified_nickname,ftime,
-                   sep.join([fmap[f] for f in features])))
+                lines.append("%s:%s:%s" %(nnformat%nickname,ftime,
+                                          format%fvals))
             else:
-                lines.append("%s:%s" %(justified_nickname,
-                   sep.join([fmap[f] for f in features])))
+                lines.append("%s:%s" %(nnformat%nickname,format%fvals))
     return lines
 
 #----------------------------------------------------------------------
@@ -1377,9 +1395,8 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
     if not path:
         path = "*%d"%(nHops or defaultNHops or 6)
     # Break path into a list of entries of the form:
-    #        Nickname
+    #        string
     #     or "<swap>"
-    #     or "?"
     p = []
     while path:
         if path[0] == "'":
@@ -1412,6 +1429,8 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
             path = path[1:]
             p.append("<swap>")
 
+    # Convert each parsed entry into a PathElement, or the string
+    # '*', or the string '<swap>'.
     pathEntries = []
     for ent in p:
         if re.match(r'\*(\d+)', ent):
@@ -1429,13 +1448,15 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
 
     # If there's a variable-length wildcard...
     if "*" in pathEntries:
-        # Find out how many hops we should have.
+        # Find out where it is...
         starPos = pathEntries.index("*")
         if "*" in pathEntries[starPos+1:]:
             raise UIError("Only one '*' is permitted in a single path")
+        # Figure out how many hops we expect to have...
         approxHops = reduce(operator.add,
                             [ ent.getAvgLength() for ent in pathEntries
                               if ent not in ("*", "<swap>") ], 0)
+        # Replace the '*' with the number of additional hops we want.
         myNHops = nHops or defaultNHops or 6
         extraHops = max(myNHops-approxHops, 0)
         pathEntries[starPos:starPos+1] =[RandomServersPathElement(n=extraHops)]
@@ -1447,24 +1468,33 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
     # Figure out how long the first leg should be.
     lateSplit = 0
     if "<swap>" in pathEntries:
-        # Calculate colon position
+        # We got a colon...
         if halfPath:
+            # ...in a reply or SURB. That's an error.
             raise UIError("Can't specify swap point with replies")
+        # Divide the path at the '<swap>'.
         colonPos = pathEntries.index("<swap>")
         if "<swap>" in pathEntries[colonPos+1:]:
             raise UIError("Only one ':' is permitted in a single path")
         firstLegLen = colonPos
         del pathEntries[colonPos]
     elif isReply:
+        # A reply message is all first leg.
         firstLegLen = len(pathEntries)
     elif isSURB:
+        # A SURB is all second-leg.
         firstLegLen = 0
     else:
+        # We have no explicit swap point, but we have a foward message.  Thus,
+        # we set 'lateSplit' so that we'll know to divide the path into two
+        # legs later on.
         firstLegLen = 0
         lateSplit = 1
 
-    # This is a kludge to convert paths of the form ~N to ?,~(N-1) when we've
-    # got a full path.
+    # This is a kludge to convert paths of the form ~N to ?,~(N-1), when 
+    # we're generating a two-legged path.  Otherwise, there is a possibility
+    # that ~N could expand into only a single server, thus leaving one leg
+    # empty.
     if (len(pathEntries) == 1
         and not halfPath
         and isinstance(pathEntries[0], RandomServersPathElement)
@@ -1472,13 +1502,11 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
         n_minus_1 = max(pathEntries[0].approx-1,0)
         pathEntries = [ RandomServersPathElement(n=1),
                         RandomServersPathElement(approx=n_minus_1) ]
-        lateSplit = 1 # XXXX Is this redundant?
+        assert lateSplit
         
-    # Split the path into 2 legs.
     path1, path2 = pathEntries[:firstLegLen], pathEntries[firstLegLen:]
 
-    # XXXX006 when checking lengths, if the specifier is something like ~5,
-    # XXXX006 we should convert it to something more like *2,~3.
+    # Die if the path is too short, or if either leg is empty in a full path.
     if not lateSplit and not halfPath:
         if len(path1)+len(path2) < 2:
             raise UIError("The path must have at least 2 hops")

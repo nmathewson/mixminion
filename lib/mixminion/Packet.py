@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.65 2003/11/19 09:48:09 nickm Exp $
+# $Id: Packet.py,v 1.66 2003/11/24 19:59:04 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -94,9 +94,9 @@ FRAGMENT_TYPE  = 0x0103  # Find the actual delivery info in the message payload
 MAX_EXIT_TYPE  = 0xFFFF
 
 # Set of exit types that don't get tag fields. 
-# XXXX006 This interface is really brittle; it needs to change.  I added it 
-# XXXX006 in order to allow 'fragment' to be an exit type without adding a
-# XXXX006 needless tag field to every fragment routing info.  
+# XXXX007 This interface is really brittle; it needs to change.  I added it 
+# XXXX007 in order to allow 'fragment' to be an exit type without adding a
+# XXXX007 needless tag field to every fragment routing info.  
 _TYPES_WITHOUT_TAGS = { FRAGMENT_TYPE : 1 }
 
 def typeIsSwap(tp):
@@ -205,7 +205,7 @@ class Subheader:
         """Return the part of the routingInfo that contains the delivery
            address.  (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
-        #XXXX006 This interface is completely insane.  Change it.
+        #XXXX007 This interface is completely insane.  Change it.
         if _TYPES_WITHOUT_TAGS.get(self.routingtype):
             return self.routinginfo
         else:
@@ -216,7 +216,7 @@ class Subheader:
         """Return the part of the routingInfo that contains the decoding
            tag. (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
-        #XXXX006 This interface is completely insane.  Change it.
+        #XXXX007 This interface is completely insane.  Change it.
         if _TYPES_WITHOUT_TAGS.get(self.routingtype):
             return ""
         else:
@@ -363,9 +363,6 @@ class SingletonPayload(_Payload):
 
 class FragmentPayload(_Payload):
     """Represents the fields of a decoded fragment payload.
-
-       FFFF Fragments are not yet fully supported; there's no code to generate
-            or decode them.
     """
     def __init__(self, index, hash, msgID, msgLen, data):
         self.index = index

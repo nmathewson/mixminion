@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.166 2003/11/20 08:51:28 nickm Exp $
+# $Id: test.py,v 1.167 2003/11/24 19:59:04 nickm Exp $
 
 """mixminion.tests
 
@@ -34,7 +34,9 @@ try:
 except ImportError:
     import mixminion._unittest as unittest
 
-#DOCDOC
+# If the environment variable MM_COVERAGE is set, then start running the
+# coverage analysis tool.  You'll need to install the file 'coverage.py':
+# it's included in the contrib directory.
 if os.environ.get("MM_COVERAGE"):
     import coverage
     coverage.erase()
@@ -132,7 +134,10 @@ def fileURL(fname):
 #----------------------------------------------------------------------
 # DNS override
 def overrideDNS(overrideDict,delay=0):
-    """DOCDOC"""
+    """Helper function: temporarily replace the DNS functionality in
+       NetUtils to lookup entries in overrideDict instead of on the
+       network, and pause for 'delay' seconds before returning an answer.
+    """
     def getIPs_replacement(addr,overrideDict=overrideDict,delay=delay):
         v = overrideDict.get(addr)
         if delay: time.sleep(delay)
@@ -5938,15 +5943,22 @@ class DNSFarmTests(TestCase):
                               (socket.AF_INET, '10.2.4.11'))
             self.assertEquals(receiveDict['bar'][:2],
                               (mixminion.NetUtils.AF_INET6, '18:0FFF::4:1'))
-            self.assert_(DELAY <= receiveDict['foo'][2]-start <= DELAY+LATENCY)
-            self.assert_(DELAY <= receiveDict['bar'][2]-start <= DELAY+LATENCY)
+            # We allow a little wiggle on DELAY, since many OS's don't
+            # stricly guarantee that 
+            #     t1=time();sleep(x);t2=time();assert t2>=t1+x
+            # will pass.
+            self.assert_(DELAY*.8 <= receiveDict['foo'][2]-start 
+                                  <= DELAY+LATENCY)
+            self.assert_(DELAY*.8 <= receiveDict['bar'][2]-start 
+                                  <= DELAY+LATENCY)
             self.assertEquals(receiveDict['nowhere.noplace'][0], "NOENT")
             self.assertEquals(cache.getNonblocking("foo"),
                               receiveDict['foo'])
             self.assertEquals(cache.getNonblocking("baz.com")[:2],
                               (socket.AF_INET, '10.99.22.8'))
-            self.assert_(DELAY*1.25 <= receiveDict['baz.com'][2]-start <= DELAY*1.24 + LATENCY)
-            cache.cleanCache(receiveDict['foo'][2]+
+            self.assert_(DELAY*1.20 <= receiveDict['baz.com'][2]-start 
+                                    <= DELAY*1.25 + LATENCY)
+            cache.cleanCache(start+DELAY+
                              mixminion.server.DNSFarm.MAX_ENTRY_TTL+.001)
             self.assertEquals(cache.getNonblocking('foo'), None)
             self.assertEquals(cache.getNonblocking('nowhere.noplace'),
@@ -6751,6 +6763,8 @@ class ClientDirectoryTests(TestCase):
         eq((len(p1),len(p2)), (1,5))
 
         # 1d'. Tilde
+        p1,p2 = ppath(ks, None, '~2', email)
+        self.assert_(p1 and p2)
         p1,p2 = ppath(ks, None, '?,~4,Bob,Joe', email) #default nHops=6
         p = p1+p2
         pathIs((p2[-1], p2[-2],), (joe, bob))
@@ -6835,38 +6849,42 @@ class ClientDirectoryTests(TestCase):
         self.assertEquals(fm['Bob'].values()[0],
                           { 'software' : 'Mixminion %s' %mixminion.__version__,
                             'caps' : 'relay',
-                            'status' : '(not recommended)' })
+                            'status' : '(ok)' })
 
         # Now let's try compressing.
-        fm = { 'Alice' : { (100,200) : { "A" : "xx", "B" : "yy" },
-                           (200,300) : { "A" : "xx", "B" : "yy" },
-                           (350,400) : { "A" : "xx", "B" : "yy" } },
+        fm = { 'Alice' : { (100,200) : { "A" : "xxx", "B" : "yy" },
+                           (200,300) : { "A" : "xxx", "B" : "yy" },
+                           (350,400) : { "A" : "xxx", "B" : "yy" } },
                'Bob'   : { (100,200) : { "A" : "zz", "B" : "ww" },
                            (200,300) : { "A" : "zz", "B" : "kk" } } }
         fm2 = compressFeatureMap(fm, ignoreGaps=0, terse=0)
         self.assertEquals(fm2,
-            { 'Alice' : { (100,300) : { "A" : "xx", "B" : "yy" },
-                          (350,400) : { "A" : "xx", "B" : "yy" } },
+            { 'Alice' : { (100,300) : { "A" : "xxx", "B" : "yy" },
+                          (350,400) : { "A" : "xxx", "B" : "yy" } },
               'Bob'   : { (100,200) : { "A" : "zz", "B" : "ww" },
                           (200,300) : { "A" : "zz", "B" : "kk" } } })
         fm3 = compressFeatureMap(fm, ignoreGaps=1, terse=0)
         self.assertEquals(fm3,
-            { 'Alice' : { (100,400) :  { "A" : "xx", "B" : "yy" } },
+            { 'Alice' : { (100,400) :  { "A" : "xxx", "B" : "yy" } },
               'Bob'   : { (100,200) : { "A" : "zz", "B" : "ww" },
                           (200,300) : { "A" : "zz", "B" : "kk" } } })
 
         fm4 = compressFeatureMap(fm, terse=1)
         self.assertEquals(fm4,
-            { 'Alice' : { (100,400) : { "A" : "xx", "B" : "yy" } },
+            { 'Alice' : { (100,400) : { "A" : "xxx", "B" : "yy" } },
               'Bob'   : { (100,300) : { "A" : "zz", "B" : "ww / kk" } } })
 
         # Test formatFeatureMap.
         self.assertEquals(formatFeatureMap(["A","B"],fm4,showTime=0,cascade=0),
-          [ "Alice:xx yy", "Bob:zz ww / kk" ])
+          [ "Alice:xxx yy", "Bob:zz ww / kk" ])
+        self.assertEquals(formatFeatureMap(["A","B"],fm4,showTime=0,cascade=0,
+                                           just=1,sep="!"),
+          [ "Alice:xxx!yy     ", 
+            "Bob  :zz !ww / kk" ])
         self.assertEquals(formatFeatureMap(["A","B"],fm3,showTime=1,cascade=0),
-          [ "Alice:1970/01/01 to 1970/01/01:xx yy",
-            "Bob:1970/01/01 to 1970/01/01:zz ww",
-            "Bob:1970/01/01 to 1970/01/01:zz kk" ])
+          [ "Alice:1970-01-01 to 1970-01-01:xxx yy",
+            "Bob:1970-01-01 to 1970-01-01:zz ww",
+            "Bob:1970-01-01 to 1970-01-01:zz kk" ])
 
         day1 = 24*60*60
         day2 = 2*24*60*60
@@ -6875,16 +6893,16 @@ class ClientDirectoryTests(TestCase):
                 'Bob' : { (day1,day2) : { "A" : "a1", "B" : "b1" },
                           (day2,day3) : { "A" : "a2", "B" : "b2" } } }
         self.assertEquals(formatFeatureMap(["A","B"],fmx,cascade=1,sep="##"),
-          [ "Alice:", "  [1970/01/02 to 1970/01/04] aa##bb",
+          [ "Alice:", "  [1970-01-02 to 1970-01-04] aa##bb",
             "Bob:",
-            "  [1970/01/02 to 1970/01/03] a1##b1",
-            "  [1970/01/03 to 1970/01/04] a2##b2" ])
+            "  [1970-01-02 to 1970-01-03] a1##b1",
+            "  [1970-01-03 to 1970-01-04] a2##b2" ])
         
         self.assertEquals(formatFeatureMap(["A","B"],fmx,showTime=1,cascade=2),
-          [ "Alice:", "  [1970/01/02 to 1970/01/04]", "    A:aa", "    B:bb",
+          [ "Alice:", "  [1970-01-02 to 1970-01-04]", "    A:aa", "    B:bb",
             "Bob:",
-            "  [1970/01/02 to 1970/01/03]", "    A:a1", "    B:b1",
-            "  [1970/01/03 to 1970/01/04]", "    A:a2", "    B:b2" ])
+            "  [1970-01-02 to 1970-01-03]", "    A:a1", "    B:b1",
+            "  [1970-01-03 to 1970-01-04]", "    A:a2", "    B:b2" ])
 
     def writeDescriptorsToDisk(self):
         edesc = getExampleServerDescriptors()
@@ -7364,7 +7382,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientUtilTests))
+        suite.addTest(tc(DNSFarmTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -7406,7 +7424,8 @@ def testAll(name, args):
     initializeGlobals()
     unittest.TextTestRunner(verbosity=1).run(testSuite())
 
-    #DOCDOC
+    # If we're doing coverage analysis, then report on all the modules
+    # under the mixminion package.
     if os.environ.get("MM_COVERAGE"):
         allmods = [ mod for name, mod in sys.modules.items()
                     if (mod is not None and 

@@ -1,5 +1,6 @@
 include README HACKING LICENSE Makefile TODO pycheckrc ACKS HISTORY
 include contrib/unittest.py contrib/zlibutil.py contrib/textwrap.py
+include contrib/coverage.py
 include etc/mixminiond.conf etc/blacklist.conf etc/countlines.py
 include etc/mixminion.init
 # The manual isn't up-to-date; don't include it.

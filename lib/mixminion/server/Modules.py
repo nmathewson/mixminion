@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.61 2003/11/20 08:50:19 nickm Exp $
+# $Id: Modules.py,v 1.62 2003/11/24 19:59:04 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -911,7 +911,10 @@ class EmailAddressSet:
 #----------------------------------------------------------------------
 
 def _cleanMaxSize(sz,modname):
-    """DOCDOC"""
+    """Given a 'Maximum-Size' configuration value, ensure that it's at least
+       32KB, and round it up to the next highest 1KB increment.  Use 'modname'
+       as the name of the module in warning messages.
+    """
     if sz < 32*1024:
         LOG.warn("Ignoring low maximum message size for %s",modname)
         sz = 32*1024

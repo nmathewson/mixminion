@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.57 2003/11/19 09:48:10 nickm Exp $
+# $Id: MMTPServer.py,v 1.58 2003/11/24 19:59:04 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -267,7 +267,7 @@ class SimpleTLSConnection(Connection):
            tls -- An underlying TLS connection.
            serverMode -- If true, we start with a server-side negotatiation.
                          otherwise, we start with a client-side negotatiation.
-           DOCDOC address
+           address -- A human-readable address for this server.
         """
         self.__sock = sock
         self.__con = tls
@@ -381,7 +381,6 @@ class SimpleTLSConnection(Connection):
             else:
                 LOG.trace("Shutdown returned zero -- entering read mode")
                 self.__awaitingShutdown = 1
-                #DODOC is this right?
                 if 1:
                     self.finished = self.__readTooMuch
                     self.expectRead(128)
@@ -801,7 +800,8 @@ class MMTPClientConnection(SimpleTLSConnection):
 
     PROTOCOL_VERSIONS = [ '0.3' ]
     def __init__(self, context, ip, port, keyID, packetList,
-                 finishedCallback=None, certCache=None):
+                 finishedCallback=None, certCache=None,
+                 address=None):
         """Create a connection to send packets to an MMTP server.
            Raises socket.error if the connection fails.
 
@@ -817,6 +817,7 @@ class MMTPClientConnection(SimpleTLSConnection):
               connection is closed.
            certCache -- an instance of PeerCertificateCache to use for
               checking server certificates.
+           address -- a human-readable description of the destination server.
         """
         # Generate junk before connecting to avoid timing attacks
         self.junk = []
@@ -847,7 +848,9 @@ class MMTPClientConnection(SimpleTLSConnection):
 
         tls = context.sock(sock)
 
-        SimpleTLSConnection.__init__(self, sock, tls, 0, "%s:%s"%(ip,port))
+        if address is None:
+            address = "%s:%s"%(ip,port)
+        SimpleTLSConnection.__init__(self, sock, tls, 0, address)
         self.finished = self.__setupFinished
         self.finishedCallback = finishedCallback
         self.protocol = None
@@ -1066,9 +1069,13 @@ class MMTPAsyncServer(AsyncServer):
     # clientConByAddr: A map from 3-tuples returned by MMTPClientConnection.
     #     getAddr, to MMTPClientConnection objects.
     # certificateCache: A PeerCertificateCache object.
-    # listener: A ListenConnection object.
+    # listeners: A list of ListenConnection objects.
     # _timeout: The number of seconds of inactivity to allow on a connection
     #     before formerly shutting it down.
+    # dnsCache: An instance of mixminion.server.DNSFarm.DNSCache.
+    # msgQueue: An instance of MessageQueue to receive notification from DNS
+    #     DNS threads.  See _queueSendablePackets for more information.
+
     def __init__(self, config, servercontext):
         AsyncServer.__init__(self)
 
@@ -1094,7 +1101,7 @@ class MMTPAsyncServer(AsyncServer):
         if port is None:
             port = config['Incoming/MMTP']['Port']
 
-        self.listeners = [] #DOCDOC
+        self.listeners = []
         for (supported, addr, family) in [(ip4_supported,IP,AF_INET),
                                           (ip6_supported,IP6,AF_INET6)]:
             if not supported or not addr:
@@ -1105,14 +1112,16 @@ class MMTPAsyncServer(AsyncServer):
             self.listeners.append(listener)
             listener.register(self)
         
-        #self.config = config
         self._timeout = config['Server']['Timeout'].getSeconds()
         self.clientConByAddr = {}
         self.certificateCache = PeerCertificateCache()
-        self.dnsCache = None #DOCDOC
-        self.msgQueue = MessageQueue() #DOCDOC
+        self.dnsCache = None
+        self.msgQueue = MessageQueue()
 
     def connectDNSCache(self, dnsCache):
+        """Use the DNSCache object 'DNSCache' to resolve DNS queries for
+           this server.
+        """
         self.dnsCache = dnsCache
 
     def setServerContext(self, servercontext):
@@ -1138,48 +1147,78 @@ class MMTPAsyncServer(AsyncServer):
         return con
 
     def stopListening(self):
+        """Shut down all the listeners for this server.  Does not close open
+           connections.
+        """
         for listener in self.listeners:
             listener.shutdown()
+        self.listeners = []
 
     def sendPacketsByRouting(self, routing, deliverable):
-        """DOCDOC"""
+        """Given a RoutingInfo object (either an IPV4Info or an MMTPHostInfo),
+           and a list of DeliverableMessage objects, start sending all the
+           corresponding packets to the corresponding sever, doing a DNS
+           lookup first if necessary.
+        """   
+        serverName = displayServer(routing)
         if isinstance(routing, IPV4Info):
-            self.sendPackets(AF_INET, routing.ip, routing.port,
-                              routing.keyinfo, deliverable)
+            self._sendPackets(AF_INET, routing.ip, routing.port,
+                              routing.keyinfo, deliverable, serverName)
         else:
             assert isinstance(routing, MMTPHostInfo)
+            # This function is a callback for when the DNS lookup is over.
             def lookupDone(name, (family, addr, when),
-                          self=self, routing=routing, deliverable=deliverable):
+                           self=self, routing=routing, deliverable=deliverable,
+                           serverName=serverName):
                 if addr == "NOENT":
+                    # The lookup failed, so tell all of the message objects.
                     for m in deliverable:
                         try:
                             m.failed(1)
                         except AttributeError:
                             pass
                 else:
-                    self.queueSendablePackets(family, addr,
+                    # We've got an IP address: tell the MMTPServer to start
+                    # sending the deliverable packets to that address.
+                    self._queueSendablePackets(family, addr,
                                          routing.port, routing.keyinfo,
-                                         deliverable)
+                                         deliverable, serverName)
 
+            # Start looking up the hostname for the destination, and call
+            # 'lookupDone' when we're done.  This is a little fiddly, since
+            # 'lookupDone' might get invoked from this thread (if the result
+            # is in the cache) or from a DNS thread.
             self.dnsCache.lookup(routing.hostname, lookupDone)
 
-    def queueSendablePackets(self, family, addr, port, keyID, deliverable):
-        """DOCDOC"""
+    def _queueSendablePackets(self, family, addr, port, keyID, deliverable,
+                              serverName):
+        """Helper function: insert the DNS lookup results and list of
+           deliverable packets onto self.msgQueue.  Subsequent invocations
+           of _sendQueuedPackets will begin sending those packets to their
+           destination.
+
+           It is safe to call this function from any thread.
+           """
         self.msgQueue.put((family,addr,port,keyID,deliverable))
 
-    def sendQueuedPackets(self):
-        """DOCDOC"""
+    def _sendQueuedPackets(self):
+        """Helper function: Find all DNS lookup results and packets in
+           self.msgQueue, and begin sending packets to the resulting servers.
+           
+           This function should only be called from the main thread.
+        """
         while 1:
             try:
-                family,addr,port,keyID,deliverable=self.msgQueue.get(block=0)
+                family,addr,port,keyID,deliverable,serverName = \
+                                                self.msgQueue.get(block=0)
             except QueueEmpty:
                 return
-            self.sendPackets(family,addr,port,keyID,deliverable)
+            self._sendPackets(family,addr,port,keyID,deliverable)
 
-    def sendPackets(self, family, ip, port, keyID, deliverable):
+    def _sendPackets(self, family, ip, port, keyID, deliverable, serverName):
         """Begin sending a set of packets to a given server.
 
-           deliverable is a list of objects obeying the DeliverableMessage
+           'deliverable' is a list of objects obeying the DeliverableMessage
            interface.
         """
         try:
@@ -1203,10 +1242,11 @@ class MMTPAsyncServer(AsyncServer):
             con = MMTPClientConnection(self.clientContext,
                                      ip, port, keyID, deliverable,
                                      finishedCallback=finished,
-                                     certCache=self.certificateCache)
+                                     certCache=self.certificateCache,
+                                     address=serverName)
         except socket.error, e:
-            LOG.error("Unexpected socket error connecting to %s:%s: %s",
-                      ip, port, e)
+            LOG.error("Unexpected socket error connecting to %s: %s",
+                      serverName, e)
             EventStats.log.failedConnect() #FFFF addr
             for m in deliverable:
                 try:
@@ -1233,6 +1273,8 @@ class MMTPAsyncServer(AsyncServer):
         pass
 
     def process(self, timeout):
-        """DOCDOC overrides"""
-        self.sendQueuedPackets()
+        """overrides asyncserver.process to call sendQueuedPackets before
+           checking fd status.
+        """
+        self._sendQueuedPackets()
         AsyncServer.process(self, timeout)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.67 2003/11/20 08:48:33 nickm Exp $
+# $Id: Config.py,v 1.68 2003/11/24 19:59:04 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -349,8 +349,7 @@ def _parsePublicKey(s):
         raise ConfigError("Invalid exponent on public key")
     return key
 
-# FFFF006 begin generating YYYY-MM-DD
-# FFFF007 stop accepting YYYYY/MM/DD
+# FFFF007/8 stop accepting YYYY/MM/DD
 # Regular expression to match YYYY/MM/DD or YYYY-MM-DD
 _date_re = re.compile(r"^(\d\d\d\d)([/-])(\d\d)([/-])(\d\d)$")
 def _parseDate(s):
@@ -370,9 +369,7 @@ def _parseDate(s):
         raise ConfigError("Invalid date %r"%s)
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
-
-# FFFF006 begin generating YYYY-MM-DD
-# FFFF007 stop accepting YYYYY/MM/DD
+# FFFF007/8 stop accepting YYYY/MM/DD
 # Regular expression to match YYYY/MM/DD HH:MM:SS
 _time_re = re.compile(r"^(\d\d\d\d)([/-])(\d\d)([/-])(\d\d)\s+"
                       r"(\d\d):(\d\d):(\d\d)((?:\.\d\d\d)?)$")
@@ -626,6 +623,28 @@ def resolveFeatureName(name, klass):
                           name, englishSequence(secs,compound="or")))
         else:
             return result[0]
+
+def getFeatureList(klass):
+    """Get a list of all feature names from the _ConfigFile subclass
+       'klass'.  Return a list of tuples, each of which contains all the
+       synonyms for a single feature."""
+    syn = klass._syntax
+    features = []
+    for secname, secitems in syn.items():
+        for entname in secitems.keys():
+            if entname.startswith("__"): continue
+            synonyms = []
+            synonyms.append("%s:%s"%(secname,entname))
+            unique = 1
+            for sn, si in syn.items():
+                if sn != secname and si.has_key(entname):
+                    unique = 0
+                    break
+            if unique:
+                synonyms.append(entname)
+            features.append(tuple(synonyms))
+    features.sort()
+    return features
 
 class _ConfigFile:
     """Base class to parse, validate, and represent configuration files.

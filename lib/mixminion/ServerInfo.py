@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.63 2003/11/20 08:49:20 nickm Exp $
+# $Id: ServerInfo.py,v 1.64 2003/11/24 19:59:04 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -42,7 +42,10 @@ MMTP_KEY_BYTES = 1024 >> 3
 
 # ----------------------------------------------------------------------
 def displayServer(s):
-    """DOCDOC"""
+    """Return the best possible human-readable name for a server 's'.
+       's' must be one of: None, IPV4Info, MMTPHostInfo, ServerInfo,
+       string.
+    """
     #XXXX006 unit tests are needed
     if isinstance(s, types.StringType):
         return s
@@ -71,13 +74,22 @@ def displayServer(s):
     return "%s at %s" % (nickname, addr)
 
 def getNicknameByKeyID(keyid):
-    """DOCDOC"""
+    """Given a 20-byte keyid, look up the nickname of the corresponding
+       server.  Return the nickname on success and None if we don't recognize
+       the server.
+    
+       FFFF Right now, this is not supported for servers, since they don't
+       FFFF download directories.
+    """
+    #FFFF Be cleverer with all-zero keyids.
     if _keyIDToNicknameFn:
         return _keyIDToNicknameFn(keyid)
     else:
         return None
 
-#DOCDOC
+# This variable should hold None, or a function that maps from keyids to
+# nicknames, and returns None on failure.  Currently set by
+# ClientDirectory.ClientDirectory._installAsKeyIDResolver().
 _keyIDToNicknameFn = None
 
 # ----------------------------------------------------------------------
@@ -107,8 +119,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Comments": ("ALLOW", None, None),
                      "Packet-Key": ("REQUIRE", "publicKey", None),
                      "Contact-Fingerprint": ("ALLOW", None, None),
-                     # XXXX010 change these next few to "REQUIRE".
                      "Packet-Formats": ("ALLOW", None, None),#XXXX007 remove
+                     # XXXX010 change these next few to "REQUIRE".
                      "Packet-Versions": ("ALLOW", None, None),
                      "Software": ("ALLOW", None, None),
                      "Secure-Configuration": ("ALLOW", "boolean", None),
@@ -116,10 +128,10 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     "IP": ("ALLOW", "IP", None),#XXXX007 remove
+                     "IP": ("ALLOW", "IP", None),#XXXX007/8 remove
                      "Hostname": ("ALLOW", "host", None),#XXXX008 require
                      "Port": ("REQUIRE", "int", None),
-                     "Key-Digest": ("ALLOW", "base64", None),#XXXX007 rmv
+                     "Key-Digest": ("ALLOW", "base64", None),#XXXX007/8 rmv
                      "Protocols": ("REQUIRE", None, None),
                      "Allow": ("ALLOW*", "addressSet_allow", None),
                      "Deny": ("ALLOW*", "addressSet_deny", None),

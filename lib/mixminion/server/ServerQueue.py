@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.35 2003/11/10 04:12:21 nickm Exp $
+# $Id: ServerQueue.py,v 1.36 2003/11/24 19:59:05 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -85,8 +85,9 @@ class _DeliveryState:
             self.lastAttempt = state[2]
             self.address = state[3]
         elif state[0] == "V0":
-            #XXXX006 remove this case.
+            #XXXX007 remove this case.
             # 0.0.4 used a format that didn't have an 'address' field.
+            LOG.warn("Encountered an ancient queued message format.")
             self.queuedTime = state[1]
             self.lastAttempt = state[2]
             self.address = None
