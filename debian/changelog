@@ -2,6 +2,7 @@ mixminion (0.0.7.1-1) experimental; urgency=low
 
   * New upstream release.
   * 502_manpages_in_share no longer needed, as upstream has move them.
+  * Move mixminiond to usr/sbin.
 
  -- Peter Palfrader <weasel@debian.org>  Wed, 12 May 2004 03:11:57 +0200
 

@@ -53,6 +53,8 @@ install: build
 
 	#$(MAKE) install PREFIX=$(CURDIR)/debian/mixminion/usr
 	$(PYTHON) setup.py install --optimize=$(OPTIMIZE) --force --root=$(CURDIR)/debian/mixminion
+	install -d $(CURDIR)/debian/mixminion/usr/sbin
+	mv $(CURDIR)/debian/mixminion/usr/bin/mixminiond $(CURDIR)/debian/mixminion/usr/sbin
 	install -m 644 etc/mixminiond.conf $(CURDIR)/debian/mixminion/etc/mixminion
 	install -m 644 etc/blacklist.conf $(CURDIR)/debian/mixminion/etc/mixminion
 
