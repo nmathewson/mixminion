@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.70 2003/04/26 14:39:58 nickm Exp $
+# $Id: Common.py,v 1.71 2003/05/05 00:38:45 nickm Exp $
 
 """mixminion.Common
 
@@ -161,6 +161,7 @@ def checkPrivateFile(fn, fix=1):
        0700, and all its parents pass checkPrivateDir.  Raises MixFatalError
        if the assumtions are not met; else return None.  If 'fix' is true,
        repair permissions on the file rather than raising MixFatalError."""
+    #XXXX004 testme
     parent, _ = os.path.split(fn)
     if not checkPrivateDir(parent):
         return None
@@ -176,7 +177,7 @@ def checkPrivateFile(fn, fix=1):
     if mode not in (0700, 0600):
         if not fix:
             raise MixFatalError("Bad mode %o on file %s" % mode)
-        newmode = {0:0600,0100:0700}[(newmode & 0100)]
+        newmode = {0:0600,0100:0700}[(mode & 0100)]
         LOG.warn("Repairing permissions on file %s" % fn)
         os.chmod(fn, newmode)
 
@@ -275,30 +276,33 @@ def configureShredCommand(conf):
     _SHRED_CMD, _SHRED_OPTS = cmd, opts
 
 
-# Size of a block on the filesystem we're overwriting on; If zero, we need
-# to determine it.
-_BLKSIZE = 0
-# A string of _BLKSIZE zeros
-_NILSTR = None
+# Map from parent directory to blocksize.  We only overwrite files in a few
+# locations, so this should be safe.
+_BLKSIZEMAP = {}
+# A string of max(_BLKSIZEMAP.values()) zeros
+_NILSTR = ""
 def _overwriteFile(f):
     """Overwrite f with zeros, rounding up to the nearest block.  This is
        used as the default implementation of secureDelete."""
-    global _BLKSIZE
     global _NILSTR
-    if not _BLKSIZE:
-        #???? this assumes that all filesystems we are using have the same
-        #???? block size.
+    parent = os.path.split(f)[0]
+    try:
+        sz = _BLKSIZEMAP[parent]
+    except KeyError:
         if hasattr(os, 'statvfs'):
-            _BLKSIZE = os.statvfs(f)[statvfs.F_BSIZE]
+            sz = os.statvfs(f)[statvfs.F_BSIZE]
         else:
-            _BLKSIZE = 8192 # ???? Safe guess?
-        _NILSTR = '\x00' * _BLKSIZE
+            sz = 8192 # Should be a safe guess? (????)
+        _BLKSIZEMAP[parent] = sz
+        if sz > len(_NILSTR):
+            _NILSTR = '\x00' * sz
+    nil = _NILSTR[:sz]
     fd = os.open(f, os.O_WRONLY)
     try:
         size = os.fstat(fd)[stat.ST_SIZE]
-        blocks = ceilDiv(size, _BLKSIZE)
+        blocks = ceilDiv(size, sz)
         for _ in xrange(blocks):
-            os.write(fd, _NILSTR)
+            os.write(fd, nil)
     finally:
         os.close(fd)
 

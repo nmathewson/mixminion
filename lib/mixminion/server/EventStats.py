@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.2 2003/04/26 14:39:59 nickm Exp $
+# $Id: EventStats.py,v 1.3 2003/05/05 00:38:46 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -13,7 +13,7 @@ from threading import RLock
 from time import time
 
 from mixminion.Common import formatTime, LOG, previousMidnight, floorDiv, \
-     createPrivateDir
+     createPrivateDir, MixError
 
 # _EVENTS: a list of all recognized event types. 
 _EVENTS = [ 'ReceivedPacket',
@@ -32,6 +32,12 @@ class NilEventLog:
     def save(self, now=None):
         """Flushes this eventlog to disk."""
         pass
+    def rotate(self, now=None):
+        """DOCDOC"""
+        pass
+    def getNextRotation(self):
+        """DOCDOC"""
+        return 0
     def _log(self, event, arg=None):
         """Notes that an event has occurred.
            event -- the type of event to note
@@ -118,7 +124,7 @@ class EventLog(NilEventLog):
            periodically writes to 'historyFile' every 'interval' seconds."""
         NilEventLog.__init__(self)
         if os.path.exists(filename):
-            # XXXX If this doesn't work, then we should 
+            # XXXX If this doesn't work, then we should ????004
             f = open(filename, 'rb')
             self.__dict__.update(cPickle.load(f))
             f.close()
@@ -155,8 +161,6 @@ class EventLog(NilEventLog):
            to invoke."""
         LOG.debug("Syncing statistics to disk")
         if not now: now = time()
-        if now > self.nextRotation:
-            self._rotate()
         tmpfile = self.filename + "_tmp"
         try:
             os.unlink(tmpfile)
@@ -176,9 +180,6 @@ class EventLog(NilEventLog):
     def _log(self, event, arg=None):
         try:
             self._lock.acquire()
-            if time() > self.nextRotation:
-                self._rotate()
-                self._save()
             try:
                 self.count[event][arg] += 1
             except KeyError:
@@ -189,31 +190,46 @@ class EventLog(NilEventLog):
         finally:
             self._lock.release()
 
+    def getNextRotation(self):
+        return self.nextRotation
+
+    def rotate(self,now=None):
+        if now is None: now = time()
+        if now < self.nextRotation:
+            raise MixError("Not ready to rotate event stats")
+        try:
+            self._lock.acquire()
+            self._rotate(now)
+        finally:
+            self._lock.release()
+
     def _rotate(self, now=None):
         """Flush all events since the last rotation to the history file,
            and clears the current event log."""
         
         # Must hold lock
         LOG.debug("Flushing statistics log")
-        if now is None: now = time() #????
+        if now is None: now = time()
             
         f = open(self.historyFilename, 'a')
-        self.dump(f)
+        self.dump(f, now)
         f.close()
 
-        self.accumulatedTime = 0
         self.count = {}
         for e in _EVENTS:
             self.count[e] = {}
-        self.lastRotation = self.nextRotation
-        self._setNextRotation()
+        self.lastRotation = now
+        self._save(now)
+        self.accumulatedTime = 0        
+        self._setNextRotation(now)
 
-    def dump(self, f):
+    def dump(self, f, now=None):
         """Write the current data to a file handle 'f'."""
+        if now is None: now = time()
         try:
             self._lock.acquire()
             startTime = self.lastRotation
-            endTime = time()
+            endTime = now
             print >>f, "========== From %s to %s:" % (formatTime(startTime,1),
                                                       formatTime(endTime,1))
             for event in _EVENTS:
@@ -240,8 +256,8 @@ class EventLog(NilEventLog):
         finally:
             self._lock.release()
 
-
     def _setNextRotation(self, now=None):
+        # DOCDOC
         # ???? Lock to 24-hour cycle
 
         # This is a little weird.  We won't save *until*:
@@ -253,18 +269,14 @@ class EventLog(NilEventLog):
         #  round to the hour, up to 5 minutes down and 55 up.
         if not now: now = time()
 
-        secToGo = max(0, self.rotateInterval * 0.75 - self.accumulatedTime)
+        accumulatedTime = self.accumulatedTime + (now - self.lastSave)
+        secToGo = max(0, self.rotateInterval * 0.75 - accumulatedTime)
         self.nextRotation = max(self.lastRotation + self.rotateInterval,
                                 now + secToGo)
 
-        if not self.lastRotation: self.lastRotation = now
-        if now - self.lastRotation <= self.rotateInterval * 1.2:
-            base = self.lastRotation
-        else:
-            base = now
+        if self.nextRotation < now:
+            self.nextRotation = now
 
-        self.nextRotation = base + self.rotateInterval
-        
         if (self.rotateInterval % 3600) == 0:
             mid = previousMidnight(self.nextRotation)
             rest = self.nextRotation - mid

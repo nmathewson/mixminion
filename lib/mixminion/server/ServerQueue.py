@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.12 2003/03/27 10:31:00 nickm Exp $
+# $Id: ServerQueue.py,v 1.13 2003/05/05 00:38:46 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -319,14 +319,13 @@ class DeliveryQueue(Queue):
     #           currently sending.
     #    retrySchedule: a list of intervals at which delivery of messages
     #           should be reattempted, as described in "setRetrySchedule".
-
     def __init__(self, location, retrySchedule=None):
         Queue.__init__(self, location, create=1, scrub=1)
         self._rescan()
         if retrySchedule is None:
             self.retrySchedule = None
         else:
-            self.retrySchedule = retrySchedule[:]
+            self.setRetrySchedule(retrySchedule)
 
     def setRetrySchedule(self, schedule):
         """Set the retry schedule for this queue.  A retry schedule is
@@ -379,8 +378,6 @@ class DeliveryQueue(Queue):
         """Returns a (n_retries, msg, nextAttempt) tuple for a given
            message handle."""
         o = self.getObject(handle)
-        if len(o) == 3:# XXXX004 For legacy queues; delete after 0.0.3
-            o = o + (0,)
         return o[0], o[2], o[3]
 
     def sendReadyMessages(self, now=None):
@@ -481,7 +478,9 @@ class DeliveryQueue(Queue):
                     if retries <= len(self.retrySchedule):
                         self.queueDeliveryMessage(msg, retries, nextAttempt)
                 elif not self.retrySchedule:
-                    #LEGACY XXXX004
+                    #XXXX005: Make sure this error never occurs.
+                    LOG.error(
+                        "ServerQueue.deliveryFailed without retrySchedule")
                     retries += 1
                     nextAttempt = 0
                     if retries < 10:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.22 2003/04/26 14:39:59 nickm Exp $
+# $Id: ServerConfig.py,v 1.23 2003/05/05 00:38:46 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -128,7 +128,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
             reasons.append("StatsInterval is too short")
         if not server["EncryptIdentityKey"]:
             reasons.append("Identity key is not encrypted")
-        # ???? Pkey lifetime, sloppiness? 
+        # ????004 Pkey lifetime, sloppiness? 
         if server["MixAlgorithm"] not in _SECURE_MIX_RULES:
             reasons.append("Mix algorithm is not secure")
         else:
@@ -138,17 +138,17 @@ class ServerConfig(mixminion.Config._ConfigFile):
         if server["MixInterval"][2] < 30*60:
             reasons.append("Mix interval under 30 minutes")
         
-        # ???? DIRSERVERS?
+        # ????004 DIRSERVERS?
 
-        # ???? Incoming/MMTP
+        # ????004 Incoming/MMTP
 
-        # ???? Outgoing/MMTP
+        # ????004 Outgoing/MMTP
 
-        # ???? Modules?
+        # ????004 Modules?
 
 def _validateRetrySchedule(mixInterval, entries, sectionname,
                            entryname='Retry'):
-    #XXXX writeme.
+    """DOCDOC"""
     entry = [e for e in entries.get(sectionname,[]) if e[0] == entryname]
     if not entry:
         return

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.14 2003/04/26 14:39:59 nickm Exp $
+# $Id: PacketHandler.py,v 1.15 2003/05/05 00:38:46 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -12,6 +12,7 @@ import mixminion.Packet as Packet
 import mixminion.Common as Common
 import mixminion.BuildMessage
 
+from mixminion.ServerInfo import PACKET_KEY_BYTES
 from mixminion.Common import MixError, isPrintingAscii
 
 __all__ = [ 'PacketHandler', 'ContentError', 'DeliveryPacket', 'RelayedPacket']
@@ -27,8 +28,9 @@ class PacketHandler:
        to drop the message, relay the message, or send the message to
        an exit handler."""
     ## Fields:
-    # privatekey: list of RSA private keys that we accept
-    # hashlog: list of HashLog objects corresponding to the keys.
+    # privatekeys: a list of 2-tuples of
+    #      (1) a RSA private key that we accept
+    #      (2) a HashLog objects corresponding to the given key
     def __init__(self, privatekey, hashlog):
         """Constructs a new packet handler, given a private key object for
            header encryption, and a hashlog object to prevent replays.
@@ -38,57 +40,52 @@ class PacketHandler:
            though: PK decryption is expensive.  Also, a hashlog must be
            provided for each private key.
         """
-        try:
-            # Check whether we have a key or a sequence of keys.
-            _ = privatekey[0]
-            assert len(hashlog) == len(privatekey)
-
-            self.privatekey = privatekey
-            self.hashlog = hashlog
-        except TypeError:
-            # Privatekey is not be subscriptable; we must have only one.
-            self.privatekey = [privatekey]
-            self.hashlog = [hashlog]
-
+        self.privatekeys = []
         self.lock = threading.Lock()
-
-    def addKey(self, key, hashlog):
-        """DOCDOC"""
-        self.lock.acquire()
-        self.privatekey.append(key)
-        self.hashlog.append(hashlog)
-        self.lock.release()
-
-    def removeKey(self, key):
-        """DOCDOC"""
-        self.lock.acquire()
+        
         try:
-            enc = key.encode_key(1)
-            for i in range(len(self.privatekey)):
-                k = self.privatekey[i]
-                if k.enc(1) == enc:
-                    del self.privatekey[i]
-                    hlog = self.hashlog[i]
-                    del self.hashlog[i]
-                    hlog.close()
-                    return
-            raise KeyError
+            _ = privatekey[0]
+            self.setKeys(privatekey, hashlog)
+        except TypeError:
+            self.setKeys([privatekey], [hashlog])
+
+    def setKeys(self, keys, hashlogs):
+        """DOCDOC"""
+        self.lock.acquire()
+        newKeys = {}
+        try:
+            # Build a set of asn.1-encoded public keys in *new* set.
+            for k in keys:
+                newKeys[k.encode_key(1)] = 1
+                if k.get_modulus_bytes() != PACKET_KEY_BYTES:
+                    raise Common.MixFatalError("Incorrect packet key length")
+            # For all old public keys, if they aren't in the new set, close
+            # their hashlogs.
+            for k, h in self.privatekeys:
+                if not newKeys.get(k.encode_key(1)):
+                    h.close()
+            # Now, set the keys.
+            self.privatekeys = zip(keys, hashlogs)
         finally:
             self.lock.release()
-            
+
     def syncLogs(self):
         """Sync all this PacketHandler's hashlogs."""
-        self.lock.acquire()
-        for h in self.hashlog:
-            h.sync()
-        self.lock.release()
+        try:
+            self.lock.acquire()
+            for _, h in self.privatekeys:
+                h.sync()
+        finally:
+            self.lock.release()
 
     def close(self):
         """Close all this PacketHandler's hashlogs."""
-        self.lock.acquire()
-        for h in self.hashlog:
-            h.close()
-        self.lock.release()
+        try:
+            self.lock.acquire()
+            for _, h in self.privatekeys:
+                h.close()
+        finally:        
+            self.lock.release()
 
     def processMessage(self, msg):
         """Given a 32K mixminion message, processes it completely.
@@ -119,7 +116,7 @@ class PacketHandler:
         e = None
         self.lock.acquire()
         try:
-            for pk, hashlog in zip(self.privatekey, self.hashlog):
+            for pk, hashlog in self.privatekeys:
                 try:
                     subh = Crypto.pk_decrypt(encSubh, pk)
                     break

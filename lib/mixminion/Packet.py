@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.39 2003/04/26 14:39:58 nickm Exp $
+# $Id: Packet.py,v 1.40 2003/05/05 00:38:45 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -576,8 +576,7 @@ MESSAGE_START_LINE = "======= TYPE III ANONYMOUS MESSAGE BEGINS ======="
 MESSAGE_END_LINE   = "======== TYPE III ANONYMOUS MESSAGE ENDS ========"
 _MESSAGE_START_RE  = re.compile(r"==+ TYPE III ANONYMOUS MESSAGE BEGINS ==+")
 _MESSAGE_END_RE    = re.compile(r"==+ TYPE III ANONYMOUS MESSAGE ENDS ==+")
-#XXXX004 disable "decoding handle" format
-_FIRST_LINE_RE = re.compile(r'''^Decoding[- ]handle:\s(.*)\r*\n|
+_FIRST_LINE_RE = re.compile(r'''^Decoding-handle:\s(.*)\r*\n|
                                  Message-type:\s(.*)\r*\n''', re.X+re.S)
 _LINE_RE = re.compile(r'[^\r\n]*\r*\n', re.S+re.M)
 
@@ -689,9 +688,7 @@ class TextEncodedMessage:
         if self.messageType != 'TXT':
             c = encodeBase64(c)
         else:
-            #XXXX004 disable "decoding handle" format
             if (c.startswith("Decoding-handle:") or
-                c.startswith("Decoding handle:") or
                 c.startswith("Message-type:")):
                 preNL = "\n"
                 

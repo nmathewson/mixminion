@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.100 2003/04/26 14:39:59 nickm Exp $
+# $Id: test.py,v 1.101 2003/05/05 00:38:45 nickm Exp $
 
 """mixminion.tests
 
@@ -2855,14 +2855,18 @@ def _getTLSContext(isServer):
             ident = getRSAKey(0,2048)
             generateCertChain(certfile, pk, ident, "<testing>",
                               time.time(), time.time()+365*24*60*60)
-            
 
         pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), 0)
         return _ml.TLSContext_new(certfile, pk, dhfile)
     else:
         return _ml.TLSContext_new()
 
-def _getMMTPServer(minimal=0):
+def _getTLSContextKeyID():
+    ident = getRSAKey(0,2048)
+    keyid = sha1(ident.encode_key(1))
+    return keyid
+
+def _getMMTPServer(minimal=0,reject=0):
     """Helper function: create a new MMTP server with a listener connection
        Return a tuple of AsyncServer, ListenerConnection, list of received
        messages, and keyid."""
@@ -2873,11 +2877,13 @@ def _getMMTPServer(minimal=0):
     server.nJunkPackets = 0
     def junkCallback(server=server): server.nJunkPackets += 1
     def conFactory(sock, context=_getTLSContext(1),
-                   receiveMessage=receivedHook,junkCallback=junkCallback):
+                   receiveMessage=receivedHook,junkCallback=junkCallback,
+                   reject=reject):
         tls = context.sock(sock, serverMode=1)
         sock.setblocking(0)
         con = mixminion.server.MMTPServer.MMTPServerConnection(sock,tls,
-                                                               receiveMessage)
+                                                               receiveMessage,
+                                                         rejectPackets=reject)
         con.junkCallback = junkCallback
         return con
     def conFactoryMin(sock, context=_getTLSContext(1)):
@@ -2892,12 +2898,13 @@ def _getMMTPServer(minimal=0):
     listener = mixminion.server.MMTPServer.ListenConnection("127.0.0.1",
                                                  TEST_PORT, 5, conFactory)
     listener.register(server)
-    pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), public=0)
-    keyid = sha1(pk.encode_key(1))
+    keyid = _getTLSContextKeyID()
 
     return server, listener, messagesIn, keyid
 
 class MMTPTests(unittest.TestCase):
+    #XXXX This class is bulky, and has lots of cut-and-paste.  It could do
+    #XXXX with a refactoring.
     def doTest(self, fn):
         """Wraps an underlying test function 'fn' to make sure we kill the
            MMTPServer, but don't block."""
@@ -2922,6 +2929,9 @@ class MMTPTests(unittest.TestCase):
 
     def testTimeout(self):
         self.doTest(self._testTimeout)
+
+    def testRejected(self):
+        self.doTest(self._testRejected)
 
     def _testBlockingTransmission(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
@@ -3130,6 +3140,60 @@ class MMTPTests(unittest.TestCase):
 
         for _ in xrange(3):
             server.process(0.1)
+
+    def _testRejected(self):
+        server, listener, messagesIn, keyid = _getMMTPServer(reject=1)
+        self.listener = listener
+        self.server = server
+
+        messages = ["helloxxx"*4096, "helloyyy"*4096]
+
+        # Send 2 messages -- both should be rejected.
+        server.process(0.1)
+        routing = IPV4Info("127.0.0.1", TEST_PORT, keyid)
+        ok=[0];done=[0]
+        def _t(routing=routing, messages=messages,ok=ok,done=done):
+            try:
+                mixminion.MMTPClient.sendMessages(routing,messages)
+            except mixminion.Common.MixProtocolReject:
+                ok[0] = 1
+            done[0] = 1
+            
+        t = threading.Thread(None, _t)
+        t.start()
+        while not done[0]:
+            server.process(0.1)
+        t.join()
+        for _ in xrange(3):
+            server.process(0.1)
+
+        self.failUnless(ok[0])
+        self.failUnless(len(messagesIn) == 0)
+
+        # Send m1, then junk, then renegotiate, then junk, then m2.
+        messages = ["helloxxx"*4096, "helloyyy"*4096]
+        async = mixminion.server.MMTPServer.AsyncServer()
+        _failed_args = []
+        def _failed(msg, handle, retriable, _f=_failed_args):
+            _f.append((msg,handle,retriable))
+        clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
+           _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid,
+           messages, [None,None], None, failCallback=_failed)
+        clientcon.register(async)
+        def clientThread(clientcon=clientcon, async=async):
+            while not clientcon.isShutdown():
+                async.process(2)
+
+        t = threading.Thread(None, clientThread)
+        t.start()
+        while not clientcon.isShutdown():
+            server.process(0.1)
+        while t.isAlive():
+            server.process(0.1)
+        t.join()
+        self.assertEquals(len(messagesIn), 0)
+        self.assertEquals(_failed_args, [(messages[0], None, 1),
+                                         (messages[1], None, 1)])
 
 #----------------------------------------------------------------------
 # Config files
@@ -3520,9 +3584,9 @@ class ServerInfoTests(unittest.TestCase):
 
         eq(info['Incoming/MMTP']['Version'], "0.1")
         eq(info['Incoming/MMTP']['Port'], 48099)
-        eq(info['Incoming/MMTP']['Protocols'], "0.1,0.2")
+        eq(info['Incoming/MMTP']['Protocols'], "0.3")
         eq(info['Outgoing/MMTP']['Version'], "0.1")
-        eq(info['Outgoing/MMTP']['Protocols'], "0.1,0.2")
+        eq(info['Outgoing/MMTP']['Protocols'], "0.3")
         eq(info['Incoming/MMTP']['Allow'], [("192.168.0.16", "255.255.255.255",
                                             1,1024),
                                            ("0.0.0.0", "0.0.0.0",
@@ -3594,8 +3658,6 @@ class ServerInfoTests(unittest.TestCase):
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
            info['Server']['Packet-Key'].get_public_key())
-        mmtpKey = Crypto.pk_PEM_load(
-            os.path.join(keydir, "mmtp.key"))
         eq(Crypto.sha1(identity.encode_key(1)),
            info['Incoming/MMTP']['Key-Digest'])
 
@@ -3841,6 +3903,7 @@ class EventStatsTests(unittest.TestCase):
 
     def testEventLog(self):
         import mixminion.server.EventStats as ES
+        tm = time.time()
         eq = self.assertEquals
         homedir = mix_mktemp()
         ES.configureLog({'Server':
@@ -3861,7 +3924,7 @@ class EventStatsTests(unittest.TestCase):
         ES.log.failedDelivery()
         ES.log.failedDelivery("Y")
         ES.log.unretriableDelivery("Y")
-        ES.log.save()
+        ES.log.save(now=tm)
         eq(ES.log.count['UnretriableDelivery']['Y'], 1)
         eq(ES.log.count['AttemptedDelivery'][None], 2)
         # Test reload.
@@ -3896,35 +3959,72 @@ class EventStatsTests(unittest.TestCase):
 """
         eq(s, expected)
         # Test time accumultion.
-        ES.log.save(now=time.time()+1800)
+        ES.log.save(now=tm+1800)
         self.assert_(abs(1800-ES.log.accumulatedTime) < 10)
-        ES.log.lastSave = time.time()+1900
-        ES.log.save(now=time.time()+2000)
+        self.assertEquals(ES.log.lastSave, tm+1800)
+        ES.log.lastSave = tm+1900
+        ES.log.save(now=tm+2000)
         self.assert_(abs(1900-ES.log.accumulatedTime) < 10)
         # Test rotate
-        ES.log.save(now=time.time()+3600*24)
+        ES.log.rotate(now=tm+3600*24)
         s2 = readFile(os.path.join(homedir, "stats"))
-        eq(s2, sOrig)
+        eq(s2.split("\n")[1:], sOrig.split("\n")[1:])
         eq(ES.log.count['UnretriableDelivery'], {})
+        eq(ES.log.lastSave, tm+3600*24)
+        eq(ES.log.accumulatedTime, 0)
+        self.assert_((ES.log.nextRotation - (tm+3600*25)) < 3600)
         ES.configureLog({'Server':
                          {'LogStats' : 1,
                           'Homedir' : homedir,
                  'StatsInterval' : mixminion.Config._parseInterval("1 hour")}})
         eq(ES.log.count['UnretriableDelivery'], {})
+        self.assert_(floatEq(ES.log.lastSave, time.time()))
+
         # Test time configured properly.
-        # XXXX
+        # 1) Rotation interval is a multiple of hours.
+        pm = previousMidnight(tm)
+        ES.log.rotateInterval = 2*60*60
+        # 1A) Accumulated time << interval.  We rotated at 23:00.  We were
+        #   only up for a few minutes (10), and have accumulated no more time
+        #   since the last rotation.  We just reloaded; now it's 2:00.  We
+        #   should next rotate at 4 -- since it will take us until 3:20 to
+        #   be up for 75% of an interval, and we round up.
+        ES.log.lastRotation = pm - 60*60
+        ES.log.accumulatedTime = 10*60
+        ES.log.lastSave = pm+7200
+        ES.log._setNextRotation(now=pm+7200)
+        eq(ES.log.getNextRotation(), pm+4*60*60)
+        # But suppose that it's 2:45. We should next rotate at 5 (rounding up).
+        ES.log.lastSave = pm+7200+45*60
+        ES.log._setNextRotation(now=pm+7200+45*60)
+        eq(ES.log.getNextRotation(), pm+5*60*60)
+
+        # 1B) Accumulated time ~~ interval
+        # Now suppose the same situation as above, but we've been up 100
+        #  minutes total.  We rotate *now*.
+        ES.log.accumulatedTime = 100*60
+        ES.log.lastSave = pm+7200
+        ES.log._setNextRotation(now=pm+7200)
+        eq(ES.log.getNextRotation(), pm+7200)
+
+        # 1C) Suppose all went well, and it's 23:30: Rotate at 1.
+        ES.log.accumulatedTime = 1800
+        ES.log.lastSave = pm-1800
+        ES.log._setNextRotation(now=pm-1800)
+        eq(ES.log.getNextRotation(), pm+3600)
         
-        # Test no rotation if not enough accumulated time
-        #XXXX THIS NEXT PART DOESN'T WORK....
-        ES.log.lastSave = time.time()-1000
-        ES.log._setNextRotation()
-        #print ES.log.nextRotation, time.time()+4000
-        r = ES.log._rotate
-        try:
-            ES.log._rotate = self.fail
-            ES.log.save(now=time.time()+9000)
-        finally:
-            ES.log._rotate = r
+        # 2) Rotation interval is not a multiple of hours: We don't round
+        # 2A) Accumulated time << interval
+        ES.log.rotateInterval = 40*60
+        ES.log.lastSave = pm+7200
+        ES.log.accumulatedTime = 10*60
+        ES.log._setNextRotation(now=pm+7200)
+        eq(ES.log.getNextRotation(), pm+7200+20*60)
+        # 2B) Accumulated time ~~ interval
+        ES.log.accumulatedTime = 35*60
+        ES.log.lastSave = pm+7200
+        ES.log._setNextRotation(now=pm+7200)
+        eq(ES.log.getNextRotation(), pm+7200)
 
 #----------------------------------------------------------------------
 # Modules and ModuleManager
@@ -5465,9 +5565,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ServerInfoTests))
-        #suite.addTest(tc(EventStatsTests))
-        #suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(MMTPTests))
         #suite.addTest(tc(MiscTests))
         return suite
 

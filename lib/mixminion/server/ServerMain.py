@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.50 2003/04/26 14:39:59 nickm Exp $
+# $Id: ServerMain.py,v 1.51 2003/05/05 00:38:46 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -17,6 +17,7 @@ import signal
 import string
 import time
 import threading
+from types import *
 # We pull this from mixminion.Common, just in case somebody still has
 # a copy of the old "mixminion/server/Queue.py" (since renamed to
 # ServerQueue.py)
@@ -179,9 +180,9 @@ class MixPool:
         
         for h in handles:
             packet = self.queue.getObject(h)
-            #XXXX004 remove the first case after 0.0.3
             if type(packet) == type(()):
-                LOG.debug("  (skipping message %s in obsolete format)", h)
+                #XXXX005 remove this case.
+                LOG.error("  (skipping message %s in obsolete format)", h)
             elif packet.isDelivery():
                 LOG.debug("  (sending message %s to exit modules)",
                           formatBase64(packet.getContents()[:8]))
@@ -274,7 +275,8 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
 
     def onMessageReceived(self, msg):
         self.incomingQueue.queueMessage(msg)
-        EventStats.receivedPacket("ReceivedPacket", None) # XXXX Replace with server.
+        # XXXX Replace with server.
+        EventStats.log.receivedPacket()
 
     def onMessageSent(self, msg, handle):
         self.outgoingQueue.deliverySucceeded(handle)
@@ -399,7 +401,56 @@ def installSignalHandlers():
 
 #----------------------------------------------------------------------
 
-class MixminionServer:
+class _Scheduler:
+    """Mixin class for server.  Implements DOCDOC"""
+    # DOCDOC
+    def __init__(self):
+        self.scheduledEvents = []
+
+    def firstEventTime(self):
+        if self.scheduledEvents:
+            return self.scheduledEvents[0][0]
+        else:
+            return -1
+
+    def scheduleOnce(self, when, name, cb):
+        assert type(name) is StringType
+        assert type(when) in (IntType, LongType, FloatType)
+        insort(self.scheduledEvents, (when, name, cb))
+
+    def scheduleRecurring(self, first, interval, name, cb):
+        assert type(name) is StringType
+        assert type(first) in (IntType, LongType, FloatType)
+        assert type(interval) in (IntType, LongType, FloatType)
+        next = lambda t=time.time,i=interval: t()+i
+        insort(self.scheduledEvents, (first, name,
+                                      _RecurringEvent(name, cb, self, next)))
+
+    def scheduleRecurringComplex(self, first, name, cb, nextFn):
+        assert type(name) is StringType
+        assert type(first) in (IntType, LongType, FloatType)
+        insort(self.scheduledEvents, (first, name,
+                                      _RecurringEvent(name, cb, self, nextFn)))
+
+    def processEvents(self, now=None):
+        if now is None: now = time.time()
+        se = self.scheduledEvents
+        while se and se[0][0] <= now:
+            cb = se[0][2]
+            del se[0]
+            cb()
+
+class _RecurringEvent:
+    def __init__(self, name, cb, scheduler, nextFn):
+        self.name = name
+        self.cb = cb
+        self.scheduler = scheduler
+        self.nextFn = nextFn
+    def __call__(self):
+        self.cb()
+        self.scheduler.scheduleOnce(self.nextFn(), self.name, self)
+
+class MixminionServer(_Scheduler):
     """Wraps and drives all the queues, and the async net server.  Handles
        all timed events."""
     ## Fields:
@@ -428,6 +479,7 @@ class MixminionServer:
     # pidFile: Filename in which we store the pid of the running server.
     def __init__(self, config):
         """Create a new server from a ServerConfig."""
+        _Scheduler.__init__(self)
         LOG.debug("Initializing server")
 
         self.config = config
@@ -519,19 +571,28 @@ class MixminionServer:
 
         self.cleanQueues()
 
-        # List of (eventTime, eventName) tuples.  Current names are:
-        #  'MIX', 'SHRED', and 'TIMEOUT'.  Kept in sorted order.
-        scheduledEvents = []
         now = time.time()
+        self.scheduleRecurring(now+600, 600, "SHRED", self.cleanQueues)
+        self.scheduleRecurring(now+180, 180, "WAIT",
+                               lambda: waitForChildren(blocking=0))
+        if EventStats.log.getNextRotation():#XXXX!!!!
+            self.scheduleRecurring(now+300, 300, "ES_SAVE",
+                                   EventStats.log.save)
+            self.scheduleRecurringComplex(EventStats.log.getNextRotation(),
+                                          "ES_ROTATE",
+                                          EventStats.log.rotate,
+                                          EventStats.log.getNextRotation)
 
-        scheduledEvents.append( (now + 600, "SHRED") )#FFFF make configurable
-        scheduledEvents.append( (now + 180, "WAIT") )#FFFF make configurable
-        scheduledEvents.append( (self.mmtpServer.getNextTimeoutTime(now),
-                                 "TIMEOUT") )
+        self.scheduleRecurringComplex(self.mmtpServer.getNextTimeoutTime(now),
+                                      "TIMEOUT",
+                                      self.mmtpServer.tryTimeout,
+                                      self.mmtpServer.getNextTimeoutTime)
+
+
         nextMix = self.mixPool.getNextMixTime(now)
-        scheduledEvents.append( (nextMix, "MIX") )
         LOG.debug("First mix at %s", formatTime(nextMix,1))
-        scheduledEvents.sort()
+        self.scheduleOnce(self.mixPool.getNextMixTime(now),
+                          "MIX", self.doMix)
 
         LOG.info("Entering main loop: Mixminion %s", mixminion.__version__)
 
@@ -543,7 +604,7 @@ class MixminionServer:
 
         # FFFF Support for automatic key rotation.
         while 1:
-            nextEventTime = scheduledEvents[0][0]
+            nextEventTime = self.firstEventTime()
             now = time.time()
             timeLeft = nextEventTime - now
             while timeLeft > 0:
@@ -570,54 +631,35 @@ class MixminionServer:
                 now = time.time()
                 timeLeft = nextEventTime - now
 
-            # It's time for an event.
-            event = scheduledEvents[0][1]
-            del scheduledEvents[0]
+            # An event has fired.
+            self.processEvents()
 
-            if event == 'TIMEOUT':
-                LOG.trace("Timing out old connections")
-                self.mmtpServer.tryTimeout(now)
-                insort(scheduledEvents,
-                       (self.mmtpServer.getNextTimeoutTime(now), "TIMEOUT"))
-            elif event == 'SHRED':
-                self.cleanQueues()
-                insort(scheduledEvents, (now + 600, "SHRED"))
-            elif event == 'WAIT':
-                # Every few minutes, we reap zombies.  Why, you ask?  Isn't
-                # catching sigchild enough?  Nope -- sometimes buggy delivery
-                # software forks, stays along long enough to ignore a child's
-                # SIGCHLD, then dies itself.  Or something -- in any case, we
-                # sure seem to be leaving a bunch of zombie mixmaster processes
-                # around.  This should fix it.
-                waitForChildren(blocking=0)
-                insort(scheduledEvents, (now + 180, "WAIT"))
-            elif event == 'MIX':
-                # Before we mix, we need to log the hashes to avoid replays.
-                try:
-                    # There's a potential threading problem here... in
-                    # between this sync and the 'mix' below, nobody should
-                    # insert into the mix pool.
-                    self.mixPool.lock()
-                    self.packetHandler.syncLogs()
+    def doMix(self):
+        now = time.time()
+        # Before we mix, we need to log the hashes to avoid replays.
+        try:
+            # There's a potential threading problem here... in
+            # between this sync and the 'mix' below, nobody should
+            # insert into the mix pool.
+            self.mixPool.lock()
+            self.packetHandler.syncLogs()
 
-                    LOG.trace("Mix interval elapsed")
-                    # Choose a set of outgoing messages; put them in
-                    # outgoingqueue and modulemanager
-                    self.mixPool.mix()
-                finally:
-                    self.mixPool.unlock()
-                    
-                # Send outgoing messages
-                self.outgoingQueue.sendReadyMessages()
-                # Send exit messages
-                self.moduleManager.sendReadyMessages()
+            LOG.trace("Mix interval elapsed")
+            # Choose a set of outgoing messages; put them in
+            # outgoingqueue and modulemanager
+            self.mixPool.mix()
+        finally:
+            self.mixPool.unlock()
 
-                # Choose next mix interval
-                nextMix = self.mixPool.getNextMixTime(now)
-                insort(scheduledEvents, (nextMix, "MIX"))
-                LOG.trace("Next mix at %s", formatTime(nextMix,1))
-            else:
-                assert event in ("MIX", "SHRED", "TIMEOUT", "WAIT")
+        # Send outgoing messages
+        self.outgoingQueue.sendReadyMessages()
+        # Send exit messages
+        self.moduleManager.sendReadyMessages()
+
+        # Choose next mix interval
+        nextMix = self.mixPool.getNextMixTime(now)
+        self.scheduleOnce(nextMix, "MIX", self.doMix)
+        LOG.trace("Next mix at %s", formatTime(nextMix,1))
 
     def cleanQueues(self):
         """Remove all deleted messages from queues"""
@@ -769,6 +811,8 @@ def runServer(cmd, args):
             LOG.fatal_exc(sys.exc_info(),
                           "Exception while starting server in the background")
             os._exit(0)
+    else:
+        os.umask(0000)
 
     # Configure event log
     try:

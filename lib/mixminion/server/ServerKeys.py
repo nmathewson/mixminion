@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.19 2003/04/26 14:39:59 nickm Exp $
+# $Id: ServerKeys.py,v 1.20 2003/05/05 00:38:46 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -252,7 +252,7 @@ class ServerKeyring:
             files = [ os.path.join(dirname,f)
                       for f in os.listdir(dirname) ]
             hashFiles = [ os.path.join(self.hashDir, "hash_"+name) ,
-                          os.path.join(self.hashDir, "hash_"+name+"jrnl") ]
+                          os.path.join(self.hashDir, "hash_"+name+"_jrnl") ]
             files += [ f for f in hashFiles if os.path.exists(f) ]
             secureDelete(files, blocking=1)
             os.rmdir(dirname)

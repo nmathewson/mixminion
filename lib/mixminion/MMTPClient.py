@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.28 2003/04/26 14:39:58 nickm Exp $
+# $Id: MMTPClient.py,v 1.29 2003/05/05 00:38:45 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -11,9 +11,7 @@
    around [A] so that clients have an easy (blocking) interface to
    introduce messages into the system, and [B] so that we've got an
    easy-to-verify reference implementation of the protocol.)
-
-   FFFF: As yet unsupported are: Session resumption and key renegotiation.
-   FFFF: Also unsupported: timeouts."""
+   """
 
 __all__ = [ "BlockingClientConnection", "sendMessages" ]
 
@@ -45,7 +43,7 @@ class BlockingClientConnection:
     #     if negotiation hasn't completed.
     # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
     #     in decreasing order of preference.
-    PROTOCOL_VERSIONS = ['0.2', '0.1']
+    PROTOCOL_VERSIONS = ['0.3']
     def __init__(self, targetIP, targetPort, targetKeyID):
         """Open a new connection."""
         self.targetIP = targetIP
@@ -115,7 +113,6 @@ class BlockingClientConnection:
             
         LOG.debug("Handshaking with %s:%s",self.targetIP, self.targetPort)
         self.tls = self.context.sock(self.sock.fileno())
-        # FFFF session resumption
         self.tls.connect()
         LOG.debug("Connected.")
 
@@ -126,7 +123,7 @@ class BlockingClientConnection:
 
         ####
         # Protocol negotiation
-        # For now, we only support 1.0, but we call it 0.1 so we can
+        # For now, we only support 1.0, but we call it 0.3 so we can
         # change our mind between now and a release candidate, and so we
         # can obsolete betas come release time.
         LOG.debug("Negotiatiating MMTP protocol")
@@ -160,9 +157,6 @@ class BlockingClientConnection:
 
     def sendJunkPacket(self, packet):
         """Send a single 32K junk packet to the server."""
-        if self.protocol == '0.1':
-            LOG.debug("Not sending junk to a v0.1 server")
-            return
         self._sendPacket(packet,
                          control="JUNK\r\n", serverControl="RECEIVED\r\n",
                          hashExtra="JUNK", serverHashExtra="RECEIVED JUNK")
@@ -264,7 +258,6 @@ def pingServer(routing, connectTimeout=5):
     sendMessages(routing, ["JUNK"], connectTimeout=connectTimeout)
     
 class PeerCertificateCache:
-    #XXXX004 use this properly; flush it to disk.
     "DOCDOC"
     def __init__(self):
         self.cache = {} # hashed peer pk -> identity keyid that it is valid for
@@ -281,12 +274,19 @@ class PeerCertificateCache:
 
         peer_pk = tls.get_peer_cert_pk()
         hashed_peer_pk = sha1(peer_pk.encode_key(public=1))
-        #XXXX004 Remove this option
+        # Before 0.0.4alpha, a server's keyID was a hash of its current
+        # TLS public key.  In 0.0.4alpha, we allowed this for backward
+        # compatibility.  As of 0.0.4alpha2, since we've dropped backward
+        # compatibility with earlier packet formats, we drop certificate
+        # compatibility as well.
         if targetKeyID == hashed_peer_pk:
-            LOG.warn("Non-rotatable keyid from server at %s", address)
-            return # raise MixProtocolError
+            raise MixProtocolBadAuth(
+               "Pre-0.0.4 (non-rotatable) certificate from server at %s",
+               address)
         try:
             if self.cache[hashed_peer_pk] == targetKeyID:
+                LOG.trace("Got a cached certificate from server at %s",
+                          address)
                 return # All is well.
             else:
                 raise MixProtocolBadAuth(
@@ -302,6 +302,8 @@ class PeerCertificateCache:
                                    %(address, e))
 
         hashed_identity = sha1(identity.encode_key(public=1))
+        LOG.trace("Remembering valid certificate for server at %s",
+                  address)
         self.cache[hashed_peer_pk] = hashed_identity
         if hashed_identity != targetKeyID:
             raise MixProtocolBadAuth("Invalid KeyID for server at %s" %address)

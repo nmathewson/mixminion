@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.9 2003/04/26 14:39:59 nickm Exp $
+# $Id: HashLog.py,v 1.10 2003/05/05 00:38:46 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -8,6 +8,7 @@
 
 import binascii
 import os
+import stat
 import anydbm, dumbdbm
 import threading
 from mixminion.Common import MixFatalError, LOG, createPrivateDir
@@ -63,9 +64,18 @@ class HashLog:
            'keyid'."""
         parent = os.path.split(filename)[0]
         createPrivateDir(parent)
-        # XXXX004 catch empty hashlog.
-        self.log = anydbm.open(filename, 'c')
+
+        # Catch empty logfiles: these can be created if we exit before
+        # syncing the log for the first time.
+        try:
+            if os.stat(filename)[stat.ST_SIZE] == 0:
+                LOG.warn("Half-created database %s found; cleaning up.")
+                os.unlink(filename)
+        except os.error:
+            pass
+
         LOG.debug("Opening database %s for packet digests", filename)
+        self.log = anydbm.open(filename, 'c')
         if isinstance(self.log, dumbdbm._Database):
             LOG.warn("Warning: logging packet digests to a flat file.")
         try:
@@ -73,7 +83,9 @@ class HashLog:
                 raise MixFatalError("Log KEYID does not match current KEYID")
         except KeyError:
             self.log["KEYID"] = keyid
+            if hasattr(self.log, 'sync'): self.log.sync()
 
+        # Scan the journal file
         self.journalFileName = filename+"_jrnl"
         self.journal = {}
         if os.path.exists(self.journalFileName):
@@ -85,7 +97,11 @@ class HashLog:
 
         self.journalFile = os.open(self.journalFileName,
                     _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
+
         self.__lock = threading.RLock()
+
+        # On startup, we flush everything to disk.
+        self.sync()
 
     def seenHash(self, hash):
         """Return true iff 'hash' has been logged before."""

@@ -32,8 +32,8 @@ For 0.0.4:
                 o Create and use event log
                 o Event log configurability
                 o server-stats command
-                . Test event log
-                - Document log and events
+                o Test event log
+                . Document log and events
                 - Test use of event log
         o Security:
                 o Support multiple SURB keys
@@ -66,27 +66,33 @@ For 0.0.4:
         o Add new fields to ServerInfo:
                 o Stub Secure-Configuration support
                 o Stub Contact-Fingerprint support
-        . MMTP
+        o MMTP
                 o "IP" belongs in the MMTP part of the server descriptor.
-                . self->self packets shouldn't hit the network.
+                o self->self packets shouldn't hit the network.
                         o Implement
-                        - Test
+                        o Test
                 o Don't have multiple connections to same server.
                 o KEYID should be hash of signing key==hash of
                   identity key.  (Spec may be incorrect.)
                         o Implement
                         o Check expiration date on certificates
                         o Use PeerCertificateCache properly
-                        - Test peercertificatecache.
-                . Add support for "REJECTED" reply (receive only).
+                        o Test peercertificatecache.
+                o Add support for "REJECTED" reply (receive only, with
+                  rudimentary send.)
                         o Implement
-                        - Test
-        . "mixminion ping" command
+                        o Test
+        o "mixminion ping" command
                 o Implement backend
                 o Implement frontend
-                - Test backend
+                X Test backend
                 o Test frontend
         - Key management:
+                . Refactor the scheduler code in ServerMain.  We know
+                  too many events now.
+                        o Implement
+                        - Document
+                        - Tests
                 . Ability to generate new serverdesc with old keys.
                         o Implement
                         - Test backend

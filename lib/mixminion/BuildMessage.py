@@ -1,13 +1,15 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.43 2003/04/26 14:39:58 nickm Exp $
+# $Id: BuildMessage.py,v 1.44 2003/05/05 00:38:45 nickm Exp $
 
 """mixminion.BuildMessage
 
    Code to construct messages and reply blocks, and to decode received
    message payloads."""
 
-import sys
 import operator
+import sys
+import types
+
 import mixminion.Crypto as Crypto
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG, UIError
@@ -238,13 +240,17 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
                                 seed)[0]
 
 def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
-    "XXXX DOCDOC"
-    err = 0
+    """Given two path legs, an exit type and an exitInfo, raise an error
+       if we can't build a hop with the provided legs.
+
+       The leg "path1" may be null."""
+    err = 0 # 0: no error. 1: 1st leg too big. 2: 1st leg okay, 2nd too big.
     if path1 is not None:
         try:
             _getRouting(path1, SWAP_FWD_TYPE, path2[0].getRoutingInfo().pack())
         except MixError:
             err = 1
+    # Add tag as needed to last exitinfo.
     if exitType != DROP_TYPE and exitInfo is not None:
         exitInfo += "X"*20
     else:
@@ -264,23 +270,20 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
 # MESSAGE DECODING
 
 def decodePayload(payload, tag, key=None,
-                  userKey=None,
                   userKeys={}):
     """Given a 28K payload and a 20-byte decoding tag, attempt to decode and
        decompress the original message.
 
            key: an RSA key to decode encrypted forward messages, or None
-           userKey: our encryption key for reply blocks, or None.
+           userKeys: a map from identity names to keys for reply blocks,
+                or None.
 
        If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,
        we return None.  If the payload is corrupt, we raise MixError.
-
-       DOCDOC userKeys
     """
-    # FFFF Take a list of keys?
-    if userKey and not userKeys:
-        userKeys = { "" : userKey }
+    if type(userKeys) is types.StringType:
+        userKeys = { "" : userKeys }
 
     if len(payload) != PAYLOAD_LEN or len(tag) != TAG_LEN:
         raise MixError("Wrong payload or tag length")
@@ -469,11 +472,6 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     headerKeys = [ Crypto.Keyset(secret).get(Crypto.HEADER_SECRET_MODE)
                        for secret in secrets ]
 
-##     # junkKeys[i]==the AES key object that node i will use to re-pad the
-##     # header.
-##     junkKeys = [ Crypto.Keyset(secret).get(Crypto.RANDOM_JUNK_MODE)
-##                        for secret in secrets ]
-
     # Length of padding needed for the header
     paddingLen = HEADER_LEN - totalSize
 
@@ -531,21 +529,23 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
             underflow = ""
 
         # Do we need to spill some of the routing info out from the
-        # RSA-encrypted portion?
-        #XXXX004 most of these asserts are silly.
-        assert not subhead.getOverflow() or not subhead.getUnderflowLength()
+        # RSA-encrypted portion?  If so, prepend it.
         header = subhead.getOverflow() + header
 
+        # Encrypt the symmetrically encrypted part of the header
         header = Crypto.ctr_crypt(header, headerKeys[i])
 
-        assert len(header)+len(junkSeen[i])+ENC_SUBHEADER_LEN == HEADER_LEN
+        # What digest will the next server see?
         subhead.digest = Crypto.sha1(header+junkSeen[i])
+
+        # Encrypt the subheader, plus whatever portion of the previous header
+        # underflows, into 'esh'.
         pubkey = path[i].getPacketKey()
         rsaPart = subhead.pack() + underflow
-        assert len(rsaPart) + OAEP_OVERHEAD == ENC_SUBHEADER_LEN
-        assert pubkey.get_modulus_bytes() == ENC_SUBHEADER_LEN
         esh = Crypto.pk_encrypt(rsaPart, pubkey)
-        assert len(esh) == ENC_SUBHEADER_LEN == 256
+
+        # Concatentate the asymmetric and symmetric parts, to get the next
+        # header.
         header = esh + header
 
     return header
@@ -647,7 +647,9 @@ def _decodePayloadImpl(payload):
 
     # Uncompress the body.
     contents = payload.getContents()
-    # ???? Should we make this rule configurable?  I say no.
+    # If the payload would expand to be more than 20K long, and the
+    # compression factor is greater than 20, we warn of a possible zlib
+    # bomb.
     maxLen = max(20*1024, 20*len(contents))
 
     return uncompressData(contents, maxLength=maxLen)
@@ -657,7 +659,15 @@ def _checkPayload(payload):
     return payload[2:22] == Crypto.sha1(payload[22:])
 
 def _getRouting(path, exitType, exitInfo):
-    "XXXX DOCDOC"
+    """Given a list of ServerInfo, and a final exitType and exitInfo,
+       return a 3-tuple of:
+           1) A list of routingtype/routinginfo tuples for the header
+           2) The size (in bytes) added to the header in order to
+              route to each of the nodes
+           3) Minimum size (in bytes) needed for the header.  If this
+              is greater than HEADER_LEN, we can't build the header at
+              all.
+        """
     # Construct a list 'routing' of exitType, exitInfo.
     routing = [ (FWD_TYPE, node.getRoutingInfo().pack()) for
                 node in path[1:] ]

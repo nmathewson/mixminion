@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.25 2003/04/26 14:39:59 nickm Exp $
+# $Id: MMTPServer.py,v 1.26 2003/05/05 00:38:46 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -8,9 +8,7 @@
    of the protocol.
 
    If you just want to send messages into the system, use MMTPClient.
-
-   FFFF As yet unsupported are: Session resumption, key renegotiation,
-   FFFF: Also unsupported: timeouts."""
+   """
 
 # NOTE FOR THE CURIOUS: The 'asyncore' module in the standard library
 #    is another general select/poll wrapper... so why are we using our
@@ -133,10 +131,12 @@ class AsyncServer:
         if r: del self.readers[fd]
         if w: del self.writers[fd]
 
-    def tryTimeout(self, now):
+    def tryTimeout(self, now=None):
         """Timeout any connection that is too old."""
         if self._timeout is None:
             return
+        if now is None:
+            now = time.time()
         # All connections older than 'cutoff' get purged.
         cutoff = now - self._timeout
         # Maintain a set of filenos for connections we've checked, so we don't
@@ -501,7 +501,7 @@ class SimpleTLSConnection(Connection):
 # Implementation for MMTP.
 
 # The protocol string to send.
-PROTOCOL_STRING      = "MMTP 0.1,0.2\r\n"
+PROTOCOL_STRING      = "MMTP 0.3\r\n"
 # The protocol specification to expect.
 PROTOCOL_RE          = re.compile("MMTP ([^\s\r\n]+)\r\n")
 # Control line for sending a message.
@@ -528,17 +528,19 @@ class MMTPServerConnection(SimpleTLSConnection):
     #     if negotiation hasn't completed.
     # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
     #     in decreasing order of preference.
-    PROTOCOL_VERSIONS = [ '0.2', '0.1' ]
-    def __init__(self, sock, tls, consumer):
+    PROTOCOL_VERSIONS = [ '0.3' ]
+    def __init__(self, sock, tls, consumer, rejectPackets=0):
         """Create an MMTP connection to receive messages sent along a given
            socket.  When valid packets are received, pass them to the
            function 'consumer'."""
         SimpleTLSConnection.__init__(self, sock, tls, 1,
                                      "%s:%s"%sock.getpeername())
         self.messageConsumer = consumer
-        self.junkCallback = lambda : None
+        self.junkCallback = lambda : None #DOCDOC
+        self.rejectCallback = lambda : None #DOCDOC
         self.finished = self.__setupFinished
         self.protocol = None
+        self.rejectPackets = rejectPackets #DOCDOC
 
     def __setupFinished(self):
         """Called once we're done accepting.  Begins reading the protocol
@@ -593,10 +595,16 @@ class MMTPServerConnection(SimpleTLSConnection):
         if data.startswith(JUNK_CONTROL):
             expectedDigest = sha1(msg+"JUNK")
             replyDigest = sha1(msg+"RECEIVED JUNK")
+            replyControl = RECEIVED_CONTROL
             isJunk = 1
         elif data.startswith(SEND_CONTROL):
             expectedDigest = sha1(msg+"SEND")
-            replyDigest = sha1(msg+"RECEIVED")
+            if self.rejectPackets:
+                replyDigest = sha1(msg+"REJECTED")
+                replyControl = REJECTED_CONTROL                
+            else:
+                replyDigest = sha1(msg+"RECEIVED")
+                replyControl = RECEIVED_CONTROL
             isJunk = 0
         else:
             warn("Unrecognized command from %s.  Closing connection.",
@@ -611,10 +619,12 @@ class MMTPServerConnection(SimpleTLSConnection):
         else:
             debug("%s packet received from %s; Checksum valid.",
                   data[:4], self.address)
-            self.finished = self.__sentAck
-            self.beginWrite(RECEIVED_CONTROL+replyDigest)
+            self.finished = self.__sentAck            
+            self.beginWrite(replyControl+replyDigest)
             if isJunk:
                 self.junkCallback()
+            elif self.rejectPackets:
+                self.rejectCallback()
             else:
                 self.messageConsumer(msg)
 
@@ -622,7 +632,6 @@ class MMTPServerConnection(SimpleTLSConnection):
         """Called once we're done sending an ACK.  Begins reading a new
            message."""
         debug("Send ACK for message from %s (fd %s)", self.address, self.fd)
-        #FFFF Rehandshake
         self.finished = self.__receivedMessage
         self.expectRead(SEND_RECORD_LEN)
 
@@ -630,7 +639,6 @@ class MMTPServerConnection(SimpleTLSConnection):
 
 NULL_KEYID = "\x00"*20
 
-# FFFF We need to note retriable situations better.
 class MMTPClientConnection(SimpleTLSConnection):
     """Asynchronious implementation of the sending ("client") side of a
        mixminion connection."""
@@ -646,7 +654,7 @@ class MMTPClientConnection(SimpleTLSConnection):
     #     if negotiation hasn't completed.
     # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
     #     in the order we offer them.
-    PROTOCOL_VERSIONS = [ '0.1', '0.2' ]
+    PROTOCOL_VERSIONS = [ '0.3' ]
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None, finishedCallback=None,
                  certCache=None):
@@ -668,7 +676,7 @@ class MMTPClientConnection(SimpleTLSConnection):
               DOCDOC certcache,finishedCallback"""
 
         # Generate junk before connecting to avoid timing attacks
-        self.junk = [] #XXXX doc this field.
+        self.junk = [] #DOCDOC doc this field.
         for m in messageList:
             if m == 'JUNK':
                 self.junk.append(getCommonPRNG().getBytes(MESSAGE_LEN))
@@ -773,10 +781,6 @@ class MMTPClientConnection(SimpleTLSConnection):
             del self.messageList[0]
             msg = self.junk[0]
             del self.junk[0]
-            if self.protocol == '0.1':
-                debug("Won't send junk to a 0.1 server.")
-                self.beginNextMessage()
-                return
             self.expectedDigest = sha1(msg+"RECEIVED JUNK")
             self.rejectDigest = sha1(msg+"REJECTED") 
             msg = JUNK_CONTROL+msg+sha1(msg+"JUNK")
@@ -809,7 +813,6 @@ class MMTPClientConnection(SimpleTLSConnection):
           Otherwise, begins shutting down.
        """
        trace("received ack (fd %s)", self.fd)
-       # FFFF Rehandshake
        inp = self.getInput()
        rejected = 0
        if inp == REJECTED_CONTROL+self.rejectDigest:
@@ -863,7 +866,7 @@ class MMTPAsyncServer(AsyncServer):
 
         self.context = tls
         # FFFF Don't always listen; don't always retransmit!
-        # FFFF Support listening on specific IPs
+        # FFFF Support listening on multiple IPs
 
         if config['Incoming/MMTP'].get('ListenIP',None) is not None:
             IP = config['Incoming/MMTP']['ListenIP']
@@ -889,9 +892,11 @@ class MMTPAsyncServer(AsyncServer):
            Used to rotate keys."""
         self.context = context
 
-    def getNextTimeoutTime(self, now):
+    def getNextTimeoutTime(self, now=None):
         """Return the time at which we next purge connections, if we have
            last done so at time 'now'."""
+        if now is None:
+            now = time.time()
         return now + self._timeout
 
     def _newMMTPConnection(self, sock):
@@ -958,4 +963,3 @@ class MMTPAsyncServer(AsyncServer):
 
     def onMessageSent(self, msg, handle):
         pass
-

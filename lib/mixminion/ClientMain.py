@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.71 2003/04/26 14:39:58 nickm Exp $
+# $Id: ClientMain.py,v 1.72 2003/05/05 00:38:45 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -909,14 +909,13 @@ def parsePathLeg(directory, config, path, nHops, address=None,
     return path2
     
 class ClientKeyring:
-    # XXXX004 testme
     """Class to manage storing encrypted keys for a client.  Right now, this
        is limited to a single SURB decryption key.  In the future, we may
        include more SURB keys, as well as end-to-end encryption keys.
     """
     ## Fields:
     # keyDir: The directory where we store our keys.
-    # keyring: DICT XXXX
+    # keyring: DICT XXXX DOCDOC
     # keyringPassword: The password for our encrypted keyfile
     ## Format:
     # We store keys in a file holding:
@@ -1434,7 +1433,6 @@ class MixminionClient:
               messages)
             servers1,servers2 -- lists of ServerInfo.
             """
-        #XXXX004 write unit tests
         routingType, routingInfo, _ = address.getRouting()
         LOG.info("Generating payload...")
         msg = mixminion.BuildMessage.buildForwardMessage(
@@ -2122,8 +2120,6 @@ def usageAndExit(cmd, error=None):
 #     change between now and 1.0.0
 def runClient(cmd, args):
     #DOCDOC Comment this function
-    if cmd.endswith(" client"): #XXXX004 remove this.
-        print "The 'client' command is deprecated.  Use 'send' instead."
     queueMode = 0
     if cmd.endswith(" queue"):
         queueMode = 1
