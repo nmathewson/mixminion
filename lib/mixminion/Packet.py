@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.67 2003/11/26 18:21:49 nickm Exp $
+# $Id: Packet.py,v 1.68 2003/11/28 04:14:04 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -14,7 +14,7 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'encodeMailHeaders', 'encodeMessageHeaders',
             'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_HOST_TYPE', 'FWD_IPV4_TYPE',
             'FragmentPayload',
-            'FRAGMENT_MESSAGEID_LEN', 'FRAGMENT_TYPE', 
+            'FRAGMENT_MESSAGEID_LEN', 'FRAGMENT_TYPE',
             'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
             'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
             'MIN_SUBHEADER_LEN', 'MMTPHostInfo', 'Packet',
@@ -27,8 +27,8 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'parseMBOXInfo', 'parsePacket', 'parseMessageAndHeaders',
             'parsePayload', 'parseRelayInfoByType', 'parseReplyBlock',
             'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
-            'parseTextEncodedMessages', 'parseTextReplyBlocks', 
-            'uncompressData'            
+            'parseTextEncodedMessages', 'parseTextReplyBlocks',
+            'uncompressData'
             ]
 
 import binascii
@@ -93,10 +93,10 @@ NEWS_TYPE      = 0x0102  # Post the message to some ngs, and maybe mail it too
 FRAGMENT_TYPE  = 0x0103  # Find the actual delivery info in the message payload
 MAX_EXIT_TYPE  = 0xFFFF
 
-# Set of exit types that don't get tag fields. 
-# XXXX007 This interface is really brittle; it needs to change.  I added it 
+# Set of exit types that don't get tag fields.
+# XXXX007 This interface is really brittle; it needs to change.  I added it
 # XXXX007 in order to allow 'fragment' to be an exit type without adding a
-# XXXX007 needless tag field to every fragment routing info.  
+# XXXX007 needless tag field to every fragment routing info.
 _TYPES_WITHOUT_TAGS = { FRAGMENT_TYPE : 1 }
 
 def typeIsSwap(tp):
@@ -209,7 +209,7 @@ class Subheader:
         if _TYPES_WITHOUT_TAGS.get(self.routingtype):
             return self.routinginfo
         else:
-            assert len(self.routinginfo) >= TAG_LEN            
+            assert len(self.routinginfo) >= TAG_LEN
             return self.routinginfo[TAG_LEN:]
 
     def getTag(self):
@@ -413,7 +413,7 @@ SSF_PREFIX_LEN = 4
 def parseServerSideFragmentedMessage(s):
     if len(s) < SSF_PREFIX_LEN:
         raise ParseError("Server-side fragmented message too short")
-    
+
     rt, rl = struct.unpack(SSF_UNPACK_PATTERN, s[:SSF_PREFIX_LEN])
     if len(s) < SSF_PREFIX_LEN + rl:
         raise ParseError("Server-side fragmented message too short")
@@ -729,21 +729,21 @@ class MBOXInfo:
 # the body is base64-encoded.
 
 MESSAGE_ARMOR_NAME = "TYPE III ANONYMOUS MESSAGE"
- 
+
 def parseTextEncodedMessages(msg,force=0):
     """Given a text-encoded Type III packet, return a list of
        TextEncodedMessage objects or raise ParseError.
-       
+
           force -- uncompress the message even if it's overcompressed.
     """
-    
+
     def isBase64(t,f):
         for k,v in f:
             if k == "Message-type":
                 if v != 'plaintext':
                     return 1
         return 0
-    
+
     unarmored = unarmorText(msg, (MESSAGE_ARMOR_NAME,), base64fn=isBase64)
     res = []
     for tp,fields,val in unarmored:
@@ -769,7 +769,7 @@ def parseTextEncodedMessages(msg,force=0):
 
         if msgType == 'LONG' and force:
             msg = uncompressData(msg)
-            
+
         if msgType in ('TXT','BIN','LONG','FRAG'):
             res.append(TextEncodedMessage(val, msgType))
         else:

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.34 2003/11/24 19:59:05 nickm Exp $ */
+/* $Id: crypt.c,v 1.35 2003/11/28 04:14:05 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -228,7 +228,7 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
         return output;
 }
 
-const char mm_aes128_block_crypt__doc__[] = 
+const char mm_aes128_block_crypt__doc__[] =
 "aes128_block_crypt(key, block, encrypt=0) -> result\n\n"
 "For testing only.  Encrypt or decrypt a single RSA block.\n";
 
@@ -240,15 +240,15 @@ mm_aes128_block_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
         long inputlen;
         int encrypt=0;
         PyObject *result;
-        AES_KEY *aes_key = NULL;        
+        AES_KEY *aes_key = NULL;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwdict,
-                                         "O&s#|i:aes128_block_crypt", kwlist, 
+                                         "O&s#|i:aes128_block_crypt", kwlist,
                                          aes_arg_convert, &aes_key,
                                          &input, &inputlen,
                                          &encrypt))
                 return NULL;
-        
+
         if (inputlen != 16) {
                 TYPE_ERR("aes128_block_crypt expected a single block.");
                 return NULL;
@@ -402,7 +402,7 @@ mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
         int n,r;
         HCRYPTPROV p;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict,
                                          "i:win32_get_random_bytes",
                                          kwlist, &n))
                 return NULL;
@@ -426,7 +426,7 @@ mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
         Py_BEGIN_ALLOW_THREADS
         r = CryptGenRandom(getProvider(), n, PyString_AS_STRING(result));
         Py_END_ALLOW_THREADS
-        
+
         if (!r) {
                 Py_DECREF(result);
                 WIN_ERR("Error generating random bytes");
@@ -464,11 +464,11 @@ mm_openssl_rand(PyObject *self, PyObject *args, PyObject *kwdict)
         Py_BEGIN_ALLOW_THREADS
         r = RAND_bytes(PyString_AsString(result), bytes);
         Py_END_ALLOW_THREADS
-        
+
         if (!r) {
                 Py_DECREF(result);
                 mm_SSL_ERR(1);
-                return NULL;  
+                return NULL;
         }
 
         return result;

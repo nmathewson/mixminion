@@ -71,7 +71,7 @@ class ClientKeyring:
     # We don't make new SURBs with any key that will expire in the next
     # month.
     MIN_KEY_LIFETIME_TO_USE = 30*24*60*60
-    
+
     def __init__(self, keyDir, passwordManager=None):
         """Create a new ClientKeyring, storing its keys in 'keyDir'"""
         if passwordManager is None:
@@ -90,7 +90,7 @@ class ClientKeyring:
         self.keyring = mixminion.ClientUtils.Keyring(fn, passwordManager)
 
     def getSURBKey(self, name="", create=0, password=None):
-        """Return a SURB key for a given identity, asking for passwords and 
+        """Return a SURB key for a given identity, asking for passwords and
            loading the keyring if necessary..  Return None on failure.
 
            name -- the SURB key identity
@@ -106,8 +106,8 @@ class ClientKeyring:
                 return None
             if not self.keyring.isLoaded():
                 return None
-        
-        
+
+
         try:
             key = self.keyring.getNewestSURBKey(
                 name,minLifetime=self.MIN_KEY_LIFETIME_TO_USE)
@@ -128,7 +128,7 @@ class ClientKeyring:
                 self.keyring.save()
 
         assert 0 # Unreached.
-        
+
     def getSURBKeys(self, password=None):
         """Return the keys for _all_ SURB identities as a list of
            (name,key) tuples."""
@@ -232,7 +232,7 @@ class MixminionClient:
                            startAt, endAt, forceQueue=0, forceNoQueue=0,
                            forceNoServerSideFragments=0):
         """Generate and send a forward message.
-            directory -- an instance of ClientDirectory; used to generate 
+            directory -- an instance of ClientDirectory; used to generate
                paths.
             address -- an instance of ExitAddress, used to tell where to
                deliver the message.
@@ -265,7 +265,7 @@ class MixminionClient:
                          startAt, endAt, forceQueue=0,
                          forceNoQueue=0):
         """Generate and send a reply message.
-            directory -- an instance of ClientDirectory; used to generate 
+            directory -- an instance of ClientDirectory; used to generate
                paths.
             address -- an instance of ExitAddress, used to tell where to
                deliver the message.
@@ -314,7 +314,7 @@ class MixminionClient:
            them.  Return a list of tuples of (the packet body, a
            ServerInfo for the first hop.)
 
-            directory -- an instance of ClientDirectory; used to generate 
+            directory -- an instance of ClientDirectory; used to generate
                paths.
             address -- an instance of ExitAddress, used to tell where to
                deliver the message.
@@ -346,10 +346,10 @@ class MixminionClient:
             payloads = [ mixminion.BuildMessage.buildRandomPayload() ]
             address.setFragmented(0,1)
         routingType, routingInfo, _ = address.getRouting()
-        
+
         directory.validatePath(pathSpec, address, startAt, endAt,
                                warnUnrecommended=0)
-        
+
         for p, (path1,path2) in zip(payloads, directory.generatePaths(
             len(payloads), pathSpec, address, startAt, endAt)):
 
@@ -366,7 +366,7 @@ class MixminionClient:
            a tuple of (packet body, ServerInfo for the first hop.)
 
 
-            directory -- an instance of ClientDirectory; used to generate 
+            directory -- an instance of ClientDirectory; used to generate
                paths.
             address -- an instance of ExitAddress, used to tell where to
                deliver the message.
@@ -382,15 +382,15 @@ class MixminionClient:
         assert address.isReply
 
         payloads = mixminion.BuildMessage.encodeMessage(message, 0, "")
-        
+
         surbLog = self.openSURBLog() # implies lock
         result = []
         try:
-            surbs = surbLog.findUnusedSURBs(surbList, len(payloads), 
+            surbs = surbLog.findUnusedSURBs(surbList, len(payloads),
                                            verbose=1, now=startAt)
             if len(surbs) < len(payloads):
                 raise UIError("Not enough usable reply blocks found; all were used or expired.")
-            
+
 
             for (surb,payload,(path1,path2)) in zip(surbs,payloads,
                   directory.generatePaths(len(payloads),pathSpec, address,
@@ -399,13 +399,13 @@ class MixminionClient:
                 LOG.info("Generating packet...")
                 pkt = mixminion.BuildMessage.buildReplyPacket(
                     payload, path1, surb, self.prng)
-                
+
                 surbLog.markSURBUsed(surb)
                 result.append( (pkt, path1[0]) )
-            
+
         finally:
             surbLog.close() #implies unlock
-            
+
         return result
 
     def openSURBLog(self):
@@ -522,7 +522,7 @@ class MixminionClient:
             for h in handles:
                 try:
                     routing = self.queue.getRouting(h)
-                except mixminion.Filestore.CorruptedFile: 
+                except mixminion.Filestore.CorruptedFile:
                     continue
                 packet = PacketProxy(h,self.queue)
                 packets.append((packet,routing))
@@ -1131,7 +1131,7 @@ def runClient(cmd, args):
     if parser.exitAddress.isReply:
         client.sendReplyMessage(
             parser.directory, parser.exitAddress, parser.pathSpec,
-            parser.surbList, message, 
+            parser.surbList, message,
             parser.startAt, parser.endAt, forceQueue, forceNoQueue)
     else:
         client.sendForwardMessage(
@@ -1249,7 +1249,7 @@ Options:
   -C, --cascade-features     Pretty-print results, cascading by features.
   -F <name>,--feature=<name> Select which server features to list.
   --list-features            Display a list of all recognized features.
-                               
+
 EXAMPLES:
   List all currently known servers.
       %(cmd)s
@@ -1359,7 +1359,7 @@ def listServers(cmd, args):
     for line in mixminion.ClientDirectory.formatFeatureMap(
         features,featureMap,showTime,cascade,separator,justify):
         print line
-        
+
 
 _UPDATE_SERVERS_USAGE = """\
 Usage: %(cmd)s [options]
@@ -1573,7 +1573,7 @@ def generateSURB(cmd, args):
 
     for path1,path2 in parser.generatePaths(count):
         assert path2 and not path1
-        surb = client.generateReplyBlock(parser.exitAddress, path2, 
+        surb = client.generateReplyBlock(parser.exitAddress, path2,
                                          name=identity,
                                          expiryTime=parser.endAt)
         if binary:

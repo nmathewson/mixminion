@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.63 2003/11/25 02:15:14 nickm Exp $
+# $Id: Modules.py,v 1.64 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -525,7 +525,7 @@ class FragmentModule(DeliveryModule):
        is sent in packets of exit type FRAGMENT.  The actual exit type and
        delivery address are encoded at the start of the reassembled message.
        """
-    ## 
+    ##
     # _queue: An instance of FragmentDeliveryQueue, or None
     # manager: A pointer back to the module manager.  Used to insert
     #   reassembled messages into other modules' queues.
@@ -548,7 +548,7 @@ class FragmentModule(DeliveryModule):
                    'MaximumSize' : ('REQUIRE', "size", None),
                    'MaximumInterval' : ('ALLOW', "interval", "2 days" )
                    } }
-    
+
     def validateConfig(self, config, lines, contents):
         frag = config.get('Delivery/Fragmented', {}).get("Enabled")
         if not frag:
@@ -576,7 +576,7 @@ class FragmentModule(DeliveryModule):
                 LOG.warn("Delivery/Fragmented MaximumSize is larger than can be delivered with %s MaximumSize",ds)
             elif deliverSize > maxSize*10:
                 LOG.warn("%s MaximumSize is larger than is likely to be reassembled from Delivery/Fragmented MaximumSize")
-        
+
     def getRetrySchedule(self):
         return [ ]
     def configure(self, config, manager):
@@ -623,7 +623,7 @@ class FragmentModule(DeliveryModule):
                 self._queue = None
         finally:
             self.lock.release()
-    
+
 class FragmentDeliveryQueue:
     """Delivery queue for FragmentModule.
 
@@ -699,7 +699,7 @@ class FragmentDeliveryQueue:
             self.pool.expireMessages(cutoff)
         finally:
             self.lock.release()
-            
+
 class _FragmentedDeliveryMessage:
     """Helper class: obeys the interface of mixminion.server.PacketHandler.
        DeliveryMessage, but contains a long message reassembled from
@@ -727,12 +727,12 @@ class _FragmentedDeliveryMessage:
     def getContents(self):
         if self.contents is None: self.decode()
         return self.contents
-    def isPlaintext(self): 
+    def isPlaintext(self):
         if self.contents is None: self.decode()
         return self.tp == 'plain'
     def isFragment(self): return 0
     def isEncrypted(self): return 0
-    def isError(self): 
+    def isError(self):
         if self.contents is None: self.decode()
         return self.tp == 'err'
     def isOvercompressed(self):
@@ -930,7 +930,7 @@ class MailBase:
     # subject: Default subject to use for outgoing mail, if none is given
     #    in the message.
     # fromTag: String to prepend to from name.
-    # returnAddress: Return address for mail; should be an rfc822-style 
+    # returnAddress: Return address for mail; should be an rfc822-style
     #    mailbox.
     # header: Text that should be appended after the headers and before
     #    the message itself.  It must include the empty line that separates
@@ -1076,7 +1076,7 @@ and you will be removed.""" %(self.nickname, self.addr, self.contact)
             lines = f.readlines()
         finally:
             f.close()
-        
+
         address_line_re = re.compile(r'([^\s:=]+)\s*[:=]\s*(\S+)')
 
         lineno = 0
@@ -1096,7 +1096,7 @@ and you will be removed.""" %(self.nickname, self.addr, self.contact)
         moduleManager.enableModule(self)
 
     def getServerInfoBlock(self):
-        if self.allowFromAddr: 
+        if self.allowFromAddr:
             allowFrom = "yes"
         else:
             allowFrom = "no"
@@ -1138,7 +1138,7 @@ class SMTPModule(DeliveryModule, MailBase):
     def __init__(self):
         DeliveryModule.__init__(self)
     def getServerInfoBlock(self):
-        if self.allowFromAddr: 
+        if self.allowFromAddr:
             allowFrom = "yes"
         else:
             allowFrom = "no"
@@ -1375,7 +1375,7 @@ def checkMailHeaders(headers):
         if k not in MAIL_HEADERS:
             #XXXX this should raise parse error instead.
             LOG.warn("Skipping unrecognized mail header %s"%k)
-        
+
     fromAddr = headers['FROM']
     if re.search(r'[\[\]:"]', fromAddr):
         raise ParseError("Invalid FROM address: %r", fromAddr)

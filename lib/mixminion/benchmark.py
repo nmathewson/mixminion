@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.48 2003/11/10 04:04:35 nickm Exp $
+# $Id: benchmark.py,v 1.49 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.benchmark
 
@@ -287,7 +287,7 @@ def rsaTiming():
 
     print "RSA generate (1024 bit,e=100073471)", timeit(
         lambda: pk_generate(1024, 100073471), 10)
-                             
+
     rsa = pk_generate(1024, 100073471)
     print "Pad+RSA public encrypt",
     print timeit((lambda rsa=rsa: pk_encrypt(s70b, rsa)),1000)
@@ -490,7 +490,7 @@ def serverQueueTiming():
     d2 = mix_mktemp()
     os.mkdir(d2,0700)
     getCommonPRNG().getBytes(1)
-    
+
     #for ln,it in (32*1024,100),(128,400),(1024,400), (32*1024,100):
     for ln,it in ():
         msg = "z"*ln
@@ -919,10 +919,10 @@ def testLeaks5_send2():
         #tls.get_peer_cert_pk()
         certcache.check(tls, keyid, ("127.0.0.1", TEST_PORT))
         #print certcache.cache
-        
+
         tls.shutdown()
         sock.close()
-            
+
 
 
     while 1:
@@ -1005,14 +1005,14 @@ def testLeaks_FEC():
         fec = _ml.FEC_generate(3,5)
         chunks = [ fec.encode(i, inp) for i in xrange(5) ]
         fec.decode([(i, chunks[i]) for i in xrange(2,5) ])
-        
+
 #----------------------------------------------------------------------
 def timeAll(name, args):
     if 0:
         timeEfficiency()
         return
 
-    fecTiming()    
+    fecTiming()
     cryptoTiming()
     rsaTiming()
     buildMessageTiming()

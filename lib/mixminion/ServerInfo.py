@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.64 2003/11/24 19:59:04 nickm Exp $
+# $Id: ServerInfo.py,v 1.65 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -77,7 +77,7 @@ def getNicknameByKeyID(keyid):
     """Given a 20-byte keyid, look up the nickname of the corresponding
        server.  Return the nickname on success and None if we don't recognize
        the server.
-    
+
        FFFF Right now, this is not supported for servers, since they don't
        FFFF download directories.
     """
@@ -200,13 +200,13 @@ class ServerInfo(mixminion.Config._ConfigFile):
                     if k == 'Descriptor-Version' and v.strip() != '0.2':
                         raise ConfigError("Unrecognized descriptor version: %s"
                                           % v.strip())
-        
-        
+
+
         # Remove any sections with unrecognized versions.
         revisedContents = []
         for name, ents in contents:
             v = self.expected_versions.get(name)
-            if not v: 
+            if not v:
                 revisedContents.append((name, ents))
                 continue
             versionkey, versionval = v
@@ -346,7 +346,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         host = self.getHostname()
         if host is None: return None
         return MMTPHostInfo(host, self.getPort(), self.getKeyDigest())
-    
+
     def getRoutingInfo(self):
         """Return whichever of MMTPHostInfo or IPV4 info is best for
            delivering to this server (assuming that the sending host
@@ -414,7 +414,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                   mixminion.Packet.SWAP_FWD_IPV4_TYPE][swap]
 
         return rt, ri
-        
+
     def getCaps(self):
         """Return a list of strings to describe this servers abilities in
            a concise human-readable format."""

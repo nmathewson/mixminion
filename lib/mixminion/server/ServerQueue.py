@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.36 2003/11/24 19:59:05 nickm Exp $
+# $Id: ServerQueue.py,v 1.37 2003/11/28 04:14:05 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -52,7 +52,7 @@ class _DeliveryState:
         self.pending = None
         self.nextAttempt = None
         self.remove = 0
-        
+
     def isPending(self):
         """Return true iff we are currently trying to deliver this message."""
         return self.pending is not None
@@ -72,7 +72,7 @@ class _DeliveryState:
     def isRemovable(self):
         """Return true iff this message is old enough to be removed."""
         return self.remove
-    
+
     def __getstate__(self):
         # For pickling.  All future versions of deliverystate will pickle
         #   to a tuple, whose first element will be a version string.

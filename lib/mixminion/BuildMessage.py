@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.63 2003/11/24 19:59:03 nickm Exp $
+# $Id: BuildMessage.py,v 1.64 2003/11/28 04:14:03 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -30,7 +30,7 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
        and add extra fields (size, hash, etc) as appropriate.  Return a list
        of strings, each of which is a message payload suitable for use in
        build*Message.
- 
+
               payload: the initial payload
               overhead: number of bytes to omit from each payload,
                         given the type ofthe message encoding.
@@ -314,8 +314,8 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
         except MixError:
             err = 1
     # Add a dummy tag as needed to last exitinfo.
-    if (exitType != DROP_TYPE 
-        and not mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType) 
+    if (exitType != DROP_TYPE
+        and not mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType)
         and exitInfo is not None):
         exitInfo += "X"*20
     else:
@@ -330,7 +330,7 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     elif err:
         raise UIError("Address and %s leg of path will not fit in one header",
                       ["first", "second"][err-1])
-    
+
 #----------------------------------------------------------------------
 # MESSAGE DECODING
 def decodePayload(payload, tag, key=None, userKeys=()):
@@ -339,7 +339,7 @@ def decodePayload(payload, tag, key=None, userKeys=()):
        FragmentPayload instance, or None.
 
            key: an RSA key to decode encrypted forward messages, or None
-           userKeys: a sequence of (name,key) tuples maping identity names to 
+           userKeys: a sequence of (name,key) tuples maping identity names to
                 SURB keys. For backward compatibility, 'userKeys' may also be
                 None (no SURBs known), a dict (from name to key), or a single
                 key (implied identity is "").
@@ -357,7 +357,7 @@ def decodePayload(payload, tag, key=None, userKeys=()):
 
     if len(payload) != PAYLOAD_LEN:
         raise MixError("Wrong payload length")
-    
+
     if len(tag) not in (0, TAG_LEN):
         raise MixError("Wrong tag length: %s"%len(tag))
 
@@ -447,7 +447,7 @@ def _decodeReplyPayload(payload, secrets, check=0):
     # 'check' is true, we don't.
     if check or not _checkPayload(payload):
         raise MixError("Invalid checksum on reply payload")
-    
+
     return parsePayload(payload)
 
 def _decodeStatelessReplyPayload(payload, tag, userKey):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.19 2003/11/24 19:59:04 nickm Exp $
+# $Id: DirMain.py,v 1.20 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -64,7 +64,7 @@ def cmd_init(args):
     """[Entry point] Set up a new set of directory files."""
     if args:
         raise UIError("mixminion dir initialize takes no arguments")
-    
+
     d = getDirectory()
     d.setupDirectories()
     d.getServerList()
@@ -76,7 +76,7 @@ def cmd_update(args):
        as part of a cron job."""
     if args:
         raise UIError("mixminion dir update takes no arguments")
-    
+
     d = getDirectory()
     serverList = d.getServerList()
     inbox = d.getInbox()
@@ -159,7 +159,7 @@ def cmd_generate(args):
     now = time.time()
     tomorrow = now+60*60*24
     twoWeeks = 60*60*24*14
-    
+
     serverList.generateDirectory(startAt=now, endAt=tomorrow,
                                  extraTime=twoWeeks,
                                  identityKey=key,
@@ -196,7 +196,7 @@ SUBCOMMANDS = { 'initialize' : cmd_init,
                 'generate' : cmd_generate,
                 'fingerprint' : cmd_fingerprint,
                 'rebuildcache' : cmd_rebuildcache
-                } 
+                }
 
 def main(cmd, args):
     """[Entry point] Multiplex among subcommands."""

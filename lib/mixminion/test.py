@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.168 2003/11/25 02:15:14 nickm Exp $
+# $Id: test.py,v 1.169 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.tests
 
@@ -203,7 +203,7 @@ class TestCase(unittest.TestCase):
         if not floatEq(f1, f2, tolerance):
             self.fail("%s != %s" % (f1, f2))
     def assertLongStringEq(self, s1, s2):
-        """Fail unless the string s1 equals the string s2.  If they aren't 
+        """Fail unless the string s1 equals the string s2.  If they aren't
            equal, give a failure message that highlights the first point at
            which they differ."""
         if s1 != s2:
@@ -279,7 +279,7 @@ class MiscTests(TestCase):
             self.assertEquals(parse(s), t)
             if not last:
                 continue
-            
+
             if c == 'EX':
                 self.assertRaises(ValueError, cmp, last, t)
             elif c == '<':
@@ -566,7 +566,7 @@ class MiscTests(TestCase):
         LF1.replaceContents("shorter")
         if not ON_WINDOWS:
             self.assertEquals("shorter", readFile(fn))
-        
+
         self.assertRaises(LockfileLocked, LF2.acquire, blocking=0)
         LF1.release()
         LF2.acquire("LF2",1)
@@ -727,7 +727,7 @@ World!
         self.assertEquals("fred", es(["fred"]))
         self.assertEquals("fred and joe", es(["fred", "joe"]))
         self.assertEquals("fred, joe, and bob", es(["fred", "joe", "bob"]))
-        self.assertEquals("fred, jr; joe; and bob", 
+        self.assertEquals("fred, jr; joe; and bob",
                           es(["fred, jr", "joe", "bob"]))
         self.assertEquals("fred, jr; and bob",
                           es(["fred, jr", "bob"]))
@@ -738,9 +738,9 @@ World!
                              compound="or"))
         self.assertEquals("fred", es(["fred"], compound="or"))
         self.assertEquals("fred or joe", es(["fred", "joe"], compound="or"))
-        self.assertEquals("fred, joe, or bob", 
+        self.assertEquals("fred, joe, or bob",
                           es(["fred", "joe", "bob"], compound="or"))
-        
+
 #----------------------------------------------------------------------
 
 class MinionlibCryptoTests(TestCase):
@@ -989,7 +989,7 @@ class MinionlibFECTests(TestCase):
             out = fec.decode(chk)
             eq(out, inpChunks)
             eq("".join(out), inp)
-          
+
     def test_good_fec(self):
         self.do_fec_test(3,5,10)
         self.do_fec_test(10,20,1024)
@@ -999,7 +999,7 @@ class MinionlibFECTests(TestCase):
         self.do_fec_test(3,3,2048)
 
     def test_bad_fec(self):
-        
+
         self.assertRaises(_ml.FECError,_ml.FEC_generate,5,3)
         self.assertRaises(_ml.FECError,_ml.FEC_generate,0,10)
         self.assertRaises(_ml.FECError,_ml.FEC_generate,10,300)
@@ -1204,7 +1204,7 @@ class CryptoTests(TestCase):
         for i in xrange(1,10000,17):
             self.failUnless(0 <= PRNG.getInt(10) < 10)
             self.failUnless(0 <= PRNG.getInt(i) < i)
-        
+
         # Check getNormal
         tot = 0
         for i in xrange(1,1000):
@@ -1384,7 +1384,7 @@ class PacketTests(TestCase):
         self.failUnlessRaises(ParseError, parseMMTPHostInfo, "\x30\x55"+keyid)
         self.failUnlessRaises(ParseError, parseMMTPHostInfo,
                               "\x30\x55"+keyid+"_.com")
-                          
+
 
     def test_replyblock(self):
         # Try parsing an example 'reply block' object
@@ -1791,7 +1791,7 @@ class FakeServerInfo:
     def getRoutingFor(self,other,swap):
         tp = [FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE][swap]
         return (tp, other.getRoutingInfo().pack())
-                
+
 
 class BuildMessageTests(TestCase):
     def setUp(self):
@@ -1828,7 +1828,7 @@ class BuildMessageTests(TestCase):
 
     def test_payload_helpers(self):
         "test helpers for payload encoding"
-        
+
         p = AESCounterPRNG()
         for _ in xrange(10):
             t = BuildMessage._getRandomTag(p)
@@ -2124,7 +2124,7 @@ class BuildMessageTests(TestCase):
         self.assertEquals(payload, p[:len(payload)])
 
     def test_build_fwd_message(self):
-        
+
         bfm = BuildMessage.buildForwardPacket
         befm = BuildMessage.buildEncryptedForwardPacket
         payloadF = BuildMessage.encodeMessage("Hello!!!!",0)[0]
@@ -2144,7 +2144,7 @@ class BuildMessageTests(TestCase):
                                 "Goodbye") ),
                              "Hello!!!!")
         m = bfm(payloadF, 500, "Goodbye", [self.server1], [self.server3])
-        
+
         messages = {}
 
         def decoder0(p,t,messages=messages):
@@ -2160,7 +2160,7 @@ class BuildMessageTests(TestCase):
                                ("Goodbye",) ),
                              "Hello!!!!",
                              decoder=decoder0)
-        
+
         # Drop message gets no tag, random payload
         m = bfm(BuildMessage.buildRandomPayload(),
                 DROP_TYPE, "", [self.server1], [self.server3])
@@ -2204,7 +2204,7 @@ class BuildMessageTests(TestCase):
                                     "Phello") ),
                                  "<<<<Hello>>>>"*100,
                                  decoder=decoder)
-            
+
         # Now do more tests on final messages: is the format as expected?
         p,t = messages['fwd']
         self.assertEquals(20, len(t))
@@ -2339,7 +2339,7 @@ class BuildMessageTests(TestCase):
             payload = BuildMessage._decodeStatelessReplyPayload(p,t,
                                                          "Tyrone Slothrop")
             return payload.getUncompressedContents()
-        
+
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
                               (FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE),
@@ -2702,7 +2702,7 @@ class PacketHandlerTests(TestCase):
         p = encodeMessageHeaders(h) + "This is the message.\n"
         m = bfm(BuildMessage.encodeMessage(p,0)[0],
                 SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
-        pkt = self.do_test_chain(m, 
+        pkt = self.do_test_chain(m,
                                  [self.sp1, self.sp3],
                                  [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
@@ -2712,13 +2712,13 @@ class PacketHandlerTests(TestCase):
         self.assert_(not pkt.isEncrypted())
         self.assertEquals(pkt.getContents(), "This is the message.\n")
         self.assertEquals(pkt.getHeaders(), h)
-        
+
         #    (binary msg with headers.)
         body = "\x01\x02\x03\x04"*10
         p = encodeMessageHeaders(h) + body
         m = bfm(BuildMessage.encodeMessage(p,0)[0],
                 SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
-        pkt = self.do_test_chain(m, 
+        pkt = self.do_test_chain(m,
                                  [self.sp1, self.sp3],
                                  [FWD_IPV4_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
@@ -2869,7 +2869,7 @@ class FilestoreTests(FStoreTestBase):
         self.d3 = mix_mktemp("q3")
     def testCreateStore(self):
         Store = mixminion.Filestore.MixedStore
-        
+
         # Nonexistent dir.
         self.failUnlessRaises(MixFatalError, Store, self.d1)
         # File in place of dir
@@ -2903,7 +2903,7 @@ class FilestoreTests(FStoreTestBase):
 
     def testStoreOps(self):
         Store = mixminion.Filestore.MixedStore
-        
+
         queue1 = Store(self.d2, create=1)
         queue2 = Store(self.d3, create=1)
 
@@ -3080,7 +3080,7 @@ class FilestoreTests(FStoreTestBase):
         for fn in os.listdir(d_parent):
             self.assertStartsWith(fn, "db0")
             os.unlink(os.path.join(d_parent,fn))
-        
+
         # Test journaled DB.
         loc = os.path.join(d_parent, "db1")
         jloc = loc+"_jrnl"
@@ -3333,7 +3333,7 @@ class LogTests(TestCase):
         self.assertEndsWith(buf.getvalue(), "[WARN] Hello, world\n")
         self.failUnless(buf.getvalue().index('\n') == len(buf.getvalue())-1)
         log.error("All your anonymity are belong to us")
-        self.assertEndsWith(buf.getvalue(), 
+        self.assertEndsWith(buf.getvalue(),
             "[ERROR] All your anonymity are belong to us\n")
 
         buf.truncate(0)
@@ -3357,7 +3357,7 @@ class LogTests(TestCase):
         if ON_WIN32: #WWWW
             log.close()
             return
-        
+
         os.rename(t,t1)
         log.info("Ghi")
         log.reset()
@@ -3438,7 +3438,7 @@ class FileParanoiaTests(TestCase):
             return st[stat.ST_MODE]&0777, st[stat.ST_UID], os.path.isdir(f)
 
         # Now we test a directory we don't own...
-        if not ON_WIN32 and os.getuid() == 0: 
+        if not ON_WIN32 and os.getuid() == 0:
             # If we're root, we can play with chown!
             # We don't own the directory
             os.chown(subdir, 1, 1)
@@ -3994,7 +3994,7 @@ class TestConfigFile(_ConfigFile):
 
 class ConfigFileTests(TestCase):
     def testValidFiles(self):
-        
+
         TCF = TestConfigFile
         # Try a minimal file.
         shorterString = """[Sec1]\nFoo a\n"""
@@ -4101,13 +4101,13 @@ IntRS=5
         try:
             TestConfigFile(None,"[Sec1]\nFoo: 1\nBap:1\n")
         except ConfigError, e:
-            self.assertEndsWith(str(e), 
+            self.assertEndsWith(str(e),
                                 "Unrecognized key Bap on line 3. This "
                                 "key belongs in Sec2, but appears in Sec1.")
         try:
             TestConfigFile(None,"[Sec1]\nFoo: 1\nQuz:1\n")
         except ConfigError, e:
-            self.assertEndsWith(str(e), 
+            self.assertEndsWith(str(e),
                                "Unrecognized key Quz on line 3. This key "
                                "belongs in Sec2 or Sec3, but appears in Sec1.")
 
@@ -4249,7 +4249,7 @@ IntRS=5
         self.assertEquals(SC._parseMixRule("binomialCottrell"),
                           "BinomialCottrellMixPool")
         self.assertEquals(SC._parseMixRule("TIMED"), "TimedMixPool")
-        
+
 
         ##
         # Now, try the failing cases.
@@ -5967,22 +5967,22 @@ class DNSFarmTests(TestCase):
             self.assertEquals(receiveDict['bar'][:2],
                               (mixminion.NetUtils.AF_INET6, '18:0FFF::4:1'))
             # We allow a little wiggle on DELAY, since many OS's don't
-            # stricly guarantee that 
+            # stricly guarantee that
             #     t1=time();sleep(x);t2=time();assert t2>=t1+x
             # will pass.
-            self.assert_(DELAY*.8 <= receiveDict['foo'][2]-start 
+            self.assert_(DELAY*.8 <= receiveDict['foo'][2]-start
                                   <= DELAY+LATENCY)
-            self.assert_(DELAY*.8 <= receiveDict['bar'][2]-start 
+            self.assert_(DELAY*.8 <= receiveDict['bar'][2]-start
                                   <= DELAY+LATENCY)
             self.assertEquals(receiveDict['nowhere.noplace'][0], "NOENT")
             self.assertEquals(cache.getNonblocking("foo"),
                               receiveDict['foo'])
             self.assertEquals(cache.getNonblocking("baz.com")[:2],
                               (socket.AF_INET, '10.99.22.8'))
-            self.assert_(DELAY*1.20 <= receiveDict['baz.com'][2]-start 
+            self.assert_(DELAY*1.20 <= receiveDict['baz.com'][2]-start
                                     <= DELAY*1.25 + LATENCY)
 
-            # Change foo's expiration time to be well before nowhere's, 
+            # Change foo's expiration time to be well before nowhere's,
             # then expire foo but not nowhere.
             t2 = receiveDict['nowhere.noplace'][2]
             cache.cache['foo'] = cache.cache['foo'][:2]+((t2-5),)
@@ -6000,7 +6000,7 @@ class DNSFarmTests(TestCase):
             self.assertEquals(5, len(receiveDict))
         finally:
             undoReplacedAttributes()
-            
+
 #----------------------------------------------------------------------
 
 class ServerMainTests(TestCase):
@@ -6201,7 +6201,7 @@ class ClientUtilTests(TestCase):
         idx1 = contents.index("\n\n")+2
         idx2 = contents.rindex("\n-----END TYPE")
         contents = base64.decodestring(contents[idx1:idx2])
-        
+
         self.assertEquals(contents[:8], magic1)
         self.assertEquals(contents[8], '\x00')
         salt = contents[9:17]
@@ -6212,10 +6212,10 @@ class ClientUtilTests(TestCase):
         self.assertEquals(decrypted[4:14], "xyzzyxyzzy")
         self.assertEquals(decrypted[-20:],
                           mixminion.Crypto.sha1(decrypted[:-20]+salt+magic1))
-        
+
         self.assertEquals((magic1,"xyzzyxyzzy"),
                           CU._readEncryptedFile(f1, "x", [magic1, "BLIZNERT"]))
-        
+
         # Try reading with wrong password.
         self.assertRaises(CU.BadPassword, CU._readEncryptedFile,
                           f1, "nobodaddy", [magic1])
@@ -6227,7 +6227,7 @@ class ClientUtilTests(TestCase):
         # Try empty data.
         CU._writeEncryptedFile(f1, password="x", magic=magic1, data="")
         self.assertEquals((magic1,""),CU._readEncryptedFile(f1, "x", [magic1]))
-        
+
         # Test LazyEncryptedStore
         class DummyPasswordManager(CU.PasswordManager):
             def __init__(self,d):
@@ -6348,7 +6348,7 @@ class ClientUtilTests(TestCase):
                  for _ in range(3)]
 
         #FFFF check for skipping expired and shortlived SURBs.
-        
+
         s = SURBLog(fname)
         try:
             self.assert_(not s.isSURBUsed(surbs[0]))
@@ -6403,7 +6403,7 @@ class ClientUtilTests(TestCase):
         self.assertEquals((ipv4,previousMidnight(now)), v[1:])
         self.assertLongStringEq(v[0], p1)
         cq.removePacket(h1)
-        
+
 class ClientDirectoryTests(TestCase):
     def testClientDirectory(self):
         """Check out ClientMain's directory implementation"""
@@ -6657,7 +6657,7 @@ class ClientDirectoryTests(TestCase):
 
         #XXXX007 remove
         mixminion.ClientDirectory.WARN_STAR = 0
-        
+
         paddr = mixminion.ClientDirectory.parseAddress
         email = paddr("smtp:lloyd@dobler.com")
         mboxWithServer = paddr("mbox:Granola@Lola")
@@ -6825,7 +6825,7 @@ class ClientDirectoryTests(TestCase):
         self.assertEquals(map(len,[p1,p2,p3,p4,p5,p6]),[1,3,1,3,1,3])
         self.assertEquals(p2[-1].getNickname(), p4[-1].getNickname())
         self.assertEquals(p2[-1].getNickname(), p6[-1].getNickname())
-        
+
         # 2. Failing cases
         raises = self.assertRaises
         # Nonexistent server
@@ -6908,7 +6908,7 @@ class ClientDirectoryTests(TestCase):
           [ "Alice:xxx yy", "Bob:zz ww / kk" ])
         self.assertEquals(formatFeatureMap(["A","B"],fm4,showTime=0,cascade=0,
                                            just=1,sep="!"),
-          [ "Alice:xxx!yy     ", 
+          [ "Alice:xxx!yy     ",
             "Bob  :zz !ww / kk" ])
         self.assertEquals(formatFeatureMap(["A","B"],fm3,showTime=1,cascade=0),
           [ "Alice:1970-01-01 to 1970-01-01:xxx yy",
@@ -6926,7 +6926,7 @@ class ClientDirectoryTests(TestCase):
             "Bob:",
             "  [1970-01-02 to 1970-01-03] a1##b1",
             "  [1970-01-03 to 1970-01-04] a2##b2" ])
-        
+
         self.assertEquals(formatFeatureMap(["A","B"],fmx,showTime=1,cascade=2),
           [ "Alice:", "  [1970-01-02 to 1970-01-04]", "    A:aa", "    B:bb",
             "Bob:",
@@ -7066,7 +7066,7 @@ class ClientMainTests(TestCase):
         # Create a directory...
         dirname = mix_mktemp()
         directory = mixminion.ClientDirectory.ClientDirectory(dirname)
-        
+
         edesc = getExampleServerDescriptors()
         fname = mix_mktemp()
         for server, descriptors in edesc.items():
@@ -7083,7 +7083,7 @@ class ClientMainTests(TestCase):
         Lola = ServerInfo(string=edesc["Lola"][1], assumeValid=1)
         Joe = ServerInfo(string=edesc["Joe"][0], assumeValid=1)
         Alice = ServerInfo(string=edesc["Alice"][1], assumeValid=1)
-        
+
         # ... and for now, we need to restart the client.
         client = mixminion.ClientMain.MixminionClient(usercfg)
 
@@ -7224,7 +7224,7 @@ class FragmentTests(TestCase):
                           (K28*20, K28 - 47, 16, 22,
                            2, 16*(K28-47), 32*(K28-47),
                            fp1.paddedLen-(K28*20)))
-        
+
 
         # 3 chunks.
         fp1 = FP(K28 * 32 + 101, 0)
@@ -7234,11 +7234,11 @@ class FragmentTests(TestCase):
                           (K28*32+101, K28 - 47, 16, 22,
                            3, 16*(K28-47), 48*(K28-47),
                            fp1.paddedLen-(K28*32+101)))
-        
+
 
     def testFragmentation(self):
         FP = mixminion.Fragments.FragmentationParams
-        
+
         # One chunk.
         msg = Crypto.getCommonPRNG().getBytes(150*1024)
         fp1 = FP(len(msg), 38)
@@ -7249,7 +7249,7 @@ class FragmentTests(TestCase):
             self.assertEquals(len(b), 28*1024 - 47 - 38)
         m2 = "".join(fec.decode(zip(range(3,11),blocks[3:])))
         self.assertLongStringEq(msg, unwhiten(m2[:150*1024]))
-        
+
         # Three chunks.
         msg = Crypto.getCommonPRNG().getBytes(28*32*1024 + 101)
         fp1 = FP(len(msg), 0)
@@ -7264,7 +7264,7 @@ class FragmentTests(TestCase):
             self.assertEquals(16, len(receivedBlocks))
             chunks.append("".join(fec.decode(receivedBlocks)))
         self.assertLongStringEq(msg, unwhiten(("".join(chunks))[:len(msg)]))
-        
+
     def testFragmentPool(self):
         em = mixminion.BuildMessage.encodeMessage
         pp = mixminion.Packet.parsePayload
@@ -7274,7 +7274,7 @@ class FragmentTests(TestCase):
         pkts2 = [ pp(x) for x in em(M2,0) ]
         self.assertEquals(map(len, [pkts1,pkts2]),
                           [3, 66])
-        
+
         loc = mix_mktemp()
         pool = mixminion.Fragments.FragmentPool(loc)
         self.assertEquals([], pool.listReadyMessages())
@@ -7333,7 +7333,7 @@ class FragmentTests(TestCase):
         # Provoke an error in the big one part way through.
         ####
         M1 = Crypto.getCommonPRNG().getBytes(1024*150)
-        M2 = Crypto.getCommonPRNG().getBytes(1024*200) 
+        M2 = Crypto.getCommonPRNG().getBytes(1024*200)
         M3 = Crypto.getCommonPRNG().getBytes(1024*900)
         pkts1 = [ pp(x) for x in em(M1,38) ]
         pkts2 = [ pp(x) for x in em(M2,0) ]
@@ -7376,7 +7376,7 @@ class FragmentTests(TestCase):
         pool.expireMessages(time.time()+48*60*60)
         self.assertEquals(pool.listReadyMessages(), [])
         pool.close()
-        
+
 #----------------------------------------------------------------------
 
 def initializeGlobals():
@@ -7431,7 +7431,7 @@ def testSuite():
                    NetUtilTests,
                    DNSFarmTests,
                    ClientUtilTests,
-           
+
                    ModuleTests,
                    ClientDirectoryTests,
                    ClientMainTests,
@@ -7457,7 +7457,7 @@ def testAll(name, args):
     # under the mixminion package.
     if os.environ.get("MM_COVERAGE"):
         allmods = [ mod for name, mod in sys.modules.items()
-                    if (mod is not None and 
+                    if (mod is not None and
                         name.startswith("mixminion") and
                         name != 'mixminion._minionlib') ]
         coverage.report(allmods)

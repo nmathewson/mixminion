@@ -70,7 +70,7 @@ TCP latency, and me.)
                         X Generic, cross-module notion of "address".
                         X Better capability infrastructure.
                         o Better ExitAddress notion.
-                        o Separate parsing path str into specifier list, 
+                        o Separate parsing path str into specifier list,
                           checking specifier list for sanity, and generating
                           path from specifier list.
                         o Switch unit tests to test new interface to ClientDir
@@ -86,7 +86,7 @@ TCP latency, and me.)
                 o Add some convenient way to list arbitrary server features.
                         o Refactor Config to have a richer idea of types
                         o Add 'features' to Config.
-                        o Add featureMap manipulation functionality to 
+                        o Add featureMap manipulation functionality to
                           ClientDirectory.
                         o Formatting for featuremap
                         o CLI for new listservers
@@ -95,7 +95,7 @@ TCP latency, and me.)
                           the current impenetrable --cascade={0|1|2}.
                         o Unit tests for features
                         o Unit tests for featureMaps
-                o Handle the exit address '0xFFFE' as before.  
+                o Handle the exit address '0xFFFE' as before.
                 o Only warn about unknown types once.
                 o Timeouts should say 'timeout', not EINTR.
                 o Timeouts should be user-configurable.

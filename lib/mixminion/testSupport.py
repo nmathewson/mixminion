@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.22 2003/11/07 07:03:28 nickm Exp $
+# $Id: testSupport.py,v 1.23 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.testSupport
 
@@ -369,7 +369,7 @@ def hexNum(n):
 def tvRSA():
     print "======================================== RSA"
     pk1 = TEST_KEYS_2048[0]
-    print "Example 2048-bit Key K" 
+    print "Example 2048-bit Key K"
     n,e = pk1.get_public_key()
     n2,e2,d,p,q = pk1.get_private_key()
     print "   exponent =",hexNum(e)
@@ -377,7 +377,7 @@ def tvRSA():
     print "   Private key (P)=",hexNum(p)
     print "   Private key (Q)=",hexNum(q)
     print "   Private key (D)=",hexNum(d)
-    
+
     print "   PK_Encode(K) =",hexStr(pk1.encode_key(1))
     print "   Fingerprint =",mixminion.Crypto.pk_fingerprint(pk1)
 
@@ -391,11 +391,11 @@ def tvRSA():
                 mixminion.Crypto.OAEP_PARAMETER,256,CyclicRNG())
     print "   Padded string (2048 bits):",hexStr(enc)
     pkenc = pk1.crypt(enc,1,1)
-    
+
     print
     print "   PK_Encrypt(K,M):",hexStr(pkenc)
     assert mixminion.Crypto.pk_decrypt(pkenc,pk1) == s
-    
+
 def tvAES():
     import mixminion._minionlib as _ml
     print "======================================== AES"
@@ -408,8 +408,8 @@ def tvAES():
     db = _ml.aes128_block_crypt(_ml.aes_key(k),b,0)
     print "   Encrypted block:",hexStr(eb)
     print "   Decrypted block:",hexStr(db)
-    
-    print 
+
+    print
     print "Counter mode encryption:"
     k = unHexStr("[02 13 24 35 46 57 68 79 8A 9B AC BD CE DF E0 F1]")
     print "   Key:",hexStr(k)
@@ -448,7 +448,7 @@ def testVectors(name,args):
     assert unHexNum(hexNum(10000))  in (10000, 10000L)
     assert unHexNum(hexNum(100000)) in (100000,100000L)
     assert unHexNum(hexNum(1000000000L)) == 1000000000L
-    
+
     tvRSA()
     tvAES()
     tvLIONESS()

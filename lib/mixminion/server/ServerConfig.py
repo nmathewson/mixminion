@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.42 2003/11/25 02:15:14 nickm Exp $
+# $Id: ServerConfig.py,v 1.43 2003/11/28 04:14:04 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -21,7 +21,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
     #   moduleManager
     #
     _restrictFormat = 0
-    
+
     def __init__(self, fname=None, string=None, moduleManager=None):
         # We use a copy of SERVER_SYNTAX, because the ModuleManager will
         # mess it up.
@@ -172,7 +172,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
                 if v:
                     res.append("%s/%s=%r"%(section,k,v))
         return "; ".join(res)
-    
+
     def validateRetrySchedule(self, sectionName, entryName='Retry'):
         """Check whether the retry schedule in self[sectionName][entryName]
            is reasonable.  Warn or raise ConfigError if it isn't.  Ignore

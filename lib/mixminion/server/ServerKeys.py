@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.59 2003/11/25 02:15:14 nickm Exp $
+# $Id: ServerKeys.py,v 1.60 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -150,7 +150,7 @@ class ServerKeyring:
             if ok:
                 t1, t2 = keyset.getLiveness()
                 self.keySets.append( (t1, t2, keyset) )
-                
+
                 LOG.trace("Found key %s (valid from %s to %s)",
                           dirname, formatDate(t1), formatDate(t2))
             else:
@@ -194,10 +194,10 @@ class ServerKeyring:
 
         if not state:
             return
-        
+
         LOG.warn("Some generated keysets do not match "
                   "current configuration...")
-        
+
         for ok, ks in state:
             va,vu = ks.getLiveness()
             LOG.warn("Keyset %s (%s--%s):",ks.keyname,formatTime(va,1),
@@ -293,7 +293,7 @@ class ServerKeyring:
 
         needToCoverUntil = now+PUBLICATION_LATENCY+PREPUBLICATION_INTERVAL
         timeToCover = needToCoverUntil-lastExpiry
-        
+
         lifetime = self.config['Server']['PublicKeyLifetime'].getSeconds()
         nKeys = int(ceilDiv(timeToCover, lifetime))
 
@@ -625,7 +625,7 @@ class ServerKeyset:
     def checkKeys(self):
         """Check whether all the required keys exist and are private."""
         checkPrivateFile(self.packetKeyFile)
-        checkPrivateFile(self.mmtpKeyFile)        
+        checkPrivateFile(self.mmtpKeyFile)
 
     def load(self, password=None):
         """Read the short-term keys from disk.  Must be called before
@@ -1071,7 +1071,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           Configuration: %s
           """ %(getPlatformSummary(),
                 config.getConfigurationSummary())
-    
+
     # Remove extra (leading or trailing) whitespace from the lines.
     lines = [ line.strip() for line in info.split("\n") ]
     # Remove empty lines
@@ -1228,7 +1228,7 @@ def generateCertChain(filename, mmtpKey, identityKey, nickname,
     identityCertText = readFile(fname)
     os.unlink(fname)
     writeFile(filename, certText+identityCertText, 0600)
-        
+
 def getPlatformSummary():
     """Return a string describing the current software and platform."""
     if hasattr(os, "uname"):

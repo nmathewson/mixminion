@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.9 2003/08/31 19:29:29 nickm Exp $
+# $Id: Fragments.py,v 1.10 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -93,7 +93,7 @@ class FragmentationParams:
         s = whiten(s)
         s += paddingPRNG.getBytes(self.paddingLen)
         assert len(s) == self.paddedLen
-        
+
         chunks = []
         for i in xrange(self.nChunks):
             chunks.append( s[i*self.chunkSize:(i+1)*self.chunkSize] )
@@ -211,7 +211,7 @@ class FragmentPool:
         hs = s.getChunkHandles()
         msg = "".join([self.store.messageContents(h) for h in hs])
         msg = unwhiten(msg[:s.params.length])
-        return msg                      
+        return msg
 
     def markMessageCompleted(self, msgid, rejected=0):
         """Release all resources associated with the messageid 'msgid', and
@@ -241,7 +241,7 @@ class FragmentPool:
             if not state.hasReadyChunks():
                 continue
             state.reconstruct(self.store)
-            
+
     def expireMessages(self, cutoff):
         """Remove all pending messages that were first inserted before
            'cutoff'. """
@@ -250,7 +250,7 @@ class FragmentPool:
             if s.inserted < cutoff:
                 expiredMessageIDs[s.messageid] = 1
         self._deleteMessageIDs(expiredMessageIDs, "REJECTED")
-        
+
     def rescan(self):
         """Check all fragment metadata objects on disk, and reconstruct our
            internal view of message states.
@@ -308,7 +308,7 @@ class FragmentPool:
         """Helper function. Remove all the fragments and chunks associated
            with a given message, and mark the message as delivered or
            undeliverable.
-           
+
               messageIDSet -- a map from 20-byte messageID to 1.
               why -- 'REJECTED' or 'COMPLETED'.
         """
@@ -424,14 +424,14 @@ class MessageState:
     #     are ready for reconstruction, but haven't been reconstructed
     #     yet.
     def __init__(self, messageid, length, overhead, inserted, nym):
-        """Create a new MessageState. 
+        """Create a new MessageState.
         """
         self.messageid = messageid
         self.overhead = overhead
         self.inserted = inserted
         self.nym = nym
         # chunkno -> handle,fragmentmeta
-        self.chunks = {} 
+        self.chunks = {}
         # chunkno -> idxwithinchunk -> (handle,fragmentmeta)
         self.fragmentsByChunk = []
         self.params = FragmentationParams(length, overhead)
@@ -439,7 +439,7 @@ class MessageState:
             self.fragmentsByChunk.append({})
         # chunkset: ready chunk num -> 1
         self.readyChunks = {}
-        
+
     def isDone(self):
         """Return true iff we have reconstructed all the chunks for this
            message."""
@@ -475,7 +475,7 @@ class MessageState:
 
         if self.readyChunks.get(fm.chunkNum):
             del self.readyChunks[fm.chunkNum]
-            
+
     def addFragment(self, h, fm, noop=0):
         """Register a fragment with handle h and FragmentMetadata fm.  If the
            fragment is inconsistent with the other fragments of this message,
@@ -488,7 +488,7 @@ class MessageState:
         if (fm.size != self.params.length or
             fm.overhead != self.overhead):
             raise MismatchedFragment
-        
+
         chunkNum, pos = self.params.getPosition(fm.idx)
         if chunkNum >= self.params.nChunks:
             raise MismatchedFragment
@@ -496,7 +496,7 @@ class MessageState:
         if (self.chunks.has_key(chunkNum) or
             len(self.fragmentsByChunk[chunkNum]) >= self.params.k):
             raise UnneededFragment
-        
+
         if self.fragmentsByChunk[chunkNum].has_key(pos):
             raise MismatchedFragment
 
@@ -504,7 +504,7 @@ class MessageState:
             return
         assert h
         if self.inserted > fm.insertedDate:
-            self.inserted = fm.insertedDate        
+            self.inserted = fm.insertedDate
         self.fragmentsByChunk[chunkNum][pos] = (h, fm)
 
         if len(self.fragmentsByChunk[chunkNum]) >= self.params.k:
@@ -586,7 +586,7 @@ class FragmentDB(mixminion.Filestore.DBBase):
         status = {"C":"COMPLETED", "R":"REJECTED"}[v[0]]
         tm = int(v[2:])
         return status, tm
-            
+
 # ======================================================================
 # Internal lazy-generated cache from (k,n) to _minionlib.FEC object.
 # Note that we only use k,n for a limited set of k,n.

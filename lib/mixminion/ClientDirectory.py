@@ -1,7 +1,7 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
 # Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
 
-"""mixminion.ClientDirectory: Code to handle the 'client' side of 
+"""mixminion.ClientDirectory: Code to handle the 'client' side of
    dealing with mixminion directories.  This includes:
      - downloading and caching directories
      - path generation
@@ -115,9 +115,9 @@ class ClientDirectory:
         try:
             try:
                 # Tell HTTP proxies and their ilk not to cache the directory.
-                # Really, the directory server should set an Expires header 
+                # Really, the directory server should set an Expires header
                 # in its response, but that's harder.
-                request = urllib2.Request(url, 
+                request = urllib2.Request(url,
                           headers={ 'Pragma' : 'no-cache',
                                     'Cache-Control' : 'no-cache', })
                 infile = urllib2.urlopen(request)
@@ -133,7 +133,7 @@ class ClientDirectory:
         finally:
             if timeout:
                 mixminion.NetUtils.unsetGlobalTimeout()
-        
+
         # Open a temporary output file.
         if url.endswith(".gz"):
             fname = os.path.join(self.dir, "dir_new.gz")
@@ -209,13 +209,13 @@ class ClientDirectory:
                 self.serverList.append((s, 'D'))
                 self.digestMap[s.getDigest()] = 'D'
                 self.goodServerNicknames[s.getNickname().lower()] = 1
-                
+
             for s in directory.getAllServers():
                 if self.goodServerNicknames.has_key(s.getNickname().lower()):
                     where = 'D'
                 else:
                     where = 'D-'
-                
+
                 self.fullServerList.append((s, where))
                 self.digestMap[s.getDigest()] = where
 
@@ -280,7 +280,7 @@ class ClientDirectory:
         writePickled(os.path.join(self.dir, "cache"), data)
 
     def _installAsKeyIDResolver(self):
-        """Use this ClientDirectory to identify servers in calls to 
+        """Use this ClientDirectory to identify servers in calls to
            ServerInfo.displayServer."""
         mixminion.ServerInfo._keyIDToNicknameFn = self.getNicknameByKeyID
 
@@ -288,7 +288,7 @@ class ClientDirectory:
         """Import a new server descriptor stored in 'filename'"""
 
         contents = readPossiblyGzippedFile(filename)
-        info = mixminion.ServerInfo.ServerInfo(string=contents, 
+        info = mixminion.ServerInfo.ServerInfo(string=contents,
                                                validatedDigests=self.digestMap)
 
         nickname = info.getNickname()
@@ -525,7 +525,7 @@ class ClientDirectory:
         if len(self.serverList) != len(newServers):
             self.serverList = newServers
             self.rescan()
-            
+
     def getServerInfo(self, name, startAt=None, endAt=None, strict=0):
         """Return the most-recently-published ServerInfo for a given
            'name' valid over a given time range.  If not strict, and no
@@ -554,13 +554,13 @@ class ClientDirectory:
                     "Couldn't find any currently live descriptor with name %s"
                     % name)
 
-            s = s[0]            
+            s = s[0]
             return s
         elif os.path.exists(os.path.expanduser(name)):
             # If it's a filename, try to read it.
             fname = os.path.expanduser(name)
             try:
-                return mixminion.ServerInfo.ServerInfo(fname=fname, 
+                return mixminion.ServerInfo.ServerInfo(fname=fname,
                                                        assumeValid=0)
             except OSError, e:
                 raise UIError("Couldn't read descriptor %r: %s" %
@@ -573,7 +573,7 @@ class ClientDirectory:
         else:
             return None
 
-    def generatePaths(self, nPaths, pathSpec, exitAddress, 
+    def generatePaths(self, nPaths, pathSpec, exitAddress,
                       startAt=None, endAt=None,
                       prng=None):
         """Generate a list of paths for delivering packets to a given
@@ -620,7 +620,7 @@ class ClientDirectory:
                     p.append(lastHop)
             elif p[-1] == None and not exitAddress.isReply:
                 p[-1] = prng.pick(plausibleExits)
- 
+
             if pathSpec.lateSplit:
                 n1 = ceilDiv(len(p),2)
             else:
@@ -638,7 +638,7 @@ class ClientDirectory:
                          ",".join([s.getNickname() for s in path2]))
 
         return paths
-    
+
     def getPath(self, template, startAt=None, endAt=None, prng=None):
         """Workhorse method for path selection.  Given a template, and
            a capability that must be supported by the exit node, return
@@ -706,14 +706,14 @@ class ClientDirectory:
                 # Avoid first hops that we can't deliver to.
                 if (not prev) and not c.canStartAt():
                     continue
-                candidates.append(c)                    
+                candidates.append(c)
             if candidates:
                 # Good.  There aresome okay servers/
                 servers[i] = prng.pick(candidates)
             else:
                 # Nope.  Can we duplicate a relay?
                 LOG.warn("Repeating a relay because of routing restrictions.")
-                if prev and next: 
+                if prev and next:
                     if prev.canRelayTo(next):
                         servers[i] = prev
                     elif next.canRelayTo(next):
@@ -794,7 +794,7 @@ class ClientDirectory:
                     continue
                 warned[lc_nickname] = 1
                 LOG.warn("Server %s is not recommended",fixed.getNickname())
-            
+
     def checkClientVersion(self):
         """Check the current client's version against the stated version in
            the most recently downloaded directory; print a warning if this
@@ -862,7 +862,7 @@ def compressFeatureMap(featureMap, ignoreGaps=0, terse=0):
 
         if not terse: continue
         if not result[nickname]: continue
-        
+
         ritems = result[nickname].items()
         ritems.sort()
         minva = min([ va for (va,vu),features in ritems ])
@@ -873,7 +873,7 @@ def compressFeatureMap(featureMap, ignoreGaps=0, terse=0):
                 if rfeatures.setdefault(f,val) != val:
                     rfeatures[f] += " / %s"%val
         result[nickname] = { (minva,maxvu) : rfeatures }
-    
+
     return result
 
 def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" ",
@@ -915,7 +915,7 @@ def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" ",
                 for k, v in fMap.items():
                     if maxFeatureLength[k] < len(v):
                         maxFeatureLength[k] = len(v)
-        formatEntries = [ "%-"+str(maxFeatureLength[f])+"s" for 
+        formatEntries = [ "%-"+str(maxFeatureLength[f])+"s" for
                           f in features ]
         format = sep.join(formatEntries)
     else:
@@ -973,14 +973,14 @@ class ExitAddress:
     #     server?
     # exitSize: How large (in bytes) will the message be at the exit server?
     # headers: A map from header name to value.
-    def __init__(self,exitType=None,exitAddress=None,lastHop=None,isReply=0, 
+    def __init__(self,exitType=None,exitAddress=None,lastHop=None,isReply=0,
                  isSSFragmented=0):
         """Create a new ExitAddress.
             exitType,exitAddress -- the routing type and routing info
                for the delivery (if not a reply)
             lastHop -- the nickname of the last hop in the path, if the
                exit address is specific to a single hop.
-            isReply -- true iff this message is a reply   
+            isReply -- true iff this message is a reply
             isSSFragmented -- true iff this message is fragmented for
                server-side reassembly.
         """
@@ -1012,7 +1012,7 @@ class ExitAddress:
         routingType, routingInfo, _ = self.getRouting()
         return mixminion.Packet.ServerSideFragmentedMessage(
             routingType, routingInfo, "").pack()
-        
+
     def setFragmented(self, isSSFragmented, nFragments):
         """Set the fragmentation parameters of this exit address
         """
@@ -1042,7 +1042,7 @@ class ExitAddress:
         """Check whether the server described by 'desc' supports this
            exit type. Returns if yes, raises a UIError if no.  If
            'verbose' is true, give warnings for iffy cases."""
-        
+
         if self.isReply:
             return
         nickname = desc.getNickname()
@@ -1050,7 +1050,7 @@ class ExitAddress:
         if self.headers:
             #XXXX007 remove this eventually.
             sware = desc['Server'].get("Software","")
-            if (sware.startswith("Mixminion 0.0.4") or 
+            if (sware.startswith("Mixminion 0.0.4") or
                 sware.startswith("Mixminion 0.0.5alpha1")):
                 raise UIError("Server %s is running old software that doesn't support exit headers.", nickname)
 
@@ -1070,7 +1070,7 @@ class ExitAddress:
                 exitKB = 32
 
         needFrom = self.headers.has_key("FROM")
-        
+
         if self.exitType in ('smtp', SMTP_TYPE):
             ssec = desc['Delivery/SMTP']
             if not ssec.get("Version"):
@@ -1113,7 +1113,7 @@ class ExitAddress:
         """Return true iff the exit type's addresses are specific to a
            given exit hop."""
         return self.exitType in ('mbox', MBOX_TYPE)
-            
+
     def getExitServers(self, directory, startAt=None, endAt=None):
         """Given a ClientDirectory and a time range, return a list of
            server descriptors for all servers that might work for this
@@ -1275,7 +1275,7 @@ class RandomServersPathElement(PathElement):
             if n < 1: n = 1
         return [ None ] * n
     def getMinLength(self):
-        if self.n is not None: 
+        if self.n is not None:
             return self.n
         else:
             return 1
@@ -1401,7 +1401,7 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
     while path:
         if path[0] == "'":
             m = re.match(r"'([^']+|\\')*'", path)
-            if not m: 
+            if not m:
                 raise UIError("Mismatched quotes in path.")
             p.append(m.group(1).replace("\\'", "'"))
             path = path[m.end():]
@@ -1409,7 +1409,7 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
                 raise UIError("Invalid quotes in path.")
         elif path[0] == '"':
             m = re.match(r'"([^"]+|\\")*"', path)
-            if not m: 
+            if not m:
                 raise UIError("Mismatched quotes in path.")
             p.append(m.group(1).replace('\\"', '"'))
             path = path[m.end():]
@@ -1418,11 +1418,11 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
         else:
             m = re.match(r"[^,:]+",path)
             if not m:
-                raise UIError("Invalid path") 
+                raise UIError("Invalid path")
             p.append(m.group(0))
             path = path[m.end():]
         if not path:
-            break 
+            break
         elif path[0] == ',':
             path = path[1:]
         elif path[0] == ':':
@@ -1491,7 +1491,7 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
         firstLegLen = 0
         lateSplit = 1
 
-    # This is a kludge to convert paths of the form ~N to ?,~(N-1), when 
+    # This is a kludge to convert paths of the form ~N to ?,~(N-1), when
     # we're generating a two-legged path.  Otherwise, there is a possibility
     # that ~N could expand into only a single server, thus leaving one leg
     # empty.
@@ -1503,7 +1503,7 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
         pathEntries = [ RandomServersPathElement(n=1),
                         RandomServersPathElement(approx=n_minus_1) ]
         assert lateSplit
-        
+
     path1, path2 = pathEntries[:firstLegLen], pathEntries[firstLegLen:]
 
     # Die if the path is too short, or if either leg is empty in a full path.
@@ -1519,5 +1519,5 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
             raise UIError("The path must have at least 1 hop")
         if not halfPath and minLen < 2:
             raise UIError("The path must have at least 2 hops")
-        
+
     return PathSpecifier(path1, path2, isReply, isSURB, lateSplit=lateSplit)

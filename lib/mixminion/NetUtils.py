@@ -20,7 +20,7 @@ from mixminion.Common import LOG, TimeoutError, _ALLCHARS
 # Global vars
 
 # When we get IPv4 and IPv6 addresses for the same host, which do we use?
-PREFER_INET4 = 1
+PREFER_INET4 = 1  # For now, _always_ prefer IPv4
 
 # Local copies of socket.AF_INET4 and socket.AF_INET6.  (AF_INET6 may be
 #  unsupported.)
@@ -32,7 +32,7 @@ except AttributeError:
 
 # For windows -- list of errno values that we can expect when blocking IO
 # blocks on a connect.
-IN_PROGRESS_ERRNOS = [ getattr(errno, ename) 
+IN_PROGRESS_ERRNOS = [ getattr(errno, ename)
    for ename in [ "EINPROGRESS", "WSAEWOULDBLOCK"]
    if hasattr(errno,ename) ]
 del ename
@@ -88,7 +88,7 @@ def getIP(name, preferIP4=PREFER_INET4):
         if len(e.args) == 2:
             return ("NOENT", str(e[1]), time.time())
         else:
-            return ("NOENT", str(e), time.time())            
+            return ("NOENT", str(e), time.time())
 #----------------------------------------------------------------------
 
 _SOCKETS_SUPPORT_TIMEOUT = hasattr(socket.SocketType, "settimeout")
@@ -204,7 +204,7 @@ def getProtocolSupport():
             pass
         if s is not None:
             s.close()
-            
+
     _PROTOCOL_SUPPORT = tuple(res)
     return res
 
@@ -216,7 +216,7 @@ _ip_re = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
 def normalizeIP4(ip):
     """If IP is an IPv4 address, return it in canonical form.  Raise
        ValueError if it isn't."""
-    
+
     i = ip.strip()
 
     # inet_aton is a bit more permissive about spaces and incomplete
@@ -242,7 +242,7 @@ def normalizeIP6(ip6):
         raise ValueError("Invalid characters %r in address %r"%(bad,ip))
     if len(ip) < 2:
         raise ValueError("IPv6 address %r is too short"%ip)
-        
+
     items = ip.split(":")
     if not items:
         raise ValueError("Empty IPv6 address")
@@ -269,14 +269,14 @@ def normalizeIP6(ip6):
             if not (0 <= val <= 0xFFFF):
                 raise ValueError("IPv6 word %r out of range"%item)
             foundWords += 1
-            
+
     if foundNils > 1:
         raise ValueError("Too many ::'s in IPv6 address %r"%ip)
     elif foundNils == 0 and foundWords < 8:
         raise ValueError("IPv6 address %r is too short"%ip)
     elif foundWords > 8:
         raise ValueError("IPv6 address %r is too long"%ip)
-            
+
     return ip
 
 def nameIsStaticIP(name):
@@ -297,4 +297,4 @@ def nameIsStaticIP(name):
             return None
     else:
         return None
-            
+

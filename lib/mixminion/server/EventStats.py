@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.11 2003/11/25 03:42:31 nickm Exp $
+# $Id: EventStats.py,v 1.12 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -23,7 +23,7 @@ _EVENTS = [ 'ReceivedPacket',
 
             'AttemptedRelay', 'SuccessfulRelay',
             'FailedRelay', 'UnretriableRelay',
-           
+
             'AttemptedDelivery', 'SuccessfulDelivery',
             'FailedDelivery', 'UnretriableDelivery',
             ]

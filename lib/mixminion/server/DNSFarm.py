@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.4 2003/11/10 04:12:20 nickm Exp $
+# $Id: DNSFarm.py,v 1.5 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.server.DNSFarm: code to implement asynchronous DNS resolves with
    background threads and cachhe the results.
@@ -140,7 +140,7 @@ class DNSCache:
                     self.threads[-1].start()
         finally:
             self.lock.release()
-            
+
     def _beginLookup(self,name):
         """Helper function: Begin looking up 'name'.
 
@@ -197,7 +197,7 @@ class DNSThread(threading.Thread):
     def __init__(self, dnscache):
         """Create a new DNSThread"""
         threading.Thread.__init__(self)
-        self.dnscache = dnscache 
+        self.dnscache = dnscache
         self.setDaemon(1) # When the process exits, don't wait for this thread.
     def run(self):
         """Thread body: pull questions from the DNS thread queue and

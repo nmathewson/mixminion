@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.30 2003/10/19 05:21:45 nickm Exp $ */
+/* $Id: tls.c,v 1.31 2003/11/28 04:14:05 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -602,9 +602,9 @@ mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
                 MM_TLS_ERR("Certificate has expired");
                 goto error;
         }
-        
+
         X509_free(cert);
-        
+
         Py_INCREF(Py_None);
         return Py_None;
  error:

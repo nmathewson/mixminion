@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.63 2003/11/26 18:21:49 nickm Exp $
+# $Id: Main.py,v 1.64 2003/11/28 04:14:04 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -206,7 +206,7 @@ def printUsage():
 
 def commandShell(cmd,args):
     # Used to implement a 'mixminion shell' on systems (like windows) with
-    # somewhat bogus CLI support. 
+    # somewhat bogus CLI support.
     import mixminion
     import shlex
 

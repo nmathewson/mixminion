@@ -1,4 +1,4 @@
-$Id: README,v 1.60 2003/09/05 21:59:49 nickm Exp $
+$Id: README,v 1.61 2003/11/28 04:14:03 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.6alpha, from the Mixminion CVS repository.
 
@@ -43,7 +43,7 @@ II. WHAT'S NEW IN THIS VERSION?
 
 STILL NOT IN THIS VERSION:
    - There's a man page, but it's not included yet because I want it to
-     work cross-platform.  
+     work cross-platform.
    - IP-based restrictions don't work.
    - No support for distributed directories.
    - Other stuff too numerous to mention; see TODO.
@@ -192,7 +192,7 @@ To reload the directory without sending a message, type:
      OR mixminion update-servers
 
 To see whether a server is running, type:
- 
+
       mixminion ping <servername>
 
       (WARNING: This command is potentially dangerous, for a number of subtle
@@ -262,7 +262,7 @@ To queue a message for later transmission, run "mixminion queue" instead of
       mixminion queue -t <address> -i <file> -P <path>
 
       To see all the packets waiting in the queue:
-      
+
       mixminion inspect-queue
 
       To attempt to deliver all messages waiting in the queue:
@@ -319,7 +319,7 @@ To generate a reply block, type:
       mixminion generate-surb -P 'Bar,*'  (start with server bar)
 
       You can use the '-n' option to generate many reply blocks at once:
-      
+
       mixminion generate-surb -n 100      (generate 100 reply blocks)
 
       To save space, you can specify binary (as opposed to text) encoding
@@ -365,7 +365,7 @@ typing:
 
       To inspect the reply blocks in a file, you can run:
          mixminion inspect-surbs <filename>
- 
+
 If you need to use a proxy server to use the web you can specify it using the
 http_proxy environment variable:
 
@@ -446,7 +446,7 @@ to see statistics in the _current_ interval, run:
 
     mixminion server-stats [-f configfile]
 
- 
+
 VII. HOW TO REPORT BUGS AND SUGGEST NEW FEATURES
 ================================================
 

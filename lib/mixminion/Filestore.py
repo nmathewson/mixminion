@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.13 2003/11/07 06:59:35 nickm Exp $
+# $Id: Filestore.py,v 1.14 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.Filestore
 
@@ -29,7 +29,7 @@ from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
 from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ "StringStore", "StringMetadataStore",
-            "ObjectStore", "ObjectMetadataStore", 
+            "ObjectStore", "ObjectMetadataStore",
             "MixedStore", "MixedMetadataStore",
             "DBBase", "JournaledDBBase", "BooleanJournaledDBBase",
             "CorruptedFile",
@@ -58,12 +58,12 @@ class BaseStore:
 
        This class is not for direct use; combine it with one of the
        mixin classes below.
-       
+
        Abstractly, a BaseStore is a consistent collection of 'things'
        with (optional) persistant metadata.  The 'things' support
        insert, move, and delete operations.  The metadata supports
        modification.
-       
+
        Implementation: a BaseStore is a directory of 'message' files.
        Each filename in the directory has a name in one of the
        following formats:
@@ -80,7 +80,7 @@ class BaseStore:
              meta_HANDLE
              inpm_HANDLE
              crpm_HANDLE
- 
+
        Threading notes:  Although BaseStore itself is threadsafe, you'll want
        to synchronize around any multistep operations that you want to
        run atomically.  Use BaseStore.lock() and BaseStore.unlock() for this.
@@ -170,7 +170,7 @@ class BaseStore:
 
     def _doRemove(self, handle, newState):
         self._changeState(handle, "msg", newState)
-        
+
     def _preserveCorrupted(self, handle):
         """Given a handle, change the message state to 'crp'."""
         self._doRemove(handle, "crp")
@@ -284,7 +284,7 @@ class BaseStore:
                 LOG.error("Directory %s contains: %s", self.dir, contents)
                 self.count(1)
                 return
-            
+
             if self.n_entries < 0:
                 return
             if s1 == 'msg' and s2 != 'msg':
@@ -513,7 +513,7 @@ class ObjectMetadataStore(BaseMetadataStore, ObjectMetadataStoreMixin):
     def __init__(self, location, create=0, scrub=0):
         BaseMetadataStore.__init__(self, location, create, scrub)
         ObjectMetadataStoreMixin.__init__(self)
-        
+
 class MixedStore(BaseStore, StringStoreMixin, ObjectStoreMixin):
     def __init__(self, location, create=0, scrub=0):
         BaseStore.__init__(self, location, create, scrub)
@@ -579,11 +579,11 @@ class DBBase:
             dbtype = whichdb.whichdb(filename)
             raise MixFatalError("Unsupported type for %s database: %s"
                                 %(purpose, dbtype))
-        
+
         if hasattr(self.log, 'sync'):
             self._syncLog = self.log.sync
         elif hasattr(self.log, '_commit'):
-            # Workaround for dumbdbm to allow syncing. (Standard in 
+            # Workaround for dumbdbm to allow syncing. (Standard in
             # Python 2.3.)
             self._syncLog = self.log._commit
         else:
@@ -654,7 +654,7 @@ class DBBase:
             del self.log[self._encodeKey(k)]
         finally:
             self._lock.release()
-        
+
     def sync(self):
         """Flush all pending changes to disk"""
         self._lock.acquire()
@@ -691,7 +691,7 @@ class JournaledDBBase(DBBase):
     # journal -- map from journal-encoded key to journal-encoded value.
     # journalFileName -- filename to use for journal file.
     # journalFile -- fd for the journal file
-    
+
     def __init__(self, location, purpose, klen, vlen, vdflt):
         """Create a new JournaledDBBase that stores its files to match the
            pattern 'location*', whose journal-encoded keys are all of length
@@ -791,7 +791,7 @@ class JournaledDBBase(DBBase):
             self.journal = {}
         finally:
             self._lock.release()
-    
+
     def close(self):
         try:
             self._lock.acquire()

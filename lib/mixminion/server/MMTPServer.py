@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.59 2003/11/27 08:53:03 nickm Exp $
+# $Id: MMTPServer.py,v 1.60 2003/11/28 04:14:04 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -70,14 +70,14 @@ class AsyncServer:
 
         readfds = self.readers.keys()
         writefds = self.writers.keys()
- 
+
         if not (readfds or writefds):
             # Windows 'select' doesn't timeout properly when we aren't
             # selecting on any FDs.  This should never happen to us,
             # but we'll check for it anyway.
             time.sleep(timeout)
             return
-   
+
         try:
             readfds,writefds,exfds = select.select(readfds,writefds,[],timeout)
         except select.error, e:
@@ -545,7 +545,7 @@ class SimpleTLSConnection(Connection):
             #self.__sock.close()
             #self.__state = None
             #return
-            
+
         self.__state = self.__shutdownFn
 
     def fileno(self):
@@ -628,7 +628,7 @@ class MMTPServerConnection(SimpleTLSConnection):
            because the disk is full."""
         SimpleTLSConnection.__init__(self, sock, tls, 1,
                                      "%s:%s"%sock.getpeername())
-        
+
         EventStats.log.receivedConnection() #FFFF addr
 
         self.packetConsumer = consumer
@@ -739,7 +739,7 @@ class MMTPServerConnection(SimpleTLSConnection):
         self.finished = None
         self.junkCallback = None
         self.rejectCallback = None
-        
+
         SimpleTLSConnection.remove(self)
 
 #----------------------------------------------------------------------
@@ -766,7 +766,7 @@ class DeliverablePacket(DeliverableMessage):
         DeliverableMessage.__init__(self)
         assert hasattr(pending, 'succeeded')
         assert hasattr(pending, 'failed')
-        assert hasattr(pending, 'getMessage')        
+        assert hasattr(pending, 'getMessage')
         self.pending = pending
     def succeeded(self):
         self.pending.succeeded()
@@ -856,7 +856,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.protocol = None
         self._curPacket = self._curHandle = None
 
-        EventStats.log.attemptedConnect() #FFFF addr        
+        EventStats.log.attemptedConnect() #FFFF addr
         LOG.debug("Opening client connection to %s", self.address)
 
     def isActive(self):
@@ -926,7 +926,7 @@ class MMTPClientConnection(SimpleTLSConnection):
                 return
 
         LOG.warn("Invalid protocol.  Closing connection to %s", self.address)
-             
+
         # This isn't retriable; we don't talk to servers we don't
         # understand.
         self.shutdown(err=1,retriable=0)
@@ -956,7 +956,7 @@ class MMTPClientConnection(SimpleTLSConnection):
             self.rejectDigest = sha1(pkt+"REJECTED")
             pkt = SEND_CONTROL+pkt+sha1(pkt+"SEND")
             self.isJunk = 0
-        
+
         assert len(pkt) == SEND_RECORD_LEN
         self.beginWrite(pkt)
         self.finished = self.__sentPacket
@@ -1054,7 +1054,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         if self.finishedCallback is not None:
             self.finishedCallback()
         self.finishedCallback = None
-        
+
         SimpleTLSConnection.remove(self)
 
 
@@ -1092,7 +1092,7 @@ class MMTPAsyncServer(AsyncServer):
                 IP = config['Incoming/MMTP'].get('IP')
             if IP is None:
                 IP = "0.0.0.0"
-        # FFFF Until we get the non-clique situation is supported, we don't 
+        # FFFF Until we get the non-clique situation is supported, we don't
         # FFFF listen on IPv6.
         #if ip6_supported:
         #    IP6 = config['Incoming/MMTP'].get('ListenIP6')
@@ -1206,7 +1206,7 @@ class MMTPAsyncServer(AsyncServer):
     def _sendQueuedPackets(self):
         """Helper function: Find all DNS lookup results and packets in
            self.msgQueue, and begin sending packets to the resulting servers.
-           
+
            This function should only be called from the main thread.
         """
         while 1:

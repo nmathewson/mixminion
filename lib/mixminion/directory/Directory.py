@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.15 2003/11/20 04:03:47 nickm Exp $
+# $Id: Directory.py,v 1.16 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -62,7 +62,7 @@ class Directory:
         self.cache = None
         self.inbox = None
         self.serverList = None
-         
+
     def setupDirectories(self):
         """Create a new tree of dirs with appropriate permissions."""
         me = os.getuid()
@@ -148,7 +148,7 @@ class Directory:
             return key
         else:
             return mixminion.Crypto.pk_PEM_load(fname)
-            
+
 class DirectoryConfig(C._ConfigFile):
     """Configuration file for a directory server."""
     _restrictFormat = 0
@@ -173,7 +173,7 @@ class DirectoryConfig(C._ConfigFile):
         } }
     def __init__(self, filename=None, string=None):
         C._ConfigFile.__init__(self, filename, string)
-        
+
     def validate(self, lines, contents):
         import pwd
         import grp
@@ -312,13 +312,13 @@ class IDCache:
             raise MixError("Cache exists, but cannot read cache: %s" % e)
         if len(obj) != 2:
             raise MixFatalError("Corrupt ID cache")
-        
+
         typecode, data = obj
         if typecode != 'V0':
             raise MixFatalError("Unrecognized version on ID cache.")
 
         self.cache = data
-        
+
     def save(self):
         """Write the cache to disk."""
         if self.cache is None:
@@ -329,7 +329,7 @@ class IDCache:
         if self.postSave:
             self.postSave()
         self.dirty = 0
-            
+
 def getIDFingerprint(server):
     """Given a ServerInfo, return the fingerprint of its identity key.
 

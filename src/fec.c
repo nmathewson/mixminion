@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.10 2003/08/25 21:05:35 nickm Exp $ */ 
+/* $Id: fec.c,v 1.11 2003/11/28 04:14:05 nickm Exp $ */
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -167,7 +167,7 @@ static INLINE gf
 gf_mul(x,y)
 {
     if ( (x) == 0 || (y)==0 ) return 0;
-     
+
     return gf_exp[gf_log[x] + gf_log[y] ] ;
 }
 #define init_mul_table()
@@ -285,7 +285,7 @@ generate_gf(void)
  * unrolled 16 times, a good value for 486 and pentium-class machines.
  * The case c=0 is also optimized, whereas c=1 is not. These
  * calls are unfrequent in my typical apps so I did not bother.
- * 
+ *
  * Note that gcc on
  */
 #define addmul(dst, src, c, sz) \
@@ -399,7 +399,7 @@ invert_mat(gf *src, int k)
 			}
 		    } else if (ipiv[ix] > 1) {
 			fprintf(stderr, "singular matrix\n");
-			goto fail ; 
+			goto fail ;
 		    }
 		}
 	    }
@@ -507,7 +507,7 @@ invert_vdm(gf *src, int k)
     b = NEW_GF_MATRIX(1, k);
 
     p = NEW_GF_MATRIX(1, k);
-   
+
     for ( j=1, i = 0 ; i < k ; i++, j+=k ) {
 	c[i] = 0 ;
 	p[i] = src[j] ;    /* p[i] */
@@ -708,7 +708,7 @@ build_decode_matrix(struct fec_parms *code, gf *pkt[], int index[])
 	} else
 #endif
 	if (index[i] < code->n )
-	    memcpy(p, &(code->enc_matrix[index[i]*k]), k*sizeof(gf) ); 
+	    memcpy(p, &(code->enc_matrix[index[i]*k]), k*sizeof(gf) );
 	else {
 	    fprintf(stderr, "decode: invalid index %d (max %d)\n",
 		index[i], code->n - 1 );
@@ -737,7 +737,7 @@ build_decode_matrix(struct fec_parms *code, gf *pkt[], int index[])
 static int
 fec_decode(struct fec_parms *code, gf *pkt[], int index[], int sz)
 {
-    gf *m_dec ; 
+    gf *m_dec ;
     gf **new_pkt ;
     int row, col , k = code->k ;
 
@@ -791,13 +791,13 @@ PyObject *mm_FECError = NULL;
 typedef struct mm_FEC {
 	PyObject_HEAD
 	struct fec_parms *fec;
-} mm_FEC;	
+} mm_FEC;
 extern PyTypeObject mm_FEC_Type;
 #define mm_FEC_Check(v) ((v)->ob_type == &mm_FEC_Type)
 
 /* **************** */
 
-const char mm_FEC_generate__doc__[] = 
+const char mm_FEC_generate__doc__[] =
  "fec_generate(k,n)\n\n"
  "Return a FEC object to implement k-out-of-n erasure correcting codes, for\n"
  "the provided values of k and n.\n";
@@ -808,17 +808,17 @@ mm_FEC_generate(PyObject *self, PyObject *args, PyObject *kwargs)
 	static char *kwlist[] = { "k", "n", NULL };
 	int k, n;
 	mm_FEC *output;
-	
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs,
                                          "ii:FEC_generate", kwlist,
 					 &k, &n))
                 return NULL;
-	
+
 	if (k < 1 || n < 1 || k > 255 || n > 255 || k > n) {
 		PyErr_SetString(mm_FECError, "K or N is out of range");
 		return NULL;
 	}
-	
+
 	if (!(output = PyObject_NEW(mm_FEC, &mm_FEC_Type)))
 		return NULL;
 
@@ -831,7 +831,7 @@ mm_FEC_generate(PyObject *self, PyObject *args, PyObject *kwargs)
 		PyErr_NoMemory();
 		return NULL;
 	}
-	
+
 	return (PyObject*)output;
 }
 
@@ -843,7 +843,7 @@ mm_FEC_dealloc(mm_FEC *self)
         PyObject_DEL(self);
 }
 
-static const char mm_FEC_getParameters__doc__[] = 
+static const char mm_FEC_getParameters__doc__[] =
  "fec.getParameters() -> (k,n)\n\n"
  "Return a 2-tuple of the k and n parameters for this FEC object.\n";
 
@@ -860,7 +860,7 @@ mm_FEC_getParameters(PyObject *self, PyObject *args, PyObject *kwargs)
         return Py_BuildValue("ii", fec->k, fec->n);
 }
 
-static const char mm_FEC_encode__doc__[] = 
+static const char mm_FEC_encode__doc__[] =
 "fec.encode(idx,[blocks...])\n\n"
 "Encode a single block of FEC-encoded data.  'idx' is the index of the block\n"
 "to return (0<=idx<N), and 'blocks' is a list of K strings of equal length,\n"
@@ -888,7 +888,7 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
                 return NULL;
 
         fec = ((mm_FEC*)self)->fec;
-	
+
         /* Check whether the second arg is a sequence of K equally sized
          * strings. */
         if (!PySequence_Check(blocks)) {
@@ -896,7 +896,7 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
                 return NULL;
         }
         if (PySequence_Size(blocks) != fec->k) {
-                PyErr_SetString(mm_FECError, 
+                PyErr_SetString(mm_FECError,
                                 "encode expects a list of length K");
                 return NULL;
         }
@@ -904,7 +904,7 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
                 PyErr_SetString(mm_FECError, "idx out of bounds");
                 return NULL;
         }
-                        
+
         /* We hold onto the sequence as a tuple to prevent it changing
          * out from under us, and to temporarily incref all the strings.
          */
@@ -914,24 +914,24 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
         if (!(stringPtrs = malloc((sizeof(gf*))*fec->k))) {
                 PyErr_NoMemory();
                 goto err;
-        }        
+        }
         for (i = 0; i < fec->k; ++i) {
                 o = PyTuple_GET_ITEM(tup, i);
                 if (!PyString_Check(o)) {
-                        PyErr_SetString(mm_FECError, 
+                        PyErr_SetString(mm_FECError,
                                         "encode expects a list of strings");
                         goto err;
                 }
                 if (sz<0)
                         sz = PyString_Size(o);
                 else if (sz != PyString_Size(o)) {
-                        PyErr_SetString(mm_FECError, 
+                        PyErr_SetString(mm_FECError,
                               "encode expects a list of equally long strings");
                         goto err;
                 }
                 stringPtrs[i] = PyString_AS_STRING(o);
         }
-	
+
         /* We could pull this up, but it's good to do all the checking. */
         if (idx < fec->k) {
                 result = PyTuple_GET_ITEM(tup, idx);
@@ -944,9 +944,9 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
         if (!(result = PyString_FromStringAndSize(NULL, sz))) {
                 PyErr_NoMemory(); goto err;
         }
-        
+
         Py_BEGIN_ALLOW_THREADS
-        fec_encode(fec, (gf**)stringPtrs, (gf*)PyString_AsString(result), 
+        fec_encode(fec, (gf**)stringPtrs, (gf*)PyString_AsString(result),
                    idx, sz);
         Py_END_ALLOW_THREADS
 
@@ -961,7 +961,7 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
 	return NULL;
 }
 
-static const char mm_FEC_decode__doc__[] = 
+static const char mm_FEC_decode__doc__[] =
  "fec.decode([ (idx1,block1), (idx2, block2), ...])\n\n"
  "Recover a FEC-encoded string.  This methods expects as input a list of\n"
  "2-tuples, each containing the index (0<=idx<=N) of an encoded block, and\n"
@@ -987,7 +987,7 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
         char **stringPtrs = NULL;
         int *indices = NULL;
         PyObject *result = NULL;
-        
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs,
                                          "O:decode", kwlist,
 					 &blocks))
@@ -1002,11 +1002,11 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
                 return NULL;
         }
         if (PySequence_Size(blocks) != fec->k) {
-                PyErr_SetString(mm_FECError, 
+                PyErr_SetString(mm_FECError,
                                 "decode expects a sequence of length K");
                 return NULL;
         }
-        
+
         /* We hold onto the sequence as a tuple to prevent it changing
          * out from under us, and to temporarily incref all the strings.
          */
@@ -1028,14 +1028,14 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
         for (i = 0; i < fec->k; ++i) {
                 o = PyTuple_GET_ITEM(tup, i);
                 if (!PyArg_ParseTuple(o, "is#", &j, &s, &tmp)) {
-                        PyErr_SetString(mm_FECError, 
+                        PyErr_SetString(mm_FECError,
                                "decode expects a list of index-string tuples");
                         goto err;
                 }
                 if (sz<0) {
                         sz = tmp;
                 } else if (sz != tmp) {
-                        PyErr_SetString(mm_FECError, 
+                        PyErr_SetString(mm_FECError,
                               "decode expects equally long strings");
                         goto err;
                 }
@@ -1057,7 +1057,7 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
          * keep Python strings nice and immutable.
          *
          * This way, we never allocate more memory than we need.
-         * 
+         *
          */
         for (i = 0; i < fec->k; ++i) {
                 o = objPtrs[i];
@@ -1068,16 +1068,16 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
                         stringPtrs[i] = PyString_AS_STRING(o);
                 } else {
                         o = PyString_FromStringAndSize(NULL, sz);
-                        memcpy(PyString_AS_STRING(o), 
+                        memcpy(PyString_AS_STRING(o),
                                PyString_AS_STRING(objPtrs[i]), sz);
                         PyList_SET_ITEM(result, i, o);
                         stringPtrs[i] = PyString_AS_STRING(o);
-                }                                                    
+                }
         }
         Py_BEGIN_ALLOW_THREADS
         tmp = fec_decode(fec, (gf**) stringPtrs, (int*) indices, sz);
-        Py_END_ALLOW_THREADS 
-              
+        Py_END_ALLOW_THREADS
+
         if (tmp)
                 goto err;
 
@@ -1114,7 +1114,7 @@ mm_FEC_getattr(PyObject *self, char *name)
         return Py_FindMethod(mm_FEC_methods, self, name);
 }
 
-static const char mm_FEC_Type__doc__[] = 
+static const char mm_FEC_Type__doc__[] =
  "Type to implement forward error correction based on Vandermonde matrices.\n"
  "The algorithm is from Luigi Rizzo; the underlying code is copyright\n"
  "1997-1998 Luigi Rizzo; see fec.c for more information.\n";

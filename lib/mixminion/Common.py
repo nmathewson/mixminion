@@ -1,15 +1,15 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.119 2003/11/25 03:42:31 nickm Exp $
+# $Id: Common.py,v 1.120 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.Common
 
    Common functionality and utility code for Mixminion"""
 
-__all__ = [ 'IntervalSet', 'Lockfile', 'LockfileLocked', 'LOG', 'LogStream', 
+__all__ = [ 'IntervalSet', 'Lockfile', 'LockfileLocked', 'LOG', 'LogStream',
             'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
             'armorText', 'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
-            'createPrivateDir', 'disp64', 
+            'createPrivateDir', 'disp64',
             'encodeBase64', 'englishSequence', 'floorDiv', 'formatBase64',
             'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
@@ -207,8 +207,8 @@ def englishSequence(lst, empty="none", compound="and"):
 
     punc = ", "
     for item in lst:
-        if ("," in item or 
-            stringContains(item, " and ") or 
+        if ("," in item or
+            stringContains(item, " and ") or
             stringContains(item, " or ")):
             punc = "; "
             break
@@ -246,7 +246,7 @@ def armorText(s, type, headers=(), base64=1):
        list of key-value pairs for headers, generates an OpenPGP-style
        ASCII-armored message of type 'type', with contents 's' and
        headers 'header'.
-       
+
        If base64 is false, uses cleartext armor."""
     result = []
     result.append("-----BEGIN %s-----\n" %type)
@@ -280,7 +280,7 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
           we do cleartext armor.
     """
     result = []
-    
+
     while 1:
         tp = None
         fields = []
@@ -336,7 +336,7 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
             value = "\n".join(v)
 
         result.append((tp, fields, value))
-        
+
         s = s[mEnd.end()+1:]
 
     raise MixFatalError("Unreachable code somehow reached.")
@@ -381,7 +381,7 @@ def _gidToName(gid):
     except (KeyError, AttributeError):
         # KeyError: no such grpent.  AttributeError: grp module not loaded.
         return "group %s"%gid
- 
+
 def checkPrivateFile(fn, fix=1):
     """Checks whether f is a file owned by this uid, set to mode 0600 or
        0700, and all its parents pass checkPrivateDir.  Raises MixFatalError
@@ -400,14 +400,14 @@ def checkPrivateFile(fn, fix=1):
         raise MixFatalError("Nonexistent file %s" % fn)
     if not os.path.isfile(fn):
         raise MixFatalError("%s is not a regular file" % fn)
-    
+
     if _CHECK_UID:
         me = os.getuid()
         if st[stat.ST_UID] != me:
             ownerName = _uidToName(st[stat.ST_UID])
             myName = _uidToName(me)
             raise MixFilePermissionError(
-                "File %s is owned by %s, but Mixminion is running as %s" 
+                "File %s is owned by %s, but Mixminion is running as %s"
                 % (fn, ownerName, myName))
     mode = st[stat.ST_MODE] & 0777
     if _CHECK_MODE and mode not in (0700, 0600):
@@ -527,7 +527,7 @@ if sys.platform == 'win32':
         # WWWW right thing, but those don't exist in Windows Me/98/95.
         if os.path.exists(f2):
             os.unlink(f2)
-        os.rename(f1, f2) 
+        os.rename(f1, f2)
 else:
     def replaceFile(f1, f2):
         """Move the file named 'f1' to a new name 'f2'.  Replace any file
@@ -1398,7 +1398,7 @@ def openUnique(fname, mode='w', perms=0600):
     """Helper function. Returns a file open for writing into the file named
        'fname'.  If fname already exists, opens 'fname.1' or 'fname.2' or
        'fname.3' or so on."""
-    if 'b' in mode: 
+    if 'b' in mode:
         bin = O_BINARY
     else:
         bin = 0
@@ -1529,7 +1529,7 @@ class Lockfile:
         else:
             # There is no locking implementation.
             _warn_no_locks()
-        
+
     def _unlock(self, fd):
         """Compatibility wrapper: unlock a file for unix and windows systems.
         """
@@ -1590,14 +1590,14 @@ else:
            functionality of Queue.Queue to support a 'timeout' argument.
            If 'block' is true and timeout is provided, wait for no more
            than 'timeout' seconds before raising QueueEmpty.
-           
+
            In Python 2.3 and later, this interface is standard.
         """
         def get(self, block=1, timeout=None):
             if timeout is None or not block:
                 return MessageQueue.get(self, block)
 
-            # This logic is adapted from 'Condition' in the Python 
+            # This logic is adapted from 'Condition' in the Python
             # threading module.
             _time = time.time
             _sleep = time.sleep

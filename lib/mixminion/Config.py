@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.68 2003/11/24 19:59:04 nickm Exp $
+# $Id: Config.py,v 1.69 2003/11/28 04:14:04 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -249,7 +249,7 @@ def _parseHost(host):
     if not mixminion.Common.isPlausibleHostname(host):
         raise ConfigError("%r doesn't look like a valid hostname",host)
     return host
-                          
+
 # Regular expression to match 'address sets' as used in Allow/Deny
 # configuration lines. General format is "<IP|*> ['/'MASK] [PORT['-'PORT]]"
 _address_set_re = re.compile(r'''^(\d+\.\d+\.\d+\.\d+|\*)
@@ -710,7 +710,7 @@ class _ConfigFile:
         }
 
     _syntax = None
-    _features = {} 
+    _features = {}
     _restrictFormat = 0
     _restrictKeys = 1
     _restrictSections = 1
@@ -1005,4 +1005,4 @@ def _validateHostSection(sec):
     # in configure_trng and configureShredCommand, respectively.
 
     # Host is checked in setupTrustedUIDs.
-    
+

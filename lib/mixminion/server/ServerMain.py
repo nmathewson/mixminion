@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.103 2003/11/25 03:42:31 nickm Exp $
+# $Id: ServerMain.py,v 1.104 2003/11/28 04:14:05 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -509,7 +509,7 @@ class _Scheduler:
                 return -1
         finally:
             self.schedLock.release()
-            
+
     def scheduleOnce(self, when, name, cb):
         """Schedule a callback function, 'cb', to be invoked at time 'when.'
         """
@@ -684,7 +684,7 @@ The original error message was '%s'."""%e)
         self.keyring.removeDeadKeys()
         self.keyring.createKeysAsNeeded()
         self.keyring.checkDescriptorConsistency()
-        
+
         if self.config['DirectoryServers'].get('Publish'):
             self.keyring.publishKeys()
 
@@ -792,7 +792,7 @@ The original error message was '%s'."""%e)
                 self.keyring.unlock()
 
         self.processingThread.addJob(c)
-        
+
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         global GOT_HUP
@@ -890,7 +890,7 @@ The original error message was '%s'."""%e)
         """Called when the server's mix is about to fire.  Picks some
            packets to send, and sends them to the appropriate queues.
         """
-        
+
         now = time.time()
         # Before we mix, we need to log the hashes to avoid replays.
         try:
@@ -937,7 +937,7 @@ The original error message was '%s'."""%e)
         self.cleaningThread.join()
         self.processingThread.join()
         self.moduleManager.join()
-        
+
         self.packetHandler.close()
         self.moduleManager.close()
 
@@ -995,7 +995,7 @@ def configFromServerArgs(cmd, args, usage):
        Otherwise, find and parse the configuration file.
     """
     global _QUIET_OPT
-    options, args = getopt.getopt(args, "hQf:", 
+    options, args = getopt.getopt(args, "hQf:",
                                   ["help", "quiet", "config=",
                                    "daemon", "nodaemon", "echo", "severity="])
     if args:
@@ -1038,9 +1038,9 @@ def configFromServerArgs(cmd, args, usage):
         config['Server']['Daemon'] = forceDaemon
     if severity is not None:
         config['Server']['LogLevel'] = severity
-    
+
     return config
-        
+
 
 def readConfigFile(configFile):
     """Given a filename from the command line (or None if the user didn't
@@ -1328,7 +1328,7 @@ def signalServer(cmd, args):
         reload = 1
         usage = _SIGNAL_SERVER_USAGE % ("server-reload",
                                         "rescan its configuration")
-    
+
     config = configFromServerArgs(cmd, args, usage=usage)
     LOG.setMinSeverity("ERROR")
 
@@ -1399,7 +1399,7 @@ def runRepublish(cmd, args):
                 os.unlink(publishedFile)
         except OSError, e:
             LOG.warn("Couldn't mark key %s unpublished: %s",num,e)
-        
+
     LOG.info("Telling server to publish descriptors")
 
     _signalServer(config, reload=1)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.43 2003/11/24 19:59:04 nickm Exp $
+# $Id: MMTPClient.py,v 1.44 2003/11/28 04:14:04 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -113,7 +113,7 @@ class BlockingClientConnection:
         # Do the TLS handshaking
         mixminion.NetUtils.connectWithTimeout(
             self.sock, (self.targetAddr, self.targetPort), connectTimeout)
-        
+
         LOG.debug("Handshaking with %s:", self.serverName)
         self.tls = self.context.sock(self.sock.fileno())
         self.tls.connect()
@@ -289,7 +289,7 @@ class PeerCertificateCache:
            return.  If not, raise MixProtocolBadAuth.  Display all messages
            using the server 'serverName'.
         """
-        
+
         # First, make sure the certificate is neither premature nor expired.
         try:
             tls.check_cert_alive()

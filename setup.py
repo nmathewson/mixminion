@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.80 2003/11/10 04:12:19 nickm Exp $
+# $Id: setup.py,v 1.81 2003/11/28 04:14:03 nickm Exp $
 import sys
 
 #
@@ -26,7 +26,7 @@ if sys.version_info[:3] == (2,1,1):
     print "Python 2.1.1 has known bugs that keep Mixminion from working."
     print "Maybe you should upgrade to 2.1.3 or some more recent version."
     sys.exit(1)
-    
+
 try:
     import zlib
 except ImportError:
@@ -130,7 +130,7 @@ if USE_OPENSSL and sys.platform == 'win32':
     INCLUDE_DIRS = []
     STATIC_LIBS = []
     LIBRARY_DIRS = []
-    
+
     # WWWW Right now, this is hardwired to my openssl installation.
     INCLUDE_DIRS.append("d:\\openssl\\include")
     LIBRARY_DIRS.append("D:\\openssl\\lib\\vc")
@@ -213,7 +213,7 @@ elif USE_OPENSSL:
         if not found:
             print NO_OPENSSL_FOUND
             sys.exit(1)
-        
+
         STATIC_LIBS=[]
         LIBRARIES=['ssl','crypto']
 
@@ -396,7 +396,7 @@ except IOError:
     print "Makefile it needs to build additional Python components.\n"
 
     requirePythonDev()
-    
+
 
 class runMMCommand(Command):
     # Based on setup.py from Zooko's pyutil package, which is in turn based on

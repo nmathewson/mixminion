@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.32 2003/11/24 19:59:05 nickm Exp $
+# $Id: PacketHandler.py,v 1.33 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -192,7 +192,7 @@ class PacketHandler:
             header1 = header1[overflowLength:]
 
         assert len(header1) == (
-            1876 + subh.routinglen 
+            1876 + subh.routinglen
             - max(0,subh.routinglen-Packet.MAX_ROUTING_INFO_LEN))
 
         header1 = subh.underflow + header1
@@ -311,7 +311,7 @@ class DeliveryPacket:
 
     def __getstate__(self):
         return "V0", self.__dict__
-        
+
     def __setstate__(self, state):
         if type(state) == types.DictType:
             #XXXX007 remove this case.  (Not used since 0.0.5alpha)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.43 2003/11/24 19:59:04 nickm Exp $
+# $Id: ServerList.py,v 1.44 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -89,7 +89,7 @@ class ServerList:
     #          dir-dategenerated.N ...
     #     identity
     #     .lock
-    
+
     def __init__(self, baseDir, idCache=None):
         """Initialize a ServerList to store servers under baseDir/servers,
            creating directories as needed.
@@ -247,7 +247,7 @@ class ServerList:
         """Generate and sign a new directory, to be effective from <startAt>
            through <endAt>.  It includes all servers that are valid at
            any time between <startAt> and <endAt>+<extraTime>.  The directory
-           is signed with <identityKey>.  
+           is signed with <identityKey>.
 
            Any servers whose nicknames appear in 'badServers' are marked as
            not recommended; any servers whose nicknames appear in

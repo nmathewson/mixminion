@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.11 2003/07/13 03:45:34 nickm Exp $
+# $Id: ServerInbox.py,v 1.12 2003/11/28 04:14:04 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -49,7 +49,7 @@ class ServerInbox:
            text -- a string containing a new server descriptor.
            source -- a (human readable) string describing the source
                of the descriptor, used in error messages.
-        
+
            """
         try:
             server = ServerInfo(string=text,assumeValid=0)
@@ -156,7 +156,7 @@ class ServerInbox:
             if reject:
                 LOG.warn("Rejecting %s servers named %s with unmatched KeyIDs",
                          len(reject), nickname)
-            
+
         try:
             serverList._lock()
             serverList.learnServerID(incoming[0][1])
@@ -173,7 +173,7 @@ class ServerInbox:
         servers = {}
         # lcnickname->nicknames
         nicknames = {}
-    
+
         for fname,s,t,fp in incoming:
             nickname = s.getNickname()
             lcnickname = nickname.lower()

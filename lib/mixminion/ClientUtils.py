@@ -47,7 +47,7 @@ class PasswordManager:
 
            Use the prompt 'prompt' to ask the user for the password
            'name'.  Return what the user enters.
-        """   
+        """
         raise NotImplemented()
     def _getNewPassword(self, name, prompt):
         """Abstract function; subclasses must override.
@@ -55,7 +55,7 @@ class PasswordManager:
            Use the prompt 'prompt' to ask the user for a _new_
            password 'name'.  Ususally, this will involve asking for
            the password twice to confirm that the user hasn't mistyped.
-        """   
+        """
         raise NotImplemented()
     def setPassword(self, name, password):
         """Change the internally cached value for the password named
@@ -67,7 +67,7 @@ class PasswordManager:
            password, we call 'confirmFn' on it.  If confirmFn returns 1,
            the password is correct.  If confirmFn returns 0, the password
            is incorrect.  Queries the user at most 'maxTries' times before
-           giving up.  Raises BadPassword on failure.""" 
+           giving up.  Raises BadPassword on failure."""
         if self.passwords.has_key(name):
             pwd = self.passwords[name]
             if confirmFn(pwd):
@@ -156,7 +156,7 @@ def _readEncryptedFile(fname, password, magicList):
        If the magic is incorrect, raises ValueError.
     """
     assert list(map(len, magicList)) == [8]*len(magicList)
-    
+
     text = readFile(fname)
     r = unarmorText(text, ["TYPE III KEYRING"])
     if len(r) != 1:
@@ -166,7 +166,7 @@ def _readEncryptedFile(fname, password, magicList):
     vers = [ v for k,v in headers if k == 'Version' ]
     if not vers or vers[0] != '0.1':
         raise ValueError("Unrecognized version on keyring")
-    
+
     if len(s) < MAGIC_LEN+1 or s[MAGIC_LEN] != '\x00':
         raise ValueError("Unrecognized encryption format on %s"%fname)
     if s[:MAGIC_LEN] not in magicList:
@@ -249,8 +249,8 @@ class _LazyEncryptedStore:
         self.bestMagic = magic
         assert len(magic) == MAGIC_LEN
         self.initFn = initFn
-        self.obsoleteMagic = [] 
-        
+        self.obsoleteMagic = []
+
     def load(self, create=0,password=None,now=None):
         """Try to load the encrypted file from disk.  If 'password' is
            not provided, query it from the password manager.  If the file
@@ -258,7 +258,7 @@ class _LazyEncryptedStore:
            create the file."""
         if self.loaded:
             # No need to re-load an already-loaded object.
-            return 
+            return
         elif os.path.exists(self.fname):
 ##             # Okay, the file is there. Snarf it from disk and try to give a
 ##             # good warning for its magic string.
@@ -267,7 +267,7 @@ class _LazyEncryptedStore:
 ##                 raise MixError("Found an obsolete keyring at %r.  Remove this file to use SURBs with this version of Mixminion."%self.fname)
 ##             if len(contents)<8 or contents[:8] not in self.okMagic:
 ##                 raise MixError("Unrecognized versioning on file %s"%self.fname)
-            
+
             # ... see if we can load it with no password ...
             if self._loadWithPassword(""):
                 return
@@ -338,7 +338,7 @@ class _LazyEncryptedStore:
         """Helper function for subclasses to override: convert self.object to a
            string for storage, and return the converted object."""
         return cPickle.dumps(self.object, 1)
-    
+
     def _decode(self,val,magic):
         """Helper function: given a decrypted string and magic string, sets
            self.object to the corresponding decoded value."""
@@ -509,7 +509,7 @@ class Keyring(_LazyEncryptedStore):
             _LazyEncryptedStore.load(self, create=create, password=password)
         finally:
             del self._now
-        
+
 # ----------------------------------------------------------------------
 
 class SURBLog(mixminion.Filestore.DBBase):
@@ -547,7 +547,7 @@ class SURBLog(mixminion.Filestore.DBBase):
             now = time.time()
         nUsed = nExpired = nShortlived = 0
         result = []
-        for surb in surbList: 
+        for surb in surbList:
             expiry = surb.timestamp
             timeLeft = expiry - now
             if self.isSURBUsed(surb):
@@ -651,7 +651,7 @@ class ClientQueue:
                 fname_old = os.path.join(directory, fn)
                 fname_new = os.path.join(directory, "msg_"+handle)
                 os.rename(fname_old, fname_new)
-        
+
         self.store = mixminion.Filestore.ObjectMetadataStore(
             directory, create=1, scrub=1)
 
@@ -687,7 +687,7 @@ class ClientQueue:
     def getPacket(self, handle):
         """Given a handle, return a 3-tuple of the corresponding
            32K packet, {IPV4/Host}Info, and time of first queueing.  (The time
-           is rounded down to the closest midnight GMT.)  May raise 
+           is rounded down to the closest midnight GMT.)  May raise
            CorruptedFile."""
         obj = self.store.getObject(handle)
         try:

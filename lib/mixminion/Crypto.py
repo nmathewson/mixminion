@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.56 2003/11/20 08:47:24 nickm Exp $
+# $Id: Crypto.py,v 1.57 2003/11/28 04:14:04 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -756,7 +756,7 @@ def configure_trng(config):
 
 
 # Global TRN instance, for use by trng().
-_theTrueRNG = None 
+_theTrueRNG = None
 
 class _TrueRNG(RNG):
     '''Random number generator that yields pieces of entropy from
