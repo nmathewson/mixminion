@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.54 2003/02/13 07:03:49 nickm Exp $
+# $Id: ClientMain.py,v 1.55 2003/02/13 07:39:25 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -816,7 +816,7 @@ def parsePath(directory, config, path, address, nHops=None,
     # Check myNHops for consistency
     if nHops is not None:
         if myNHops is not None and myNHops != nHops:
-            raise UIrror("Mismatch between specified number of hops")
+            raise UIError("Mismatch between specified number of hops")
         elif nHops < len(enterPath)+len(exitPath):
             raise UIError("Mismatch between specified number of hops")
 
