@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.50 2003/06/26 03:23:53 nickm Exp $
+# $Id: Makefile,v 1.51 2003/07/10 23:11:30 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -48,12 +48,12 @@ all: do_build
 do_build:
 	@$(FINDPYTHON); \
 	echo $$PYTHON setup.py build; \
-	$$PYTHON setup.py build
+	$$PYTHON -tt setup.py build
 
 clean:
 	@$(FINDPYTHON); \
-	echo $$PYTHON setup.py clean; \
-	$$PYTHON setup.py clean
+	echo $$PYTHON -tt setup.py clean; \
+	$$PYTHON -tt setup.py clean
 	rm -rf build dist
 	rm -f MANIFEST
 	rm -f lib/mixminion/_unittest.py
@@ -69,13 +69,13 @@ clean:
 
 test:
 	@$(FINDPYTHON); \
-	echo $$PYTHON setup.py run --subcommand=unittests; \
-	$$PYTHON setup.py run --subcommand=unittests
+	echo $$PYTHON -tt setup.py run --subcommand=unittests; \
+	$$PYTHON -tt setup.py run --subcommand=unittests
 
 time:
 	@$(FINDPYTHON); \
 	echo $$PYTHON setup.py run --subcommand=benchmarks; \
-	$$PYTHON setup.py run --subcommand=benchmarks
+	$$PYTHON -tt setup.py run --subcommand=benchmarks
 
 #======================================================================
 # Install target (minimal.)
@@ -84,13 +84,13 @@ time:
 install: do_build
 	@$(FINDPYTHON); \
 	if [ 'x' = "x$(PREFIX)" ] ; then                                     \
-	  echo $$PYTHON setup.py install --compile --optimize=1 --force;     \
-	  $$PYTHON setup.py install --compile --optimize=1 --force;          \
+	  echo $$PYTHON -tt setup.py install --compile --optimize=1 --force; \
+	  $$PYTHON -tt setup.py install --compile --optimize=1 --force;      \
 	else                                                                 \
 	  PREFIX=$(PREFIX);                                                  \
 	  export PREFIX;                                                     \
-	  echo $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force; \
-	  $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force;\
+	  echo $$PYTHON -tt setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force; \
+	  $$PYTHON -tt setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force;\
 	fi
 
 #	  echo "MIXMINION SAYS: Please ignore the warning about sys.path:"
@@ -155,8 +155,8 @@ uninstall-help:
 
 sdist: clean
 	@$(FINDPYTHON); \
-	echo $$PYTHON setup.py sdist; \
-	$$PYTHON setup.py sdist; \
+	echo $$PYTHON -tt setup.py sdist; \
+	$$PYTHON -tt setup.py sdist; \
 	VERSION=`ls dist/*.tar.gz | sed -e s/.*-// | sed -e s/.tar.gz//`; \
 	cp README dist/README-$$VERSION
 
@@ -237,7 +237,7 @@ pychecker: do_build
 
 lines:
 	@$(FINDPYTHON);                                                      \
-	$$PYTHON etc/countlines.py src/*.[ch] lib/mixminion/[A-Z_]*.py       \
+	$$PYTHON -tt etc/countlines.py src/*.[ch] lib/mixminion/[A-Z_]*.py   \
 	         lib/mixminion/*/*.py --noncode lib/mixminion/[a-z]*.py
 
 xxxx:

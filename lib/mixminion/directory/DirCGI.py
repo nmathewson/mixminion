@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirCGI.py,v 1.7 2003/06/06 06:08:39 nickm Exp $
+# $Id: DirCGI.py,v 1.8 2003/07/10 23:11:30 nickm Exp $
 
 """mixminion.directory.DirCGI
 
@@ -47,7 +47,7 @@ def run():
                            os.environ.get("REMOTE_PORT"))
 
     try:
-	os.umask(022)
+        os.umask(022)
         inbox.receiveServer(desc, address)
         print "Status: 1\nMessage: Accepted."
     except UIError, e:
