@@ -1,16 +1,16 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.33 2002/12/15 04:15:37 nickm Exp $
+# $Id: Common.py,v 1.34 2002/12/15 05:55:30 nickm Exp $
 
 """mixminion.Common
 
    Common functionality and utility code for Mixminion"""
 
-__all__ = [ 'LOG', 'MixError', 'MixFatalError', 'MixProtocolError', 'ceilDiv',
-	    'checkPrivateDir', 'createPrivateDir', 'floorDiv', 'formatBase64',
-	    'formatDate', 'formatTime', 'installSignalHandlers',
-	    'isSMTPMailbox', 'mkgmtime', 'onReset', 'onTerminate',
-	    'previousMidnight', 'secureDelete', 'stringContains',
-	    'waitForChildren' ]
+__all__ = [ 'LOG', 'LogStream', 'MixError', 'MixFatalError',
+	    'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
+	    'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
+	    'formatTime', 'installSignalHandlers', 'isSMTPMailbox', 'mkgmtime',
+	    'onReset', 'onTerminate', 'previousMidnight', 'secureDelete',
+	    'stringContains', 'waitForChildren' ]
 
 import base64
 import calendar
@@ -364,6 +364,7 @@ class Log:
     def configure(self, config):
 	"""Set up this Log object based on a ServerConfig or ClientConfig
 	   object"""
+        # XXXX001 Don't EchoLogMessages when NoDaemon==0.
         self.handlers = []
         if config == None or not config.has_section("Server"):
             self.setMinSeverity("WARN")
@@ -493,6 +494,21 @@ class Log:
 
 # The global 'Log' instance for the mixminion client or server.
 LOG = Log('WARN')
+
+class LogStream:
+    """Replacement for stdout or stderr when running in daemon mode;
+       sends all output to log.
+       
+       We don't actually want to use these; but they keep us from dropping
+       prints on the floor.
+       """
+    def __init__(self, name, severity):
+	self.name = name
+	self.severity = severity
+    def write(self, s):
+	LOG.log(self.severity, "->%s: %s", self.name, s)
+    def flush(self): pass
+    def close(self): pass
 
 #----------------------------------------------------------------------
 # Time processing

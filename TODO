@@ -19,6 +19,13 @@ FOR 0.0.1: (The first alpha)
 	o Build
 		o Marginal 'make install'
 		o Marginal 'make dist'
+	o Stability:
+		o Do some basic locking to keep other processes from
+		  using same queue set.
+		o Make startup not spew to stderr when we request it
+ 	  	  not to.
+		o Really daemonize ourselves.
+		o Take it easy with the fork calls!
 	. Integration testing
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.

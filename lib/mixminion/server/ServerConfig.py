@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.1 2002/12/12 19:56:47 nickm Exp $
+# $Id: ServerConfig.py,v 1.2 2002/12/15 05:55:30 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -32,6 +32,13 @@ class ServerConfig(mixminion.Config._ConfigFile):
         mixminion.Config._ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
+	# Pre-emptively configure the log before validation, so we don't
+	# write to the terminal if we've been asked not to.
+	if not sections['Server'].get("EchoMessages", 0):
+	    LOG.handlers = []
+	    # ???? This can't be the best way to do this.
+
+	# Now, validate the host section.
 	mixminion.Config._validateHostSection(sections.get('Host', {}))
 	# Server section
 	server = sections['Server']
@@ -86,6 +93,7 @@ SERVER_SYNTAX =  {
                      'LogFile' : ('ALLOW', None, None),
                      'LogLevel' : ('ALLOW', C._parseSeverity, "WARN"),
                      'EchoMessages' : ('ALLOW', C._parseBoolean, "no"),
+		     'NoDaemon' : ('ALLOW', C._parseBoolean, "no"),
                      'EncryptIdentityKey' : ('REQUIRE', C._parseBoolean, "yes"),
 		     'IdentityKeyBits': ('ALLOW', C._parseInt, "2048"),
                      'PublicKeyLifetime' : ('ALLOW', C._parseInterval,

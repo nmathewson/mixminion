@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.3 2002/12/15 04:15:38 nickm Exp $
+# $Id: ServerMain.py,v 1.4 2002/12/15 05:55:30 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -10,6 +10,7 @@
 
 __all__ = [ 'MixminonServer' ]
 
+import fcntl
 import getopt
 import os
 import sys
@@ -24,8 +25,8 @@ import mixminion.server.Queue
 import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 
-from mixminion.Common import LOG, MixError, MixFatalError, ceilDiv, \
-     formatBase64, formatTime, waitForChildren
+from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
+     createPrivateDir, formatBase64, formatTime, waitForChildren
 
 class IncomingQueue(mixminion.server.Queue.DeliveryQueue):
     """A DeliveryQueue to accept messages from incoming MMTP connections,
@@ -186,6 +187,21 @@ class MixminionServer:
 	"""Create a new server from a ServerConfig."""
 	LOG.debug("Initializing server")
 	self.config = config
+	homeDir = config['Server']['Homedir']
+	createPrivateDir(homeDir)
+
+	# Lock file.
+	# FFFF Refactor this part into common?
+	self.lockFile = os.path.join(homeDir, "lock")
+	self.lockFD = os.open(self.lockFile, os.O_RDWR|os.O_CREAT, 0600)
+	try:
+	    fcntl.flock(self.lockFD, fcntl.LOCK_EX|fcntl.LOCK_NB)
+	except IOError:
+	    raise MixFatalError("Another server seems to be running.")
+
+	# The pid file.
+	self.pidFile = os.path.join(homeDir, "pid")
+	
 	self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
 	if self.keyring._getLiveKey() is None:
 	    LOG.info("Generating a month's worth of keys.")
@@ -208,7 +224,6 @@ class MixminionServer:
 	self.moduleManager = config.getModuleManager()
 	self.moduleManager.configure(config)
 
-	homeDir = config['Server']['Homedir']
 	queueDir = os.path.join(homeDir, 'work', 'queues')
 
 	incomingDir = os.path.join(queueDir, "incoming")
@@ -238,10 +253,16 @@ class MixminionServer:
 	self.mmtpServer.connectQueues(incoming=self.incomingQueue,
 				      outgoing=self.outgoingQueue)
 
+
     def run(self):
 	"""Run the server; don't return unless we hit an exception."""
 	# FFFF Use heapq to schedule events? [I don't think so; there are only
 	# FFFF   two events, after all!]
+
+	f = open(self.pidFile, 'wt')
+	f.write("%s\n" % os.getpid())
+	f.close()
+
 	now = time.time()
 	MIX_INTERVAL = 20  # FFFF Configurable!
 	nextMix = now + MIX_INTERVAL
@@ -288,6 +309,13 @@ class MixminionServer:
     def close(self):
 	"""Release all resources; close all files."""
 	self.packetHandler.close()
+	try:
+	    os.unlink(self.lockFile)
+	    fcntl.flock(self.lockFD, fcntl.LOCK_UN)
+	    os.close(self.lockFD)
+	    os.unlink(self.pidFile)
+	except OSError:
+	    pass
 
 #----------------------------------------------------------------------
 def usageAndExit(cmd):
@@ -331,11 +359,24 @@ def runServer(cmd, args):
 	mixminion.Crypto.init_crypto(config)
 
 	server = MixminionServer(config)
+	
     except:
 	LOG.fatal_exc(sys.exc_info(),"Exception while configuring server")
 	print >>sys.stderr, "Shutting down because of exception"
-        #XXXX print stack trace as well as logging?
+	#XXXX001 Print the exception, too.
 	sys.exit(1)
+
+    if not config['Server'].get("NoDaemon",0):
+	print >>sys.stderr, "Starting server in the background"
+	# ??? This 'daemonize' logic should go in Common.
+	pid = os.fork()
+	if pid != 0:
+	    os._exit(0)
+	sys.stderr.close()
+	sys.stdout.close()
+	sys.stdin.close()
+	sys.stdout = LogStream("STDOUT", "WARN")
+	sys.stderr = LogStream("STDERR", "WARN")
 
     LOG.info("Starting server")
     try:
@@ -344,7 +385,7 @@ def runServer(cmd, args):
 	pass
     except:
 	LOG.fatal_exc(sys.exc_info(),"Exception while running server")
-        #XXXX print stack trace as well as logging?
+	#XXXX001 Print the exception, too.
     LOG.info("Server shutting down")
     server.close()
     LOG.info("Server is shut down")

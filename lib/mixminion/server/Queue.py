@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
+# $Id: Queue.py,v 1.3 2002/12/15 05:55:30 nickm Exp $
 
 """mixminion.server.Queue
 
@@ -245,7 +245,7 @@ class Queue:
                 if s[stat.ST_MTIME] < allowedTime:
                     self.__changeState(m[4:], "inp", "rmv")
                     rmv.append(os.path.join(self.dir, m))
-        _secureDelete_bg(rmv, cleanFile)
+	secureDelete(rmv, blocking=1)
         return 0
 
     def __changeState(self, handle, s1, s2):
@@ -463,7 +463,11 @@ class BinomialCottrellMixQueue(CottrellMixQueue):
 
 def _secureDelete_bg(files, cleanFile):
     """Helper method: delete files in another thread, removing 'cleanFile'
-       once we're done."""
+       once we're done.
+
+       XXXX No longer used: cleanup is a lot faster than it once was, now
+       XXXX that we no longer overwrite repeatedly.  If we reinstate it,
+       XXXX it should be a separate process, not a frequent forker."""
 
     pid = os.fork()
     if pid != 0:
