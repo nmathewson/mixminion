@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.6 2002/12/16 04:01:14 nickm Exp $
+# $Id: Modules.py,v 1.7 2002/12/20 23:51:23 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -27,6 +27,7 @@ import mixminion.server.Queue
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
      isPrintingAscii
+from mixminion.BuildMessage import CompressedDataTooLong
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -88,8 +89,11 @@ class DeliveryModule:
            For the 'address' component of the delivery queue, modules must
            accept a tuple of: (exitType, address, tag).  If 'tag' is None,
            the message has been decrypted; if 'tag' is 'err', the message is
-           corrupt.  Otherwise, the message is either a reply or an encrypted
-           forward message
+           corrupt; if 'tag' is 'long', the message has been decrypted, and
+           looks like a possible Zlib bomb. 
+           
+           Otherwise, the message is either a reply or an encrypted
+           forward message.  
            """
         return SimpleModuleDeliveryQueue(self, queueDir)
 
@@ -329,11 +333,17 @@ class ModuleManager:
         queue = self.queues[mod.getName()]
         LOG.debug("Delivering message %r (type %04x) via module %s",
                        message[:8], exitType, mod.getName())
+        payload = None
         try:
             payload = mixminion.BuildMessage.decodePayload(message, tag)
+        except CompressedDataTooLong:
+            contents = mixminion.Packet.parsePayload(message).getContents()
+            queue.queueDeliveryMessage((exitType, address, 'long'), contents)
+            return
         except MixError:
             queue.queueDeliveryMessage((exitType, address, 'err'), message)
             return
+
         if payload is None:
             # enrypted message
             queue.queueDeliveryMessage((exitType, address, tag), message)
@@ -648,6 +658,7 @@ def _escapeMessageForEmail(msg, tag):
                             or a reply]
                          None [if the message is in plaintext]
                          'err' [if the message was invalid.]
+                         'long' [if the message might be a zlib bomb'.
 
        Returns None on an invalid message."""
     m = _escapeMessage(msg, tag, text=1)
@@ -659,6 +670,11 @@ def _escapeMessageForEmail(msg, tag):
         junk_msg = """\
 This message is not in plaintext.  It's either 1) a reply; 2) a forward
 message encrypted to you; or 3) junk.\n\n"""
+    elif code == 'ZB':
+        junk_msg = """\
+This message is compressed with zlib.  Ordinarily, I would have decompressed
+it, but it was compressed by more than a factor of 20, which makes me nervous.
+\n"""
     else:
         junk_msg = ""
 
@@ -674,8 +690,9 @@ message encrypted to you; or 3) junk.\n\n"""
 def _escapeMessage(message, tag, text=0):
     """Helper: given a decoded message (and possibly its tag), determine
        whether the message is a text plaintext message (code='TXT'), a
-       binary plaintext message (code 'BIN'), or an encrypted message/reply
-       (code='ENC').  If requested, non-TXT messages are base-64 encoded.
+       binary plaintext message (code 'BIN'), an encrypted message/reply
+       (code='ENC'), or a plaintext possible zlib bomb ('ZB').  If
+       requested, non-TXT messages are base-64 encoded.
 
        Returns: (code, message, tag (for ENC) or None (for BIN, TXT).
        Returns None if the message is invalid.
@@ -685,10 +702,13 @@ def _escapeMessage(message, tag, text=0):
                             or a reply]
                          None [if the message is in plaintext]
                          'err' [if the message was invalid.]
+                         'long' [if the message might be a zlib bomb'.
           text -- flag: if true, non-TXT messages must be base64-encoded.
     """
     if tag == 'err':
         return None
+    elif tag == 'long':
+        code = "ZB"
     elif tag is not None:
         code = "ENC"
     else:

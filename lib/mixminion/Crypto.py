@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.28 2002/12/16 02:40:11 nickm Exp $
+# $Id: Crypto.py,v 1.29 2002/12/20 23:51:22 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -18,13 +18,14 @@ import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, LOG
 
 __all__ = [ 'AESCounterPRNG', 'CryptoError', 'Keyset', 'bear_decrypt',
-            'bear_encrypt', 'ctr_crypt', 'init_crypto', 'lioness_decrypt',
-            'lioness_encrypt', 'openssl_seed', 'pk_check_signature',
-            'pk_decode_private_key', 'pk_decrypt', 'pk_encode_private_key',
-            'pk_encrypt', 'pk_from_modulus', 'pk_generate', 'pk_get_modulus',
-            'pk_sign', 'prng', 'sha1', 'strxor', 'trng',
-            'AES_KEY_LEN', 'DIGEST_LEN', 'HEADER_SECRET_MODE', 'PRNG_MODE',
-            'RANDOM_JUNK_MODE', 'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
+            'bear_encrypt', 'ctr_crypt', 'getCommonPRNG', 'init_crypto',
+            'lioness_decrypt', 'lioness_encrypt', 'openssl_seed',
+            'pk_check_signature', 'pk_decode_private_key', 'pk_decrypt',
+            'pk_encode_private_key', 'pk_encrypt', 'pk_from_modulus',
+            'pk_generate', 'pk_get_modulus', 'pk_sign', 'prng', 'sha1',
+            'strxor', 'trng', 'AES_KEY_LEN', 'DIGEST_LEN',
+            'HEADER_SECRET_MODE', 'PRNG_MODE', 'RANDOM_JUNK_MODE',
+            'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
             'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
 
 # Expose _minionlib.CryptoError as Crypto.CryptoError

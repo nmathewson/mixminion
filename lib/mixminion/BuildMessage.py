@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.23 2002/12/16 02:40:11 nickm Exp $
+# $Id: BuildMessage.py,v 1.24 2002/12/20 23:51:22 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -551,8 +551,18 @@ def _encodePayload(payload, overhead, paddingPRNG):
     assert overhead in (0, ENC_FWD_OVERHEAD)
 
     # Compress the data, and figure out how much padding we'll need.
+    origLength = len(payload)
     payload = compressData(payload)
     length = len(payload)
+    
+    # FFFF This is an ugly workaround for too-compressable data, so we don't
+    # FFFF create messages that will necessarily be dropped.  We should be
+    # FFFF more sensible on the output side.
+    if length > 1024 and length*20 <= origLength:
+        LOG.warn("Double-compressing message so it won't look like a z-bomb")
+        payload = compressData(payload)
+        length = len(payload)
+
     paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
 
     # If the compressed payload doesn't fit in 28K, then we need to bail out.
@@ -583,7 +593,13 @@ def _decodePayloadImpl(payload):
         raise MixError("Message fragments not yet supported")
 
     # Uncompress the body.
-    return uncompressData(payload.getContents())
+    contents = payload.getContents()
+    # FFFF - We should make this rule configurable.
+    maxLen = max(20*1024, 20*len(contents))
+    # FFFF - On encountering an overcompressed piece of data, we should
+    # FFFF   deliver it, still compressed, with a warning -- not merely
+    # FFFF   drop it as a _definite_ bomb.
+    return uncompressData(payload.getContents(), maxLength=maxLen)
 
 def _checkPayload(payload):
     'Return true iff the hash on the given payload seems valid'
@@ -620,12 +636,16 @@ def compressData(payload):
     assert s[1] == '\xda' # no dict, max compression
     return s
 
-def uncompressData(payload):
-    """Uncompress a string 'payload'; raise ParseError if it is not valid
-       compressed data."""
-    # FFFF We should prevent zlib bombing.  Somebody could compress 28MB of
-    # FFFF zero bytes down to fit in a single payload and use us to
-    # FFFF mailbomb people, hard.
+class CompressedDataTooLong(MixError):
+    """Exception: raised when try to uncompress data that turns out to be
+       longer than we had expected."""
+    pass
+
+def uncompressData(payload, maxLength=None):
+    """Uncompress a string 'payload'; raise ParseError if it is not
+       valid compressed data.  If the expanded data is longer than
+       maxLength, we raise 'CompressedDataTooLong'."""
+
     if len(payload) < 6 or payload[0:2] != '\x78\xDA':
         raise ParseError("Invalid zlib header")
     try:
@@ -633,7 +653,13 @@ def uncompressData(payload):
         # want to limit the output size.
         zobj = zlib.decompressobj(zlib.MAX_WBITS)
         # Decompress the payload.
-        d = zobj.decompress(payload)
+        if maxLength is None:
+            d = zobj.decompress(payload)
+        else:
+            d = zobj.decompress(payload, maxLength)
+        if zobj.unconsumed_tail:
+            raise CompressedDataTooLong()
+            
         # Get any leftovers, which shouldn't exist.
         nil = zobj.flush()
         if nil != '':
