@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.12 2003/01/05 13:19:54 nickm Exp $
+# $Id: ServerConfig.py,v 1.13 2003/01/06 05:40:46 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -154,13 +154,13 @@ SERVER_SYNTAX =  {
                      'Daemon' : ('ALLOW', C._parseBoolean, "no"),
                      # Deprecated.
                      'NoDaemon' : ('ALLOW', C._parseBoolean, None),
-                     'EncryptIdentityKey' :('REQUIRE', C._parseBoolean, "yes"),
+                     'EncryptIdentityKey' :('ALLOW', C._parseBoolean, "no"),
                      'IdentityKeyBits': ('ALLOW', C._parseInt, "2048"),
                      'PublicKeyLifetime' : ('ALLOW', C._parseInterval,
                                             "30 days"),
                      'PublicKeySloppiness': ('ALLOW', C._parseInterval,
                                              "5 minutes"),
-                     'EncryptPrivateKey' : ('REQUIRE', C._parseBoolean, "no"),
+                     'EncryptPrivateKey' : ('ALLOW', C._parseBoolean, "no"),
                      'Mode' : ('REQUIRE', C._parseServerMode, "local"),
                      'Nickname': ('ALLOW', C._parseNickname, None),
                      'Contact-Email': ('ALLOW', None, None),
