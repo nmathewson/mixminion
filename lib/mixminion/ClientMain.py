@@ -668,7 +668,7 @@ class MixminionClient:
                 p = mixminion.BuildMessage.decodePayload(msg.getContents(),
                                                          tag=msg.getTag(),
                                                          userKeys=surbKeys,
-                                                         rNym=nym)
+                                                         retNym=nym)
                 if p:
                     if nym:
                         nym=nym[0]
