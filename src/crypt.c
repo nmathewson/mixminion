@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.2 2002/05/29 17:46:24 nickm Exp $ */
+/* $Id: crypt.c,v 1.3 2002/05/31 12:39:18 nickm Exp $ */
 #include <Python.h>
 
 #include <openssl/bn.h>
@@ -127,9 +127,9 @@ const char mm_aes_ctr128_crypt__doc__[] =
   "at idx.  If prng is nonzero, ignores string and just produces a stream of\n"
   "length prng.\n\n"
   "BUG: only the 32 least significant bits of idx are used.\n\n"
-  "Performance notes:  PRNG mode is much faster (33% @ 32K) than generating\n"
+  "Performance notes:  PRNG mode is much faster (36% @ 32K) than generating\n"
   "a string of NULs in Python and encrypting it.  Encryption, on the other\n"
-  "hand, is only slightly faster (11% @ 32K) than XORing the prng output\n"
+  "hand, is only slightly faster (15% @ 32K) than XORing the prng output\n"
   "with the plaintext.\n";
 
 PyObject*
@@ -139,10 +139,8 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 	unsigned char *input;
         int inputlen, prng=0;
 	long idx=0;
-	int shortidx;
-	AES_KEY *aes_key =NULL;
+	AES_KEY *aes_key = NULL;
 
-	unsigned char *counter;
 	PyObject *output;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
@@ -155,18 +153,6 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 	if (idx < 0) idx = 0;
 	if (prng < 0) prng = 0;
 
-	shortidx = idx & 0x0f;
-	idx >>= 4;
-	counter = malloc(AES_BLOCK_SIZE);
-	if (!counter) { PyErr_NoMemory(); return NULL; }
-		
-	memset(counter, 0, AES_BLOCK_SIZE);
-	if (idx != 0) {
-		counter[15] =  idx        & 0xff;
-		counter[14] = (idx >> 8)  & 0xff;
-		counter[13] = (idx >> 16) & 0xff;
-		counter[12] = (idx >> 24) & 0xff;
-	}
 	if (prng) { 
 		inputlen = prng;
 		input = malloc(prng);
@@ -176,16 +162,12 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 	output = PyString_FromStringAndSize(NULL, inputlen);
 	if (!output) {
 		PyErr_NoMemory(); 
-		free(counter); 
 		if (prng) free(input);
 		return NULL;
 	}
 
-	AESCRYPT((const char*)input, PyString_AS_STRING(output),
-		 inputlen, aes_key,
-		 counter, &shortidx);
-
-	free(counter);
+	mm_aes_counter128(input, PyString_AS_STRING(output), inputlen,
+			  aes_key, idx); 
 
 	if (prng) free(input);
 	return output;
@@ -634,6 +616,11 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 				  &input,&inputlen,&param,&paramlen,&keylen))
 		return NULL;
 
+	/**
+	 * XXXX Why is this test (along with the input+1 below) necessary?
+	 * XXXX I'd be happier if I knew, and I'd take out the bit about
+	 * XXXX our assumptions being gravely mistaken. :)
+	 **/
 	if (inputlen == 0 || *input != '\000') {
 		PyErr_SetString(mm_SSLError,
 				"Bad padding, or our assumptions about "

@@ -1,15 +1,17 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.2 2002/05/29 17:46:24 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.3 2002/05/31 12:39:18 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
 #include <Python.h>
 #include <openssl/aes.h>
+#include <openssl/opensslv.h>
+#if (OPENSSL_VERSION_NUMBER < 0x00907000L)
+#error "Mixminion requires OpenSSL 0.9.7 (which might not have been released yet, but you can get snapshots from openssl.org)."
+#endif
 
-#define AESCRYPT mix_AES_ctr128_encrypt
-void mix_AES_ctr128_encrypt(const unsigned char *in, unsigned char *out,
-			    const unsigned long length, const AES_KEY *key,
-			    unsigned char *counter, unsigned int *num);
+void mm_aes_counter128(const char *in, char *out, unsigned int len, 
+		       AES_KEY *key, unsigned long count);
 
 #define FUNC(fn) PyObject* fn(PyObject *self, PyObject *args, PyObject *kwdict)
 #define DOC(fn) extern const char fn##__doc__[]
