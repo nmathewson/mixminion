@@ -73,7 +73,7 @@ For 0.0.5:
                 o Give a reasonable error when client is passed
                   server configuration.
                 o Audit exceptions: which should be UIError?
-        . Support for large messages and K-of-N in fwd messages
+        o Support for large messages and K-of-N in fwd messages
                 o fec backend code
                 o Tests and timing for fec backend
                 o FRAGMENT routing type
@@ -85,28 +85,24 @@ For 0.0.5:
                 o Fragment-pool logic for server
                 o Advertise fragment reassembly in server descriptors
                 o Check server descriptors when fragmenting
-                - Tests
-                        - Client-side fragmentation
-                        - Server-side reassembly in pools
-                        - Message-size maxima
-                        - Cleaning out dead messages
-                        - Fragmented cap in server descriptors
-        . Bugfixes
+                o Tests
+                        o Server-side reassembly in pools
+                        o Cleaning out dead messages
+                        o Message-size maxima
+                        o Fragmented capability in server descriptors
+        o Bugfixes
                 o Make AttemptedRelay ~~ SuccessfulRelay+FailedRelay.
                 o Solve CPU infinite loop bug
                 o Notice [...]s in test encoded messages
                 o Handle corrupt pickled data
-                - Handle server time moving backward
-        - Installer and distribution
-                - Include man page.
-        - Release
-                - Fix all XXXX005 and DOCDOC comments
-                - Redact E2E-spec.txt
-                - Update README
-                - Manually test all new functionality
-                - Manually test all old functionality
-                - Test old servers with new client code
-                - Test old clients with new servers
+                D Handle server time moving backward
+        . Release
+                o Fix all XXXX005 and DOCDOC comments
+                o Update README
+                . Manually test all new functionality
+                . Manually test all old functionality
+                . Test old servers with new client code
+                . Test old clients with new servers
 
 For 0.0.6:
         - Infrastructure -- low level
@@ -142,6 +138,9 @@ For 0.0.6:
                 - Change IPv4/IPv6 delivery methods to use DNS if desired.
                 - Servers redirect to latest IP if old IP is down.  (Dynamic
                   IP support, after a fashion)
+        - Installer and distribution
+                - Re-do man page to be generated from common source
+                  on all platforms.
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
                 - SIGHUP should reconfigure everything:
                         - Logs

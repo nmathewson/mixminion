@@ -1,4 +1,4 @@
-$Id: HACKING,v 1.21 2003/07/28 00:53:55 nickm Exp $
+$Id: HACKING,v 1.22 2003/08/31 19:22:21 nickm Exp $
 Hacking Mixminion
 
 Requirements:
@@ -13,11 +13,9 @@ NON-HACKING PROJECTS:
 
 - We need documentation.
 
-- We need a man page.
+- We need a better man page.
 
 - See the spec for open issues.
-
-- We need a better web page.
 
 - We need a logo.  (An alien with an eggbeater or an alien at a DJ's mixer
   are two ideas.)

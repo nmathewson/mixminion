@@ -1,4 +1,4 @@
-$Id: README,v 1.54 2003/08/28 08:55:54 nickm Exp $
+$Id: README,v 1.55 2003/08/31 19:22:21 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.5alpha, from the Mixminion CVS repository.
 
@@ -38,82 +38,84 @@ to trace your message through the system.
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
+NEW IN VERSION 0.0.5rc1: <INCOMPLETE>
+   - Support for email headers.  'Subject', 'In-Reply-To', and 'References'
+     are fully supported.  'From' support is limited, as documented in
+     'E2E-spec.txt'.
+
+   - Limited support for K-of-N message fragmentation and reassembly.  Right
+     now, clients can send large fragmented messages for servers to
+     reassemble them.  Not yet supported are independent paths, fragmented
+     reply messages, and client-side fragment reassembly.
+
+   - UI improvements
+      - Path generation can now create random-length paths
+      - Support for removing old messages from client queues.
+      - 'Mixminion shell' command to wrap other commands on platforms with
+        iffy terminals or shells.  Poor substitute for a real GUI.
+
+   - Improved portability
+      - All client and server functionality works properly on Cygwin.
+      - Everything should work on win32 too.  (But it won't be supported till
+        I can get Py2Exe working.)
+      - The build system should work on more unixes.
+
+   - Improved configurability
+      - Support for suppressing directory permission messages.
+
+   - Improved performance
+      - Server RAM usage should be way down, except while reassembling large
+        messages.
+
+   - Improved testability
+      - Server descriptors now describe the server's platform and
+        configuration. 
+
+   - Bugfixes too numerous to mention.  Server pools in general should be
+     significantly more robust.
+
 <See HISTORY file for changes in earlier versions.>
 
 STILL NOT IN THIS VERSION:
-   - We could use some man pages.
+   - There's a man page, but it's not included yet because I want it to
+     work cross-platform.  
    - IP-based restrictions don't work.
    - No support for distributed directories.
    - Other stuff too numerous to mention; see TODO.
 
-III. HOW TO UPGRADE FROM MIXMINION 0.0.3
+III. HOW TO UPGRADE FROM MIXMINION 0.0.4
 ========================================
 
 First, follow the installation instructions from section IV to install the
 new version of the software.
 
-If you're running a server, you will need to upgrade your server's files.
+If you're running a server, you may need to upgrade your configuration file.
 Follow these steps:
 
     1. Your configuration file may be out of date.  The following options
        are new (but not required):
-          "Publish"
-          "LogStats"
-          "StatsInterval"
-          "StatsFile"
+          "FileParanoia"
+          "TrusedUser"
+          "MaximumSize"
+          "FromTag"
 
-       The following options have been renamed:
-          "PublicKeySloppiness" -> "PublicKeyOverlap".
-
-       The following options, formerly optional, are now mandatory:
-          "Nickname"
-
-       Because key rotation is now implemented, you may want to decrease the
-       value you've chosen for PublicKeyLifetime.  Formerly, "3 months" was
-       typical.  Now, something on the order of one to three weeks is
-       probably in order.
+       There is a new configuration section "[Delivery/Fragmented]"; add this
+       section if you want your server to unfragment and deliver large
+       messages.
 
        See etc/mixminiond.conf for an example.
 
-    2. Run 'mixminion server-upgrade' to delete keys and packets in obsolete
-       formats.  (If you forget this step, the server will remind you when
-       you try to start it.)
-
-    3. Start your server as usual ('mixminion server-start') and try sending
-       some messages through it.  (You can find the filename(s) of the
-       currently live server descriptors stored in $HOMEDIR/current-desc.)
-
-       Example:
-          % mixminion server-start
-            [wait for server to start]
-
-          % cat $HOMEDIR/current-desc
-          $HOMEDIR/keys/key_0022/ServerDesc
-
-          % cp `cat $HOMEDIR/current-desc` myserver
-          % mixminion send -t <your email> -P './myserver,?,?'
-            [Type your message, followed by Ctrl-D.]
-          
-            [Wait a while, and see if your message gets sent.]
-
-    4. When you're confident your server is working correctly, and you want
-       to advertise your server to the rest of the world, edit your
-       mixminiond.conf, and set the "Publish" option to 'yes'.
-
-    5. Restart your server.  It will now advertise itself to the (still,
-       alas!) central directory.  The first time you do this, I have to
-       update the directory manually (to prevent pseudospoofing).  Once your
-       server is listed, future updates will be get into the directory
-       automatically.
+    2. Start your server as usual ('mixminion server-start') and try sending
+       some messages through it.
 
 IV. HOW TO INSTALL MIXMINION
 ============================
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5rc1.tar.gz>
 
-  % cd Mixminion-0.0.4
+  % cd Mixminion-0.0.5rc1
   % make download-openssl
   % make build-openssl
   % make
@@ -244,6 +246,10 @@ To specify a path manually, type:
       You can specify a sequence of N random servers like this:
              -P 'Foo,*3,Bar'      [Foo, three random servers, then Bar.]
 
+      You can specify a random-length sequence of *about* N servers like
+      this:
+             -P 'Foo,~3,Bar'      [Foo, about three random servers, then Bar.]
+
       If you have specified a path length (explicitly or in ~/.mixminionrc)
       you can use a '*' to indicate as many random servers as are needed to
       make your path long enough:
@@ -264,8 +270,8 @@ If you want to use the same path by default for all of your messages,
 edit the  ~/.mixminionrc and change the ForwardPath line:
 
       # By default, use the same servers for entry and exit each time,
-      # with three randomly chosen servers in the middle.
-      ForwardPath: FavoriteEntry,?,?,?,FavoriteExit
+      # with about three randomly chosen servers in the middle.
+      ForwardPath: FavoriteEntry,~3,FavoriteExit
 
 To send a dummy message, specify "drop" instead of an email address, as in:
 
@@ -289,6 +295,11 @@ To queue a message for later transmission, run "mixminion queue" instead of
       To attempt to deliver no more than 16 messages:
 
       mixminion flush -n 16
+
+      To remove messages that have been waiting in the queue for more than
+      seven days:
+
+      mixminion clean-queue -d 7
 
       (QUEUE NOTE: By default, when "mixminion send" fails to deliver a
       message, it leaves that message in the queue to be reattempted later.
