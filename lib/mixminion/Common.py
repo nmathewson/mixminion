@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.75 2003/05/17 05:40:42 nickm Exp $
+# $Id: Common.py,v 1.76 2003/05/21 18:03:33 nickm Exp $
 
 """mixminion.Common
 
@@ -7,12 +7,14 @@
 
 __all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
+            'armorText',
             'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
             'createPrivateDir', 'encodeBase64', 'floorDiv', 'formatBase64',
             'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
             'previousMidnight', 'readPickled', 'readPossiblyGzippedFile',
             'secureDelete', 'stringContains', 'succeedingMidnight',
+            'unarmorText',
             'waitForChildren', 'writePickled' ]
 
 import binascii
@@ -155,6 +157,110 @@ def encodeBase64(s, lineWidth=64, oneline=0):
         return "".join([ s.strip() for s in pieces ])
     else:
         return "".join(pieces)
+
+#----------------------------------------------------------------------
+# Functions to generate and parse OpenPGP-style ASCII armor
+
+# Matches a line that needs to be ascii-armored in plaintext mode.
+DASH_ARMOR_RE = re.compile('^-', re.M)
+
+def armorText(s, type, headers=(), base64=1):
+    """Given a string (s), string holding a message type (type), and a
+       list of key-value pairs for headers, generates an OpenPGP-style
+       ASCII-armored message of type 'type', with contents 's' and
+       headers 'header'.
+       
+       If base64 is false, uses cleartext armor."""
+    #XXXX004 testme
+    result = []
+    result.append("-----BEGIN %s-----\n" %type)
+    for k,v in headers:
+        result.append("%s: %s\n" %(k,v))
+    result.append("\n")
+    if base64:
+        result.append(encodeBase64(s, lineWidth=64))
+    else:
+        result.append(DASH_ARMOR_RE.sub('- -', s))
+    if not result[-1].endswith("\n"):
+        result.append("\n")
+    result.append("-----END %s-----\n" %type)
+
+    return "".join(result)
+
+# Matches a begin line.
+BEGIN_LINE_RE = re.compile(r'^-----BEGIN ([^-]+)-----\s*$',re.M)
+
+# Matches a header line.
+ARMOR_KV_RE = re.compile(r'([^:\s]+): ([^\n]+)')
+def unarmorText(s, findTypes, base64=1, base64fn=None):
+    """Parse a list of OpenPGP-style ASCII-armored messages from 's',
+       and return a list of (type, headers, body) tuples, where 'headers'
+       is a list of key,val tuples.
+
+       s -- the string to parse.
+       findTypes -- a list of types to search for; others are ignored.
+       base64 -- if false, we do cleartext armor.
+       base64fn -- if provided, called with (type, headers) to tell whether
+          we do cleartext armor.
+    """
+    #XXXX004 testme
+    result = []
+    
+    while 1:
+        tp = None
+        fields = []
+        value = None
+
+        mBegin = BEGIN_LINE_RE.search(s)
+        if not mBegin:
+            return result
+
+        tp = mBegin.group(1)
+        endPat = r"^-----END %s-----$" % tp
+
+        endRE = re.compile(endPat, re.M)
+        mEnd = endRE.search(s, mBegin.start())
+        if not mEnd:
+            raise ValueError("Couldn't find end line for '%s'"%tp.lower())
+
+        if tp not in findTypes:
+            idx = mEnd.end+1
+            continue
+        
+        idx = mBegin.end()+1
+        endIdx = mEnd.start()
+        assert s[idx-1] == s[endIdx-1] == '\n'
+        while idx < endIdx:
+            nl = s.index("\n", idx, endIdx)
+            line = s[idx:nl]
+            if ":" in line:
+                m = ARMOR_KV_RE.match(line)
+                if not m:
+                    raise ValueError("Bad header for '%s'"%tp.lower())
+                fields.append((m.group(1), m.group(2)))
+            elif line.strip() == '':
+                break
+            idx = nl+1
+
+        if base64fn:
+            base64 = base64fn(tp,fields)
+
+        idx = nl+1
+        if base64:
+            try:
+                value = binascii.a2b_base64(s[idx:endIdx])
+            except (TypeError, binascii.Incomplete, binascii.Error), e:
+                raise ValueError(str(e))
+        else:
+            v = s[idx:endIdx].split("\n")
+            for i in xrange(len(v)):
+                if v[i].startswith("- "):
+                    v[i] = v[i][2:]
+            value = "\n".join(v)
+
+        result.append((tp, fields, value))
+        
+        s = s[mEnd.end()+1:]
 
 #----------------------------------------------------------------------
 def checkPrivateFile(fn, fix=1):

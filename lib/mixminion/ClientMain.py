@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.73 2003/05/17 00:08:41 nickm Exp $
+# $Id: ClientMain.py,v 1.74 2003/05/21 18:03:33 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -37,7 +37,8 @@ from mixminion.Crypto import sha1, ctr_crypt, trng
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
 from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
-     parseSMTPInfo, parseTextEncodedMessage, parseTextReplyBlocks, ReplyBlock,\
+     parseSMTPInfo, parseTextEncodedMessages, parseTextReplyBlocks,\
+     ReplyBlock,\
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
@@ -1565,10 +1566,7 @@ class MixminionClient:
         #XXXX004 write unit tests
         results = []
         idx = 0
-        while idx < len(s):
-            msg, idx = parseTextEncodedMessage(s, idx=idx, force=force)
-            if msg is None:
-                return results
+        for msg in parseTextEncodedMessages(s, force=force):
             if msg.isOvercompressed() and not force:
                 LOG.warn("Message is a possible zlib bomb; not uncompressing")
             if not msg.isEncrypted():

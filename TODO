@@ -93,6 +93,12 @@ For 0.0.4:
                   "server not there." Log accordingly.
                 o The retry scheduling logic is bogus.
                 o Attach debugging log calls to DeliveryQueue.
+                - Add more logging code to track fds with MMTPServer.
+                - Make sure that deliveryFailed/deliverySucceeded
+                  with a nonexistent handle give a warning, and don't
+                  simply die.
+                - Analyze logic: how can a timeout cause deliveryFailed
+                  on a nonexistent handle?
         o Improved path selection
                 o Better syntax
                 o Improved implementation
