@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.14 2003/01/10 16:51:03 nickm Exp $
+# $Id: MMTPServer.py,v 1.15 2003/01/10 18:15:49 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -634,9 +634,11 @@ class MMTPClientConnection(SimpleTLSConnection):
         keyID = sha1(self.getPeerPK().encode_key(public=1))
         if self.keyID is not None:
             if keyID != self.keyID:
-                warn("Got unexpected Key ID from %s", self.address)
-                # This may work again in a couple of hours
+                warn("Got unexpected Key ID from %s; shutting down connection",
+                     self.address)
+                # The keyid may start being good in a while.
                 self.shutdown(err=1,retriable=1)
+                return
             else:
                 debug("KeyID from %s is valid", self.address)
 
@@ -775,10 +777,10 @@ class MMTPAsyncServer(AsyncServer):
             assert len(h) < 32
 
         try:
-            con = MMTPClientConnections(self.context,
-                                        ip, port, keyID, messages, handles,
-                                        self.onMessageSent,
-                                        self.onMessageUndeliverable)
+            con = MMTPClientConnection(self.context,
+                                       ip, port, keyID, messages, handles,
+                                       self.onMessageSent,
+                                       self.onMessageUndeliverable)
             con.register(self)
         except socket.error, e:
             LOG.error("Unexpected socket error connecting to %s:%s: %s",
