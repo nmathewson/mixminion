@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.144 2003/08/17 21:09:56 nickm Exp $
+# $Id: test.py,v 1.145 2003/08/18 00:41:10 nickm Exp $
 
 """mixminion.tests
 
@@ -43,6 +43,7 @@ import mixminion.ClientMain
 import mixminion.Config
 import mixminion.Crypto as Crypto
 import mixminion.Filestore
+import mixminion.Fragments
 import mixminion.MMTPClient
 import mixminion.Packet
 import mixminion.ServerInfo
@@ -1648,7 +1649,7 @@ class BuildMessageTests(TestCase):
 
         for m in (p.getBytes(3000), p.getBytes(10000), "", "q", "blznerty"):
             for ov in 0, 42-20+16: # encrypted forward overhead
-                plds = BuildMessage.encodePayloads(m,ov,p)
+                plds = BuildMessage.encodeMessage(m,ov,p)
                 assert len(plds) == 1
                 pld = plds[0]
                 self.assertEquals(28*1024, len(pld)+ov)
@@ -2286,7 +2287,7 @@ class BuildMessageTests(TestCase):
         # get such a payload is to compress 25K of zeroes.
         nils = "\x00"*(25*1024)
         overcompressed_payload = \
-             BuildMessage.encodePayloads(nils, 0, AESCounterPRNG())[0]
+             BuildMessage.encodeMessage(nils, 0, AESCounterPRNG())[0]
         self.failUnlessRaises(CompressedDataTooLong,
              BuildMessage.decodePayload, overcompressed_payload, "X"*20)
 
@@ -6325,6 +6326,123 @@ class ClientMainTests(TestCase):
         return ds[0] == ds[1]
 
 #----------------------------------------------------------------------
+class FragmentTests(TestCase):
+    def testFragmentParams(self):
+        K28 = 28*1024
+        FP = mixminion.Fragments.FragmentationParams
+        # 1 chunk, small
+        fp1 = FP(K28 + 1, 0)
+        self.assertEquals((fp1.length, fp1.fragCapacity, fp1.k, fp1.n,
+                           fp1.nChunks, fp1.chunkSize, fp1.paddedLen,
+                           fp1.paddingLen),
+                          (K28+1, K28 - 47, 2, 3,
+                           1, 2*(K28-47), 2*(K28-47),
+                           fp1.paddedLen-(K28+1)))
+        # 1 chunk, a bit larger, with enc-fwd overhead
+        fp1 = FP(150*1024, 38)
+        self.assertEquals((fp1.length, fp1.fragCapacity, fp1.k, fp1.n,
+                           fp1.nChunks, fp1.chunkSize, fp1.paddedLen,
+                           fp1.paddingLen),
+                          (150*1024, K28 - 47 - 38, 8, 11,
+                           1, 8*(K28-47-38), 8*(K28-47-38),
+                           fp1.paddedLen-(150*1024)))
+        # 2 chunks.
+        fp1 = FP(K28 * 20, 0)
+        self.assertEquals((fp1.length, fp1.fragCapacity, fp1.k, fp1.n,
+                           fp1.nChunks, fp1.chunkSize, fp1.paddedLen,
+                           fp1.paddingLen),
+                          (K28*20, K28 - 47, 16, 22,
+                           2, 16*(K28-47), 32*(K28-47),
+                           fp1.paddedLen-(K28*20)))
+        
+
+        # 3 chunks.
+        fp1 = FP(K28 * 32 + 101, 0)
+        self.assertEquals((fp1.length, fp1.fragCapacity, fp1.k, fp1.n,
+                           fp1.nChunks, fp1.chunkSize, fp1.paddedLen,
+                           fp1.paddingLen),
+                          (K28*32+101, K28 - 47, 16, 22,
+                           3, 16*(K28-47), 48*(K28-47),
+                           fp1.paddedLen-(K28*32+101)))
+        
+
+    def testFragmentation(self):
+        FP = mixminion.Fragments.FragmentationParams
+        
+        # One chunk.
+        msg = Crypto.getCommonPRNG().getBytes(150*1024)
+        fp1 = FP(len(msg), 38)
+        fec = mixminion.Fragments._getFEC(8, 11)
+        blocks = fp1.getFragments(msg)
+        self.assertEquals(len(blocks), 11)
+        for b in blocks:
+            self.assertEquals(len(b), 28*1024 - 47 - 38)
+        m2 = "".join(fec.decode(zip(range(3,11),blocks[3:])))
+        self.assertLongStringEq(msg, unwhiten(m2[:150*1024]))
+        
+        # Three chunks.
+        msg = Crypto.getCommonPRNG().getBytes(28*32*1024 + 101)
+        fp1 = FP(len(msg), 0)
+        fec = mixminion.Fragments._getFEC(16, 22)
+        blocks = fp1.getFragments(msg)
+        self.assertEquals(len(blocks), 66)
+        for b in blocks: self.assertEquals(len(b), 28*1024 - 47)
+        chunks = []
+        for chunkno in 0,1,2:
+            blocksInChunk = zip(range(22), blocks[chunkno*22:(chunkno+1)*22])
+            receivedBlocks = Crypto.getCommonPRNG().shuffle(blocksInChunk, 16)
+            self.assertEquals(16, len(receivedBlocks))
+            chunks.append("".join(fec.decode(receivedBlocks)))
+        self.assertLongStringEq(msg, unwhiten(("".join(chunks))[:len(msg)]))
+        
+    def testFragmentPool(self):
+        em = mixminion.BuildMessage.encodeMessage
+        pp = mixminion.Packet.parsePayload
+        M1 = Crypto.getCommonPRNG().getBytes(1024*30)
+        M2 = Crypto.getCommonPRNG().getBytes(1024*150)
+        M3 = Crypto.getCommonPRNG().getBytes(1024*200)
+        M4 = Crypto.getCommonPRNG().getBytes(1024*900)
+        M5 = Crypto.getCommonPRNG().getBytes(1024*900)
+        pkts1 = [ pp(x) for x in em(M1,0) ]
+        pkts2 = [ pp(x) for x in em(M2,38) ]
+        pkts3 = [ pp(x) for x in em(M3,0) ]
+        pkts4 = [ pp(x) for x in em(M4,0) ]
+        pkts5 = [ pp(x) for x in em(M4,0) ]
+        self.assertEquals(map(len, [pkts1,pkts2,pkts3,pkts4,pkts5]),
+                          [3, 11, 11, 66, 66])
+        
+        loc = mix_mktemp()
+        pool = mixminion.Fragments.FragmentPool(loc)
+        self.assertEquals([], pool.listReadyMessages())
+        pool.unchunkMessages()
+
+        #DOCDOC comment this rats' nets
+        
+        # Reconstruct: simple case.
+        pool.addFragment(pkts1[2])
+        self.assertEquals(1, pool.store.count())
+        self.assertEquals([], pool.listReadyMessages())
+        pool.addFragment(pkts1[0])
+        self.assertEquals(2, pool.store.count())
+        pool.addFragment(pkts1[1]) # should be 'unnneedeed'
+        self.assertEquals(2, pool.store.count())
+        self.assertEquals([], pool.listReadyMessages())
+        pool.unchunkMessages()
+        self.assertEquals([pkts1[0].msgID], pool.listReadyMessages())
+        mid = pool.listReadyMessages()[0]
+        #print len(M1), len(pool.getReadyMessage(mid))
+        self.assertLongStringEq(M1, uncompressData(pool.getReadyMessage(mid)))
+        self.assertLongStringEq(M1, uncompressData(pool.getReadyMessage(mid)))
+        pool.markMessageCompleted(mid)
+        self.assertEquals([], pool.listReadyMessages())
+        pool.addFragment(pkts1[1])
+        self.assertEquals([], pool.store.getAllMessages())
+        
+        
+        
+        
+
+#----------------------------------------------------------------------
 def testSuite():
     """Return a PyUnit test suite containing all the unit test cases."""
     suite = unittest.TestSuite()
@@ -6332,7 +6450,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(FilestoreTests))
+        suite.addTest(tc(FragmentTests))
         return suite
 
     suite.addTest(tc(MiscTests))

@@ -1,19 +1,26 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.2 2003/08/17 21:09:56 nickm Exp $
+# $Id: Fragments.py,v 1.3 2003/08/18 00:41:10 nickm Exp $
 
 """mixminion.BuildMessage
 
    Code to fragment and reassemble messages."""
 
+import binascii
+import math
+import time
 import mixminion._minionlib
 import mixminion.Filestore
-from mixminion.Crypto import getCommonPRNG, whiten, unwhiten
+from mixminion.Crypto import ceilDiv, getCommonPRNG, whiten, unwhiten
 from mixminion.Common import LOG, previousMidnight, MixError, MixFatalError
+from mixminion.Packet import ENC_FWD_OVERHEAD, PAYLOAD_LEN, \
+     FRAGMENT_PAYLOAD_OVERHEAD
+
+__all__ = [ "FragmentPool", "FragmentationParams" ]
 
 MAX_FRAGMENTS_PER_CHUNK = 32
 EXP_FACTOR = 1.33333333333
 
-class _FragmentationParams:
+class FragmentationParams:
     """DOCDOC"""
     ## Fields:
     # k, n, length, fec, chunkSize, fragmentCapacity, dataFragments,
@@ -25,20 +32,21 @@ class _FragmentationParams:
         # minimum number of payloads to hold msg, without fragmentation
         # or padding.
         minFragments = ceilDiv(length, self.fragCapacity)
+        assert minFragments >= 2
         # Number of data fragments per chunk.
         self.k = 2
-        while k < minFragments and k < 16:
+        while self.k < minFragments and self.k < 16:
             self.k *= 2
         # Number of chunks.
-        self.nChunks = ceilDiv(minFragments, k)
+        self.nChunks = ceilDiv(minFragments, self.k)
+        # Number of total fragments per chunk.
+        self.n = int(math.ceil(EXP_FACTOR * self.k))
         # Data in  a single chunk
         self.chunkSize = self.fragCapacity * self.k
         # Length of data to fill chunks
         self.paddedLen = self.nChunks * self.fragCapacity * self.k
         # Length of padding needed to fill all chunks with data.
         self.paddingLen = self.paddedLen - length
-        # Number of total fragments per chunk.
-        self.n = math.ceil(EXP_FACTOR * k)
         # FEC object
         self.fec = None
 
@@ -57,7 +65,7 @@ class _FragmentationParams:
             paddingPRNG = getCommonPRNG()
 
         self.getFEC()
-        assert s.length == self.length
+        assert len(s) == self.length
         s = whiten(s)
         s += paddingPRNG.getBytes(self.paddingLen)
         assert len(s) == self.paddedLen
@@ -74,12 +82,186 @@ class _FragmentationParams:
                 blocks.append( chunks[i][j*self.fragCapacity:
                                          (j+1)*self.fragCapacity] )
             chunks[i] = None
-            for j in xrange(p.n):
+            for j in xrange(self.n):
                 fragments.append( self.fec.encode(j, blocks) )
         return fragments
 
 # ======================================================================
 #DOCDOC this entire section
+
+class FragmentPool:
+    """DOCDOC"""
+    ##
+    # messages : map from 
+    def __init__(self, dir):
+        self.store = mixminion.Filestore.StringMetadataStore(dir,create=1,
+                                                             scrub=1)
+        self.db = _FragmentDB(dir+"_db")
+        self.rescan()
+
+    def sync(self):
+        self.db.sync()
+
+    def close(self):
+        self.db.close()
+
+    def getState(self, fm):
+        try:
+            return self.states[fm.messageid]
+        except KeyError:
+            state = MessageState(messageid=fm.messageid,
+                                 hash=fm.hash,
+                                 length=fm.size,
+                                 overhead=fm.overhead)
+            self.states[fm.messageid] = state
+            return state
+        
+    def rescan(self):
+        self.store.loadAllMetadata(lambda: None)
+        meta = self.store._metadata_cache
+        self.states = states = {}
+        badMessageIDs = {}
+        unneededHandles = []
+        for h, fm in meta.items():
+            if not fm:
+                LOG.debug("Removing fragment %s with missing metadata", h)
+                self.store.removeMessage(h)
+            try:
+                mid = fm.messageid
+                if badMessageIDs.has_key(mid):
+                    continue
+                state = self.getState(fm)
+                if fm.isChunk:
+                    state.addChunk(h, fm)
+                else:
+                    state.addFragment(h, fm)
+            except MismatchedFragment:
+                badMessageIDs[mid] = 1
+            except UnneededFragment:
+                unneededHandles.append(h)
+
+        for h in unneededHandles:
+            fm = meta[h]
+            LOG.debug("Removing unneeded fragment %s from message ID %r",
+                      fm.idx, fm.messageid)
+            self.store.removeMessage(h)
+
+        self._deleteMessageIDs(badMessageIDs, "REJECTED")
+
+    def _deleteMessageIDs(self, messageIDSet, why, today=None):
+        assert why in ("REJECTED", "COMPLETED")
+        if today is None:
+            today = previousMidnight(time.time())
+        else:
+            today = previousMidnight(today)
+        if why == 'REJECTED':
+            LOG.debug("Removing bogus messages by IDs: %s",
+                      messageIDSet.keys())
+        else:
+            LOG.debug("Removing completed messages by IDs: %s",
+                      messageIDSet.keys())
+        for mid in messageIDSet.keys():
+            self.db.markStatus(mid, why, today)
+            try:
+                del self.states[mid]
+            except KeyError:
+                pass
+        for h, fm in self.store._metadata_cache.items():
+            if messageIDSet.has_key(fm.messageid):
+                self.store.removeMessage(h)
+
+
+    def _getFragmentMetadata(self, fragmentPacket):
+        now=time.time()
+        return  _FragmentMetadata(messageid=fragmentPacket.msgID,
+                                  idx=fragmentPacket.index,
+                                  hash=fragmentPacket.hash,
+                                  size=fragmentPacket.msgLen,
+                                  isChunk=0,
+                                  chunkNum=None,
+                                  overhead=fragmentPacket.getOverhead(),
+                                  insertedDate=previousMidnight(now))
+        
+    def addFragment(self, fragmentPacket, now=None):
+        #print "---"
+        if now is None:
+            now = time.time()
+        today = previousMidnight(now)
+
+        s = self.db.getStatusAndTime(fragmentPacket.msgID)
+        if s:
+            #print "A"
+            LOG.debug("Dropping fragment of %s message %r",
+                      s[0].lower(), fragmentPacket.msgID)
+            return
+            
+        meta = self._getFragmentMetadata(fragmentPacket)
+        state = self.getState(meta)
+        try:
+            # print "B"
+            state.addFragment(None, meta, noop=1)
+            h = self.store.queueMessageAndMetadata(fragmentPacket.data, meta)
+            state.addFragment(h, meta)
+            #print "C"
+        except MismatchedFragment:
+            # remove other fragments, mark msgid as bad.
+            #print "D"
+            self._deleteMessageIDs({ meta.messageid : 1}, "REJECTED", now)
+        except UnneededFragment:
+            #print "E"
+            LOG.debug("Dropping unneeded fragment %s of message %r",
+                      fragmentPacket.index, fragmentPacket.msgID)
+
+    def getReadyMessage(self, msgid):
+        s = self.states.get(msgid)
+        if not s or not s.isDone():
+            return None
+
+        hs = s.getChunkHandles()
+        msg = "".join([self.store.messageContents(h) for h in hs])
+        msg = unwhiten(msg[:s.params.length])
+        return msg                      
+
+    def markMessageCompleted(self, msgid, rejected=0):
+        s = self.states.get(msgid)
+        if not s or not s.isDone():
+            return None
+        if rejected:
+            self._deleteMessageIDs({msgid: 1}, "REJECTED")
+        else:
+            self._deleteMessageIDs({msgid: 1}, "COMPLETED")
+
+    def listReadyMessages(self):
+        return [ msgid
+                 for msgid,state in self.states.items()
+                 if state.isDone() ]
+
+    def unchunkMessages(self):
+        for msgid, state in self.states.items():
+            if not state.hasReadyChunks():
+                continue
+            # refactor as much of this as possible into state. XXXX 
+            for chunkno, lst in state.getReadyChunks():
+                vs = []
+                minDate = min([fm.insertedDate for h,fm in lst])
+                for h,fm in lst:
+                    vs.append((state.params.getPosition(fm.idx)[1],
+                               self.store.messageContents(h)))
+                chunkText = "".join(state.params.getFEC().decode(vs))
+                del vs
+                fm2 = _FragmentMetadata(state.messageid, state.hash,
+                                        1, state.params.length, 1,
+                                        chunkno,
+                                        state.overhead,
+                                        minDate)
+                h2 = self.store.queueMessageAndMetadata(chunkText, fm2)
+                #XXXX005 handle if crash comes here!
+                for h,fm in lst:
+                    self.store.removeMessage(h)
+                state.fragmentsByChunk[chunkno] = {}
+                state.addChunk(h2, fm2)
+
+# ======================================================================
 
 class MismatchedFragment(Exception):
     pass
@@ -119,7 +301,7 @@ class MessageState:
         self.chunks = {} 
         # chunkno -> idxwithinchunk -> (handle,fragmentmeta)
         self.fragmentsByChunk = []
-        self.params = _FragmentationParams(length, overhead)
+        self.params = FragmentationParams(length, overhead)
         for i in xrange(self.params.nChunks):
             self.fragmentsByChunk.append({})
         # chunkset: ready chunk num -> 1
@@ -140,31 +322,47 @@ class MessageState:
             fm.hash != self.hash or
             fm.overhead != self.overhead or
             self.chunks.has_key(fm.chunkNum)):
+            #print "MIS-C-1"
             raise MismatchedFragment
         
         self.chunks[fm.chunkNum] = (h,fm)
 
-    def addFragment(self, h, fm):
+        if self.fragmentsByChunk[fm.chunkNum]:
+            LOG.warn("Found a chunk with unneeded fragments for message %r",
+                     self.messageid)
+            #XXXX005 the old fragments need to be removed.
+            
+    def addFragment(self, h, fm, noop=0):
         # h is handle
         # fm is fragmentmetadata
         assert fm.messageid == self.messageid
 
-        if (fm.hash != self.hash or
-            fm.size != self.params.length or
+        if (fm.size != self.params.length or
             fm.overhead != self.overhead):
+            #print "MIS-1"
+            #print (fm.hash, fm.size, fm.overhead)
+            #print (self.hash, self.params.length, self.overhead)
             raise MismatchedFragment
         
-        chunkNum, pos = self.params.getPosition(idx)
+        chunkNum, pos = self.params.getPosition(fm.idx)
+        if chunkNum >= self.params.nChunks:
+            raise MismatchedFragment
 
-        if self.chunks.has_key(chunkNum):
+        if (self.chunks.has_key(chunkNum) or
+            len(self.fragmentsByChunk[chunkNum]) >= self.params.k):
+            #print "UNN-2"
             raise UnneededFragment
         
         if self.fragmentsByChunk[chunkNum].has_key(pos):
+            #print "MIS-3"
             raise MismatchedFragment
 
+        if noop:
+            return
+        assert h
         self.fragmentsByChunk[chunkNum][pos] = (h, fm)
 
-        if len(self.fragmentsByChunk(chunkNum)) >= self.params.k:
+        if len(self.fragmentsByChunk[chunkNum]) >= self.params.k:
             self.readyChunks[chunkNum] = 1
 
     def hasReadyChunks(self):
@@ -179,14 +377,16 @@ class MessageState:
             r.append( (chunkno, ch) )
         return r
 
+
 class _FragmentDB(mixminion.Filestore.DBBase):
     def __init__(self, location):
         mixminion.Filestore.DBBase.__init__(self, location, "fragment")
         self.sync()
     def markStatus(self, msgid, status, today):
         assert status in ("COMPLETED", "REJECTED")
-        if now is None:
-            now = time.time()
+        if today is None:
+            today = time.time()
+        today = previousMidnight(today)
         self[msgid] = (status, today)
     def getStatusAndTime(self, msgid):
         return self.get(msgid, None)
@@ -198,138 +398,9 @@ class _FragmentDB(mixminion.Filestore.DBBase):
             {"COMPLETED":"C", "REJECTED":"R"}[status], str(tm))
     def _decodeVal(self, v):
         status = {"C":"COMPLETED", "R":"REJECTED"}[v[0]]
-        tm = int(tm[2:])
+        tm = int(v[2:])
         return status, tm
 
-class FragmentPool:
-    """DOCDOC"""
-    ##
-    # messages : map from 
-    def __init__(self, dir):
-        self.store = mixminion.Filestore.StringMetadataStore(dir,create=1,
-                                                             scrub=1)
-        self.log = _FragmentDB(dir+"_db")
-        self.rescan()
-
-    def getState(self, fm):
-        try:
-            return self.states[fm.messageid]
-        except KeyError:
-            state = MessageState(messageid=fm.messageid,
-                                 hash=fm.hash,
-                                 length=fm.size,
-                                 overhead=fm.overhead)
-            self.states[fm.messageid] = state
-            return state
-        
-    def rescan(self):
-        self.store.loadAllMetadata()
-        meta = self.store._metadata_cache
-        self.states = states = {}
-        badMessageIDs = {}
-        unneededHandles = []
-        for h, fm in meta.items():
-            try:
-                mid = fm.messageid
-                if badMessageIDs.has_key(mid):
-                    continue
-                state = self.getState(fm)
-                if fm.isChunk:
-                    state.addChunk(h, fm)
-                else:
-                    state.addFragment(h, fm)
-            except MismatchedFragment:
-                badMessageIDs[mid] = 1
-            except UnneededFragment:
-                unneededHandles.append(h)
-
-        for h in unneededHandles:
-            fm = meta[h]
-            LOG.debug("Removing unneeded fragment %s from message ID %r",
-                      fm.idx, fm.messageid)
-            self.removeMessage(h)
-
-        self._abortMessageIDs(badMessageIDs, today)
-
-    def _abortMessageIDs(self, messageIDSet, today=None):
-        if today is None:
-            today = previousMidnight(time.time())
-        else:
-            today = previousMidnight(today)
-        LOG.debug("Removing bogus messages by IDs: %s", messageIDSet.keys())
-        for mid in messageIDSet.keys():
-            self.markStatus(mid, "REJECTED", today)
-        for h, fm in self._metadata_cache.items():
-            if messageIDSet.has_key(fm.messageid):
-                self.removeMessage(h)
-
-    def _getPacketMetadata(self, fragmentPacket):
-        return  _FragmentMetadata(messageid=fragmentPacket.msgID,
-                                  idx=fragmentPacket.index,
-                                  hash=fragmentPacket.hash,
-                                  size=fragmentPacket.msgLen,
-                                  isChunk=0,
-                                  chunkNum=None,
-                                  overhead=fragmentPacket.getOverhead(),
-                                  insertedDate=previousMidnight(now))
-        
-    def addFragment(self, fragmentPacket, now=None):
-        if now is None:
-            now = time.time()
-        today = previousMidnight(now)
-
-        meta = self._getFragmentMetadata(fragmentPacket)
-        state = self.getState(meta)
-        try:
-            state.addFragment(fragmentPacket)
-            h = self.store.queueMessageAndMetadata(fragmentPacket.data, meta)
-        except MismatchedFragment:
-            # remove other fragments, mark msgid as bad.            
-            self._abortMessageIDs({ meta.id : 1}, now)
-        except UnneededFragment:
-            LOG.debug("Dropping unneeded fragment %s of message %r",
-                      fragmentPacket.idx, fragmentPacket.msgID)
-
-    def getReadyMessage(self, msgid):
-        s = self.states.get(msgid)
-        if not s or not s.isDone():
-            return None
-
-        hs = s.getChunkHandles()
-        return "".join([self.state.getMessage(h) for h in hs])
-
-    def deleteMessage(self, msgid):
-        s = self.states.get(msgid)
-        if not s or not s.isDone():
-            return None
-
-        hs = s.getChunkHandles()
-        for h in hs:
-            self.store.removeMessage(h)
-
-    def getReadyMessages(self):
-        return [ msgid
-                 for msgid,state in self.states.items()
-                 if state.isDone() ]
-
-    def unchunkMessages(self):
-        for msgid, state in self.states.items():
-            if not state.hasReadyChunks():
-                continue
-            for chunkno, lst in state.getReadyChunks():
-                vs = []
-                minDate = min([fm.insertedDate for h,fm in lst])
-                for h,fm in lst:
-                    vs.append((state.getPos(fm.index)[1],
-                               self.store.getMessage(h)))
-                chunkText = self.store.params.getFEC().decode(vs)
-                fm2 = _FragmentMetadata(state.mesageid, state.hash,
-                                        state.idx, 1, chunkno, state.overhead,
-                                        minDate)
-                h2 = self.store.queueMessage(chunkText)
-                self.store.setMetadata(h2, fm2)
-                for h,fm in lst:
-                    self.store.removeMessage(h)
             
 # ======================================================================
 
@@ -343,4 +414,5 @@ def _getFEC(k,n):
         f = mixminion._minionlib.FEC_generate(k,n)
         _fectab[(k,n)] = f
         return f
+    
     

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.53 2003/08/14 19:37:24 nickm Exp $
+# $Id: BuildMessage.py,v 1.54 2003/08/18 00:41:10 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -21,9 +21,9 @@ if sys.version_info[:3] < (2,2,0):
 
 __all__ = ['buildForwardMessage', 'buildEncryptedMessage',
            'buildReplyMessage', 'buildReplyBlock', 'checkPathLength',
-           'encodePayloads', 'decodePayload' ]
+           'encodeMessage', 'decodePayload' ]
 
-def encodePayloads(message, overhead, paddingPRNG):
+def encodeMessage(message, overhead, paddingPRNG=None):
     """Given a message, compress it, fragment it into individual payloads,
        and add extra fields (size, hash, etc) as appropriate.  Return a list
        of strings, each of which is a message payload suitable for use in
@@ -60,7 +60,7 @@ def encodePayloads(message, overhead, paddingPRNG):
         return [ p.pack() ]
 
     # DOCDOC
-    messageid = getCommonPRNG().getBytes(20)
+    messageid = Crypto.getCommonPRNG().getBytes(20)
     p = mixminion.Fragments.FragmentationParams(len(payload), overhead)
     rawFragments = p.getFragments(payload)
     fragments = []
@@ -75,7 +75,7 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
                         paddingPRNG=None):
     # Compress, pad, and checksum the payload.
     if payload is not None and exitType != DROP_TYPE:
-        payloads = encodePayloads(payload, 0, paddingPRNG)
+        payloads = encodeMessage(payload, 0, paddingPRNG)
         assert len(payloads) == 1
         payload = payloads[0]
         LOG.debug("Encoding forward message for %s-byte payload",len(payload))
@@ -127,7 +127,7 @@ def _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 
 def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
                                  key, paddingPRNG=None, secretRNG=None):
-    payloads = encodePayloads(payload, ENC_FWD_OVERHEAD, paddingPRNG)
+    payloads = encodeMessage(payload, ENC_FWD_OVERHEAD, paddingPRNG)
     assert len(payloads) == 1
     return _buildEncryptedForwardMessage(payloads[0], exitType, exitInfo,
                                          path1, path2, key, paddingPRNG,
@@ -194,7 +194,7 @@ def _buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
 
 def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
-    payloads = encodePayloads(payload, 0, paddingPRNG)
+    payloads = encodeMessage(payload, 0, paddingPRNG)
     assert len(payloads) == 1
     return _buildReplyMessage(payloads[0], path1, replyBlock, paddingPRNG)
 

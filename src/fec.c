@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.7 2003/07/13 03:45:36 nickm Exp $ */ 
+/* $Id: fec.c,v 1.8 2003/08/18 00:41:11 nickm Exp $ */ 
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -987,7 +987,7 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
         }
         if (PySequence_Size(blocks) != fec->k) {
                 PyErr_SetString(mm_FECError, 
-                                "encode expects a sequence of length K");
+                                "decode expects a sequence of length K");
                 return NULL;
         }
         

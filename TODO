@@ -39,7 +39,7 @@ For 0.0.5:
                         o Make unittests pass without warnings
                         o Add a makeshift interactive mode.
                         o Real locking
-                        o Real RNG via CryptGenRandom() 
+                        o Real RNG via CryptGenRandom()
                 o Twisted port decision
                 o Website work
         o Refactor filestore logic out of ServerQueue
@@ -53,25 +53,26 @@ For 0.0.5:
                 o Implement common logic
                 o Refactor existing classes
                 o Tests for new logic
+        o Change descriptors to accept YYYY-MM-DD.
+                o Implement
+                o Test
         . Initial support for email headers (client side)
                 o Implement
                 - Give error messages on bad headers
                 - Test
-        . Support for large messages and K-of-N
+        . Support for large messages and K-of-N in fwd messages
                 o fec backend code
                 o Tests and timing for fec backend
                 . Common fragment-pool code
                         o Implement
-                        - Test
+                        o Test fragmentation
+                        - Test reassembly
                 - Fragment genration code for client
                 - Fragment-pool logic for server
-                - Fragment-pool logic for client
+                - FRAG routing type
                 - Advertise fragment reassembly in server descriptors
                 - Check server descriptors when fragmenting
                 - Tests
-        o Change descriptors to accept YYYY-MM-DD.
-                o Implement
-                o Test
         . UI improvements:
                 o If we can't read serverdescs on startup, suggest a
                   server-DELKEYS.
@@ -109,6 +110,10 @@ For 0.0.6:
         - Servers need to download and use directories
         - Servers redirect to latest IP if old IP is down.  (Dynamic
           IP support, after a fashion)
+        - Large replies and efwd messages
+                - Relay non-FRAG fragment messages
+                - Send logic for client
+                - Fragment-pool logic for client
         - Full Windows client-side support
                 - Address everything on Itamar's non-blocking
                   incompatibility list.
@@ -126,8 +131,8 @@ For 0.0.6:
                         - Network setup
                         - Module setup
                         - (What else?)
-                - SIGHUP should check whether serverinfo should be 
-                  regenerated. 
+                - SIGHUP should check whether serverinfo should be
+                  regenerated.
                 - Add SIGUSR1 to do rotate-and-dump only.
         - Security improvements
                 - Add ability to mark nodes as having same
