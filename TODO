@@ -13,9 +13,7 @@ For a list of good beginner projects, check out HACKING.
 NEEDS TO BE WRITTEN:
 
 For 0.0.7:
-        - Specification
-                - Clear up specification for payload versions.
-                - Clear up specification for NEWS
+        o Specification
                 o Clear up specification for multiple addrs on MAIL
         o Infrastructure -- high level
                 o Servers need to download and use directories
@@ -68,18 +66,17 @@ For 0.0.7:
                 . Fragment-pool logic for client
                         o Implement
                         - Test
-        - Manual pages
-                - Re-do man page to be generated from common source
-                  on all platforms (George.)
-                - The 'make install' target should install the man page
-                  when appropriate
-                - Move the canonical documentation from the README into
-                  the manual page .
-                - Add pages for 'mixminiond' and 'mixminion.conf' and
-                  'mixminiond.conf'.
-                - Maybe add a page for Mixminion integration.
+        - Pending bugs from email
+                - Better response to failed bind(2)
+                - Don't make errors kill 'mixminion shell'.
+        - Windows stuff
+                - Must include openssl libs with python-needed installer
+                - Use new version of py2exe
 
 Deferred from 0.0.7:
+        - Specification
+                - Clear up specification for payload versions.
+                - Clear up specification for NEWS
         - Dummies and pinging [Rationale: no time]
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump). [Rationale: no time]
                 - SIGHUP should reconfigure everything:
@@ -111,7 +108,25 @@ Deferred from 0.0.7:
                         - Text/binary modes
                         - With/without decoding handle
                         - Attach to any type.
+        - Manual pages
+                - Re-do man page to be generated from common source
+                  on all platforms (George.)
+                - The 'make install' target should install the man page
+                  when appropriate
+                - Move the canonical documentation from the README into
+                  the manual page .
+                - Add pages for 'mixminiond' and 'mixminion.conf' and
+                  'mixminiond.conf'.
+                - Maybe add a page for Mixminion integration.
 
+
+For 0.0.8:
+        - For petmail:
+                - Working,well-designed --status-fd option
+        - For mnet:
+                - Implement trivial client side of client API
+                - Specify pluggable modules better.
+                - Consider server APIs
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   [Release criteria: Workable replacement for type II.  At least as
