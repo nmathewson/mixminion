@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.15 2002/11/21 16:55:49 nickm Exp $
+# $Id: Modules.py,v 1.16 2002/11/21 18:26:12 nickm Exp $
 
 """mixminion.Modules
 
@@ -180,6 +180,7 @@ class ModuleManager:
 
         self.registerModule(MBoxModule())
         self.registerModule(DropModule())
+        self.registerModule(MixmasterSMTPModule())
 
     def _setQueueRoot(self, queueRoot):
 	"""Sets a directory under which all modules' queue directories
@@ -194,6 +195,7 @@ class ModuleManager:
     def registerModule(self, module):
 	"""Inform this ModuleManager about a delivery module.  This method
    	   updates the syntax options, but does not enable the module."""
+        getLog().info("Loading module %s", module.getName())
         self.modules.append(module)
         syn = module.getConfigSyntax()
         for sec, rules in syn.items():
@@ -248,7 +250,14 @@ class ModuleManager:
     def enableModule(self, module):
 	"""Maps all the types for a module object."""
         for t in module.getExitTypes():
+            if (self.typeToModule.has_key(t) and
+                self.typeToModule[t].getName() != module.getName()):
+                getLog().warn("More than one module is enabled for type %x"%t)
             self.typeToModule[t] = module
+
+        getLog().info("Module %s: enabled for types %s",
+                      module.getName(),
+                      map(hex, module.getExitTypes()))
 
 	queueDir = os.path.join(self.queueRoot, module.getName())
 	queue = module.createDeliveryQueue(queueDir)
@@ -260,8 +269,10 @@ class ModuleManager:
 	
     def disableModule(self, module):
 	"""Unmaps all the types for a module object."""
+        getLog().info("Disabling module %s", module.getName())
         for t in module.getExitTypes():
-            if self.typeToModule.has_key(t):
+            if (self.typeToModule.has_key(t) and
+                self.typeToModule[t].getName() == module.getName()):
                 del self.typeToModule[t]
 	if self.queues.has_key(module.getName()):
 	    del self.queues[module.getName()]
@@ -341,7 +352,6 @@ class MBoxModule(DeliveryModule):
 	    raise ConfigError("Missing ReturnAddress field in Delivery/MBOX")
 	if not self.contact:
 	    raise ConfigError("Missing RemoveContact field in Delivery/MBOX")
-			
 
         self.nickname = config['Server']['Nickname']
         if not self.nickname:
@@ -408,6 +418,95 @@ will be removed.
 
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
+#----------------------------------------------------------------------
+class SMTPModule(DeliveryModule):
+    """Placeholder for real exit node implementation.
+        DOCDOC XXXXX document me."""
+    def __init__(self):
+        DeliveryModule.__init__(self)
+        self.enabled = 0
+    def getServerInfoBlock(self):
+        if self.enabled:
+            return "[Delivery/SMTP]\nVersion: 0.1\n"
+        else:
+            return ""
+    def getName(self):
+        return "SMTP"
+    def getExitTypes(self):
+        return (SMTP_TYPE,)
+
+class MixmasterSMTPModule(SMTPModule):
+    """Implements SMTP by relaying messages via Mixmaster nodes.  This
+       is kind of unreliable and kludgey, but it does allow us to
+       test mixminion by usingg Mixmaster nodes as exits."""
+    # FFFF Mixmaster has tons of options.  Maybe we should use 'em...
+    # FFFF ... or maybe we should deliberately ignore them, since
+    # FFFF this is only a temporary workaround until enough people 
+    # FFFF are running SMTP exit nodes
+    def __init__(self):
+        SMTPModule.__init__(self)
+        self.mixDir = None
+    def getConfigSyntax(self):
+        return { "Delivery/SMTP-Via-Mixmaster" :
+                 { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
+                   'MixCommand' : ('REQUIRE', _parseCommand, None),
+                   'Server' : ('REQUIRE', None, None),
+                   'SubjectLine' : ('ALLOW', None,
+                                    'Type-III Anonymous Message'),
+                   }
+                 }
+                   
+    def validateConfig(self, sections, entries, lines, contents):
+        #FFFF implement
+        pass
+    def configure(self, config, manager):
+        sec = config['Delivery/SMTP-Via-Mixmaster']
+        self.enabled = sec.get("Enabled", 0)
+        if not self.enabled:
+            manager.disableModule(self)
+            return
+        cmd = sec['MixmasterCommand']
+        self.server = sec['Server']
+        self.subject = sec['Subject']
+        self.command = cmd[0]
+        self.options = cmd[1] + ("-l", self.server,
+                                 "-s", self.subject)
+        
+    def getName(self): 
+        return "SMTP_MIX2" 
+    def createDeliveryQueue(self, queueDir):
+        self.tmpQueue = mixminion.Queue.queue(queueDir+"_tmp", 1, 1)
+        self.tmpQueue.removeAll()
+        return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
+    def processMessage(self, message, exitType, exitInfo):
+        assert exitType == SMTP_TYPE
+        info = mixminion.Packet.parseSMTPInfo(exitInfo)
+
+        msg = _escapeMessageForEmail(message, info.tag)
+        handle = self.tmpQueue.queueMessage(msg)
+        
+        cmd = self.command
+        opts = self.options + (info.email,
+                               self.tmpQueue.getMessagePath(handle))
+        code = os.spawnl(os.P_WAIT, cmd, cmd, *opts)
+        getLog().debug("Queued Mixmaster message: exit code %s", code)
+        self.tmpQueue.removeMessage(handle)
+        return DELIVER_OK
+                         
+    def flushMixmasterPool(self):
+        "XXXX"
+        cmd = self.command
+        getLog().debug("Flushing Mixmaster pool")
+        os.spawnl(os.P_NOWAIT, cmd, cmd, "-S")
+
+class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
+    "XXXX"
+    def __init__(self, module, directory):
+        SimpleModuleDeliveryQueue.__init__(self, module, directory)
+    def deliverMessages(self, msgList):
+        SimpleModuleDeliveryQueue.deliverMessages(self, msgList)
+        self.module.flushMixmaterPool()
+        
 #----------------------------------------------------------------------
 def sendSMTPMessage(server, toList, fromAddr, message):
     con = smtplib(server)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.19 2002/11/11 16:32:41 nickm Exp $
+# $Id: Queue.py,v 1.20 2002/11/21 18:26:12 nickm Exp $
 
 """mixminion.Queue
 
@@ -151,6 +151,11 @@ class Queue:
         newHandle = queue.queueMessage(self.messageContents(handle))
         self.removeMessage(handle)
         return newHandle
+
+    def getMessagePath(self, handle):
+        """Given a handle for an existing message, return the name of the
+           file that contains that message."""
+        return os.path.join(self.dir, "msg_"+handle)
 
     def openMessage(self, handle):
         """Given a handle for an existing message, returns a file descriptor
