@@ -11,15 +11,62 @@ SPEC    - Spec not finalized
 NEEDS TO BE WRITTEN
 
 For 0.0.3:
-        - Client support for reply blocks.
-        o Better command breakdown for pulling directories.
-        - Saner retry logic
-        - Consider linewrap protection on server descriptors, if demand
-          warrants.
-        . Uninstall support?
+        - Client
+                - Client support for reply blocks.
+                - Faster (adjustable?) timeout on client connect failure.
+        - Multithreaded server for better network behavior (no 10ms
+          hiccups when receiving; no pauses to shred files or deliver
+          messages.)
+                . Make all C functions use Py_BEGIN_ALLOW_THREADS and
+                  Py_END_ALLOW_THREADS properly.
+                - Make all commonly used Python code threadsafe.
+                - Make Queues threadsafe.
+                        - Design
+                        - Implement
+                        - Unit tests like mad.
+                - Make shredding happen in a separate thread.
+                - Make delivery happen in a separate thread.
+                - Make packet happen in a separate thread. 
+        - Signals
+                - Cleaner shutdown on TERM.
+                - Good reset handling
+        - Support (for the alpha cycle only!) to get the mixminion
+          version remotely ????
+        - Saner retry logic: right now we retry once at each of the 10
+          next Mix intervals, regardless of interval length.
         - Statistics of some kind
-        - Good user error reporting strategy.
-        - Faster (adjustable?) timeout on client connect failure.
+        - UI
+                - Good user error reporting strategy.
+                - Better error message when path+routinginfo won't fit 
+                  into header.
+                - Beautify list-servers output.
+                o Make path parsing accept space around the commas and colon.
+                o Make paths print more cleanly.
+                o Better command breakdown for pulling directories.
+        - Key management:
+                . Ability to generate new serverdesc with old keys.
+                - Ability to notice discrepancies between SD and
+                  server configuration.
+                - Consider linewrap protection on server descriptors, 
+                  if demand warrants.
+        - Build/install:
+                . Uninstall support?
+        - Security:
+        	- Password-protect dirserver keys
+        - Configurability
+                - Put pid and lock and key and queues in different places.
+                - Relative paths all throughout config files.
+                - Make all filenames in server config relative to
+                  server home, if not absolute.
+                - Make server gripe loudly when config doesn't match published
+                  serverinfo.
+        - MMTP
+                - Code to send junk (connection padding)
+                  [Do current servers even handle this right?  Should
+                   we bump the MMTP version up?]
+                - Renegotiate connections
+                - Session managment and resumption (security issues?)
+        - COME UP WITH A REAL TESTING STRATEGY
         - 
         - ????
 
@@ -29,17 +76,14 @@ Required for "1.0":
           the first beta.]
 
         - Better CLIs
-                - Actual strategy for reporting exceptions vs
-                  user-visible errors.
                 - Add another level of CLI commands. (E.g., mixminion server
-                  keygen, mixminion client send, etc.)
+                  keygen, etc.)
         - Key rotation and expiry
-                - Generate new serverdesc with old keys.
+                - Document "DELKEYS"
                 - Automatic keygen as needed
                 - Automatic key rotation
                 - Password-protected private identity keys
                 - Password-protected private link/packet keys
-                - Password-protect dirserver keys
         - Security
                 - Make createPrivateDirs gripe about group-writable parent
                   dirs
@@ -49,13 +93,8 @@ Required for "1.0":
                 - Directory servers should cache intermediate information
                 - The server's control structures need to change to
                   avoid latency problems.
-        - Server core
-                - Cleaner shutdown on TERM.
-                - Good reset handling
-                - Drop undeliverable messages in a sane way
         - Modules and module support
                 - MBOX
-                        - Use async or threading to cope with blocking MTAs
                         - Full config validation
                         - Full boilerplate text
                 - Use ESMTP as available
@@ -64,7 +103,7 @@ Required for "1.0":
                 - Tell ModuleManager about async code
                 - Real SMTP module
                         - Abuse prevention
-                        - Support for setting 'Subject' and 'From' lines.
+                        - Support for setting 'Subject' and 'From' lines.???
                         - Support multiple exit addresses.
                 - Incoming email gateway
                 o Refactor module manager to do decoding _before_ passing
@@ -76,15 +115,11 @@ Required for "1.0":
                 - Make zlib bomb prevention configurable.
         - Configurability
                 - Support for http proxies.
-                - Put pid and lock and key and queues in different places.
-                - Relative paths all throughout config files.
                 - Support for one-side-only MMTP configurations.
                 - Add 'ALLOW' lines to blacklist.
                 o Make batching algorithm configurable
                 o Infer server IP
                 . Freak out properly on missing/unpublishable IP.
-                - Make all filenames in server config relative to
-                  server home
                 - Directory generation should be configurable somehow.
                 - Make listening configurable for multiple ports/ips, not
                   all of which need be published.  Perhaps allow different
@@ -95,13 +130,9 @@ Required for "1.0":
                 - Make 'push' and 'retry' delivery rates independant and
                   module-adjustable
                 - Make 'drop undeliverable' rate configurable.
-                - Implement allow/deny code
-                - Make server gripe loudly when config doesn't match published
-                  serverinfo.
         - Client support
                 - Support to remove servers from imported directory,
                   or to block servers from directory.
-                - Generate (but don't send) a message
                 - Generate a reply block
                 - Read message from reply block
                 - Check paths before reading from stdin.
@@ -120,17 +151,13 @@ Required for "1.0":
                 o Send message to user with known server
                 o Real server directory management
                 - Real PKI
-                - Queue a bunch of messages at the client level.
-                - Client-side pooling
+                - Client-side pooling, automatic or manual.
         - MMTP / async
                 - "IP" belongs in the MMTP part of the server descriptor.
-                - Make listen options configurable (backlog, IP)
-                - Code to send junk (connection padding)
+                - Make listen options configurable (backlog)
                 o Timeout old connections
                 - Timeout connections more aggressively under higher load.
-                - Renegotiate connections
                 - (Make sure sender retries on bogus close)
-                - Session managment and resumption (security issues?)
                 - Bandwidth throttling
                 - Tests for all cases:
                         - Junk
@@ -179,6 +206,8 @@ SPEC            o Patch to address George's 15August attack
                 - Write complete user's manual
                 - Complete all other docs
                 - History.
+        - Cosmetic changes
+                - Perhaps "SMTP" should be renamed to "MAIL".
 
 
 Unspecified:
