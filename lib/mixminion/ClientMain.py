@@ -1645,7 +1645,8 @@ def generateSURB(cmd, args):
         else:
             out.write(surb.packAsText())
 
-    out.close()
+    if outputFile != '-':
+        out.close()
 
 _INSPECT_SURBS_USAGE = """\
 Usage: %(cmd)s [options] <files>
