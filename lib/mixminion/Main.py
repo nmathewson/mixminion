@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.72 2004/03/06 00:04:38 nickm Exp $
+# $Id: Main.py,v 1.73 2004/05/14 23:44:09 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -127,6 +127,7 @@ _COMMANDS = {
     "generate-surbs" : ( 'mixminion.ClientMain', 'generateSURB' ),
     "inspect-surb" :   ( 'mixminion.ClientMain', 'inspectSURBs' ),
     "inspect-surbs" :  ( 'mixminion.ClientMain', 'inspectSURBs' ),
+    "count-packets":   ( 'mixminion.ClientMain', 'countPackets' ),
     "flush" :          ( 'mixminion.ClientMain', 'flushQueue' ),
     "inspect-queue" :  ( 'mixminion.ClientMain', 'listQueue' ),
     "clean-queue" :    ( 'mixminion.ClientMain', 'cleanQueue' ),
@@ -164,6 +165,7 @@ _USAGE = (
   "       decode         [Decode or decrypt a received message]\n"+
   "       generate-surb  [Generate a single-use reply block]\n"+
   "       inspect-surbs  [Describe a single-use reply block]\n"+
+  "       count-packets  [DOCDOC]\n"
   "       ping           [Quick and dirty check whether a server is running]\n"
   "                               (For Servers)\n"+
   "       server-start   [Begin running a Mixminion server]\n"+

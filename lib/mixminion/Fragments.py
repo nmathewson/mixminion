@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.15 2004/03/23 00:05:32 nickm Exp $
+# $Id: Fragments.py,v 1.16 2004/05/14 23:44:09 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -58,7 +58,7 @@ class FragmentationParams:
         self.nChunks = ceilDiv(minFragments, self.k)
         # Number of total fragments per chunk.
         self.n = int(math.ceil(EXP_FACTOR * self.k))
-        # Data in  a single chunk
+        # Data in a single chunk
         self.chunkSize = self.fragCapacity * self.k
         # Length of data to fill chunks
         self.paddedLen = self.nChunks * self.fragCapacity * self.k

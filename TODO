@@ -35,8 +35,10 @@ For 0.0.8:
                   it can confuse the unit tests and maybe worse.  We can
                   catch it by looking at time.gmtime(78969600) and seeing
                   whether we get (1972,7,3,0,0,0) or one second before.
+                - Regenerate SSL certificates more frequently.
                 - Drop support for pre-0.0.6 servers; Don't generate IPV4Info
                   any more.
+                - Use DB_RECOVER and DB_RECOVER_FATAL as appropriate
         - Documentation
                 - Make README and Makefile be clearer about how to proceed
                   when no openssl is found, and about option for local

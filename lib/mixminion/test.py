@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.196 2004/05/05 02:04:48 nickm Exp $
+# $Id: test.py,v 1.197 2004/05/14 23:44:09 nickm Exp $
 
 """mixminion.tests
 
@@ -343,8 +343,10 @@ class MiscTests(TestCase):
 
         now = time.time()
         ft = formatFnameTime(now)
+        fd = formatFnameDate(now)
         tm = time.localtime(now)
         self.assertEquals(ft, "%04d%02d%02d%02d%02d%02d" % tm[:6])
+        self.assertEquals(fd, "%04d%02d%02d" % tm[:3])
 
     def test_isSMTPMailbox(self):
         # Do we accept good addresses?
@@ -1884,6 +1886,7 @@ class BuildMessageTests(TestCase):
             for ov in 0, 42-20+16: # encrypted forward overhead
                 plds = BuildMessage.encodeMessage(m,ov,"",p)
                 assert len(plds) == 1
+                assert BuildMessage.getNPacketsToEncode(m,ov,"") == 1
                 pld = plds[0]
                 self.assertEquals(28*1024, len(pld)+ov)
                 comp = compressData(m)
@@ -2226,6 +2229,8 @@ class BuildMessageTests(TestCase):
         rsa1, rsa2 = self.pk1, self.pk512
         payloadE = BuildMessage.encodeMessage(
             "<<<<Hello>>>>"*100,ENC_FWD_OVERHEAD)[0]
+        assert BuildMessage.getNPacketsToEncode("<<<<Hello>>>>"*100,
+                                                ENC_FWD_OVERHEAD) == 1
         for rsakey in rsa1,rsa2:
             m = befm(payloadE, 500, "Phello",
                      [self.server1, self.server2],
@@ -2430,6 +2435,7 @@ class BuildMessageTests(TestCase):
         prefix = "Prefix!"
         payloads = BuildMessage.encodeMessage(msg, 0, prefix)
         self.assertEquals(len(payloads), 3)
+        self.assertEquals(BuildMessage.getNPacketsToEncode(msg, 0, prefix), 3)
         p1 = BuildMessage.decodePayload(payloads[0], "")
         p2 = BuildMessage.decodePayload(payloads[1], "")
         p3 = BuildMessage.decodePayload(payloads[2], "")
@@ -3218,6 +3224,40 @@ class FilestoreTests(FStoreTestBase):
         for fn in os.listdir(d_parent):
             os.unlink(os.path.join(d_parent,fn))
 
+        # WritethroughDict
+        loc = os.path.join(d_parent, "db4")
+        WD = mixminion.Filestore.WritethroughDict
+        d = WD(loc, "testing")
+        d["xyzzy"] = 91
+        d["bliznert"] = (4,22,11,8)
+        self.assertEquals(d["xyzzy"], 91)
+        self.assertEquals(d["bliznert"], (4,22,11,8))
+        d.close()
+
+        d = WD(loc, "testing")
+        self.assertEquals(d["xyzzy"], 91)
+        self.assert_(d.has_key("bliznert"))
+        d["bliznert"] = [ 12, "aeaeae" ]
+        d["mulligan"] = ( "stately, plump", )
+        self.assertEquals(d.get("mulligan"), ("stately, plump",))
+        self.assertEquals(d.get("mulliganX"), None)
+        self.assertEquals(d["bliznert"], [12, "aeaeae"])
+        del d['xyzzy']
+        self.assert_(not d.has_key("xyzzy"))
+        d.close()
+
+        d = WD(loc, "testing")
+        try:
+            d["xyzzy"]
+        except KeyError:
+            pass
+        else:
+            self.fail()
+        self.assertEquals(d.get("mulligan"), ("stately, plump",))
+        self.assertEquals(d["bliznert"], [12, "aeaeae"])
+        self.assertUnorderedEq(d.keys(), ["mulligan","bliznert"])
+        d.close()
+
 class QueueTests(FStoreTestBase):
     def setUp(self):
         mixminion.Common.installSIGCHLDHandler()
@@ -3302,6 +3342,10 @@ class QueueTests(FStoreTestBase):
 
         queue.removeAll(self.unlink)
         queue.cleanQueue(self.unlink)
+
+    def testAddressBasedQueue(self):
+        #XXXX008
+        pass
 
     def testMixPools(self):
         d_m = mix_mktemp("qm")
@@ -3427,6 +3471,37 @@ class LogTests(TestCase):
         self.assertEquals(lines[3], "[WARN] ->STREAM: B")
         self.assertEquals(lines[4], "[WARN] ->STREAM: C")
         self.assertEquals(lines[5], "[WARN] ->STREAM: X Y")
+
+    def testStatusLog(self):
+        SL = mixminion.Common.StatusLog()
+        self.assertEquals("[MIXMINION:] ABC\n",
+                          SL.msg("ABC", []))
+        self.assertEquals("[MIXMINION:] ABC 42 HELLO\n",
+                          SL.msg("ABC", [42, "HELLO"]))
+        self.assertEquals("[MIXMINION:] ABC A A\\ BC\\ D\n",
+                          SL.msg("ABC", ["A", "A BC D"]))
+        self.assertEquals("[MIXMINION:] A_BCD A\\\nB\\\\X\n",
+                          SL.msg("A_BCD", ["A\nB\\X"]))
+        tmpfile = mix_mktemp()
+        f = open(tmpfile, 'w')
+        SL.setFD(f.fileno())
+        SL.log("REVOLUTION_9", "number nine", "number nine")
+        SL.log("REVOLUTION_9", "take this brother")
+        SL.setFD(None)
+        f.close()
+        self.assertEquals(readFile(tmpfile),
+                   "[MIXMINION:] REVOLUTION_9 number\\ nine number\\ nine\n"
+                   "[MIXMINION:] REVOLUTION_9 take\\ this\\ brother\n")
+
+        PSL = mixminion.Common.parseStatusLogLine
+        self.assertEquals(PSL("[MIXMINION:] ABC 42 HELLO\n"),
+                          ("ABC",["42", "HELLO"]))
+        self.assertEquals(PSL("[MIXMINION:] ABC 42 HELLO\\ \n"),
+                          ("ABC",["42", "HELLO "]))
+        self.assertEquals(PSL("[MIXMINION:] ABC\n"),
+                          ("ABC",[]))
+        self.assertEquals(PSL("[MIXMINION:] ABC X\\\nYZ 03.1\\\\\n"),
+                          ("ABC",["X\nYZ", "03.1\\"]))
 
 #----------------------------------------------------------------------
 # File paranoia
@@ -7526,7 +7601,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientMainTests))
+        suite.addTest(tc(FilestoreTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

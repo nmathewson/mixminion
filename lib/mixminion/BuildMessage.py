@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.73 2004/03/23 00:07:02 nickm Exp $
+# $Id: BuildMessage.py,v 1.74 2004/05/14 23:44:08 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -13,7 +13,8 @@ import types
 import mixminion.Crypto as Crypto
 import mixminion.Fragments
 from mixminion.Packet import *
-from mixminion.Common import MixError, MixFatalError, LOG, UIError
+from mixminion.Common import MixError, MixFatalError, LOG, STATUS, UIError, \
+     formatBase64
 import mixminion.Packet
 import mixminion._minionlib
 
@@ -22,7 +23,25 @@ if sys.version_info[:3] < (2,2,0):
 
 __all__ = ['buildForwardPacket', 'buildEncryptedForwardPacket',
            'buildReplyPacket', 'buildReplyBlock', 'checkPathLength',
-           'encodeMessage', 'decodePayload' ]
+           'encodeMessage', 'decodePayload', 'getNPacketsToEncode' ]
+
+def getNPacketsToEncode(message, overhead, uncompressedFragmentPrefix=""):
+    """Return the number of packets that would be needed to encode 'message'.
+       Arguments are as for encodeMessage.
+    """
+    assert overhead in (0, ENC_FWD_OVERHEAD)
+    compressedLen = len(compressData(message))
+
+    paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - compressedLen
+    if paddingLen >= 0:
+        return 1
+
+    if uncompressedFragmentPrefix:
+        compressedLen += len(uncompressedFragmentPrefix)
+
+    p = mixminion.Fragments.FragmentationParams(compressedLen, overhead)
+
+    return p.n * p.nChunks
 
 def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
                   paddingPRNG=None):
@@ -31,7 +50,7 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
        of strings, each of which is a message payload suitable for use in
        build*Message.
 
-              payload: the initial payload
+              message: the initial message
               overhead: number of bytes to omit from each payload,
                         given the type ofthe message encoding.
                         (0 or ENC_FWD_OVERHEAD)
@@ -64,7 +83,7 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
         p.computeHash()
         return [ p.pack() ]
 
-    # Okay, we need fo fragment the message.  First, add the prefix if needed.
+    # Okay, we need to fragment the message.  First, add the prefix if needed.
     if uncompressedFragmentPrefix:
         payload = uncompressedFragmentPrefix+payload
     # Now generate a message ID
@@ -296,8 +315,10 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
 
     prng = Crypto.AESCounterPRNG(Crypto.sha1(seed+userKey+"Generate")[:16])
 
-    return _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime, prng,
-                                seed)[0]
+    replyBlock, secrets, tag = _buildReplyBlockImpl(path, exitType, exitInfo,
+                                                    expiryTime, prng, seed)
+    STATUS.log("GENERATED_SURB", formatBase64(tag))
+    return replyBlock
 
 def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0,
                     suppressTag=0):

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.138 2004/05/02 18:45:15 nickm Exp $
+# $Id: Common.py,v 1.139 2004/05/14 23:44:09 nickm Exp $
 
 """mixminion.Common
 
@@ -11,7 +11,7 @@ __all__ = [ 'IntervalSet', 'Lockfile', 'LockfileLocked', 'LOG', 'LogStream',
             'armorText', 'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
             'createPrivateDir', 'disp64',
             'encodeBase64', 'englishSequence', 'floorDiv', 'formatBase64',
-            'formatDate', 'formatFnameTime', 'formatTime',
+            'formatDate', 'formatFnameDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
             'previousMidnight', 'readFile', 'readPickled',
             'readPossiblyGzippedFile', 'secureDelete', 'stringContains',
@@ -1088,6 +1088,103 @@ class LogStream:
     def close(self): pass
 
 #----------------------------------------------------------------------
+# StatusLog
+
+class StatusLog:
+    """Used to emit machine-parseable status messages to the file
+       descriptor specifed by the --status-fd argument. The set of valid
+       messages and their format is described in doc/statusfd.txt .
+
+       Each message consists of:
+            The string '[MIXMINION:]',
+            A space,
+            A 'message type' consisting only of capital letters, digits,
+                and underscores,
+            Optionally, a space, and a space-separated list of arguments,
+            A newline.
+
+       If an argument contains a space, a newline, or a backslash,
+       these characters are escaped with a backslash.
+
+       To maintain compatibility, arguments must only be added, never
+       removed, moved, or changed.  Messages should be emitted by
+       importing the global STATUS instance from this module and calling:
+
+       STATUS.log('SURB_GENERATED', surbid)
+
+       Each message type should be independent (it seems safer to not
+       assume any particular ordering between messages).
+
+       Keep machine-parseability in mind when adding these message types:
+       make sure the name is unique, and separate arguments with colons.
+    """
+    _ESC_PAT = re.compile(r'([ \n\\])')
+    def __init__(self):
+        """DOCDOC"""
+        self.fd = None
+        self.__lock = threading.Lock()
+
+    def setFD(self, fdnum):
+        """DOCDOC"""
+        # this will fail if the invoking user did not actually open the file
+        # descriptor they ask us to use, for example if they did:
+        #  mixminion send --status-fd=3
+        # instead of:
+        #  mixminion send --status-fd=3 3>somewhere.txt
+        #
+        # remember, this is not meant for use by a shell, it is for
+        # front-end programs that are running mixminion in a child process.
+        # There will be a pipe connected to this fd which the parent process
+        # will be reading from.
+
+        if fdnum is None:
+            self.fd = None
+        else:
+            self.fd = fdnum
+
+    def msg(self, name, args):
+        """DOCDOC"""
+        r = [ "[MIXMINION:]", name ]
+        for arg in args:
+            r.append(self._ESC_PAT.sub(r"\\\1",str(arg)))
+        return "%s\n"%(" ".join(r))
+
+    def log(self, name, *args):
+        """DOCDOC"""
+        if self.fd is None:
+            return
+
+        s = self.msg(name, args)
+        self.__lock.acquire()
+        try:
+            os.write(self.fd, s)
+        finally:
+            self.__lock.release()
+
+# The global Status instance for the mixminion client. Status messages
+# should be emitted with STATUS.log()
+STATUS = StatusLog()
+
+_STATUS_LINE_RE = re.compile(r'^\[MIXMINION:\] ([A-Z_]+)(?: (.*))?', re.S)
+_ARG_RE = re.compile(r'^((?:[^ \n\\]+|\\[ \n\\])+)[ \n]?')
+_UNESC_ARG_RE = re.compile(r'\\([ \n\\])')
+def parseStatusLogLine(s):
+    """DOCDOC"""
+    m = _STATUS_LINE_RE.match(s)
+    if not m:
+        return None,None
+    name = m.group(1)
+    s = m.group(2)
+    res = []
+    while s:
+        m = _ARG_RE.match(s)
+        if not m:
+            return None,None
+        res.append(_UNESC_ARG_RE.sub(r'\1', m.group(1)))
+        s = s[m.end():]
+    return name, res
+
+#----------------------------------------------------------------------
 # Time processing
 
 def previousMidnight(when):
@@ -1127,9 +1224,17 @@ def formatDate(when):
     gmt = time.gmtime(when+1) # Add 1 to make sure we round down.
     return "%04d-%02d-%02d" % (gmt[0],gmt[1],gmt[2])
 
-def formatFnameTime(when=None):
+def formatFnameDate(when=None):
     """Given a time in seconds since the epoch, returns a date value suitable
        for use as part of a filename.  Defaults to the current time."""
+    if when is None:
+        when = time.time()
+    return time.strftime("%Y%m%d", time.localtime(when))
+
+def formatFnameTime(when=None):
+    """Given a time in seconds since the epoch, returns a date-time
+       value suitable for use as part of a filename.  Defaults to the
+       current time."""
     if when is None:
         when = time.time()
     return time.strftime("%Y%m%d%H%M%S", time.localtime(when))

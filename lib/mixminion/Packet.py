@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.75 2004/03/06 00:04:38 nickm Exp $
+# $Id: Packet.py,v 1.76 2004/05/14 23:44:09 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -39,8 +39,8 @@ import types
 import zlib
 from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, MixFatalError, encodeBase64, \
-     floorDiv, formatTime, isSMTPMailbox, LOG, armorText, unarmorText, \
-     isPlausibleHostname
+     floorDiv, formatBase64, formatTime, isSMTPMailbox, LOG, armorText, \
+     unarmorText, isPlausibleHostname
 from mixminion.Crypto import sha1
 
 if sys.version_info[:3] < (2,2,0):
@@ -524,8 +524,9 @@ class ReplyBlock:
         self.encryptionKey = key
 
     def format(self):
+        """DOCDOC"""
         import mixminion.ServerInfo
-        digest = binascii.b2a_hex(sha1(self.pack()))
+        digest = self.getHexDigest()
         expiry = formatTime(self.timestamp)
         if self.routingType == SWAP_FWD_IPV4_TYPE:
             routing = parseIPV4Info(self.routingInfo)
@@ -537,6 +538,10 @@ class ReplyBlock:
         return """Reply block hash: %s
 Expires at: %s GMT
 First server is: %s""" % (digest, expiry, server)
+
+    def getHexDigest(self):
+        """DOCDOC"""
+        return binascii.b2a_hex(sha1(self.pack()))
 
     def pack(self):
         """Returns the external representation of this reply block"""
@@ -612,6 +617,9 @@ class IPV4Info:
         return struct.pack(IPV4_PAT, inet_aton(self.ip),
                            self.port, self.keyinfo)
 
+    def __str__(self):
+        return "IP:%s:%s:%s"(self.ip,self.port,formatBase64(self.keyinfo))
+
     def __repr__(self):
         return "IPV4Info(%r, %r, %r)"%(self.ip, self.port, self.keyinfo)
 
@@ -663,6 +671,9 @@ class MMTPHostInfo:
         """Return the routing info for this address"""
         assert len(self.keyinfo) == DIGEST_LEN
         return struct.pack(MMTP_HOST_PAT,self.port,self.keyinfo)+self.hostname
+
+    def __str__(self):
+        return "%s:%s:%s"(self.hostname,self.port,formatBase64(self.keyinfo))
 
     def __repr__(self):
         return "MMTPHostInfo(%r, %r, %r)"%(
