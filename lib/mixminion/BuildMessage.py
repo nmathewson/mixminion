@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.24 2002/12/20 23:51:22 nickm Exp $
+# $Id: BuildMessage.py,v 1.25 2002/12/29 21:00:18 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -656,6 +656,9 @@ def uncompressData(payload, maxLength=None):
         if maxLength is None:
             d = zobj.decompress(payload)
         else:
+            #XXXX Arg!  The 'maxlength' argument to decompress wasn't
+            #XXXX introduced until Python 2.2.  I'll need to fall back
+            #XXXX on blunter means.
             d = zobj.decompress(payload, maxLength)
         if zobj.unconsumed_tail:
             raise CompressedDataTooLong()
