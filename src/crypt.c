@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.29 2003/08/25 21:05:34 nickm Exp $ */
+/* $Id: crypt.c,v 1.30 2003/09/04 16:07:05 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -1183,6 +1183,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
                 goto error;
         if (!(X509_set_version(x509, 2)))
                 goto error;
+        /* XXXX006 This is not correct, and probably needs to change. */
         if (!(ASN1_INTEGER_set(X509_get_serialNumber(x509),0L)))
                 goto error;
 
