@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.21 2003/03/28 15:36:23 nickm Exp $ */
+/* $Id: crypt.c,v 1.22 2003/04/10 03:01:07 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -180,7 +180,7 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
         int inputlen, prng=0;
         long idx=0;
         AES_KEY *aes_key = NULL;
-
+        
         PyObject *output;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwdict,
@@ -540,6 +540,7 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
                                                        NULL, NULL))
                                 goto error;
                 }
+                EVP_PKEY_free(pkey);
         }
         Py_INCREF(Py_None);
         return Py_None;
@@ -601,10 +602,6 @@ mm_rsa_PEM_read_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
         return mm_RSA_new(rsa);
 }
-
-
-
-
 
 /**
  * Converts a BIGNUM into a newly allocated PyLongObject.
@@ -734,7 +731,6 @@ mm_rsa_make_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
                                          &PyLong_Type, &n, &PyLong_Type, &e))
                 return NULL;
 
-        rsa = RSA_new();
         if (!(rsa = RSA_new())) { PyErr_NoMemory(); return NULL; }
         if (!(rsa->n = pylong2bn(n))) { RSA_free(rsa); return NULL; }
         if (!(rsa->e = pylong2bn(e))) {
@@ -1033,13 +1029,11 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 
         if (!(name = X509_NAME_new()))
                 goto error;
-        SET_PART(name, "countryName", "US");
         SET_PART(name, "organizationName", "Mixminion network");
         SET_PART(name, "commonName", cn);
 
         if (!(name_issuer = X509_NAME_new()))
                 goto error;
-        SET_PART(name_issuer, "countryName", "US");
         SET_PART(name_issuer, "organizationName", "Mixminion network");
         SET_PART(name_issuer, "commonName", cn_issuer);
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.19 2003/03/28 15:36:23 nickm Exp $ */
+/* $Id: tls.c,v 1.20 2003/04/10 03:01:07 nickm Exp $ */
 #include "_minionlib.h"
 
 /* XXXX REMOVE*/
@@ -119,7 +119,7 @@ const char mm_TLSContext_new__doc__[] =
 PyObject*
 mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-        static char *kwlist[] = { "certfile", "pkfile", "dhfile", NULL };
+        static char *kwlist[] = { "certfile", "rsa", "dhfile", NULL };
         char *certfile = NULL, *dhfile=NULL;
         mm_RSA *rsa = NULL;
         int err = 0;
@@ -150,6 +150,8 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
         if (!err && certfile &&
             !SSL_CTX_use_certificate_chain_file(ctx,certfile))
                 err = 1;
+        if (!err)
+                SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
         if (!err && rsa) {
                 if (!(_rsa = RSAPrivateKey_dup(rsa->rsa)) ||
                     !(pkey = EVP_PKEY_new()))
@@ -175,8 +177,15 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
                         if (!dh)
                                 err = 1;
                 }
-                if (!err)
+                if (!err) {
                         SSL_CTX_set_tmp_dh(ctx,dh);
+                        DH_free(dh);
+                        dh = NULL;
+                }
+                if (bio) {
+                        BIO_free(bio);
+                        bio = NULL;
+                }
         }
         if (!err)
                 SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
@@ -223,7 +232,6 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
         int err = 0;
 
         SSL_CTX *ctx;
-        BIO *bio = NULL;
         SSL *ssl = NULL;
         mm_TLSSock *ret;
 
@@ -248,9 +256,7 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
                     SSL3_TXT_RSA_DES_192_CBC3_SHA))
                 err = 1;
 
-        if (!err && !(bio = BIO_new_socket(sock, BIO_NOCLOSE)))
-                err = 1;
-        SSL_set_bio(ssl,bio,bio);
+        SSL_set_fd(ssl, sock);
         Py_END_ALLOW_THREADS
 
         if (!err) {
