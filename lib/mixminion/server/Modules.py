@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.16 2003/01/07 01:41:20 nickm Exp $
+# $Id: Modules.py,v 1.17 2003/01/07 03:31:30 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -300,7 +300,7 @@ class ModuleManager:
         for t in module.getExitTypes():
             if (self.typeToModule.has_key(t) and
                 self.typeToModule[t].getName() != module.getName()):
-                LOG.warn("More than one module is enabled for type %x"%t)
+                raise ConfigError("Multiple modules enabled for type %x: %s vs %s:"%(t, self.typeToModule[t].getName(), module.getName()))
             self.typeToModule[t] = module
 
         LOG.info("Module %s: enabled for types %s",

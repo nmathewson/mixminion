@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.21 2003/01/07 03:06:49 nickm Exp $
+# $Id: ServerMain.py,v 1.22 2003/01/07 03:31:30 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -452,6 +452,7 @@ def readConfigFile(configFile):
             sys.exit(1)
 
     try:
+        print >>sys.stderr, "Reading configuration from %s"%configFile
         return mixminion.server.ServerConfig.ServerConfig(fname=configFile)
     except (IOError, OSError), e:
         print >>sys.stderr, "Error reading configuration file %r:"%configFile
