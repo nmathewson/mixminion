@@ -1,6 +1,6 @@
-$Id: README,v 1.47 2003/06/06 07:17:35 nickm Exp $
+$Id: README,v 1.48 2003/06/09 21:24:54 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.4, Release Candidate 3.
+This is Mixminion version 0.0.4, final release.
 
  WARNING!  Mixminion 0.0.4 breaks backward compatibility with version 0.0.3.
  Versions older than 0.0.3 are no longer supported; you should upgrade now.
@@ -40,6 +40,10 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.4 final:
+  BUGFIXES:
+  - Improved error message on nonexistent directory.
 
 NEW IN VERSION 0.0.4rc3:
    BUGFIXES:
@@ -138,106 +142,7 @@ NEW IN VERSION 0.0.4rc1:
       - The path selection syntax has changed to be more flexible.  (You can
         now specify a single random hop, or N random hops.)
 
-NEW IN VERSION 0.0.3:
-   Better build support:
-      - Fail more gracefully with missing 'which'.
-      - Fail more gracefully with missing python-dev.
-      - Portability fixes for Python 2.0.
-   Client tweaks:
-      - Default connection timeout to 1 minute.
-      - Rename stop-server to server-stop.
-      - Rename reload-server to server-reload.
-
-NEW IN VERSION 0.0.3rc2:
-   Numerous bugfixes, including:
-      - More verbose client locking
-      - More reasonable log messages
-      - Better messages on missing openssl
-      - Improved documentation
-      - Better support for confused permissions on build
-      - Better errors on failing directory retrieval
-      - Less verbose description of reply blocks skipped.
-      - Base64 encoding should no longer get corrupted by outlook
-      - Fix nasty race on queue cleaning.
-      - The code compiles (but doesn't run) under cygwin.
-   New features:
-      - mixminion stop-server and mixminion reload-server commands.
-
-NEW IN VERSION 0.0.3rc1:
-   CLIENT:
-      - Single-use reply blocks (SURBs) are fully supported and available.
-      - You can use client-side pooling: it holds messages until you're
-        ready to send them.  Pooling also prevents you from losing
-        messages when the first hop in your path is temporarily down.
-      - You can now decode binary messages or reply messages from the command
-        line.
-      - We now time out faster when servers are down.
-      - Many error messages are far friendlier.
-      - It's now safe to run multiple instances of the client at once.
-      - Numerous UI improvements and typo fixes; error reporting is better in
-        many ways.
-   BUILD:
-      - It's easier to build with different OpenSSL installations.
-   SERVERS:
-      - Servers now have a lightly multithreaded design to prevent extreme
-        stalling under heavy loads.  Now the network should remain fairly
-        responsive under far more traffic than before.
-      - When a message delivery fails, the retry schedule is more reasonable.
-        By default, a server will retry an undeliverable message every
-        30 minutes for a day, then every 7 hours for 5 days.
-      - All modules that use SMTP now set a "X-Anonymous: yes" header.
-   CONFORMANCE:
-      - We now implement MMTP correctly; before, we didn't accept junk
-        packets; handle protocol negotiation right; or do support key
-        renegotiation.
-      - DROP packets have random payloads.
-      - A nasty bug in our implementation of counter mode is fixed.  On
-        the bright side, big-endian and little-endian hosts should now,
-        finally, be compatible.  On the minus side, we lose backward
-        compatibility.
-      - Server descriptors and directories now follow a more forward-
-        compatible format: we can add sections and entries in the future
-        with less risk of breaking existing clients.
-
-NEW IN VERSION 0.0.2.2:
-   - Fixed a bug that crashed your server when another server's KeyID was
-     incorrect.
-   - Add minimal handlers for TERM and HUP signals.
-   - Add a disclaimer to main usage message.
-
-NEW IN VERSION 0.0.2.1:
-   - BUGFIX: A nasty bug is fixed that could, under just the right
-     circumstances, send the server into an infinite loop and fill up your
-     hard drive.  If you're running a server, you *should* upgrade.
-   - Server log messages are more reasonably structured.
-   - setup.py is more clever about half-installed Python.
-   - "list-servers" now supports the same directory-download options as
-     does "send".
-
-NEW IN VERSION 0.0.2:
-   - A real SMTP exit module to relay messages via a local MTA.  Blacklisting
-     is supported by address, by username, by host, by entire domain, and
-     by regular expression.
-   - Integrated directory support for clients.
-   - Automatic path selection, along with a better user interface to specify
-     paths.
-   - You can now enable Cottrell (DynamicPool) and Binomial Dynamic Pool
-     batching, though they are disabled by default to make the system more
-     testable.
-   - Servers resist certain trivial DoS attacks more strongly.  In
-     particular, you should no longer be able to send zlib bombs or flood a
-     server with open connections.
-   - Clean build process under FreeBSD.
-   - Ability to run server as a daemon.
-   - Slightly better documentation and error messages.
-   - Better resistance to newline corruption of server descriptors.
-   - Other bugfixes and performance improvements too numerous to mention.
-
-NEW IN VERSION 0.0.1:
-   - You can run a rudimentary server that can deliver to other Mixminion
-     servers, that can use Mixmaster to deliver to any external address,
-     or that sends SMTP directly to a preconfigured set of addresses.
-   - You can send anonymous email via these servers.
+<See HISTORY file for changes in earlier versions.>
 
 STILL NOT IN THIS VERSION:
    - We could use some man pages.
@@ -310,9 +215,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4rc3.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4.tar.gz>
 
-  % cd Mixminion-0.0.4rc3
+  % cd Mixminion-0.0.4
   % make download-openssl
   % make build-openssl
   % make
@@ -660,7 +565,9 @@ to see statistics in the _current_ interval, run:
 VII. HOW TO REPORT BUGS AND SUGGEST NEW FEATURES
 ================================================
 
-Just email <nickm@freehaven.net>.
+To report bugs, please use the Bugzilla pages at http://bugs.noreply.org.
+
+For other correspondence, please email <nickm@freehaven.net>.
 
 For help in debugging, please try to send a copy of:
         * What command you were running
