@@ -1,6 +1,6 @@
-$Id: README,v 1.41 2003/05/29 05:49:04 nickm Exp $
+$Id: README,v 1.42 2003/05/30 05:16:15 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.4, Release Candidate 1.
+This is Mixminion version 0.0.4, Release Candidate 2.
 
  WARNING!  Mixminion 0.0.4 breaks backward compatibility with version 0.0.3.
  Versions older than 0.0.3 are no longer supported; you should upgrade now.
@@ -40,6 +40,12 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.4rc2:
+   BUGFIXES:
+   - The server shouldn't crash so much when it gets bad TLS errors or
+     timed-out connections.  Sometimes, it will give better errors when it
+     does.
 
 NEW IN VERSION 0.0.4rc1:
    First steps toward directory automation:
@@ -226,7 +232,7 @@ Follow these steps:
 
        See etc/mixminiond.conf for an example.
 
-    2. Run 'mixminion upgrade-server' to delete keys and packets in obsolete
+    2. Run 'mixminion server-upgrade' to delete keys and packets in obsolete
        formats.  (If you forget this step, the server will remind you when
        you try to start it.)
 
