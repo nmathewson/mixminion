@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.75 2003/06/06 06:08:40 nickm Exp $
+# $Id: ServerMain.py,v 1.76 2003/06/06 06:12:54 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -990,7 +990,7 @@ def readConfigFile(configFile):
             p = os.path.expanduser(p)
             if os.path.exists(p):
                 configFile = p
-        if not p:
+        if configFile is None:
             print >>sys.stderr, "No config file found or specified."
             sys.exit(1)
 
