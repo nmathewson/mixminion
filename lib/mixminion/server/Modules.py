@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.4 2002/12/16 02:40:11 nickm Exp $
+# $Id: Modules.py,v 1.5 2002/12/16 03:49:19 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -133,6 +133,10 @@ class ImmediateDeliveryQueue:
         # We do nothing here; we already delivered the messages
         pass
 
+    def cleanQueue(self):
+        # There is no underlying queue to worry about here; do nothing.
+        pass
+        
 class SimpleModuleDeliveryQueue(mixminion.server.Queue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
@@ -297,7 +301,7 @@ class ModuleManager:
         self.queues[module.getName()] = queue
         self.enabled[module.getName()] = 1
 
-    def cleanQueues(self):
+    def cleanQueue(self):
         """Remove trash messages from all internal queues."""
         for queue in self.queues.values():
             queue.cleanQueue()
