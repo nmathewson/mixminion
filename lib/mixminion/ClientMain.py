@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.51 2003/02/11 22:18:03 nickm Exp $
+# $Id: ClientMain.py,v 1.52 2003/02/12 01:22:57 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1201,11 +1201,10 @@ class MixminionClient:
                 if noPool and warnIfLost:
                     LOG.error("Error with pooling disabled: message lost")
                 elif lazyPool:
+                    LOG.info("Error while delivering message; message pooled")
                     self.poolMessages(msgList, routingInfo)
-                    #XXXX003 Log that error occurred, but is okay.
                 else:
-                    #XXXX003 Log that error occurred, but is okay.
-                    pass
+                    LOG.info("Error while delivering message; leaving in pool")
                 raise
             try:
                 clientLock()
@@ -1738,12 +1737,16 @@ def runClient(cmd, args):
             print "Interrupted.  Message not sent."
             sys.exit(1)
 
-    if parser.usingSURBList:
-        assert isinstance(path2, ListType)
-        client.sendReplyMessage(payload, path1, path2, forcePool, forceNoPool)
-    else:
-        client.sendForwardMessage(address, payload, path1, path2,
-                                  forcePool, forceNoPool)
+    try:
+        if parser.usingSURBList:
+            assert isinstance(path2, ListType)
+            client.sendReplyMessage(payload, path1, path2,
+                                    forcePool, forceNoPool)
+        else:
+            client.sendForwardMessage(address, payload, path1, path2,
+                                      forcePool, forceNoPool)
+    except UIError, e:
+        e.dump()
 
 _IMPORT_SERVER_USAGE = """\
 Usage: %s [options] <filename> ...
