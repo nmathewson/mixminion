@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.26 2003/07/13 03:45:36 nickm Exp $ */
+/* $Id: tls.c,v 1.26.2.1 2003/10/13 17:00:39 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -354,7 +354,7 @@ static PyObject*
 mm_TLSSock_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 {
         SSL *ssl;
-        int r, err;
+        int r;
 
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
@@ -365,7 +365,6 @@ mm_TLSSock_connect(PyObject *self, PyObject *args, PyObject *kwargs)
         r = SSL_connect(ssl);
         Py_END_ALLOW_THREADS
         if (r <= 0) {
-                err = SSL_get_error(ssl,r);
                 tls_error(ssl, r, 0);
                 return NULL;
         }
