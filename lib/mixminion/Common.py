@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.26 2002/12/02 03:21:54 nickm Exp $
+# $Id: Common.py,v 1.27 2002/12/02 20:18:08 nickm Exp $
 
 """mixminion.Common
 
@@ -14,6 +14,7 @@ import signal
 import sys
 import time
 import stat
+import statvfs
 import traceback
 import calendar
 from types import StringType
@@ -127,6 +128,7 @@ def checkPrivateDir(d, recurse=1):
 # Secure filesystem operations.
 #
 
+
 _SHRED_CMD = "---"
 _SHRED_OPTS = None
     
@@ -143,12 +145,36 @@ def configureShredCommand(conf):
 
     if cmd is None:
         if os.path.exists("/usr/bin/shred"):
-            cmd, opts = "/usr/bin/shred", ["-uz"]
+            cmd, opts = "/usr/bin/shred", ["-uz", "-n0"]
         else:
             getLog().warn("Files will not be securely deleted.")
             cmd, opts = None, None
 
     _SHRED_CMD, _SHRED_OPTS = cmd, opts
+
+
+# Size of a block on the filesystem we're overwriting on
+_BLKSIZE = 0
+# A string of _BLKSIZE zeros
+_NILSTR = None
+def _overwriteFile(f):
+    """Overwrite f with zeros, rounding up to the nearest block.  This is
+       used as the default implementation of secureDelete."""
+    global _BLKSIZE
+    global _NILSTR
+    if not _BLKSIZE:
+	#???? this assumes that all filesystems we are using have the same
+	#??? block size.
+	_BLKSIZE = os.statvfs(f)[statvfs.F_BSIZE]
+	_NILSTR = '\x00' * _BLKSIZE
+    fd = os.open(f, os.O_WRONLY)
+    try:
+	size = os.fstat(fd)[stat.ST_SIZE]
+	blocks = ceilDiv(size, _BLKSIZE)
+	for _ in xrange(blocks):
+	    os.write(fd, _NILSTR)
+    finally:
+	os.close(fd)
 
 def secureDelete(fnames, blocking=0):
     """Given a list of filenames, removes the contents of all of those
@@ -158,11 +184,24 @@ def secureDelete(fnames, blocking=0):
        files.  (Returns None if this process unlinked the files
        itself.) 
 
-       XXXX Securely deleting files only does so much good.  Metadata on
-       XXXX the file system, such as atime and dtime, can still be used
-       XXXX to reconstruct information about message timings.  To be
-       XXXX really safe, we should use a loopback device and shred _that_
-       XXXX from time to time.
+       Securely deleting files only does so much good.  Metadata on
+       the file system, such as atime and dtime, can still be used to
+       reconstruct information about message timings.  To be more
+       safe, we could use a loopback device and shred _that_ from time
+       to time.  But since many filesystems relocate data underneath
+       you, you can't trust loopback devices: a separate shreddable
+       partition is necessary.  But even then, HD controllers and
+       drives sometimes relocate blocks to avoid bad blocks: then
+       there's no way to overwrite the old locations!  The only
+       heavy-duty solution is to use an encrypted filesystem and swap
+       partition from the get-go... or to physically destroy and
+       replace your hard drive every so often.)
+
+       So we don't even bother trying to make the data 'physcially
+       irretrievable.'  We just zero it out, which should be good
+       enough to stymie root for most purposes, and totally inadequate
+       against a well-funded adversary with access to your hard drive
+       and a bunch of sensitive magnetic equipment.
 
        XXXX Currently, we use shred from GNU fileutils.  Shred's 'unlink'
        XXXX operation has the regrettable property that two shred commands
@@ -178,18 +217,19 @@ def secureDelete(fnames, blocking=0):
     
     if isinstance(fnames, StringType):
         fnames = [fnames]
+
+    if not _SHRED_CMD:
+        for f in fnames:
+	    _overwriteFile(f)
+            os.unlink(f)
+        return None
+	
     if blocking:
         mode = os.P_WAIT
     else:
         mode = os.P_NOWAIT
 
-    if _SHRED_CMD:
-        code = os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+fnames))
-	return code
-    else:
-        for f in fnames:
-            os.unlink(f)
-        return None
+    return os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+fnames))
 
 #----------------------------------------------------------------------
 # Logging
