@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
+# $Id: ClientAPI.py,v 1.2 2004/09/15 17:30:33 nickm Exp $
 
 """mixminion.ClientAPI
 
@@ -409,6 +409,8 @@ class _Encodeable:
            'file'.
         """
         file.write(self.armored())
+
+# XXXX Most of the below classes need more accessor (getFoo) functions.
 
 class PathSpec(_Encodeable):
     """A PathSpec is a description of a class of paths, as describe in
