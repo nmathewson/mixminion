@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirCGI.py,v 1.4 2003/05/28 07:36:24 nickm Exp $
+# $Id: DirCGI.py,v 1.5 2003/05/28 07:42:22 nickm Exp $
 
 """mixminion.directory.DirCGI
 
@@ -35,10 +35,8 @@ def run():
     if not form.has_key('desc'):
         err("no desc field found")
 
-    desc = form['desc']
-
-    if type(desc) == type([]):
-        err("too many desc fields")
+    desc = form.getfirst('desc')
+    assert type(desc) == type('')
 
     d = Directory(location=DIRECTORY_BASE)
     inbox = d.getInbox()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.27 2003/05/28 07:36:24 nickm Exp $
+# $Id: ServerKeys.py,v 1.28 2003/05/28 07:42:22 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -638,7 +638,7 @@ class ServerKeyset:
             return 'error'
         m = DIRECTORY_RESPONSE_RE.search(reply)
         if not m:
-            LOG.error("Didn't understand reply from directory: %r",
+            LOG.error("Didn't understand reply from directory: %s",
                       reply)
             return 'error'
         ok = int(m.group(1))

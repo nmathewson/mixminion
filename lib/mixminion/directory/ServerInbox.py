@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.3 2003/05/26 21:08:13 nickm Exp $
+# $Id: ServerInbox.py,v 1.4 2003/05/28 07:45:52 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -13,6 +13,7 @@ import os
 
 from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
      readPickled, writePickled
+from mixminion.ServerInfo import ServerInfo
 
 from mixminion.directory.Directory import getIDFingerprint, MismatchedID
 from mixminion.directory.ServerList import _writeServer, _readServer
@@ -32,7 +33,7 @@ class ServerInbox:
            ServerQueued on wait-for-admin.
            """
         try:
-            text, server = _readServer(text)
+            server = ServerInfo(string=contents,assumeValid=0)
         except MixError, e:
             LOG.warn("Rejected invalid server from %s: %s", source,e)
             raise UIError("Server descriptor was not valid: %s"%e)
@@ -40,7 +41,7 @@ class ServerInbox:
         nickname = server.getNickname()
 
         try:
-            known = self.idCache.containsServer(nickname)
+            known = self.idCache.containsServer(server)
         except MismatchedID:
             LOG.warn("Rejected server with mismatched identity from %s",
                      source)
