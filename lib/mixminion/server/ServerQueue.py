@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.7 2003/02/13 06:30:23 nickm Exp $
+# $Id: ServerQueue.py,v 1.8 2003/02/17 14:58:46 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -251,10 +251,13 @@ class Queue:
             if m.startswith("rmv_"):
                 rmv.append(os.path.join(self.dir, m))
             elif m.startswith("inp_"):
-                s = os.stat(m)
-                if s[stat.ST_MTIME] < allowedTime:
-                    self.__changeState(m[4:], "inp", "rmv")
-                    rmv.append(os.path.join(self.dir, m))
+                try:
+                    s = os.stat(m)
+                    if s[stat.ST_MTIME] < allowedTime:
+                        self.__changeState(m[4:], "inp", "rmv")
+                        rmv.append(os.path.join(self.dir, m))
+                except OSError:
+                    pass
         if secureDeleteFn:
             secureDeleteFn(rmv)
         else:
