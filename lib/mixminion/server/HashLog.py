@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.11 2003/05/30 13:54:45 nickm Exp $
+# $Id: HashLog.py,v 1.12 2003/05/30 14:02:05 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -24,17 +24,22 @@ __all__ = [ 'HashLog' ]
 # We flush the log every MAX_JOURNAL hashes.
 MAX_JOURNAL = 128
 
+_HASHLOG_DICT_LOCK = threading.Lock()
+
 #DOCDOC
 _OPEN_HASHLOGS = {}
 
-#XXXX004 locking??
 def getHashLog(filename, keyid):
     try:
-        return _OPEN_HASHLOGS[(filename, keyid)]
-    except KeyError:
-        hl = HashLog(filename, keyid)
-        _OPEN_HASHLOGS[(filename, keyid)] = hl
-        return hl
+        _HASHLOG_DICT_LOCK.acquire()
+        try:
+            return _OPEN_HASHLOGS[(filename, keyid)]
+        except KeyError:
+            hl = HashLog(filename, keyid)
+            _OPEN_HASHLOGS[(filename, keyid)] = hl
+            return hl
+    finally:
+        _HASHLOG_DICT_LOCK.release()
 
 # flags to pass to os.open when opening the journal file.
 _JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)
@@ -74,6 +79,8 @@ class HashLog:
     def __init__(self, filename, keyid):
         """Create a new HashLog to store data in 'filename' for the key
            'keyid'."""
+        self.filename = filename
+        self.keyid = keyid
         parent = os.path.split(filename)[0]
         createPrivateDir(parent)
 
@@ -170,5 +177,14 @@ class HashLog:
             self.sync()
             self.log.close()
             os.close(self.journalFile)
+            try:
+                _HASHLOG_DICT_LOCK.acquire()
+                try:
+                    del _OPEN_HASHLOGS[(self.filename, self.keyid)]
+                except KeyError:
+                    pass
+            finally:
+                _HASHLOG_DICT_LOCK.release()
+                    
         finally:
             self.__lock.release()
