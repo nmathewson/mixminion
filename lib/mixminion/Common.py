@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.99 2003/07/10 20:01:30 nickm Exp $
+# $Id: Common.py,v 1.100 2003/07/10 20:09:58 nickm Exp $
 
 """mixminion.Common
 
@@ -363,13 +363,14 @@ def checkPrivateFile(fn, fix=1):
     if not os.path.isfile(fn):
         raise MixFatalError("%s is not a regular file" % fn)
     
-    if _CHECK_UID and st[stat.ST_UID] != me:
+    if _CHECK_UID:
         me = os.getuid()
-        ownerName = _uidToName(st[stat.ST_UID])
-        myName = _uidToName(me)
-        raise MixFilePermissionError(
-            "File %s is owned by %s, but Mixminion is running as %s" 
-            % (fn, ownerName, myName))
+        if st[stat.ST_UID] != me:
+            ownerName = _uidToName(st[stat.ST_UID])
+            myName = _uidToName(me)
+            raise MixFilePermissionError(
+                "File %s is owned by %s, but Mixminion is running as %s" 
+                % (fn, ownerName, myName))
     mode = st[stat.ST_MODE] & 0777
     if _CHECK_MODE and mode not in (0700, 0600):
         if not fix:
