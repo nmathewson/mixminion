@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.181 2004/02/02 07:05:49 nickm Exp $
+# $Id: test.py,v 1.182 2004/02/06 18:00:59 nickm Exp $
 
 """mixminion.tests
 
@@ -4491,9 +4491,9 @@ class ServerInfoTests(TestCase):
                "server at 1.2.3.4:48099")
             eq(dsbr(MMTPHostInfo("ken.com", 48099, "a"*20)),
                "'Kenichi' at ken.com:48099")
-            eq(dsba("1.2.3.4",48099), "server at 1.2.3.4:48099 ('Each'?)")
+            eq(dsba("1.2.3.4",48099), "server at 1.2.3.4:48099 (Each?)")
             eq(dsba("1.2.3.4",48099,"a.b.c.d"),
-               "server at 1.2.3.4:48099 ('Peach'?)")
+               "server at 1.2.3.4:48099 (Peach?)")
             eq(dsba("3.4.5.6",48099,"x.y.z"),
                "server at 3.4.5.6:48099")
         finally:
