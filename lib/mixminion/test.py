@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.58 2003/01/04 20:42:17 nickm Exp $
+# $Id: test.py,v 1.59 2003/01/05 01:29:55 nickm Exp $
 
 """mixminion.tests
 
@@ -3195,8 +3195,8 @@ class ServerInfoTests(unittest.TestCase):
                                           time.time()+24*60*60*30))
         self.assert_(info.isValidAtPartOf(time.time(), 
                                           time.time()+24*60*60*30))
-        self.assert_(not info.isValidAtPartOf(time.time()-25*60*60, 
-                                              time.time()-23*60*60))
+        self.assert_(not info.isValidAtPartOf(time.time()-40*60*60, 
+                                              time.time()-39*60*60))
         self.assert_(not info.isValidAtPartOf(time.time()+24*60*60*30,
                                               time.time()+24*60*60*31))
 
@@ -3341,11 +3341,11 @@ IP: 192.168.0.99
         self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
         # Bad digest.
         dBad = re.compile(r"^DirectoryDigest: ........", re.M).sub(
-            "DirectoryDigest: XXXXXXXX", d)
+            "DirectoryDigest: ZZZZZZZZ", d)
         self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
         # Bad signature.
         dBad = re.compile(r"^DirectorySignature: ........", re.M).sub(
-            "Directory: XXXXXXXX", d)
+            "Directory: ZZZZZZZZ", d)
         self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
 
         # Can we use messed-up spaces and line-endings?
@@ -3719,7 +3719,95 @@ zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3g==
 ======== TYPE III ANONYMOUS MESSAGE ENDS =========
 """
 
+EXAMPLE_ADDRESS_SET = """
+User freD
+User  mr-ed
+# Comment
+Domain sally
+Domain  HOGWARTS.k12
+# Another comment, followed by a blank line
+Subdomains  deathstar.gov
+Subdomains selva-Oscura.it
+Domain selva-Oscura.it
+
+Address  jim@sMith.com
+Pattern    /nyet.*Nyet/
+
+"""
+
 class ModuleTests(unittest.TestCase):
+    def testEmailAddressSet(self):
+        EmailAddressSet = mixminion.server.Modules.EmailAddressSet
+        def has(set, item, self=self):
+            self.assert_(isSMTPMailbox(item), "Invalid address "+item)
+            self.failUnless(set.contains(item), "Set should contain "+item)
+        def hasNo(set, item, self=self):
+            self.assert_(isSMTPMailbox(item), "Invalid address "+item)
+            self.failIf(set.contains(item), "Set should not contain "+item)
+            
+        # Basic functionality: Match what we're supposed to match
+        set = EmailAddressSet(string=EXAMPLE_ADDRESS_SET)
+        for _ in 1,2:
+            has(set,"jim@smith.com")
+            has(set,"freD@fred.com") #(by user....)
+            has(set,"fred@x")
+            has(set,"fred@boba-fred")
+            has(set,"MR-ED@wilburs-barn.com")
+            has(set,"Fred@Fred")
+            has(set,"Fred@Sally") #(by domains and subdomains...)
+            has(set,"joe@SALLY")
+            has(set,"h.potter@hogwarts.K12")
+            has(set,"nobody@sally")
+            has(set,"dante@selva-oscura.it")
+            has(set,"dante@camin.selva-oscura.it")
+            has(set,"dante@nel.camin.selva-oscura.it")
+            has(set,"cushing@deathstar.gov")
+            has(set,"cushing@operational.deathstar.gov")
+            has(set,"cushing@fully.operational.deathstar.gov")
+            has(set,"nyet.jones@nyet.net")
+            has(set,"octavio.nyet.jones@nyet.net")
+            has(set,"octavio.jones@nyet.nyet.net")
+
+            # Basic tfunctinoality: Don't match anything else.
+            hasNo(set,"mojo@jojo.com")
+            hasNo(set,"mr-fred@wilburs-barn.com") # almost by user
+            hasNo(set,"joe@sally.com") # almost by domain...
+            hasNo(set,"joe@bob.sally.com")
+            hasNo(set,"joe@bob.sally")
+            hasNo(set,"dante@other.it")
+            hasNo(set,"cushing@gov")
+            hasNo(set,"cushing@deathstar.gov.mit.edu")
+            hasNo(set,"nyet.jones@net")
+            hasNo(set,"jones@nyet.net")
+
+            # Load from file, then try again!
+            fn = mix_mktemp()
+            writeFile(fn, EXAMPLE_ADDRESS_SET)
+            set = EmailAddressSet(fname=fn)
+
+        # Failing cases: invalid addresses needn't give a right answer, but
+        # we need to do something reasonable for invalid files.
+        def bad(s,self=self):
+            self.assertRaises(ConfigError,
+                              mixminion.server.Modules.EmailAddressSet,
+                              string=s)
+
+        bad("Address foo@bar@baz")
+        bad("Rumplestiltskin")
+        bad("bob@bob.com")
+        bad("user fred@bob")
+        bad("address foo")
+        bad("domain foo@")
+        bad("domain @foo")
+        bad("subdomains foo@bar")
+        bad("pattern a.*b")
+        bad("pattern /a.*b")
+        bad("pattern a.*b/")
+        bad("domain")
+        bad("user")
+        bad("pattern")
+        bad("subdomains")
+    
     def testMixmasterSMTP(self):
         """Check out the SMTP-Via-Mixmaster module.  (We temporarily relace
            os.spawnl with a stub function so that we don't actually send
@@ -3766,9 +3854,90 @@ class ModuleTests(unittest.TestCase):
             undoReplacedAttributes()
             clearReplacedFunctionCallLog()
 
+    def testDirectSMTP(self):
+        """Check out the SMTP module.  (We temporarily relace sendSMTPMessage
+           with a stub function so that we don't actually send anything.)"""
+        blacklistFile = mix_mktemp()
+        writeFile(blacklistFile, "Domain wangafu.net\nUser fred\n")
+        
+        manager = self.getManager("""[Delivery/SMTP]
+Enabled: yes
+SMTPServer: nowhere
+BlacklistFile: %s
+Message: Avast ye mateys!  Prepare to be anonymized!  
+ReturnAddress: yo.ho.ho@bottle.of.rum
+SubjectLine: Arr! This be a Type-III Anonymous Message
+        """ % blacklistFile)
+        
+        module = manager.nameToModule["SMTP"]
+        queue = manager.queues["SMTP"]
+        queueMessage = queue.queueDeliveryMessage
+                        
+
+        # Make sure blacklist got read.
+        self.assert_(module.blacklist.contains("nobody@wangafu.net"))
+        
+        # Stub out sendSMTPMessage.
+        replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
+                        lambda *args: mixminion.server.Modules.DELIVER_OK)
+        try:
+            haiku = ("Hidden, we are free\n"+
+                     "Free to speak, to free ourselves\n"+
+                     "Free to hide no more.")
+            
+            # Try queueing a valild message and sending it.
+            queueMessage((SMTP_TYPE, "users@everywhere", None), haiku)
+            self.assertEquals(getReplacedFunctionCallLog(), [])
+            queue.sendReadyMessages()
+            # Was sendSMTPMessage invoked correctly?
+            calls = getReplacedFunctionCallLog()
+            self.assertEquals(1, len(calls))
+            fn, args, _ = calls[0]
+            self.assertEquals("sendSMTPMessage", fn)
+            #server, toList, fromAddr, message
+            self.assertEquals(('nowhere',
+                               ['users@everywhere'],
+                               'yo.ho.ho@bottle.of.rum'),
+                              args[:3])
+            EXPECTED_SMTP_PACKET = """\
+To: users@everywhere
+From: yo.ho.ho@bottle.of.rum
+Subject: Arr! This be a Type-III Anonymous Message
+
+Avast ye mateys!  Prepare to be anonymized!
+
+======= TYPE III ANONYMOUS MESSAGE BEGINS ========
+Hidden, we are free
+Free to speak, to free ourselves
+Free to hide no more.
+======== TYPE III ANONYMOUS MESSAGE ENDS =========\n"""
+            d = findFirstDiff(EXPECTED_SMTP_PACKET, args[3])
+            if d != -1:
+                print d, "near", repr(args[3][d-10:d+10])
+            self.assert_(EXPECTED_SMTP_PACKET == args[3])
+            clearReplacedFunctionCallLog()
+
+            # Now, try a bunch of messages that won't be delivered: one with
+            # an invalid address, and one with a blocked address.
+            try:
+                suspendLog()
+                queueMessage((SMTP_TYPE, "not.an.addr", None), haiku)
+                queueMessage((SMTP_TYPE, "blocked@wangafu.net", None), haiku)
+                queue.sendReadyMessages()
+            finally:
+                s = resumeLog()
+            self.assertEquals(1,s.count(
+              "Dropping message to blacklisted address 'blocked@wangafu.net'"))
+            self.assertEquals(1,s.count(
+                "Dropping SMTP message to invalid address 'not.an.addr'"))
+            self.assertEquals([], getReplacedFunctionCallLog())
+        finally:
+            undoReplacedAttributes()
+            clearReplacedFunctionCallLog()
+
     def testMBOX(self):
-        """Check out the MBOX module.  (We temporarily relace sendSMTPMessage
-           with a stub function so that we don't actually send anything."""
+        """Check out the MBOX module. (We temporarily relace sendSMTPMessage
+           with a stub function so that we don't actually send anything.)"""
         # Configure the module
         manager = self.getManager()
         module = mixminion.server.Modules.MBoxModule()
@@ -3899,9 +4068,11 @@ class ModuleTests(unittest.TestCase):
         self.assertEquals(1, queue.count())
         self.assertEquals(5, len(os.listdir(dir)))
 
-    def getManager(self):
+    def getManager(self, extraConfig=None):
         d = mix_mktemp()
         c = SERVER_CONFIG_SHORT % d
+        if extraConfig:
+            c += extraConfig
         try:
             suspendLog()
             conf = mixminion.server.ServerConfig.ServerConfig(string=c)
@@ -4115,8 +4286,8 @@ def getExampleServerDescriptors():
                          "ReturnAddress: a@b.c\nRemoveContact: b@c.d\n") %(
                     addrf)
             elif t == SMTP_TYPE:
-                conf += ("[Delivery/SMTP-Via-Mixmaster]\nEnabled: yes\n"+
-                         "MixCommand: /bin/ls\nServer: foobar\n")
+                conf += ("[Delivery/SMTP]\nEnabled: yes\n"+
+                         "ReturnAddress: a@b.c\n")
             else:
                 raise MixFatalError("Unrecognized type: %04x"%t)
         try:
@@ -4309,6 +4480,10 @@ class ClientMainTests(unittest.TestCase):
                 d[item] = 1
             return len(d) == len(lst)
 
+        # Override ks.DEFAULT_REQUIRED_LIFETIME so we don't need to
+        # explicitly specify a really early endAt all the time.
+        ks.DEFAULT_REQUIRED_LIFETIME = 1
+
         suspendLog()
         joe = edesc["Joe"]
         alice = edesc["Alice"]
@@ -4362,56 +4537,65 @@ class ClientMainTests(unittest.TestCase):
             neq(p[1].getNickname(), "Alice")
             neq(p[1].getNickname(), "Joe")
             # 2b. With 3 <= servers < length
-            p = ks.getPath(length=9)
+            ks2 = mixminion.ClientMain.ClientKeystore(mix_mktemp())
+            ks2.importFromFile(os.path.join(impdirname, "Joe0"))
+            ks2.importFromFile(os.path.join(impdirname, "Alice0"))
+            ks2.importFromFile(os.path.join(impdirname, "Lisa1"))
+            ks2.importFromFile(os.path.join(impdirname, "Bob0"))
+            
+            p = ks2.getPath(length=9)
             eq(9, len(p))
             self.failIf(nRuns([s.getNickname() for s in p]))
 
-            p = ks.getPath(startServers=("Joe",),endServers=("Joe",),length=8)
+            p = ks2.getPath(startServers=("Joe",),endServers=("Joe",),
+                            length=8)
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(8, len(p))
             self.assertSameSD(joe[0], p[0])
             self.assertSameSD(joe[0], p[-1])
 
-            p = ks.getPath(startServers=("Joe",),length=7)
+            p = ks2.getPath(startServers=("Joe",),length=7)
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(7, len(p))
             self.assertSameSD(joe[0], p[0])
 
-            p = ks.getPath(endServers=("Joe",),length=7)
+            p = ks2.getPath(endServers=("Joe",),length=7)
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(7, len(p))
             self.assertSameSD(joe[0], p[-1])
-
+            
             # 2c. With 2 servers
-            p = ks.getPath(length=4, startAt=now-9*oneDay)
+            ks2.expungeByNickname("Alice")
+            ks2.expungeByNickname("Bob")
+            p = ks2.getPath(length=4)
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
-            p = ks.getPath(length=4,startServers=("Joe",),startAt=now-9*oneDay)
+            p = ks2.getPath(length=4,startServers=("Joe",))
+
             self.failIf(nRuns([s.getNickname() for s in p]) > 2)
-
-            p = ks.getPath(length=4, endServers=("Joe",), startAt=now-9*oneDay)
+            p = ks2.getPath(length=4, endServers=("Joe",))
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
-            p = ks.getPath(length=6, endServers=("Joe",), startAt=now-9*oneDay)
+            p = ks2.getPath(length=6, endServers=("Joe",))
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
             # 2d. With only 1.
-            p = ks.getPath(length=4, startAt=now-11*oneDay)
+            ks2.expungeByNickname("Lisa")
+            p = ks2.getPath(length=4)
             eq(len(p), 2)
-            p = ks.getPath(length=4,
-                           startServers=("Joe",),startAt=now-11*oneDay)
+            p = ks2.getPath(length=4, startServers=("Joe",))
             eq(len(p), 3)
-            p = ks.getPath(length=4, endServers=("Joe",),startAt=now-11*oneDay)
+            p = ks2.getPath(length=4, endServers=("Joe",))
             eq(len(p), 2)
 
             # 2e. With 0
             self.assertRaises(MixError, ks.getPath,
-                              length=4, startAt=now+100*oneDay)            
+                              length=4, startAt=now+100*oneDay)
         finally:
             s = resumeLog()
-            self.assertEquals(4, s.count("Not enough servers for distinct"))
-            self.assertEquals(4, s.count("to avoid same-server hops"))
-            self.assertEquals(3, s.count("Only one relay known"))
+        self.assertEquals(4, s.count("Not enough servers for distinct"))
+        self.assertEquals(4, s.count("to avoid same-server hops"))
+        self.assertEquals(3, s.count("Only one relay known"))
 
         # 3. With capabilities.
         p = ks.getPath(length=5, endCap="smtp", midCap="relay")
@@ -4645,7 +4829,7 @@ class ClientMainTests(unittest.TestCase):
         parseFails("0xZZ:zymurgy") # Bad hex literal
         parseFails("0xZZ") # Bad hex literal, no data.
         parseFails("0x9999") # No data
-        parseFails("0xFFFFF:zymurgy") # Hex literal out of range
+        parseFails("0xFEEEF:zymurgy") # Hex literal out of range
 
     def testMixminionClient(self):
         # Create and configure a MixminionClient object...
@@ -4726,7 +4910,7 @@ class ClientMainTests(unittest.TestCase):
         # Empty path...
         self.assertRaises(MixError,
                           client.generateForwardMessage,
-                          parseAddress("0xFFFF:zed"),
+                          parseAddress("0xFFFE:zed"),
                           "Z", [], [Alice])
 
         # Temporarily replace BlockingClientConnection so we can try the client
@@ -4791,6 +4975,11 @@ def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
+
+    if 0:
+        suite.addTest(tc(ClientMainTests))
+        suite.addTest(tc(ModuleTests))
+        return suite
 
     suite.addTest(tc(MiscTests))
     suite.addTest(tc(MinionlibCryptoTests))
