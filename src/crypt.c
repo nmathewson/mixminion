@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.19 2003/02/12 01:23:24 nickm Exp $ */
+/* $Id: crypt.c,v 1.20 2003/02/16 18:46:31 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -786,7 +786,7 @@ static const char mm_RSA_Type__doc__[] =
   "An RSA key.  May be public or private.";
 
 PyTypeObject mm_RSA_Type = {
-        PyObject_HEAD_INIT(&PyType_Type)
+        PyObject_HEAD_INIT(/*&PyType_Type*/ 0)
         0,                                  /*ob_size*/
         "mixminion._minionlib.RSA",         /*tp_name*/
         sizeof(mm_RSA),                     /*tp_basicsize*/

@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.11 2003/02/12 01:23:24 nickm Exp $ */
+/* $Id: main.c,v 1.12 2003/02/16 18:46:31 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -116,6 +116,11 @@ init_minionlib(void)
         if (exc(d, &mm_TLSClosed, "mixminion._minionlib.TLSClosed",
                 "TLSClosed", mm_TLSClosed__doc__))
                 return;
+
+        /* We set ob_type here so that Cygwin is happy. */
+        mm_RSA_Type.ob_type = mm_TLSContext_Type.ob_type = 
+                mm_TLSSock_Type.ob_type = &PyType_Type;
+                
 
         Py_INCREF(&mm_RSA_Type);
         if (PyDict_SetItemString(d, "RSA", (PyObject*)&mm_RSA_Type) < 0)

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.15 2003/02/12 01:23:25 nickm Exp $ */
+/* $Id: tls.c,v 1.16 2003/02/16 18:46:31 nickm Exp $ */
 #include "_minionlib.h"
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
@@ -278,7 +278,7 @@ static const char mm_TLSContext_Type__doc__[] =
    "sockets.  It has a single method, 'sock()', to create new sockets.\n";
 
 PyTypeObject mm_TLSContext_Type = {
-        PyObject_HEAD_INIT(&PyType_Type)
+        PyObject_HEAD_INIT(/*&PyType_Type*/ 0)
         0,                                  /*ob_size*/
         "mixminion._minionlib.TLSContext",  /*tp_name*/
         sizeof(mm_TLSContext),              /*tp_basicsize*/
