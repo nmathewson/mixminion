@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.72 2003/07/15 04:42:14 nickm Exp $
+# $Id: setup.py,v 1.73 2003/07/28 01:01:12 nickm Exp $
 import sys
 
 #
@@ -34,8 +34,8 @@ except ImportError:
     sys.exit(1)
 
 try:
-    import _socket
-    del _socket
+    import socket
+    del socket
 except ImportError:
     print "Your Python installation is somehow missing socket support."
     if sys.platform.startswith("sunos") or sys.platform.startswith("solaris"):
