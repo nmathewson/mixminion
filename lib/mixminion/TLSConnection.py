@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.11 2004/02/07 08:58:53 nickm Exp $
+# $Id: TLSConnection.py,v 1.12 2004/02/07 17:11:30 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -69,6 +69,8 @@ class TLSConnection:
         self.__stateFn = None
         self.__setup = 0
         self.__reading = 0
+
+        self.__blockedWriteLen = 0
 
         self.inbuf = []
         self.inbuflen = 0
@@ -339,19 +341,26 @@ class TLSConnection:
         "Helper function: write as much data from self.outbuf as we can."
         self.__writeBlockedOnRead = 0
         while self.outbuf and cap > 0:
+            if self.__blockedWriteLen: #DOCDOC
+                span = self.__blockedWriteLen
+            else:
+                span = min(len(self.outbuf[0]),cap)
             try:
-                n = self.tls.write(self.outbuf[0][:cap])
+                n = self.tls.write(self.outbuf[0][:span])
             except _ml.TLSWantRead:
+                self.__blockedWriteLen = span
                 self.__writeBlockedOnRead = 1
                 self.wantWrite = 0
                 self.wantRead = 1
                 return cap
             except _ml.TLSWantWrite:
+                self.__blockedWriteLen = span
                 self.wantWrite = 1
                 return cap
             else:
                 # We wrote some data: remove it from the buffer.
                 assert n >= 0
+                self.__blockedWriteLen = 0
                 LOG.trace("Wrote %s bytes to %s", n, self.address)
                 if n == len(self.outbuf[0]):
                     del self.outbuf[0]
