@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.10 2002/07/05 23:34:32 nickm Exp $
+# $Id: test.py,v 1.11 2002/07/09 04:07:14 nickm Exp $
 
 """mixminion.tests
 
@@ -18,8 +18,10 @@ import sys
 import threading
 import time
 import atexit
+import tempfile
+import types
 
-from mixminion.Common import MixError, MixFatalError
+from mixminion.Common import MixError, MixFatalError, getLog
 
 try:
     import unittest
@@ -38,16 +40,30 @@ def hexread(s):
         r.append(chr(c))
     return "".join(r)
 
-def try_unlink(fname):
-    try:
-        os.unlink(fname)
-    except OSError:
-        pass
+def try_unlink(fnames):
+    if isinstance(fnames, types.StringType):
+        fnames = [fnames]
+    for fname in fnames:
+        try:
+            os.unlink(fname)
+        except OSError:
+            pass
 
 def try_unlink_db(fname):
     '''Try to unlink an anydbm file(s)'''
     for suffix in ("", ".bak", ".dat", ".dir"):
         try_unlink(fname+suffix)
+
+_unlink_on_exit_list = []
+
+def unlink_db_on_exit(fname):
+    for suffix in ("", ".bak", ".dat", ".dir"):
+        _unlink_on_exit_list.append(fname+suffix)
+    
+def unlink_on_exit(*files):
+    _unlink_on_exit_list.extend(files)
+
+atexit.register(try_unlink, _unlink_on_exit_list)    
 
 #----------------------------------------------------------------------
 import mixminion._minionlib as _ml
@@ -227,6 +243,29 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.failUnlessRaises(TypeError, p3.crypt, msg1, 0, 0)
         self.failUnlessRaises(TypeError, p2.encode_key, 0)
         self.failUnlessRaises(TypeError, p3.encode_key, 0)
+
+        tf = tempfile.mktemp()
+        tf_pub = tf + "1"
+        tf_prv = tf + "2"
+        tf_enc = tf + "3"
+        unlink_on_exit(tf_pub, tf_prv, tf_enc)
+
+        p.PEM_write_key(open(tf_pub,'w'), 1)
+        p.PEM_write_key(open(tf_prv,'w'), 0)
+        p.PEM_write_key(open(tf_enc,'w'), 0, "top sekrit")
+        p2 = _ml.rsa_PEM_read_key(open(tf_pub, 'r'), 1)
+        self.assertEquals(p.get_public_key(), p2.get_public_key())
+        
+        p2 = _ml.rsa_PEM_read_key(open(tf_prv, 'r'), 0)
+        self.assertEquals(p.encode_key(0), p2.encode_key(0))
+
+        self.failUnlessRaises(_ml.CryptoError,
+                              _ml.rsa_PEM_read_key,
+                              open(tf_enc, 'r'), 0)
+                                  
+        p2 = _ml.rsa_PEM_read_key(open(tf_prv, 'r'), 0, "top sekrit")
+        self.assertEquals(p.encode_key(0), p2.encode_key(0))
+            
 #----------------------------------------------------------------------
 import mixminion.Crypto
 from mixminion.Crypto import *
@@ -503,14 +542,9 @@ from mixminion.HashLog import HashLog
 
 class HashLogTests(unittest.TestCase):
     def test_hashlog(self):
-        import tempfile
         fname = tempfile.mktemp(".db")
-        try:
-            self.hashlogTestImpl(fname)
-        finally:
-            try_unlink_db(fname)
+        unlink_db_on_exit(fname)
 
-    def hashlogTestImpl(self,fname):
         h = [HashLog(fname, "Xyzzy")]
 
         notseen = lambda hash,self=self,h=h: self.assert_(not h[0].seenHash(hash))
@@ -927,6 +961,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.pk2 = BMTSupport.pk2
         self.pk3 = BMTSupport.pk3
         self.tmpfile = mktemp(".db")
+        unlink_db_on_exit(self.tmpfile)
         h = self.hlog = HashLog(self.tmpfile, "Z"*20)
         n_1 = pk_get_modulus(self.pk1)
         n_2 = pk_get_modulus(self.pk2)
@@ -941,7 +976,6 @@ class PacketHandlerTests(unittest.TestCase):
 
     def tearDown(self):
         self.hlog.close()
-        try_unlink_db(self.tmpfile)
 
     def do_test_chain(self, m, sps, routingtypes, routinginfo, payload,
                       appkey=None):
@@ -1142,7 +1176,7 @@ from mixminion.Common import waitForChildren
 from mixminion.Queue import Queue
 
 def removeTempDirs(*dirs):
-    print "Removing temporary dirs"
+    print "Waiting for shred processes to finish."
     waitForChildren()
     for d in dirs:
         if os.path.isdir(d):
@@ -1281,14 +1315,33 @@ import mixminion.MMTPClient
 
 TEST_PORT = 40102
 
+dhfile = pkfile = certfile = None
+
 def _getTLSContext(isServer):
+    global dhfile
+    global pkfile
+    global certfile
     if isServer:
-        d = "/home/nickm/src/ssl_sandbox/"
-        for f in (d+"server.cert",d+"server.pk",d+"dh"):
-            assert os.path.exists(f)
-        #XXXX Generate these if they don't exist; look in a saner place.
-	pk = _ml.rsa_PEM_read_key(open(d+"server.pk", 'r'), 0)
-        return _ml.TLSContext_new(d+"server.cert",pk,d+"dh")
+        if dhfile is None:
+            f = tempfile.mktemp()
+            dhfile = f+"_dh"
+            pkfile = f+"_pk"
+            certfile = f+"_cert"
+            dh_fname = os.environ.get("MM_TEST_DHPARAMS", None)
+            if dh_fname:
+                dhfile = dh_fname
+                if not os.path.exists(dh_fname):
+                    _ml.generate_dh_parameters(dhfile, 0)
+            else:
+                _ml.generate_dh_parameters(dhfile, 0)
+                unlink_on_exit(dhfile)
+            pk = _ml.rsa_generate(1024, 65535)
+            pk.PEM_write_key(open(pkfile, 'w'), 0)
+            _ml.generate_cert(certfile, pk, 365, "Testing certificate")
+            unlink_on_exit(certfile, pkfile)
+            
+	pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), 0)
+        return _ml.TLSContext_new(certfile, pk, dhfile)
     else:
         return _ml.TLSContext_new()
 
@@ -1306,7 +1359,10 @@ def _getMMTPServer():
         listener = mixminion.MMTPServer.ListenConnection("127.0.0.1",
                                                      TEST_PORT, 5, conFactory)
         listener.register(server)
-        return server, listener, messagesIn
+        pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), public=0)
+        keyid = sha1(pk.encode_key(1))
+        
+        return server, listener, messagesIn, keyid
 
 class MMTPTests(unittest.TestCase):
 
@@ -1331,7 +1387,7 @@ class MMTPTests(unittest.TestCase):
         self.doTest(self._testNonblockingTransmission)
     
     def _testBlockingTransmission(self):
-        server, listener, messagesIn = _getMMTPServer()
+        server, listener, messagesIn, keyid = _getMMTPServer()
         self.listener = listener
         self.server = server
         
@@ -1340,7 +1396,7 @@ class MMTPTests(unittest.TestCase):
         server.process(0.1)
         t = threading.Thread(None,
                              mixminion.MMTPClient.sendMessages,
-                             args=("127.0.0.1", TEST_PORT, None, messages))
+                             args=("127.0.0.1", TEST_PORT, keyid, messages))
         t.start()
         while len(messagesIn) < 2:
             server.process(0.1)
@@ -1352,14 +1408,14 @@ class MMTPTests(unittest.TestCase):
         self.failUnless(messagesIn == messages)
 
     def _testNonblockingTransmission(self):
-        server, listener, messagesIn = _getMMTPServer()
+        server, listener, messagesIn, keyid = _getMMTPServer()
         self.listener = listener
         self.server = server
 
         messages = ["helloxxx"*4096, "helloyyy"*4096]
         async = mixminion.MMTPServer.AsyncServer()
         clientcon = mixminion.MMTPServer.MMTPClientConnection(
-            _getTLSContext(0), "127.0.0.1", TEST_PORT, None, messages[:], None)
+           _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid, messages[:], None)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():
@@ -1384,6 +1440,7 @@ def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
+    getLog().setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "WARN"))
     suite.addTest(tc(MinionlibCryptoTests))
     suite.addTest(tc(CryptoTests))
     suite.addTest(tc(FormatTests))
@@ -1391,14 +1448,7 @@ def testSuite():
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))
     suite.addTest(tc(QueueTests))
-
-    # XXXX This test won't work for anybody but me until I get DH/keygen
-    # XXXX working happily. -NM
-    if os.path.exists("/home/nickm/src/ssl_sandbox/dh"):
-	print "Including mmtp tests XXXX"
-        suite.addTest(tc(MMTPTests))
-    else:
-	print "excluding mmtp tests XXXX"
+    suite.addTest(tc(MMTPTests))
     return suite
 
 def testAll():
@@ -1406,18 +1456,4 @@ def testAll():
 
 if __name__ == '__main__':
     init_crypto()
-
-    d = "/home/nickm/src/ssl_sandbox/"
-
-##      print "dh"
-##      _ml.generate_dh_parameters(d+"dh", 0)
-##      print "rsa"
-##      pk = _ml.rsa_generate(1024, 65535)
-##      pk.PEM_write_key(open(d+"server.pk", 'w'),0)
-##      print "cert"
-##      _ml.generate_cert(d+"server.cert", pk, 365, "foobar")
-##      print "go!"
-    
-##      print "-----------"
-
     testAll()

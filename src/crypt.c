@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.7 2002/07/05 23:34:33 nickm Exp $ */
+/* $Id: crypt.c,v 1.8 2002/07/09 04:07:14 nickm Exp $ */
 #include <Python.h>
 
 #include <openssl/bn.h>
@@ -483,21 +483,18 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
 		rsa = NULL;
 
 		if (password) {
-			printf("Got here 1\n");
 			if (!PEM_write_PKCS8PrivateKey(file, pkey,
 						       EVP_des_ede3_cbc(),
 						       NULL, 0,
 						       NULL, password))
 				goto error;
 		} else {
-			printf("Got here 2\n");
 			if (!PEM_write_PKCS8PrivateKey(file, pkey,
 						       NULL, 
 						       NULL, 0,
 						       NULL, NULL))
 				goto error;
 		}
-		printf("got here 3\n");
 	}
 	Py_INCREF(Py_None);
 	return Py_None;
@@ -830,7 +827,10 @@ gen_dh_callback(int p, int n, void *arg)
 
 const char mm_generate_dh_parameters__doc__[] = 
    "generate_dh_parameters(filename, [bits, [verbose]])\n\n"
-   "XXXX";
+   "Generate a DH parameter file named <filename>. The parameters will be of\n"
+   "size <bits>, which defaults to 512.  If <verbose>, a pattern of dots\n"
+   "will appear on the screen to let you know that the program is still\n"
+   "thinking.";
 
 PyObject *
 mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -872,7 +872,11 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 
 const char mm_generate_cert__doc__[] = 
    "generate_cert(filename, rsa, days, cn)\n\n"
-   "XXXX";
+   "Generate a self-signed X509 certificate suitable for use by a Mixminion\n"
+   "server.  The certificate will be stored to <filename>, and use the\n"
+   "=private= key <rsa>.  It will be valid for the next <days> days.  The\n"
+   "certificate\'s commonName field will be set to <cn>.  All other fields\n"
+   "will be given reasonable defaults.\n";
 
 PyObject *
 mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -925,7 +929,6 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 		goto error;
 	if (!X509_gmtime_adj(X509_get_notBefore(x509),0)) 
 		goto error;
-	/* XXXX */
 	if (!X509_gmtime_adj(X509_get_notAfter(x509), 60L*60L*24L*days)) 
 		goto error;
 	if (!(X509_set_pubkey(x509, pkey)))
@@ -943,7 +946,6 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 	goto done;
 
 error:
-	P(error);
 	retval = NULL;
 	mm_SSL_ERR(1);
  done:

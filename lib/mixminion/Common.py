@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.7 2002/07/05 19:50:27 nickm Exp $
+# $Id: Common.py,v 1.8 2002/07/09 04:07:14 nickm Exp $
 
 """mixminion.Common
 
@@ -7,8 +7,7 @@
 
 __all__ = [ 'MixError', 'MixFatalError', 'onReset', 'onTerminate',
             'installSignalHandlers', 'secureDelete', 'secureRename',
-            'ceilDiv', 'floorDiv', 'debug', 'warn', 'info', 'error',
-            'fatal' ]
+            'ceilDiv', 'floorDiv', 'getLog' ]
 
 import os
 import signal
@@ -129,14 +128,29 @@ class ConsoleLogTarget:
     def write(self, severity, message):
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
 
+
+_SEVERITIES = { 'TRACE' : -2,
+                'DEBUG' : -1,
+                'INFO' : 0,
+                'WARN' : 1,
+                'ERROR': 2,
+                'FATAL' : 3 }
+
 class Log:
     def __init__(self, minSeverity):
         self.handlers = []
+        self.setMinSeverity(minSeverity)
+        onReset(self.reset)
+        onTerminate(self.close)
+
+    def setMinSeverity(self, minSeverity):
+        self.severity = _SEVERITIES.get(minSeverity, 1)
 
     def addHandler(self, handler):
         self.handlers.append(handler)
 
     def reset(self):
+        # FFFF reload configuration information here?
         for h in self.handlers:
             h.reset()
 
@@ -145,12 +159,15 @@ class Log:
             h.close()
         
     def log(self, severity, message, *args):
-        # Check that severity is okay.
+        if _SEVERITIES.get(severity, 100) < self.severity:
+            return
+        m = message % args
         for h in self.handlers:
-            h.write(severity, message % args)
+            h.write(severity, m)
 
+    def trace(self, message, *args):
+        self.log("TRACE", message, *args)
     def debug(self, message, *args):
-        # Need a means to filter messages
         self.log("DEBUG", message, *args)
     def info(self, message, *args):
         self.log("INFO", message, *args)
@@ -161,16 +178,19 @@ class Log:
     def fatal(self, message, *args):
         self.log("FATAL", message, *args)
 
-_theLog = Log('DEBUG')
-_theLog.addHandler(ConsoleLogTarget(sys.stderr))
-# XXXX Configure the log for real
+_theLog = None
 
-log = _theLog.log
-debug = _theLog.debug
-info = _theLog.info
-warn = _theLog.warn
-error = _theLog.error
-fatal = _theLog.fatal
+def getLog():
+    """Return the MixMinion log object."""
+    global _theLog
+    if _theLog is None:
+        # XXXX Configure the log for real
+        _theLog = Log('DEBUG')
+        _theLog.addHandler(ConsoleLogTarget(sys.stderr))
+        
+    return _theLog
+
+
 
 #----------------------------------------------------------------------
 # Signal handling
@@ -191,7 +211,6 @@ def onTerminate(fn):
     """Given a 0-argument function fn, cause fn to be invoked when
        this process next receives a SIGTERM."""
     terminateHooks.append(fn)
-
 
 def waitForChildren():
     """Wait until all subprocesses have finished.  Useful for testing.""" 

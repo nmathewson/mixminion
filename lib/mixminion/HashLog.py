@@ -1,12 +1,12 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.8 2002/07/05 19:50:27 nickm Exp $
+# $Id: HashLog.py,v 1.9 2002/07/09 04:07:14 nickm Exp $
 
 """mixminion.HashLog
 
    Persistant memory for the hashed secrets we've seen."""
 
 import anydbm, dumbdbm
-from mixminion.Common import MixFatalError, warn
+from mixminion.Common import MixFatalError, getLog
 
 __all__ = [ 'HashLog' ]
 
@@ -39,7 +39,7 @@ class HashLog:
            'keyid'."""
         self.log = anydbm.open(filename, 'c')
         if isinstance(self.log, dumbdbm._Database):
-            warn("Warning: logging packet digests to a flat file.")
+            getLog().warn("Warning: logging packet digests to a flat file.")
         try:
             if self.log["KEYID"] != keyid:
                 raise MixFatalError("Log KEYID does not match current KEYID")

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.3 2002/07/01 18:03:05 nickm Exp $
+# $Id: MMTPClient.py,v 1.4 2002/07/09 04:07:14 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -44,25 +44,28 @@ class BlockingClientConnection:
         #XXXX session resumption
         self.tls.connect()
         peer_pk = self.tls.get_peer_cert_pk()
-        # XXXX Check the key ... how exactly is this to be hashed?
+        keyID = sha1(self.tls.get_peer_cert_pk().encode_key(public=1))
+        if self.targetKeyID is not None and (keyID != self.targetKeyID):
+            raise MixProtocolError("Bad Key ID: Expected %r but got %r" % (
+                self.targetKeyID, keyID))
         
         ####
         # Protocol negotiation
         # For now, we only support 1.0
-        self.tls.write("PROTOCOL 1.0\n")
-        inp = self.tls.read(len("PROTOCOL 1.0\n"))
-        if inp != "PROTOCOL 1.0\n":
+        self.tls.write("PROTOCOL 1.0\r\n")
+        inp = self.tls.read(len("PROTOCOL 1.0\r\n"))
+        if inp != "PROTOCOL 1.0\r\n":
             raise MixProtocolError("Protocol negotiation failed")
         
     def sendPacket(self, packet):
         """Send a single packet to a server."""
         assert len(packet) == 1<<15
-        self.tls.write("SEND\n")
+        self.tls.write("SEND\r\n")
         self.tls.write(packet)
         self.tls.write(sha1(packet+"SEND"))
         
-        inp = self.tls.read(len("RECEIVED\n")+20)
-        if inp != "RECEIVED\n"+sha1(packet+"RECEIVED"):
+        inp = self.tls.read(len("RECEIVED\r\n")+20)
+        if inp != "RECEIVED\r\n"+sha1(packet+"RECEIVED"):
             raise MixProtocolError("Bad ACK received")
 
     def shutdown(self):

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.5 2002/07/05 19:50:27 nickm Exp $
+# $Id: MMTPServer.py,v 1.6 2002/07/09 04:07:14 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -16,31 +16,33 @@
 
 # NOTE FOR THE CURIOUS: The 'asyncore' module in the standard library
 #    is another general select/poll wrapper... so why are we using our
-#    own?  Basically, because asyncore has IMO a couple of misdesigns,
-#    the largest of which is that it has the 'server loop' periodically
-#    query the connections for their status, whereas we have the
-#    connections inform the server of their status whenever they
-#    change.  This latter approach turns out to be far easier to use
-#    with TLS.
+#    own?  Basically, because asyncore has IMO a couple of mismatches
+#    with our design, the largest of which is that it has the 'server
+#    loop' periodically query the connections for their status,
+#    whereas we have the connections inform the server of their status
+#    whenever they change.  This latter approach turns out to be far
+#    easier to use with TLS.
 
 import errno
 import socket
 import select
 import re
-import mixminion._minionlib as _ml
+import time
 from types import StringType
-from mixminion.Common import MixError, MixFatalError, info, warn, error, \
-     log, debug
+
+import mixminion._minionlib as _ml
+from mixminion.Common import MixError, MixFatalError, getLog
 from mixminion.Crypto import sha1
 from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN
 
 __all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
             'MMTPClientConnection' ]
 
-# Suppress trace-debugging
-def trace(x):
-    #log("TRACE", x)
-    pass
+trace = getLog().trace
+info = getLog().info
+debug = getLog().info
+warn = getLog().warn
+error = getLog().error
 
 class AsyncServer:
     """AsyncServer is the core of a general-purpose asynchronous
@@ -75,7 +77,7 @@ class AsyncServer:
                 return
             else:
                 raise e
-        
+
         for fd in readfds:
             trace("Got a read on "+str(fd))
             self.readers[fd].handleRead()
@@ -189,6 +191,7 @@ class SimpleTLSConnection(Connection):
        method is called.
     """
     # Fields:
+    #    lastActivity: the last time when we had a read or a write.
     #    __con: an underlying TLS object
     #    __state: a callback to use whenever we get a read or a write. May
     #           throw _ml.TLSWantRead or _ml.TLSWantWrite.
@@ -342,6 +345,8 @@ class SimpleTLSConnection(Connection):
            reading or writing, or until the current __state becomes
            None.
         """
+        self.lastActivity = time.time()
+        
         try:
             # We have a while loop here so that, upon entering a new
             # state, we immediately see if we can go anywhere with it
@@ -389,10 +394,10 @@ class SimpleTLSConnection(Connection):
     
 #----------------------------------------------------------------------
 # XXXX Need to support future protos.
-PROTOCOL_STRING      = "PROTOCOL 1.0\n"
-PROTOCOL_RE = re.compile("PROTOCOL ([^\s\r\n]+)\n")
-SEND_CONTROL         = "SEND\n" #XXXX Not as in spec
-RECEIVED_CONTROL     = "RECEIVED\n" #XXXX Not as in spec
+PROTOCOL_STRING      = "PROTOCOL 1.0\r\n"
+PROTOCOL_RE = re.compile("PROTOCOL ([^\s\r\n]+)\r\n")
+SEND_CONTROL         = "SEND\r\n" #XXXX Not as in spec
+RECEIVED_CONTROL     = "RECEIVED\r\n" #XXXX Not as in spec
 SEND_CONTROL_LEN     = len(SEND_CONTROL)
 RECEIVED_CONTROL_LEN = len(RECEIVED_CONTROL)
 SEND_RECORD_LEN      = len(SEND_CONTROL) + MESSAGE_LEN + DIGEST_LEN
@@ -471,6 +476,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(0)
         self.keyID = keyID
+        self.ip = ip
         try:
             sock.connect((ip, port))
         except socket.error:
@@ -488,8 +494,14 @@ class MMTPClientConnection(SimpleTLSConnection):
         """Called when we're done with the client side negotations.
            Begins sending the protocol string.
         """
-        peer_pk = self.getPeerPK()
-        # Check this!
+        keyID = sha1(self.getPeerPK().encode_key(public=1))
+        if self.keyID is not None:
+            if keyID != self.keyID:
+                warn("Got unexpected Key ID from %s", self.ip)
+                self.shutdown(err=1)
+            else:
+                debug("KeyID is valid")
+
         self.beginWrite(PROTOCOL_STRING)
         self.finished = self.__sentProtocol
 

@@ -1,93 +1,76 @@
 Legend:
+SPEC!!	- Not specified
+SPEC	- Spec not finalized
 	- Not done
-	* For next checkin
+	* Top priority
 	. Partially done
 	o Done
 
 NEEDS TO BE WRITTEN
 
 FOR 0.1: (The rough edges release)
-	o Make crypt.c read/write stuff in PEM?
-		o (Private keys will be enough)
-		* Test private key read/write in PEM.
-	- Local delivery module
-	- Manager process
-	. Configuration code
+SPEC	- Local delivery module
+	. Configuration code  (Stalled on server info spec)
 		* Design config interface.
 		. Write extended .ini parser
 		. Write validation code
 		- Write unit tests
 		- Write base64/multiline code
 		- Design =configuration= file format.
-	*. Logging/debugging/warning code
-		* Use consistently
-		* Add minseverity
-		* Suppress for testing
-		* Make configurable
-		- Test
-		- Add reset support on sighup
-		- Add close support at exit
-	o Coding style guide
+	*. Logging/debugging/warning code 
+		* Make configurable (Stalled on configuration)
+		- Tests
 	- MMTP		
-		*. Generate DH
-			o C function
-			* Py wrapper
-			* Tests
-			* Invoke as appropriate
-		*. Generate X509/RSA as appropriate
-			o C function
-			* Py wrapper
-			* Tests
-			* Invoke as appropriate
-		. Check Key IDs
-		- Renegotiate connections
-		- Timeouts
+		o Timeouts
+			o Ability to notice how long we've been waiting.
+SPEC			D (The rest must wait for session managment)
 		- Tests for all cases:
 			- Multiple senders
 			- Bad senders
 			- Bad recipients
 			- Hanging connections
 			- Hunt down leaks
-	o More standard __init__.py
+			- Bad KeyID
 	- CLI
-	- Server description blocks
+SPEC	* Server description blocks
 	- Main loop for server
 	- Clean shutdown for server
-	o Reply block format
-	- External reply block format
-	- End-to-end payload encryption, if we ever agree on a spec.
-		- Reading messages sent to reply blocks
+SPEC	- External reply block format
+SPEC	- End-to-end payload encryption, if we ever agree on a spec.
+SPEC		- Reading messages sent to reply blocks
 	- Versioning :)
 
 FOR 0.2: (The first hacker release)
 	- MMTP
-		- Session resumption (security issues?)
+SPEC		- Renegotiate connections
+SPEC		- Session managment and resumption (security issues?)
+SPEC!!		- Timeout old connections
 	- Very clean build process
 	- RPMS
 	- Key management
 	- Test on other (non-redhat, non-linux) systems
 	- Final license
 	- Handle HUPs sensibly
-	- Key rotation
+SPEC!!	- Key rotation
 
 FOR 0.3: (First non-guru release)
-	- Publishing to directory servers
-	- Downloading from directory servers
-	- Path selection
-	- SMTP module
+SPEC	- Publishing to directory servers
+SPEC	- Downloading from directory servers
+SPEC!!	- Path selection
+SPEC!!	- SMTP module
 	- Good user documentation
-	- Directory services
-	- Automated key rotation, server management
+SPEC	- Directory services
+SPEC	- Automated key rotation, server management
 
 WHEN WE GET THE CHANCE:
 	- NSS or GNUTLS or MyCrypt or M2Crypto? (for a GPL-compatible license)
 	- GUI
-	- Session persistence (?)
 	- Multithreaded design to scale to multiple CPUs
 	- Password protection for private keys.
 	- Memlockall wrapper
 	- Generic secure delete
 	- Works on windows, mac
+	- Support for loopback fs automation and shredding.
 
 NEED TO BE TESTED
 - Signals
@@ -98,3 +81,6 @@ NEED TO BE DOCUMENTED
 
 NEEDS TO BE BENCHMARKED
 - TLS for leaks
+- PEM for leaks
+- gen_dh for leaks
+- gen_cert for leaks

@@ -1,0 +1,20 @@
+DIRECTORY: src/
+
+C Source files for Mixminion's cryptography and TLS extension.  Right
+now, all of these depend on OpenSSL 0.9.7.  Once NSS supports
+server-side DHE, I'd like to do a clean port.
+
+If you're not familiar with writing Python extensions, you should read
+"Extending and Embedding the Python Interpreter" at
+"http://www.python.org/doc/current/ext/ext.html".  Please be aware
+that we're trying to keep backward compatibility to Python 2.0,
+however, so compare "http://www.python.org/doc/2.0/ext/ext.html" as well.
+
+main.c: functions to initialize the _minionlib Python extension.
+
+tls.c: wrapper functions to expose a minimal subset of TLS to Python.
+
+crypt.c: wrapper functions to expose cryptographic primitives to Python.
+
+_minionlib.h: Header file.
+
