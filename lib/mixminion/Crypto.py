@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.54 2003/08/25 21:05:34 nickm Exp $
+# $Id: Crypto.py,v 1.55 2003/11/12 04:35:14 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -568,6 +568,7 @@ class RNG:
 
         assert 0 < max < 0x3fffffff
         _ord = ord
+        cutoff = 0x7fffffff - (0x7fffffff % max)
         while 1:
             # Get a random positive int between 0 and 0x7fffffff.
             b = self.getBytes(4)
@@ -577,7 +578,7 @@ class RNG:
                        _ord(b[3]))
             # Retry if we got a value that would fall in an incomplete
             # run of 'max' elements.
-            if 0x7fffffff - max >= o:
+            if o < cutoff:
                 return o % max
 
     def getNormal(self, m, s):
