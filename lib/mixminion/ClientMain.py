@@ -2704,7 +2704,7 @@ Usage: %(cmd)s <-d n|--days=n> [options]
 
 EXAMPLES:
   Remove all pending messages older than one week.
-      %(cmd)s -d 30
+      %(cmd)s -d 7
 """.strip()
 
 def cleanQueue(cmd, args):
