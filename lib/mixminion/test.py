@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.6 2002/06/02 06:11:16 nickm Exp $
+# $Id: test.py,v 1.7 2002/06/24 20:28:19 nickm Exp $
 
 """mixminion.tests
 
@@ -11,8 +11,14 @@
 
    """
 
+__pychecker__ = 'no-funcdoc maxlocals=100'
+
 import os
-from mixminion.Common import MixError
+import sys
+import threading
+import time
+
+from mixminion.Common import MixError, MixFatalError
 
 try:
     import unittest
@@ -38,6 +44,7 @@ def try_unlink(fname):
         pass
 
 def try_unlink_db(fname):
+    '''Try to unlink an anydbm file(s)'''
     for suffix in ("", ".bak", ".dat", ".dir"):
         try_unlink(fname+suffix)
 
@@ -77,9 +84,9 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.assertEquals(xor("\000\000\000a",a), "aaa\000")
         self.assertEquals(a, "aaaa")
 
-        # Check for error msg on XORing strings of unequal length.    
+        # Check for error msg on XORing strings of unequal length.
         self.failUnlessRaises(TypeError, xor, "a", "bb")
-        
+
     def test_aes(self):
         crypt = _ml.aes_ctr128_crypt
 
@@ -89,7 +96,7 @@ class MinionlibCryptoTests(unittest.TestCase):
         expected = hexread("8EDD33D3C621E546455BD8BA1418BEC8")
         self.failUnless(crypt(key, txt, 0) == expected)
         self.failUnless(crypt(key, txt) == expected)
-        
+
         # Now, make sure that the counter implementation is sane.
         self.failUnless(crypt(key, " "*100, 0)[1:] == crypt(key, " "*99, 1))
         self.failUnless(crypt(key, " "*100, 0)[30:] == crypt(key, " "*70, 30))
@@ -129,28 +136,41 @@ class MinionlibCryptoTests(unittest.TestCase):
         _ml.openssl_seed("")
 
     def test_oaep(self):
+        import Crypto
+        _add = Crypto._add_oaep_padding
+        _check = Crypto._check_oaep_padding
+        for add,check in ((_ml.add_oaep_padding, _ml.check_oaep_padding),
+                          (_add, _check)):
+            self.do_test_oaep(add, check)
+
+        self.assertEquals("a",_check(_ml.add_oaep_padding("a", "b", 128),
+                                         "b",128))
+        self.assertEquals("a",_ml.check_oaep_padding(_add("a","b",128),
+                                                         "b",128))
+
+    def do_test_oaep(self, add, check):
         strxor = _ml.strxor
         # Check_oaep inverts add_oaep successfully.
-        x = _ml.add_oaep_padding("A", "B", 128)
+        x = add("A", "B", 128)
 
-        self.assertEquals("A",_ml.check_oaep_padding(x, "B", 128))
+        self.assertEquals("A",check(x, "B", 128))
 
         # 86 bytes can be used with size=128
-        _ml.add_oaep_padding("A"*86, "B",128)
+        add("A"*86, "B",128)
         # But 300 is too much,
-        self.failUnlessRaises(TypeError,
-                              _ml.add_oaep_padding,"A"*300, "B", 128)
+        self.failUnlessRaises(_ml.CryptoError,
+                              add,"A"*300, "B", 128)
         # And so is even 87.
-        self.failUnlessRaises(_ml.SSLError,
-                              _ml.add_oaep_padding,"A"*87, "B", 128)
+        self.failUnlessRaises(_ml.CryptoError,
+                              add,"A"*87, "B", 128)
         # Changing a character at the beginning keeps it from checking.
         ch = strxor(x[0], '\x01')
-        self.failUnlessRaises(_ml.SSLError,
-                              _ml.check_oaep_padding,ch+x[1:],"B",128)
+        self.failUnlessRaises(_ml.CryptoError,
+                              check,ch+x[1:],"B",128)
         # Changing a character at the end keeps it from checking.
         ch = strxor(x[-1], '\x01')
-        self.failUnlessRaises(_ml.SSLError,
-                              _ml.check_oaep_padding,x[:-1]+ch,"B",128)
+        self.failUnlessRaises(_ml.CryptoError,
+                              check,x[:-1]+ch,"B",128)
 
     def test_rsa(self):
         p = _ml.rsa_generate(1024, 65535)
@@ -160,52 +180,52 @@ class MinionlibCryptoTests(unittest.TestCase):
             for enc1 in (0,1):
                 msg = "Now is the time for all anonymous parties"
                 x = _ml.add_oaep_padding(msg, "B", 128)
-                x2 = _ml.rsa_crypt(p, x, pub1, enc1);
+                x2 = p.crypt(x, pub1, enc1);
                 # ...Encryption inverts decryption...
-                x3 = _ml.rsa_crypt(p, x2, [1,0][pub1], [1,0][enc1]);
+                x3 = p.crypt(x2, [1,0][pub1], [1,0][enc1]);
                 self.failUnless(x3 == x)
                 # ...And oaep is preserved.
                 x4 = _ml.check_oaep_padding(x3, "B", 128)
                 self.failUnless(x4 == msg)
 
         # Fail if there is not enough padding
-        self.failUnlessRaises(_ml.SSLError,_ml.rsa_crypt,p,"X",1,1)
+        self.failUnlessRaises(_ml.CryptoError,p.crypt,"X",1,1)
         # Fail if there is too much padding
-        self.failUnlessRaises(_ml.SSLError,_ml.rsa_crypt,p,x+"ZZZ",1,1)
+        self.failUnlessRaises(_ml.CryptoError,p.crypt,x+"ZZZ",1,1)
 
         ####
         # Test key encoding
         padhello = _ml.add_oaep_padding("Hello", "B", 128)
         for public in (0,1):
             #encode(decode(encode(x))) == x.
-            x = _ml.rsa_encode_key(p,public)
+            x = p.encode_key(public)
             p2 = _ml.rsa_decode_key(x,public)
-            x3 = _ml.rsa_encode_key(p2,public)
+            x3 = p2.encode_key(public)
             self.assertEquals(x,x3)
             # decode(encode(x)) encrypts the same as x.
-            self.assertEquals(_ml.rsa_crypt(p,padhello,public,1),
-                              _ml.rsa_crypt(p2,padhello,public,1))
+            self.assertEquals(p.crypt(padhello,public,1),
+                              p2.crypt(padhello,public,1))
 
         # encoding public keys to/from their moduli.
-        self.assertEquals(_ml.rsa_get_modulus_bytes(p),1024/8)
-        n,e = _ml.rsa_get_public_key(p)
+        self.assertEquals(p.get_modulus_bytes(),1024 >> 3)
+        n,e = p.get_public_key()
         p2 = _ml.rsa_make_public_key(n,e)
-        self.assertEquals((n,e), _ml.rsa_get_public_key(p2))
+        self.assertEquals((n,e), p2.get_public_key())
         self.assertEquals(65535,e)
-        self.assertEquals(_ml.rsa_encode_key(p,1), _ml.rsa_encode_key(p,1))
-        
+        self.assertEquals(p.encode_key(1), p.encode_key(1))
+
         # Try private-key ops with public key p3.
-        p3 = _ml.rsa_decode_key(_ml.rsa_encode_key(p,1),1)
-        msg1 = _ml.rsa_crypt(p, padhello, 1,1)
-        msg2 = _ml.rsa_crypt(p, padhello, 1,1)
-        msg3 = _ml.rsa_crypt(p, padhello, 1,1)
-        self.assertEquals(padhello, _ml.rsa_crypt(p,msg1,0,0))
-        self.assertEquals(padhello, _ml.rsa_crypt(p,msg2,0,0))
-        self.assertEquals(padhello, _ml.rsa_crypt(p,msg3,0,0))
-        self.failUnlessRaises(TypeError, _ml.rsa_crypt, p2, msg1, 0, 0)
-        self.failUnlessRaises(TypeError, _ml.rsa_crypt, p3, msg1, 0, 0)
-        self.failUnlessRaises(TypeError, _ml.rsa_encode_key, p2, 0)
-        self.failUnlessRaises(TypeError, _ml.rsa_encode_key, p3, 0)
+        p3 = _ml.rsa_decode_key(p.encode_key(1),1)
+        msg1 = p.crypt(padhello, 1,1)
+        msg2 = p.crypt(padhello, 1,1)
+        msg3 = p.crypt(padhello, 1,1)
+        self.assertEquals(padhello, p.crypt(msg1,0,0))
+        self.assertEquals(padhello, p.crypt(msg2,0,0))
+        self.assertEquals(padhello, p.crypt(msg3,0,0))
+        self.failUnlessRaises(TypeError, p2.crypt, msg1, 0, 0)
+        self.failUnlessRaises(TypeError, p3.crypt, msg1, 0, 0)
+        self.failUnlessRaises(TypeError, p2.encode_key, 0)
+        self.failUnlessRaises(TypeError, p3.encode_key, 0)
 #----------------------------------------------------------------------
 import mixminion.Crypto
 from mixminion.Crypto import *
@@ -234,8 +254,8 @@ class CryptoTests(unittest.TestCase):
         k512 = pk_generate(512)
         k1024 = pk_generate()
 
-        eq(512/8, _ml.rsa_get_modulus_bytes(k512))
-        eq(1024/8, _ml.rsa_get_modulus_bytes(k1024))
+        eq(512>>3, k512.get_modulus_bytes())
+        eq(1024>>3, k1024.get_modulus_bytes())
 
         # Check pk_get_modulus sanity
         self.failUnless((1L<<511) < pk_get_modulus(k512) < (1L<<513))
@@ -256,7 +276,7 @@ class CryptoTests(unittest.TestCase):
 
         # Make sure that CH_OAEP(RSA( )) inverts pk_encrypt.
         eq(msg, _ml.check_oaep_padding(
-                    _ml.rsa_crypt(k512, pk_encrypt(msg,k512), 0, 0),
+                    k512.crypt(pk_encrypt(msg,k512), 0, 0),
                     mixminion.Crypto.OAEP_PARAMETER, 64))
 
         # Make sure we can still encrypt after we've encoded/decoded a
@@ -264,7 +284,7 @@ class CryptoTests(unittest.TestCase):
         encoded = pk_encode_private_key(k512)
         decoded = pk_decode_private_key(encoded)
         eq(msg, pk_decrypt(pk_encrypt(msg, pub512),decoded))
-        
+
     def test_trng(self):
         # Make sure that the true rng is at least superficially ok.
         self.assertNotEquals(trng(40), trng(40))
@@ -290,13 +310,13 @@ class CryptoTests(unittest.TestCase):
         key2 = key1[:-1]+strxor(key1[-1], chr(1))
         key3 = key1[:-1]+strxor(key1[-1], chr(2))
         key4 = key1[:-1]+strxor(key1[-1], chr(3))
-        
+
         left = plain[:20]
         right = plain[20:]
         right = ctr_crypt( right, sha1(key1+left+key1)[:16] )
-        left  = strxor(left, sha1(key2+right+key2)) 
+        left  = strxor(left, sha1(key2+right+key2))
         right = ctr_crypt( right, sha1(key3+left+key3)[:16] )
-        left  = strxor(left, sha1(key4+right+key4)) 
+        left  = strxor(left, sha1(key4+right+key4))
 
         key = (key1,key2,key3,key4)
         self.assertEquals(left+right, lioness_encrypt(plain,key))
@@ -326,6 +346,10 @@ class CryptoTests(unittest.TestCase):
                           PRNG.getBytes(15)+PRNG.getBytes(16000)+
                           PRNG.getBytes(34764)))
 
+        for i in xrange(1,10000,17):
+            self.failUnless(0 <= PRNG.getInt(10) < 10)
+            self.failUnless(0 <= PRNG.getInt(i) < i)
+
 #----------------------------------------------------------------------
 import mixminion.Packet
 from mixminion.Packet import *
@@ -335,7 +359,7 @@ class FormatTests(unittest.TestCase):
         s = Subheader(3,0,"abcdeabcdeabcdef",
                       "ABCDEFGHIJABCDEFGHIJ",
                       1, "Hello")
-        
+
         expected = "\003\000abcdeabcdeabcdef"+\
                    "ABCDEFGHIJABCDEFGHIJ\000\005\000\001Hello"
         # test packing
@@ -424,7 +448,7 @@ class FormatTests(unittest.TestCase):
         self.assert_(msg.payload == m[4096:])
         self.failUnlessRaises(ParseError, parseMessage, m[:-1])
         self.failUnlessRaises(ParseError, parseMessage, m+"x")
-            
+
     def test_ipv4info(self):
         ri = hexread("12F400BCBBE30011223344556677889900112233445566778899")
         inf = parseIPV4Info(ri)
@@ -461,27 +485,27 @@ class FormatTests(unittest.TestCase):
             self.assertEquals(getattr(inf,_key), "no-such-user@wangafu.net")
             self.assertEquals(inf.tag, "xyzzy\x00plover")
             self.assertEquals(inf.pack(), ri)
-        
-        
+
+
 #----------------------------------------------------------------------
 from mixminion.HashLog import HashLog
 
 class HashLogTests(unittest.TestCase):
     def test_hashlog(self):
-        import tempfile, os
+        import tempfile
         fname = tempfile.mktemp(".db")
         try:
             self.hashlogTestImpl(fname)
         finally:
             try_unlink_db(fname)
-        
+
     def hashlogTestImpl(self,fname):
         h = [HashLog(fname, "Xyzzy")]
-        
+
         notseen = lambda hash,self=self,h=h: self.assert_(not h[0].seenHash(hash))
         seen = lambda hash,self=self,h=h: self.assert_(h[0].seenHash(hash))
         log = lambda hash,h=h: h[0].logHash(hash)
-        
+
         notseen("a")
         notseen("a*20")
         notseen("\000"*10)
@@ -496,7 +520,7 @@ class HashLogTests(unittest.TestCase):
         log("b")
         seen("b")
         seen("a")
-        
+
         log("\000")
         seen("\000")
         notseen("\000"*10)
@@ -506,10 +530,10 @@ class HashLogTests(unittest.TestCase):
 
         log("\277"*20)
         seen("\277"*20)
-        
+
         log("abcdef"*4)
         seen("abcdef"*4)
-        
+
         h[0].close()
         h[0] = HashLog(fname, "Xyzzy")
         seen("a")
@@ -524,7 +548,7 @@ class HashLogTests(unittest.TestCase):
         notseen("ddddd")
         log("ddddd")
         seen("ddddd")
-        
+
         h[0].close()
         h[0] = HashLog(fname, "Xyzzy")
         seen("ddddd")
@@ -532,22 +556,17 @@ class HashLogTests(unittest.TestCase):
         h[0].close()
 
 #----------------------------------------------------------------------
-import mixminion.BuildMessage
+import mixminion.BuildMessage as BuildMessage
 from mixminion.Modules import *
 
 class FakePRNG:
     def getBytes(self,n):
         return "\x00"*n
 
-class _BMTSupport:
-    def __init__(self):
-        # We do this trick to keep from re-generating the keypairs
-        # for every message test.
-        self.pk1 = pk_generate()
-        self.pk2 = pk_generate()
-        self.pk3 = pk_generate()
-
-BMTSupport = _BMTSupport()
+class BMTSupport:
+    pk1 = pk_generate()
+    pk2 = pk_generate()
+    pk3 = pk_generate()
 
 from mixminion.ServerInfo import ServerInfo
 
@@ -561,10 +580,10 @@ class BuildMessageTests(unittest.TestCase):
         n_3 = pk_get_modulus(self.pk3)
         self.server1 = ServerInfo("127.0.0.1", 1, n_1, "X"*20)
         self.server2 = ServerInfo("127.0.0.2", 3, n_2, "Z"*20)
-        self.server3 = ServerInfo("127.0.0.3", 5, n_3, "Q"*20)        
+        self.server3 = ServerInfo("127.0.0.3", 5, n_3, "Q"*20)
 
     def test_buildheader_1hop(self):
-        bhead = mixminion.BuildMessage._buildHeader
+        bhead = BuildMessage._buildHeader
 
         head = bhead([self.server1], ["9"*16], 99, "Hi mom", AESCounterPRNG())
         self.do_header_test(head,
@@ -574,10 +593,10 @@ class BuildMessageTests(unittest.TestCase):
                             ("Hi mom",))
 
     def test_buildheader_2hops(self):
-        bhead = mixminion.BuildMessage._buildHeader
+        bhead = BuildMessage._buildHeader
         # 2 hops
         head = bhead([self.server1, self.server2],
-                     ["9"*16, "1"*16], 99, "Hi mom", AESCounterPRNG()) 
+                     ["9"*16, "1"*16], 99, "Hi mom", AESCounterPRNG())
 
         ipv4 = mixminion.Packet.IPV4Info
         self.do_header_test(head,
@@ -586,9 +605,9 @@ class BuildMessageTests(unittest.TestCase):
                             (FWD_TYPE, 99),
                             (ipv4("127.0.0.2",3,"Z"*20).pack(),
                              "Hi mom"))
-                            
+
     def test_buildheader_3hops(self):
-        bhead = mixminion.BuildMessage._buildHeader
+        bhead = BuildMessage._buildHeader
         # 3 hops
         secrets = ["9"*16, "1"*16, "z"*16]
         head = bhead([self.server1, self.server2, self.server3], secrets,
@@ -628,7 +647,7 @@ class BuildMessageTests(unittest.TestCase):
                 retsecrets.append(secret)
             self.assertEquals(subh.major, mixminion.Packet.MAJOR_NO)
             self.assertEquals(subh.minor, mixminion.Packet.MINOR_NO)
-            
+
             self.assertEquals(subh.digest, sha1(head[128:]))
             self.assertEquals(subh.routingtype, rt)
             ks = Keyset(secret)
@@ -662,7 +681,7 @@ class BuildMessageTests(unittest.TestCase):
             return retsecrets
 
     def test_extended_routinginfo(self):
-        bhead = mixminion.BuildMessage._buildHeader
+        bhead = BuildMessage._buildHeader
 
         secrets = ["9"*16 ]
         longStr = "Foo"*50
@@ -697,23 +716,23 @@ class BuildMessageTests(unittest.TestCase):
                               AESCounterPRNG())
 
     def test_constructmessage(self):
-        consMsg = mixminion.BuildMessage._constructMessage
-        
-        h1 = "abcdefgh"*(2048/8)
-        h2 = "aBcDeFgH"*(2048/8)
+        consMsg = BuildMessage._constructMessage
+
+        h1 = "abcdefgh"*(2048 >> 3)
+        h2 = "aBcDeFgH"*(2048 >> 3)
 
         ######
         ### non-reply case
-        secrets1 = [ x * 16 for x in "sqmsh"]
-        secrets2 = [ x * 16 for x in "osfrg"]
+        secrets1 = [ x * 16 for x in ("s","q","m","s","h")]
+        secrets2 = [ x * 16 for x in ("o","s","f","r","g")]
         pld = """
            Everyone has the right to freedom of opinion and expression; this
            right includes freedom to hold opinions without interference and
            to seek, receive and impart information and ideas through any
-           media and regardless of frontiers. 
+           media and regardless of frontiers.
            """
         pld += "\000"*(28*1024-len(pld))
-        
+
         message = consMsg(secrets1, secrets2, h1, h2, pld)
 
         self.assertEquals(len(message), mixminion.Packet.MESSAGE_LEN)
@@ -789,11 +808,11 @@ class BuildMessageTests(unittest.TestCase):
         # ???? Need to do something about size encoding.
         self.assertEquals(payload, p[:len(payload)])
 
-        
+
     def test_build_fwd_message(self):
-        bfm = mixminion.BuildMessage.buildForwardMessage
+        bfm = BuildMessage.buildForwardMessage
         payload = "Hello"
-        
+
         m = bfm(payload, 99, "Goodbye",
                 [self.server1, self.server2],
                 [self.server3, self.server2])
@@ -823,9 +842,9 @@ class BuildMessageTests(unittest.TestCase):
                              "Hello" )
 
     def test_buildreply(self):
-        brb = mixminion.BuildMessage.buildReplyBlock
-        bsrb = mixminion.BuildMessage.buildStatelessReplyBlock
-        brm = mixminion.BuildMessage.buildReplyMessage
+        brb = BuildMessage.buildReplyBlock
+        bsrb = BuildMessage.buildStatelessReplyBlock
+        brm = BuildMessage.buildReplyMessage
 
         ## Stateful reply blocks.
         reply, secrets = \
@@ -840,7 +859,7 @@ class BuildMessageTests(unittest.TestCase):
                  self.server3.getRoutingInfo().pack())
 
         self.assert_(reply.addr == self.server3)
-                
+
         m = brm("Information?",
                 [self.server3, self.server1],
                 reply)
@@ -856,7 +875,7 @@ class BuildMessageTests(unittest.TestCase):
                                SMTPInfo("no-such-user@invalid",None).pack(),
                                )),
                              "Information?")
-                                   
+
         ## Stateless replies
         reply = bsrb([ self.server3, self.server1, self.server2,
                        self.server1, self.server3 ],
@@ -869,7 +888,7 @@ class BuildMessageTests(unittest.TestCase):
         self.assert_(loc.startswith(s))
         seed = ctr_crypt(loc[len(s):], "Galaxy Far Away.")
         prng = AESCounterPRNG(seed)
-        self.assert_(sec == [ prng.getBytes(16) for i in range(5)])
+        self.assert_(sec == [ prng.getBytes(16) for _ in range(5)])
 
         ## Stateless reply, no user key (trusted server)
         reply = bsrb([ self.server3, self.server1, self.server2,
@@ -881,8 +900,8 @@ class BuildMessageTests(unittest.TestCase):
         self.assert_(loc.startswith(s))
         seed = loc[len(s):]
         prng = AESCounterPRNG(seed)
-        self.assert_(sec == [ prng.getBytes(16) for i in range(5)])
-            
+        self.assert_(sec == [ prng.getBytes(16) for _ in range(5)])
+
 #----------------------------------------------------------------------
 # Having tested BuildMessage without using PacketHandler, we can now use
 # BuildMessage to see whether PacketHandler is doing the right thing.
@@ -941,7 +960,7 @@ class PacketHandlerTests(unittest.TestCase):
                 break
 
     def test_successful(self):
-        bfm = mixminion.BuildMessage.buildForwardMessage
+        bfm = BuildMessage.buildForwardMessage
         # A two-hop/one-hop message.
         p = "Now is the time for all good men to come to the aid"
         m = bfm(p, SMTP_TYPE, "nobody@invalid",
@@ -957,7 +976,7 @@ class PacketHandlerTests(unittest.TestCase):
 
         # A one-hop/one-hop message.
         m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
-                
+
         self.do_test_chain(m,
                            [self.sp1,self.sp3],
                            [FWD_TYPE, SMTP_TYPE],
@@ -977,7 +996,7 @@ class PacketHandlerTests(unittest.TestCase):
             m = bfm(p, SMTP_TYPE, longemail,
                     [self.server1, self.server2, self.server1],
                     [self.server3, self.server1, self.server2])
-            
+
             self.do_test_chain(m,
                                [self.sp1,self.sp2,self.sp1,
                                 self.sp3,self.sp1,self.sp2],
@@ -992,9 +1011,9 @@ class PacketHandlerTests(unittest.TestCase):
                                p)
 
     def test_rejected(self):
-        bfm = mixminion.BuildMessage.buildForwardMessage
-        brm = mixminion.BuildMessage.buildReplyMessage
-        brb = mixminion.BuildMessage.buildReplyBlock
+        bfm = BuildMessage.buildForwardMessage
+        brm = BuildMessage.buildReplyMessage
+        brb = BuildMessage.buildReplyBlock
         from mixminion.PacketHandler import ContentError
 
         # A long intermediate header needs to fail.
@@ -1002,12 +1021,12 @@ class PacketHandlerTests(unittest.TestCase):
         class _packable:
             def pack(self): return "x"*200
         server1X.getRoutingInfo = lambda _packable=_packable : _packable()
-        
+
         m = bfm("Z", LOCAL_TYPE, "hello\000bye",
                 [self.server2, server1X, self.server3],
                 [server1X, self.server2, self.server3])
         self.failUnlessRaises(ContentError, self.sp2.processMessage, m)
-        
+
         # Duplicate messages need to fail.
         m = bfm("Z", SMTP_TYPE, "nobody@invalid",
                 [self.server1, self.server2], [self.server3])
@@ -1043,12 +1062,12 @@ class PacketHandlerTests(unittest.TestCase):
 
         # Wrong server.
         m = bfm("Z", DROP_TYPE, "", [self.server1], [self.server2])
-        self.failUnlessRaises(SSLError, self.sp2.processMessage, m)
-        self.failUnlessRaises(SSLError, self.sp2_3.processMessage, m)
+        self.failUnlessRaises(CryptoError, self.sp2.processMessage, m)
+        self.failUnlessRaises(CryptoError, self.sp2_3.processMessage, m)
 
         # Plain junk in header
         m_x = ("XY"*64)+m[128:]
-        self.failUnlessRaises(SSLError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(CryptoError, self.sp1.processMessage, m_x)
 
         # Bad message length
         m_x = m+"Z"
@@ -1075,7 +1094,7 @@ class PacketHandlerTests(unittest.TestCase):
         subh.setRoutingInfo("X"*100)
         m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
-        
+
         # Subhead that claims to be impossibly long: exit case
         subh = parseSubheader(subh_real)
         subh.routingtype = LOCAL_TYPE
@@ -1088,7 +1107,7 @@ class PacketHandlerTests(unittest.TestCase):
         subh.major = 255
         m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
-        
+
         # Bad digest
         subh = parseSubheader(subh_real)
         subh.digest = " "*20
@@ -1102,8 +1121,223 @@ class PacketHandlerTests(unittest.TestCase):
         assert len(m_x) == len(m)
         q, (a, m_x) = self.sp1.processMessage(m_x)
         q, (a, m_x) = self.sp2.processMessage(m_x)
-        self.failUnlessRaises(SSLError, self.sp3.processMessage, m_x)
+        self.failUnlessRaises(CryptoError, self.sp3.processMessage, m_x)
 
+#----------------------------------------------------------------------
+# QUEUE
+
+import stat
+from mixminion.Common import waitForChildren
+from mixminion.Queue import Queue
+
+already = 0
+
+class QueueTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile 
+        mixminion.Common.installSignalHandlers(child=1,hup=0,term=0)
+        self.d1 = tempfile.mktemp("q1")
+        self.d2 = tempfile.mktemp("q2")
+        
+    def tearDown(self):
+        # First, wait until all the removes have finished.
+        waitForChildren()
+        
+        for d in (self.d1, self.d2):
+            if os.path.isdir(d):
+                for fn in os.listdir(d):
+                    os.unlink(os.path.join(d,fn))
+                os.rmdir(d)
+            elif os.path.exists(d):
+                os.unlink(d)
+
+    def testCreateQueue(self):
+        # Nonexistant dir.
+        self.failUnlessRaises(MixFatalError, Queue, self.d1)
+        # File in place of dir
+        f = open(self.d1, 'w')
+        f.write("   ")
+        f.close()
+        self.failUnlessRaises(MixFatalError, Queue, self.d1)
+        self.failUnlessRaises(MixFatalError, Queue, self.d1, create=1)
+        os.unlink(self.d1)
+
+        # Try to create
+        queue = Queue(self.d1, create=1)
+        self.failUnless(os.path.isdir(self.d1))
+        self.assertEquals(0700, os.stat(self.d1)[stat.ST_MODE] & 0777)
+        self.assertEquals(0, len(os.listdir(self.d1)))
+        queue.queueMessage("Hello world 1")
+        h2 = queue.queueMessage("Hello world 2")
+        self.assertEquals(2, len(os.listdir(self.d1)))
+        self.assertEquals(2, queue.count())
+
+        # Make sure recreate doesn't bonk
+        queue = Queue(self.d1, create=1)
+
+        # Use a queue we haven't just made.
+        queue = Queue(self.d1)
+        self.assertEquals(2, queue.count())
+        self.assertEquals(queue.messageContents(h2), "Hello world 2")
+        queue.removeMessage(h2)
+        self.assertEquals(1, queue.count())
+
+        queue.removeAll()
+
+    def testQueueOps(self):
+        #XXXX COMMENT ME
+        queue1 = Queue(self.d1, create=1)
+        queue2 = Queue(self.d2, create=1)
+
+        handles = [ queue1.queueMessage("Sample message %s" % i)
+                    for i in range(100) ]
+        hdict = {}
+        for i in range(100): hdict[handles[i]] = i
+        self.assertEquals(queue1.count(), 100)
+        self.assertEquals(len(handles), 100)
+
+        foundHandles = queue1.pickRandom(100)
+        self.assertEquals(len(foundHandles), 100)
+        for h in foundHandles:
+            self.failUnless(hdict.has_key(h))
+            i = hdict[h]
+            self.assertEquals("Sample message %s" %i,
+                              queue1.messageContents(h))
+
+        assert len(hdict) == len(handles) == 100     
+
+        q2h = []
+        for h in handles[:30]:
+            q2h.append( queue1.moveMessage(h, queue2) )
+
+        from string import atoi
+        seen = {}
+        for h in queue2.pickRandom(30):
+            c = queue2.messageContents(h)
+            self.failUnless(c.startswith("Sample message "))
+            i = atoi(c[15:])
+            self.failIf(seen.has_key(i))
+            seen[i]=1
+        for i in range(30):
+            self.failUnless(seen.has_key(i))
+
+        for h in handles[30:60]:
+            queue1.removeMessage(h)
+
+        self.assertEquals(40, queue1.count())
+        L1 = queue1.pickRandom(10)
+        L2 = queue1.pickRandom(10)
+        self.failUnless(len(L1) == 10)
+        self.failUnless(len(L2) == 10)
+        self.failUnless(L1 != L2)
+
+        f = queue1.openMessage(handles[60])
+        s = f.read()
+        f.close()
+        self.assertEquals(s, "Sample message 60")
+
+        f, h = queue1.openNewMessage()
+        f.write("z"*100)
+        self.failUnlessRaises(IOError, queue1.messageContents, h)
+        self.assertEquals(queue1.count(), 40)
+        queue1.finishMessage(f,h)
+        self.assertEquals(queue1.messageContents(h), "z"*100)
+        self.assertEquals(queue1.count(), 41)
+
+        f, h = queue1.openNewMessage()
+        f.write("z"*100)
+        queue1.abortMessage(f,h)
+        self.failUnlessRaises(IOError, queue1.messageContents, h)
+        self.assertEquals(queue1.count(), 41)
+        self.assert_(not os.path.exists(os.path.join(self.d1, "msg_"+h)))
+
+        queue1.removeAll()
+        queue2.removeAll()
+
+#----------------------------------------------------------------------
+# SIGHANDLERS
+# XXXX
+
+#----------------------------------------------------------------------
+# MMTP
+
+import mixminion.MMTPServer
+import mixminion.MMTPClient
+
+TEST_PORT = 40102
+
+def _getTLSContext(isServer):
+    if isServer:
+        d = "/home/nickm/src/ssl_sandbox/"
+        for f in (d+"server.cert",d+"server.pk",d+"dh"):
+            assert os.path.exists(f)
+        #XXXX Generate these if they don't exist; look in a saner place.
+        return _ml.TLSContext_new(d+"server.cert",d+"server.pk",d+"dh")
+    else:
+        return _ml.TLSContext_new()
+
+def _getMMTPServer():
+        server = mixminion.MMTPServer.AsyncServer()
+        messagesIn = []
+        def receivedHook(pkt,m=messagesIn):
+            m.append(pkt)
+        def conFactory(sock, context=_getTLSContext(1),
+                       receiveMessage=receivedHook):
+            tls = context.sock(sock)
+            sock.setblocking(0)
+            return mixminion.MMTPServer.MMTPServerConnection(sock,tls,
+                                                             receiveMessage)
+        listener = mixminion.MMTPServer.ListenConnection("127.0.0.1",
+                                                     TEST_PORT, 5, conFactory)
+        listener.register(server)
+        return server, listener, messagesIn
+
+class MMTPTests(unittest.TestCase):
+    def testBlockingTransmission(self):
+        server, listener, messagesIn = _getMMTPServer() 
+        messages = [ "helloxxx"*4096, "helloyyy"*4096 ]
+
+        server.process(0.1)
+        t = threading.Thread(None,
+                             mixminion.MMTPClient.sendMessages,
+                             args=("127.0.0.1", TEST_PORT, None, messages))
+        t.start()
+        while len(messagesIn) < 2:
+            server.process(0.1)
+        t.join()
+        self.failUnless(messagesIn == messages)
+        # Shutdown properly on failure. XXXX
+        listener.shutdown()
+        server.process(0.1)
+            
+    def testNonblockingTransmission(self):
+        server, listener, messagesIn = _getMMTPServer() 
+
+        messages = [ "helloxxx"*4096, "helloyyy"*4096 ]
+        async = mixminion.MMTPServer.AsyncServer()
+        clientcon = mixminion.MMTPServer.MMTPClientConnection(
+            _getTLSContext(0), "127.0.0.1", TEST_PORT, None, messages[:], None)
+        clientcon.register(async)
+        def clientThread(clientcon=clientcon, async=async):
+            while not clientcon.isShutdown():
+                async.process(2)
+            
+        server.process(0.1)
+        t = threading.Thread(None, clientThread)
+        
+        t.start()
+        while len(messagesIn) < 2:
+            server.process(0.1)
+        while t.isAlive():
+            server.process(0.1)
+        t.join()
+
+        self.assertEquals(len(messagesIn), len(messages))
+        self.failUnless(messagesIn == messages)
+        # Shutdown properly on failure. XXXX
+        listener.shutdown()
+        server.process(0.1)
+        
 #----------------------------------------------------------------------
 
 def testSuite():
@@ -1116,6 +1350,12 @@ def testSuite():
     suite.addTest(tc(HashLogTests))
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))
+    suite.addTest(tc(QueueTests))
+
+    # XXXX This test won't work for anybody but me until I get DH/keygen
+    # XXXX working happily. -NM
+    if os.path.exists("/home/nickm/src/ssl_sandbox/dh"):
+        suite.addTest(tc(MMTPTests))
     return suite
 
 def testAll():

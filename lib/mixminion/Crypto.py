@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.6 2002/06/02 06:11:16 nickm Exp $
+# $Id: Crypto.py,v 1.7 2002/06/24 20:28:19 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -8,61 +8,54 @@
    the functions in mixminion.Crypto, and not call _minionlib's crypto
    functionality themselves."""
 
-import sys
 import mixminion._minionlib as _ml
+from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv
 
-__all__ = [ 'SSLError',
-            'init_crypto', 'sha1',  'ctr_crypt', 'prng', 'strxor',
-            'lioness_encrypt', 'lioness_decrypt', 'trng', 'pk_encrypt',
-            'pk_decrypt', 'pk_generate', 'openssl_seed',
+__all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
+            'strxor', 'lioness_encrypt', 'lioness_decrypt', 'trng',
+            'pk_encrypt', 'pk_decrypt', 'pk_generate', 'openssl_seed',
             'pk_get_modulus', 'pk_from_modulus',
             'pk_encode_private_key', 'pk_decode_private_key',
-            'Keyset', 'AESCounterPRNG',
-            'HEADER_SECRET_MODE', 'PRNG_MODE', 'RANDOM_JUNK_MODE',
-            'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
-            'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
+            'Keyset', 'AESCounterPRNG', 'HEADER_SECRET_MODE',
+            'PRNG_MODE', 'RANDOM_JUNK_MODE', 'HEADER_ENCRYPT_MODE',
+            'APPLICATION_KEY_MODE', 'PAYLOAD_ENCRYPT_MODE',
+            'HIDE_HEADER_MODE' ]
 
-SSLError = _ml.SSLError
+CryptoError = _ml.CryptoError
 
-AES_KEY_LEN = 128/8
-DIGEST_LEN = 160/8
+# Number of bytes in an AES key.
+AES_KEY_LEN = 128 >> 3
+# Number of bytes in a SHA1 digest
+DIGEST_LEN = 160 >> 3
 
 def init_crypto():
-    """init_crypto()
-
-       Initialize the crypto subsystem."""
+    """Initialize the crypto subsystem."""
     try:
         # Try to read /dev/urandom.
-        seed = trng(1)
+        trng(1)
     except:
-        print "Couldn't initialize entropy source (/dev/urandom).  Bailing..."
-        sys.exit(1)
+        raise MixFatalError("Couldn't initialize entropy source "
+                            "(/dev/urandom)")
     openssl_seed(40)
 
 def sha1(s):
-    """sha1(s) -> str
-
-    Returns the SHA1 hash of its argument"""
+    """Return the SHA1 hash of its argument"""
     return _ml.sha1(s)
 
 def strxor(s1, s2):
-    """strxor(s1, s2) -> str
-
-    Computes the bitwise xor of two strings.  Raises an exception if the
-    strings' lengths are unequal."""
+    """Computes the bitwise xor of two strings.  Raises an exception if the
+       strings' lengths are unequal.
+    """
     return _ml.strxor(s1, s2)
 
 def aes_key(key):
-    """aes_key(key) ->  aes_key
-
-       Returns an opaque precomputation of the 16-byte AES key, key."""
+    """Returns an opaque precomputation of the 16-byte AES key, key."""
     return _ml.aes_key(key)
 
 def ctr_crypt(s, key, idx=0):
-    """ctr_crypt(s, key, idx=0) -> str
-
-       Given a string s and a 16-byte key key, computes the AES counter-mode
-       encryption of s using k.  The counter begins at idx."""
+    """Given a string s and a 16-byte key key, computes the AES counter-mode
+       encryption of s using k.  The counter begins at idx.
+    """
     if type(key) == type(""):
         key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,s,idx)
@@ -73,14 +66,11 @@ def prng(key,count,idx=0):
         key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,"",idx,count)
 
-def lioness_encrypt(s,key):
-    """lioness_encrypt(s, (key1,key2,key3,key4)) -> str
+def lioness_encrypt(s,(key1,key2,key3,key4)):
+    """Given a 16-byte key2 and key4, and a 20-byte key1 and key3, encrypts
+       s using the LIONESS super-pseudorandom permutation.
+    """
 
-    Given a 16-byte key2 and key4, and a 20-byte key1 and key3, encrypts
-    s using the LIONESS super-pseudorandom permutation."""
-
-    assert len(key) == 4
-    key1,key2,key3,key4 = key
     assert len(key1)==len(key3)==DIGEST_LEN
     assert len(key2)==len(key4)==DIGEST_LEN
     assert len(s) > DIGEST_LEN
@@ -97,14 +87,11 @@ def lioness_encrypt(s,key):
     left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
     return left + right
 
-def lioness_decrypt(s,key):
-    """lioness_encrypt(s, (key1,key2,key3,key4)) -> str
+def lioness_decrypt(s,(key1,key2,key3,key4)):
+    """Given a 16-byte key2 and key4, and a 20-byte key1 and key3, decrypts
+       s using the LIONESS super-pseudorandom permutation.
+    """
 
-    Given a 16-byte key2 and key4, and a 20-byte key1 and key3, decrypts
-    s using the LIONESS super-pseudorandom permutation."""
-
-    assert len(key) == 4
-    key1,key2,key3,key4 = key
     assert len(key1)==len(key3)==DIGEST_LEN
     assert len(key2)==len(key4)==DIGEST_LEN
     assert len(s) > DIGEST_LEN
@@ -119,65 +106,56 @@ def lioness_decrypt(s,key):
     return left + right
 
 def openssl_seed(count):
-    """openssl_seed(count)
-
-       Seeds the openssl rng with 'count' bytes of real entropy."""
+    """Seeds the openssl rng with 'count' bytes of real entropy."""
     _ml.openssl_seed(trng(count))
 
 def trng(count):
-    """trng(count) -> str
-
-    Returns (count) bytes of true random data from a true source of
-    entropy (/dev/urandom).  May read ahead and cache values."""
+    """Returns (count) bytes of true random data from a true source of
+       entropy (/dev/urandom).  May read ahead and cache values.
+    """
     return _theTrueRNG.getBytes(count)
 
+# Specified in the Mixminion spec.
 OAEP_PARAMETER = "He who would make his own liberty secure, "+\
                  "must guard even his enemy from oppression."
 
 def pk_encrypt(data,key):
-    """pk_encrypt(data,key)->str
-
-    Returns the RSA encryption of OAEP-padded data, using the public key in\n
-    key"""
-    bytes = _ml.rsa_get_modulus_bytes(key)
-    data = _ml.add_oaep_padding(data,OAEP_PARAMETER,bytes)
+    """Returns the RSA encryption of OAEP-padded data, using the public key
+       in key.
+    """
+    bytes = key.get_modulus_bytes()
+    data = add_oaep(data,OAEP_PARAMETER,bytes)
     # public key encrypt
-    return _ml.rsa_crypt(key, data, 1, 1)
+    return key.crypt(data, 1, 1)
 
 def pk_decrypt(data,key):
-    """pk_decrypt(data,key)->str
-
-    Returns the unpadded RSA decryption of data, using the private key in\n
-    key"""
-    bytes = _ml.rsa_get_modulus_bytes(key)
+    """Returns the unpadded RSA decryption of data, using the private key in\n
+       key
+    """
+    bytes = key.get_modulus_bytes()
     # private key decrypt
-    data = _ml.rsa_crypt(key, data, 0, 0)
-    return  _ml.check_oaep_padding(data,OAEP_PARAMETER,bytes)
+    data = key.crypt(data, 0, 0)
+    return check_oaep(data,OAEP_PARAMETER,bytes)
 
 def pk_generate(bits=1024,e=65535):
-    """pk_generate(bits=1024, e=65535) -> rsa
-
-       Generate a new RSA keypair with 'bits' bits and exponent 'e'.  It is
-       safe to use the default value of 'e'."""
+    """Generate a new RSA keypair with 'bits' bits and exponent 'e'.  It is
+       safe to use the default value of 'e'.
+    """
     return _ml.rsa_generate(bits,e)
 
 def pk_get_modulus(key):
-    """pk_get_modulus(rsa)->long
-
-       Extracts the modulus of a public key."""
-    return _ml.rsa_get_public_key(key)[0]
+    """Extracts the modulus of a public key."""
+    return key.get_public_key()[0]
 
 def pk_from_modulus(n, e=65535L):
-    """pk_from_modulus(rsa,e=65535L)->rsa
-
-       Given a modulus and exponent, creates an RSA public key."""
+    """Given a modulus and exponent, creates an RSA public key."""
     return _ml.rsa_make_public_key(long(n),long(e))
 
 def pk_encode_private_key(key):
     """pk_encode_private_key(rsa)->str
 
        Creates an ASN1 representation of a keypair for external storage."""
-    return _ml.rsa_encode_key(key,0)
+    return key.encode_key(0)
 
 def pk_decode_private_key(s):
     """pk_encode_private_key(str)->rsa
@@ -186,59 +164,172 @@ def pk_decode_private_key(s):
     return _ml.rsa_decode_key(s,0)
 
 #----------------------------------------------------------------------
+# OAEP Functionality
+#
+# OpenSSL already has OAEP builtin.  When/if we port to libgcrypt, however,
+# we'll have to do OAEP ourselves.
+#
+# Note: OAEP is secure when used as in RSA-OAEP, but not in the general
+# case.  See [1] for an overview on OAEP's security properties.  RSA-OAEP,
+# as implemented here, is described in [2].
+#
+# [1] http://lists.w3.org/Archives/Public/xml-encryption/2001Jun/0072.html
+# [2] RSAES-OAEP Encryption Scheme: Algorithm specification and supporting
+#     documentation.  (Downloadable from
+#       ftp://ftp.rsasecurity.com/pub/rsalabs/rsa_algorithm/rsa-oaep_spec.pdf)
 
+def _oaep_mgf(seed, bytes):
+    ''' Mask generation function specified for RAESA-OAEP.  Given a seed
+        and a number of bytes, generates a mask for OAEP by computing
+        sha1(seed + "\x00\x00\x00\x00")+sha1(seed+"\x00\x00\x00\x01)+...
+
+        The mask is truncated to the specified length.
+
+        LIMITATION: This implementation can only generate 5120 bytes of
+        key material.'''
+
+    assert bytes <= 5120
+    padding = []
+    nHashes = ceilDiv(bytes, DIGEST_LEN)
+    #assert (nHashes-1)*DIGEST_LEN <= bytes <= nHashes*DIGEST_LEN
+    padding = [ _ml.sha1("%s\x00\x00\x00%c"%(seed,i)) for i in range(nHashes) ]
+    padding = "".join(padding)
+    return padding[:bytes]
+
+def _add_oaep_padding(data, p, bytes, rng=None):
+    '''Add oaep padding suitable for a 'bytes'-byte key, using 'p' as a
+       security parameter and 'rng' as a random number generator.
+
+       If rng is None, uses the general purpose RNG.  The parameter may
+       be any length.  len(data) must be <= bytes-42.  '''
+    if rng==None:
+        rng=getCommonPRNG()
+    bytes = bytes-1
+    mLen = len(data)
+    paddingLen = bytes-mLen-2*DIGEST_LEN-1
+    if paddingLen < 0:
+        raise CryptoError("Message too long")
+    db = "%s%s\x01%s" %(sha1(p),"\x00"*paddingLen,data)
+    seed = rng.getBytes(DIGEST_LEN)
+    maskedDB = _ml.strxor(db, _oaep_mgf(seed, bytes-DIGEST_LEN))
+    maskedSeed = _ml.strxor(seed, _oaep_mgf(maskedDB, DIGEST_LEN))
+    return '\x00%s%s'%(maskedSeed, maskedDB)
+
+def _check_oaep_padding(data, p, bytes):
+    '''Checks the OAEP padding on a 'bytes'-byte string.'''
+    if len(data) != bytes:
+        raise CryptoError("Decoding error")
+
+    # This test (though required in the OAEP spec) is extraneous here.
+    #if len(data) < 2*DIGEST_LEN+1:
+    #    raise CryptoError("Decoding error")
+    
+    if data[0]!= '\x00':
+        raise CryptoError("Decoding error")
+    maskedSeed, maskedDB = data[1:DIGEST_LEN+1], data[DIGEST_LEN+1:]
+    seed = _ml.strxor(maskedSeed, _oaep_mgf(maskedDB, DIGEST_LEN))
+    db = _ml.strxor(maskedDB, _oaep_mgf(seed, len(maskedDB)))
+    m = None
+
+    if db[:DIGEST_LEN] != _ml.sha1(p):
+        raise CryptoError("Decoding error")
+
+    for i in xrange(DIGEST_LEN,len(db)):
+        if db[i] == '\x01':
+            m = db[i+1:]
+            break
+        elif db[i] == '\x00':
+            pass
+        else:
+            raise CryptoError("Decoding error")
+    if m == None:
+        raise CryptoError("Decoding error")
+    return m
+
+# Use the fastest implementaiton of OAEP we have.
+if hasattr(_ml, 'check_oaep_padding'):
+    check_oaep = _ml.check_oaep_padding
+    add_oaep = _ml.add_oaep_padding
+else:
+    check_oaep = _check_oaep_padding
+    add_oaep = _add_oaep_padding
+
+#----------------------------------------------------------------------
+# Key generation mode strings, as given in the Mixminion spec.
+
+# Used to AES-encrypt the current header
 HEADER_SECRET_MODE = "HEADER SECRET KEY"
+
+# Used to pad the header
 PRNG_MODE = RANDOM_JUNK_MODE = "RANDOM JUNK"
+
+# Used to LIONESS-encrypt the off header
 HEADER_ENCRYPT_MODE = "HEADER ENCRYPT"
+
+# Used to LIONESS-encrypt the payload
 PAYLOAD_ENCRYPT_MODE = "PAYLOAD ENCRYPT"
+
+# Used to LIONESS-encrypt the header at the swap point.
 HIDE_HEADER_MODE = "HIDE HEADER"
+
+# Used to remember whether we've seen a secret before
 REPLAY_PREVENTION_MODE = "REPLAY PREVENTION"
+
+# Passed to the delivery module
 APPLICATION_KEY_MODE = "APPLICATION KEY"
+
+#----------------------------------------------------------------------
+# Key generation
 
 class Keyset:
     """A Keyset represents a set of keys generated from a single master
        secret."""
+    # Fields:  master-- the master secret.
     def __init__(self, master):
-        """Keyset(master)
-
-           Creates a new keyset from a given master secret."""
+        """Creates a new keyset from a given master secret."""
         self.master = master
     def get(self, mode, bytes=AES_KEY_LEN):
-        """ks.get(mode, bytes=AES_KEY_LEN)
-
-           Creates a new key from the master secret, using the first <bytes>
+        """Creates a new key from the master secret, using the first <bytes>
            bytes of SHA1(master||mode)."""
         assert 0<bytes<=DIGEST_LEN
         return sha1(self.master+mode)[:bytes]
     def getLionessKeys(self, mode):
-        """ks.getLionessKeys(mode)
-
-           Returns a set of 4 lioness keys, as described in the Mixminion
+        """Returns a set of 4 lioness keys, as described in the Mixminion
            specification."""
         z19="\x00"*19
         key1 = sha1(self.master+mode)
         key2 = _ml.strxor(sha1(self.master+mode), z19+"\x01")
         key3 = _ml.strxor(sha1(self.master+mode), z19+"\x02")
         key4 = _ml.strxor(sha1(self.master+mode), z19+"\x03")
-        
+
         return (key1, key2, key3, key4)
 
 def lioness_keys_from_payload(payload):
+    '''Given a payload, returns the LIONESS keys to encrypt the off-header
+       at the swap point.''' 
+    
     # XXXX Temporary method till George and I agree on a key schedule.
     digest = sha1(payload)
     return Keyset(digest).getLionessKeys(HIDE_HEADER_MODE)
 
 #---------------------------------------------------------------------
+# Random number generators
 
 class RNG:
     '''Base implementation class for random number generators.  Works
        by requesting a bunch of bytes via self._prng, and doling them
        out piecemeal via self.getBytes.'''
     def __init__(self, chunksize):
+        """Initializes a RNG.  Bytes will be fetched from _prng by 'chunkSize'
+           bytes at a time."""
         self.bytes=""
         self.chunksize=chunksize
     def getBytes(self, n):
+        """Returns a string of 'n' random bytes."""
+
         if n > len(self.bytes):
+            # If we don't have enough bytes, fetch enough so that we'll have
+            # a full chunk left over.
             nMore = n+self.chunksize-len(self.bytes)
             morebytes = self._prng(nMore)
             res = self.bytes+morebytes[:n-len(self.bytes)]
@@ -248,22 +339,74 @@ class RNG:
             res = self.bytes[:n]
             self.bytes=self.bytes[n:]
             return res
+
+    def getInt(self, max):
+        """Returns a random integer i s.t. 0 <= i < max.
+
+           The value of max must be less than 2**32."""
+
+        # FFFF This implementation isn't very good.  It determines the number
+        # of bytes in max (nBytes), and a bitmask 1 less than the first power
+        # of 2 less than max.
+        #
+        # Then, it gets nBytes random bytes, ANDs them with the bitmask, and
+        # checks to see whether the result is < max.  If so, it returns.  Else,
+        # it generates more random bytes and tries again.
+        #
+        # On the plus side, this algorithm will obviously give all values
+        # 0 <= i < max with equal probability.  On the minus side, it
+        # requires (on average) 2*nBytes entropy to do so.
+        
+        assert max > 0
+        for bits in xrange(1,33):
+            if max < 1<<bits:
+                nBytes = ceilDiv(bits,8)
+                mask = (1<<bits)-1
+                break
+        if bits == 33:
+            raise "I didn't expect to have to generate a number over 2**32"
+
+        while 1:
+            bytes = self.getBytes(nBytes)
+            r = 0
+            for byte in bytes:
+                r = (r << 8) + ord(byte)
+            r = r & mask
+            if r < max:
+                return r
+
     def _prng(self, n):
-        assert 0
+        """Abstract method: Must be overridden to return n bytes of fresh
+           entropy."""
+        raise MixFatalError()
 
 class AESCounterPRNG(RNG):
-    '''Pseudorandom number generator that yields an AES counter-mode cipher
-       stram.'''
+    '''Pseudorandom number generator that yields an AES counter-mode cipher'''
     def __init__(self, seed=None):
+        """Creates a new AESCounterPRNG with a given seed.  If no seed
+           is specified, gets one from the true random number generator."""
         RNG.__init__(self, 16*1024)
         self.counter = 0
         if seed == None:
             seed = trng(AES_KEY_LEN)
         self.key = aes_key(seed)
+        
     def _prng(self, n):
+        """Implementation: uses the AES counter stream to generate entropy."""
         c = self.counter
         self.counter+=n
+        # On python2.0, we overflow and wrap around.
+        if (self.counter < c) or (self.counter >> 32):
+            raise MixFatalError("Exhausted period of PRNG.")
         return prng(self.key,n,c)
+
+_theSharedPRNG = None
+def getCommonPRNG():
+    '''Returns a general-use AESCounterPRNG, initializing it if necessary.'''
+    global _theSharedPRNG
+    if _theSharedPRNG == None:
+        _theSharedPRNG = AESCounterPRNG()
+    return _theSharedPRNG
 
 def _trng_uncached(n):
     '''Underlying access to our true entropy source.'''
@@ -276,8 +419,11 @@ class _TrueRNG(RNG):
     '''Random number generator that yields pieces of entropy from
        our true rng.'''
     def __init__(self,n):
+        """Creates a TrueRNG to retrieve data from our underlying RNG 'n'
+           bytes at a time"""
         RNG.__init__(self,n)
     def _prng(self,n):
+        "Returns n fresh bytes from our true RNG."
         return _trng_uncached(n)
 
 _theTrueRNG = _TrueRNG(1024)

@@ -14,13 +14,17 @@ Once we get something chosen, it should go here.
 Personally, I find the following options most realistic:
 1)
    Separate server-only modules from client-and-server modules.  License
-   the former under GPL; licens the latter under LGPL.
+   the former under GPL[*]; license the latter under LGPL.
 
 2) 
    License everything under modified BSD (X11).
 
+[*] with a modification allowing linking to OpenSSL; 
+
 I'm still looking at the ARPL as suggested by David Mazieres; it has
 some nice anti-Fed features, but its fringeness may scare people off.
-Perhaps we can achieve its goals through other means.
+Perhaps we can achieve its goals through other means, such as a TOS on
+the directory servers, and contracts between the directory servers and
+some 3rd party.
 
 -- Nick

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.3 2002/06/02 06:11:16 nickm Exp $
+# $Id: HashLog.py,v 1.4 2002/06/24 20:28:19 nickm Exp $
 
 """mixminion.HashLog
 
@@ -41,13 +41,13 @@ class HashLog:
                 raise MixFatalError("Log KEYID does not match current KEYID")
         except KeyError:
             self.log["KEYID"] = keyid
-            
+
     def seenHash(self, hash):
         """seenHash(hash) -> bool
 
            Returns true iff 'hash' has been logged before."""
         try:
-            self.log[hash]
+            _ = self.log[hash]
             return 1
         except KeyError:
             return 0
@@ -64,11 +64,11 @@ class HashLog:
            Flushes changes to this log to the filesystem."""
         if hasattr(self.log, "sync"):
             self.log.sync()
-        
+
     def close(self):
         """close()
 
            Closes this log."""
         self.sync()
         self.log.close()
-    
+

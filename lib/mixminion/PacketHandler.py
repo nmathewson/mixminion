@@ -1,11 +1,10 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.1 2002/06/02 06:11:16 nickm Exp $
+# $Id: PacketHandler.py,v 1.2 2002/06/24 20:28:19 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
 import mixminion.Crypto as Crypto
 import mixminion.Packet as Packet
-from mixminion.Packet import MAJOR_NO, MINOR_NO
 import mixminion.Modules as Modules
 import mixminion.Common as Common
 
@@ -39,8 +38,6 @@ class PacketHandler:
             self.privatekey = (privatekey, )
         self.hashlog = hashlog
 
-    # Raises ParseError, ContentError, SSLError.
-    #  Returns oneof (None), (EXIT, argl), ("QUEUE", (ipv4info, msg))
     def processMessage(self, msg):
         """ph.processMessage(msg)
 
@@ -54,7 +51,7 @@ class PacketHandler:
                     ("QUEUE", (ipv4info, message_out))
                         [if this is a forwarding node]
 
-           May raise SSLError, ParseError, or ContentError if the packet
+           May raise CryptoError, ParseError, or ContentError if the packet
            is malformatted, misencrypted, unparseable, repeated, or otherwise
            unhandleable.
 
@@ -74,14 +71,14 @@ class PacketHandler:
         for pk in self.privatekey:
             try:
                 subh = Crypto.pk_decrypt(enc_subh, pk)
-            except Crypto.SSLError, e:
+            except Crypto.CryptoError, e:
                 err = e
         if not subh:
             raise err
         subh = Packet.parseSubheader(subh)
 
         # Check the version: can we read it?
-        if subh.major != MAJOR_NO or subh.minor != MINOR_NO:
+        if subh.major != Packet.MAJOR_NO or subh.minor != Packet.MINOR_NO:
             raise ContentError("Invalid protocol version")
 
         # Check the digest: is it correct?

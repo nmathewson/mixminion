@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.3 2002/06/02 06:11:16 nickm Exp $
+# $Id: setup.py,v 1.4 2002/06/24 20:28:18 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -13,9 +13,15 @@ import os, struct, shutil
 
 VERSION= '0.1'
 
-# For now, we assume that openssl-0.9.7 hasn't been released.  When this
-# changes, we can fix this rigamarole.
-SSL_DIR="contrib/openssl"
+USE_OPENSSL=1
+
+if USE_OPENSSL:
+    # For now, we assume that openssl-0.9.7 hasn't been released.  When this
+    # changes, we can fix this rigamarole.
+    LIB_DIRS=["contrib/openssl"]
+    INCLUDE_DIRS=["contrib/openssl/include"]
+    LIBRARIES=['ssl','crypto']
+    
 
 MACROS=[]
 MODULES=[]
@@ -53,12 +59,15 @@ elif other_endian:
 #======================================================================
 from distutils.core import setup, Extension
 
+INCLUDE_DIRS.append("src")
+
 extmodule = Extension("mixminion._minionlib",
-                      ["src/crypt.c", "src/aes_ctr.c", "src/main.c" ],
-                      library_dirs=[SSL_DIR],
-                      include_dirs=[SSL_DIR+"/include", "src"],
-                      libraries=["ssl", "crypto"],
-                      extra_compile_args=["-Wno-strict-prototypes" ],
+                      ["src/crypt.c", "src/aes_ctr.c", "src/main.c",
+                       "src/tls.c" ],
+                      library_dirs=LIB_DIRS,
+                      include_dirs=INCLUDE_DIRS,
+                      libraries=LIBRARIES,
+                      extra_compile_args=["-Wno-strict-prototypes", ],
                       define_macros=MACROS)
 
 setup(name='Mixminion',

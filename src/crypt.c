@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.4 2002/06/02 06:11:16 nickm Exp $ */
+/* $Id: crypt.c,v 1.5 2002/06/24 20:28:19 nickm Exp $ */
 #include <Python.h>
 
 #include <openssl/bn.h>
@@ -14,24 +14,29 @@
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)
 #define KEY_IS_PRIVATE(rsa) ((rsa)->p)
 
-PyObject *mm_SSLError = NULL;
+char mm_CryptoError__doc__[] = 
+  "mixminion._minionlib.SSLError\n\n"
+  "Exception raised for error in crypto library.\n";
 
-/* Helper function: raise an SSLError with appropriate text from the
- * underlying SSL exception.  
+PyObject *mm_CryptoError = NULL;
+
+/* Helper function: raise an error with appropriate text from the
+ * underlying OpenSSL exception.  
  *
- * Requires that mm_SSLError is initialized and ERR_load_*_strings
+ * Requires that mm_*Error are initialized and ERR_load_*_strings
  * have been called.
  */
-static void 
-SSL_ERR() 
+void 
+mm_SSL_ERR(int crypto)
 {
 	int err = ERR_get_error();
 	const char *str = ERR_reason_error_string(err);
-	assert(mm_SSLError);
+	PyObject *exception = crypto ? mm_CryptoError : mm_TLSError;
+	assert(exception);
 	if (str)
-		PyErr_SetString(mm_SSLError, str);
+		PyErr_SetString(exception, str);
 	else
-		PyErr_SetString(mm_SSLError, "SSL error");
+		PyErr_SetString(exception, "Internal error");
 }
 
 const char mm_sha1__doc__[] = 
@@ -118,7 +123,7 @@ mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
 		PyErr_NoMemory(); goto err; 
 	}
 	if (AES_set_encrypt_key(key, keylen*8, aes_key)) {
-		SSL_ERR();
+		mm_SSL_ERR(1);
 		goto err;
 	}
 	if (!(result = WRAP_AES(aes_key))) { 
@@ -247,43 +252,35 @@ mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
 	return Py_None;
 }
 
-static char rsa_descriptor[] = "RSA objects descriptor";
 
-/* Destructor for PyCObject
- */
 static void
-rsa_destruct(void *obj, void *desc) 
+mm_RSA_dealloc(mm_RSA *self)
 {
-	assert(desc==rsa_descriptor);
-	RSA_free( (RSA*) obj);
+	RSA_free(self->rsa);
+	PyObject_DEL(self);
 }
 
-/* Converter fn for "O&" argument conversion with RSA keys. */
-static int
-rsa_arg_convert(PyObject *obj, void *adr) 
-{
-	if (PyCObject_Check(obj) && PyCObject_GetDesc(obj) == rsa_descriptor) {
-		*((RSA**) adr) = (RSA*) PyCObject_AsVoidPtr(obj);
-		return 1;
-	} else {
-		TYPE_ERR("Expected an RSA key as an argument.");
-		return 0;
-	}
+static PyObject *
+mm_RSA_new(RSA *rsa) {
+	mm_RSA *self;
+	
+	assert(rsa);
+	if (!(self=PyObject_NEW(mm_RSA, &mm_RSA_Type)))
+		return NULL;
+	self->rsa = rsa;
+	return (PyObject*)self;
 }
 
-#define WRAP_RSA(rsa) (PyCObject_FromVoidPtrAndDesc( (void*) (rsa),\
-		       (void*) rsa_descriptor, rsa_destruct))
-					     
-const char mm_rsa_crypt__doc__[]=
-  "rsa_crypt(key, string, public, encrypt) -> str\n\n"
+const char mm_RSA_crypt__doc__[]=
+  "rsa.crypt(string, public, encrypt) -> str\n\n"
   "Uses RSA to encrypt or decrypt a provided string.  If encrypt is true,\n"
   "encrypts; else, decrypts.  If public is true, performs a public-key\n"
   "operation; else, performs a private-key operation.";
 
 PyObject *
-mm_rsa_crypt(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict) 
 {
-	static char *kwlist[] = { "key", "string", "public", "encrypt", NULL };
+	static char *kwlist[] = { "string", "public", "encrypt", NULL };
 
 	RSA *rsa;
 	unsigned char *string;
@@ -292,12 +289,15 @@ mm_rsa_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 	int keylen, i;
 	char *out;
 	PyObject *output;
-	
+	if (!mm_RSA_Check(self)) {
+		TYPE_ERR("Called RSA method with non-RSA object.");
+		return NULL;
+	}
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
-					 "O&s#ii:rsa_crypt", kwlist,
-					 rsa_arg_convert, &rsa, 
+					 "s#ii:crypt", kwlist,
 					 &string, &stringlen, &pub, &encrypt))
 		return NULL;
+	rsa = ((mm_RSA*)self)->rsa;
 	if (!pub && !KEY_IS_PRIVATE(rsa)) {
 		TYPE_ERR("Can\'t use public key for private-key operation");
 		return NULL;
@@ -325,7 +325,7 @@ mm_rsa_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	if (i <= 0) {
 		Py_DECREF(output);
-		SSL_ERR();
+		mm_SSL_ERR(1);
 		return NULL;
 	}
 	if(_PyString_Resize(&output, i)) return NULL; 
@@ -352,22 +352,22 @@ mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	rsa = RSA_generate_key(bits, e, NULL, NULL);
 	if (rsa == NULL) {
-		SSL_ERR();
+		mm_SSL_ERR(1);
 		return NULL;
 	}
 	
-	return WRAP_RSA(rsa);
+	return mm_RSA_new(rsa);
 }
 
-const char mm_rsa_encode_key__doc__[]=
-  "rsa_encode_key(rsa,public) -> str\n\n"
+const char mm_RSA_encode_key__doc__[]=
+  "rsa.encode_key(public) -> str\n\n"
   "Computes the DER encoding of a given key.  If 'public' is true, encodes\n"
   "only the public-key portions of rsa.\n";
  
 PyObject *
-mm_rsa_encode_key(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict) 
 {
-	static char *kwlist[] = { "key", "public", NULL };
+	static char *kwlist[] = { "public", NULL };
 	
 	RSA *rsa;
 	int public;
@@ -376,11 +376,15 @@ mm_rsa_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	PyObject *output;
 	unsigned char *out, *outp;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
-					 "O&i:rsa_encode_key", kwlist,
-					 rsa_arg_convert, &rsa, &public))
+	if (!mm_RSA_Check(self)) {
+		TYPE_ERR("Called RSA method with non-RSA object.");
 		return NULL;
-
+	}
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+					 "i:rsa_encode_key", kwlist, &public))
+		return NULL;
+	rsa = ((mm_RSA*)self)->rsa;
+	
 	if (!public && !KEY_IS_PRIVATE(rsa)) {
 		TYPE_ERR("Can\'t use public key for private-key operation");
 		return NULL;
@@ -389,7 +393,7 @@ mm_rsa_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	len = public ? i2d_RSAPublicKey(rsa,NULL) : 
 		i2d_RSAPrivateKey(rsa,NULL);
 	if (len < 0) {
-		SSL_ERR();
+		mm_SSL_ERR(1);
 		return NULL;
 	}
 	out = outp = malloc(len+1);
@@ -399,7 +403,7 @@ mm_rsa_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 		len = i2d_RSAPrivateKey(rsa, &outp);
 	if (len < 0) {
 		free(out);
-		SSL_ERR();
+		mm_SSL_ERR(1);
 		return NULL;
 	}
 
@@ -426,7 +430,6 @@ mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	int stringlen, public;
 
 	RSA *rsa;
-
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
 					 "s#i:rsa_decode_key", kwlist,
 					 &string, &stringlen, &public))
@@ -435,10 +438,10 @@ mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	rsa = public ? d2i_RSAPublicKey(NULL, &string, stringlen) : 
 		d2i_RSAPrivateKey(NULL, &string, stringlen);
 	if (!rsa) {
-		SSL_ERR();
+		mm_SSL_ERR(1);
 		return NULL;
 	}
-	return WRAP_RSA(rsa);
+	return mm_RSA_new(rsa);
 }
 
 /**
@@ -492,23 +495,27 @@ pylong2bn(PyObject *pylong)
 	return result;
 }
 
-const char mm_rsa_get_public_key__doc__[]=
-   "rsa_get_public_key(rsa) -> (n,e)\n";
+const char mm_RSA_get_public_key__doc__[]=
+   "rsa.get_public_key() -> (n,e)\n";
 
 PyObject *
-mm_rsa_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict) 
 {
-	static char *kwlist[] = { "key", NULL };
+	static char *kwlist[] = {  NULL };
 	
 	RSA *rsa;
 	PyObject *n, *e;
 	PyObject *output;
 
+	if (!mm_RSA_Check(self)) {
+		TYPE_ERR("Called RSA method with non-RSA object.");
+		return NULL;
+	}
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
-					 "O&:rsa_get_public_key", kwlist,
-					 rsa_arg_convert, &rsa))
+					 ":rsa_get_public_key", kwlist))
 		return NULL;
 	
+	rsa = ((mm_RSA*)self)->rsa;
 	if (!rsa->n) { TYPE_ERR("Key has no modulus"); return NULL;}
 	if (!rsa->e) { TYPE_ERR("Key has no e"); return NULL; }
 	if (!(n = bn2pylong(rsa->n))) { 
@@ -548,29 +555,72 @@ mm_rsa_make_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 		RSA_free(rsa); BN_free(rsa->n); return NULL; 
 	}
 
-	output = WRAP_RSA(rsa);
+	output = mm_RSA_new(rsa);
 	
 	return output;
 }
 
-const char mm_rsa_get_modulus_bytes__doc__[]=
-   "rsa_get_modulus_bytes(rsa) -> int\n\n"
+const char mm_RSA_get_modulus_bytes__doc__[]=
+   "rsa.get_modulus_bytes() -> int\n\n"
    "Returns the number of *bytes* (not bits) in an RSA modulus.\n";
 
-PyObject *
-mm_rsa_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwdict) 
+static PyObject *
+mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwdict) 
 {
-	static char *kwlist[] = { "key", NULL };
-	
+	static char *kwlist[] = { NULL };
 	RSA *rsa;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
-					 "O&:rsa_get_modulus_bytes", kwlist,
-					 rsa_arg_convert, &rsa))
+	if (!mm_RSA_Check(self)) {
+		TYPE_ERR("Called RSA method with non-RSA object.");
+		return NULL;
+	}
+	rsa = ((mm_RSA*)self)->rsa;
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
+					 ":get_modulus_bytes", kwlist))
 		return NULL;
 	
 	return PyInt_FromLong(BN_num_bytes(rsa->n));
 }
+
+ 
+#define METHOD(name) { #name, (PyCFunction)mm_RSA_##name, \
+                        METH_VARARGS|METH_KEYWORDS,       \
+                        (char*)mm_RSA_##name##__doc__ }
+
+static PyMethodDef mm_RSA_methods[] = {
+	METHOD(crypt),
+	METHOD(encode_key),
+	METHOD(get_modulus_bytes),
+	METHOD(get_public_key),
+	{ NULL, NULL }
+};
+ 
+static PyObject*
+mm_RSA_getattr(PyObject *self, char *name) 
+{
+	return Py_FindMethod(mm_RSA_methods, self, name);
+}
+
+static const char mm_RSA_Type__doc__[] = 
+  "XXXX";
+ 
+PyTypeObject mm_RSA_Type = {
+	PyObject_HEAD_INIT(&PyType_Type)
+	0,                                  /*ob_size*/
+	"mixminion._minionlib.RSA",         /*tp_name*/
+	sizeof(mm_RSA),                     /*tp_basicsize*/
+	0,                                  /*tp_itemsize*/
+	/* methods */
+	(destructor)mm_RSA_dealloc,         /*tp_dealloc*/
+	(printfunc)0,                       /*tp_print*/
+	(getattrfunc)mm_RSA_getattr,        /*tp_getattr*/
+	(setattrfunc)0,                     /*tp_setattr*/
+	0,0,
+	0,0,0,
+	0,0,0,0,0,
+	0,0,
+	(char*)mm_RSA_Type__doc__
+};
 
 const char mm_add_oaep_padding__doc__[]=
    "add_oaep_padding(s, param, keylen) -> str\n\n"
@@ -593,8 +643,11 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 			      &input,&inputlen,&param,&paramlen,&keylen))
 		return NULL;
 	
+	/* Strictly speaking, this is redundant.  Nevertheless, I suspect
+	   the openssl implementation of fragility, so better safe than sorry.
+	  */
 	if (inputlen >= keylen) {
-		TYPE_ERR("String too long to pad.");
+		PyErr_SetString(mm_CryptoError, "String too long to pad.");
 		return NULL;
 	}
 	
@@ -606,7 +659,7 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 				       input, inputlen,
 				       param, paramlen);
 	if (r <= 0) {
-		SSL_ERR(); 
+		mm_SSL_ERR(1); 
 		Py_DECREF(output);
 		return NULL;
 	}
@@ -636,15 +689,9 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 				  &input,&inputlen,&param,&paramlen,&keylen))
 		return NULL;
 
-	/**
-	 * XXXX Why is this test (along with the input+1 below) necessary?
-	 * XXXX I'd be happier if I knew, and I'd take out the bit about
-	 * XXXX our assumptions being gravely mistaken. :)
-	 **/
+
 	if (inputlen == 0 || *input != '\000') {
-		PyErr_SetString(mm_SSLError,
-				"Bad padding, or our assumptions about "
-				"OAEP padding are gravely mistaken");
+		PyErr_SetString(mm_CryptoError, "Bad padding");
 		return NULL;
 	}
 	
@@ -657,7 +704,7 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 					 input+1, inputlen-1, keylen,
 					 param, paramlen);
 	if (r <= 0) {
-		SSL_ERR();
+		mm_SSL_ERR(1);
 		Py_DECREF(output);
 		return NULL;
 	}

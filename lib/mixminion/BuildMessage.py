@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.5 2002/06/02 06:11:16 nickm Exp $
+# $Id: BuildMessage.py,v 1.6 2002/06/24 20:28:19 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -51,7 +51,7 @@ def buildReplyBlock(path, exitType, exitInfo, secretPRNG=None):
        """
     if secretPRNG == None:
         secretPRNG = Crypto.AESCounterPRNG()
-    secrets = [ secretPRNG.getBytes(SECRET_LEN) for node in path ]
+    secrets = [ secretPRNG.getBytes(SECRET_LEN) for _ in path ]
     header = _buildHeader(path, secrets, exitType, exitInfo, 
                           paddingPRNG=Crypto.AESCounterPRNG())
     return ReplyBlock(header, path[0]), secrets
@@ -154,12 +154,12 @@ def _buildMessage(payload, exitType, exitInfo,
         payload += paddingPRNG.getBytes(PAYLOAD_LEN-len(payload))
 
     # Generate secrets for path1.
-    secrets1 = [ secretRNG.getBytes(SECRET_LEN) for x in range(len(path1)) ]
+    secrets1 = [ secretRNG.getBytes(SECRET_LEN) for _ in path1 ]
     
     if path2:
         # Make secrets for header 2, and construct header 2.  We do the before
         # making header1 so that our rng won't be used for padding yet.
-        secrets2 = [ secretRNG.getBytes(SECRET_LEN) for x in range(len(path2))]
+        secrets2 = [ secretRNG.getBytes(SECRET_LEN) for _ in range(len(path2))]
         header2 = _buildHeader(path2,secrets2,exitType,exitInfo,paddingPRNG)
     else:
         secrets2 = None

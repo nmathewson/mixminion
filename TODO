@@ -1,23 +1,75 @@
 
 NEEDS TO BE WRITTEN
 
-- Generic queues
-- Manager process
-- Configuration code
-- Logging/debugging code
-- Network code to receive
-- Network code to send
-- Client code
-- memlockall wrapper
-- Server description blocks
-- Key management
-- Path selection
-- Publishing to directory servers
-- Downloading from directory servers
-- Key rotation
-- Reply block storage and format.
-- Reading messages sent to reply blocks
-- Secure delete
-- Make sure library is threadsafe.
-	- How threadsafe is openssl?
+NEXT CHECKIN:
+	- Code cleanup
+		- PEP 8
+		- PEP 257
 
+FOR 0.1: (The rough edges release)
+	- Make crypt.c read/write stuff in PEM.
+	- Local delivery module
+	- Manager process
+	- Configuration code
+	- Logging/debugging/warning code
+	- Reading messages sent to reply blocks
+	- Coding style guide
+	- MMTP		
+		- Generate X509/RSA/DH files as needed
+		- Hunt down leaks
+		- Check Key IDs
+		- Renegotiate connections
+		- Timeouts
+		- Tests for all cases:
+			- Multiple senders
+			- Bad senders
+			- Bad recipients
+			- Hanging connections
+	- More standard __init__
+	- CLI
+	- Server description blocks
+	- Main loop for server
+	- Clean shutdown for server
+	- Reply block storage and format.
+	- End-to-end payload encryption, if we ever agree on a spec.
+	- Versioning :)
+
+FOR 0.2: (The first hacker release)
+	- MMTP
+		- Session resumption (security issues?)
+	- Very clean build process
+	- RPMS
+	- Key management
+	- Test on other (non-redhat, non-linux) systems
+	- Final license
+	- Handle HUPs sensibly
+	- Key rotation
+
+FOR 0.3: (First non-guru release)
+	- Publishing to directory servers
+	- Downloading from directory servers
+	- Path selection
+	- SMTP module
+	- Good user documentation
+	- Directory services
+	- Automated key rotation, server management
+
+WHEN WE GET THE CHANCE:
+	- NSS or GNUTLS or MyCrypt or M2Crypto? (for a GPL-compatible license)
+	- GUI
+	- Session persistence (?)
+	- Multithreaded design to scale to multiple CPUs
+	- Password protection for private keys.
+	- Memlockall wrapper
+	- Generic secure delete
+	- Works on windows, mac
+
+NEED TO BE TESTED
+- Signals
+
+NEED TO BE DOCUMENTED
+- Difference between XXXX FFFF ????
+- Overall design
+
+NEEDS TO BE BENCHMARKED
+- TLS for leaks

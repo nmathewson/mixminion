@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.5 2002/06/02 06:11:16 nickm Exp $
+# $Id: benchmark.py,v 1.6 2002/06/24 20:28:19 nickm Exp $
 
 """mixminion.benchmark
 
@@ -11,9 +11,9 @@
 
    """
 
-
 from time import time
 
+__pychecker__ = 'no-funcdoc no-reimport'
 __all__ = [ 'timeAll', 'testLeaks1', 'testLeaks2' ]
 
 # If PRECISION_FACTOR is >1, we time everything for PRECISION_FACTOR times
@@ -41,7 +41,7 @@ def timeit_(fn, iters, ov=1):
     else:
         overhead = 0
     t = time()
-    for n in nones: fn()
+    for _ in nones: fn()
     t2 = time()-t
     t_each = ((t2) / float(iters))-overhead
     return t_each
@@ -75,6 +75,7 @@ def spacestr(n):
 #----------------------------------------------------------------------
 import mixminion._minionlib as _ml
 from Crypto import *
+from Crypto import _add_oaep_padding, _check_oaep_padding
 from Crypto import OAEP_PARAMETER
 
 short = "Hello, Dali!"
@@ -89,8 +90,9 @@ s8K = s4K*2
 s28K = s1K*28
 s32K = s8K*4
 
-def cryptoTiming():
+s120b = 'z'*120
 
+def cryptoTiming():
     print "#==================== CRYPTO ======================="
     print "SHA1 (short)", timeit((lambda : sha1(short)), 100000)
     print "SHA1 (64b)", timeit((lambda : sha1(s64b)), 100000)
@@ -143,6 +145,14 @@ def cryptoTiming():
     print "prng (32K, unoptimized)", timeit(
         (lambda key=key: ctr_crypt('\x00'*32768, key)), 100)
 
+    c = AESCounterPRNG()
+    print "aesprng.getInt (10)", \
+          timeit((lambda c=c : c.getInt(10)), 10000)
+    print "aesprng.getInt (1000)", \
+          timeit((lambda c=c : c.getInt(1000)), 10000)
+    print "aesprng.getInt (513)", \
+          timeit((lambda c=c : c.getInt(513)), 10000)
+
     lkey = Keyset("keymaterial foo bar baz").getLionessKeys("T")
     print "lioness E (1K)", timeit((
         lambda lkey=lkey: lioness_encrypt(s1K, lkey)), 1000)
@@ -165,18 +175,28 @@ def cryptoTiming():
     print "lioness D (32K)", timeit((
         lambda lkey=lkey: lioness_decrypt(s32K, lkey)), 100)
 
-    print "OAEP_add (70->128B)",
-    print timeit((lambda: _ml.add_oaep_padding(s70b,OAEP_PARAMETER,128)),10000)
-    r = _ml.add_oaep_padding(s70b, OAEP_PARAMETER,128)
-    print "OAEP_check (128B->70B)",
+    if hasattr(_ml, 'add_oaep_padding'):
+        print "OAEP_add (70->128B) (C)",
+        print timeit((lambda: _ml.add_oaep_padding(s70b,OAEP_PARAMETER,128)),
+                     10000)
+        r = _ml.add_oaep_padding(s70b, OAEP_PARAMETER,128)
+        print "OAEP_check (128B->70B) (C)",
+        print timeit((lambda r=r:
+                      _ml.check_oaep_padding(r,OAEP_PARAMETER,128)),10000)
+
+    print "OAEP_add (70->128B) (native python)",
+    print timeit((lambda c=c: _add_oaep_padding(s70b,OAEP_PARAMETER,128,c)),
+                 10000)
+    r = _add_oaep_padding(s70b, OAEP_PARAMETER,128,c)
+    print "OAEP_check (128B->70B) (native python)",
     print timeit((lambda r=r:
-                  _ml.check_oaep_padding(r,OAEP_PARAMETER,128)),10000)
+                  _check_oaep_padding(r,OAEP_PARAMETER,128)),10000)
 
     print "RSA generate (1024 bit)", timeit((lambda: pk_generate()),10)
     rsa = pk_generate()
     print "Pad+RSA public encrypt",
     print timeit((lambda rsa=rsa: pk_encrypt(s70b, rsa)),1000)
-    
+
     enc = pk_encrypt(s70b, rsa)
     print "Pad+RSA private decrypt", \
           timeit((lambda enc=enc,rsa=rsa: pk_decrypt(enc, rsa)),100)
@@ -196,9 +216,9 @@ def cryptoTiming():
     print "Timing overhead: %s...%s" % (timestr(min(o)),timestr(max(o)))
 
 #----------------------------------------------------------------------
+import tempfile, os, stat
 
 def hashlogTiming():
-    import tempfile, os
     print "#==================== HASH LOGS ======================="
     for load in (100, 1000, 10000, 100000):
         fname = tempfile.mktemp(".db")
@@ -212,13 +232,11 @@ def hashlogTiming():
                     pass
 
 def _hashlogTiming(fname, load):
-    import os, stat
-    from mixminion.Crypto import AESCounterPRNG
     from mixminion.HashLog import HashLog
     prng = AESCounterPRNG("a"*16)
-    
+
     h = HashLog(fname, "A")
-    hashes = [ prng.getBytes(20) for i in xrange(load) ]
+    hashes = [ prng.getBytes(20) for _ in xrange(load) ]
 
     t = time()
     for hash in hashes:
@@ -229,38 +247,39 @@ def _hashlogTiming(fname, load):
     t = time()
     for hash in hashes[0:1000]:
         h.seenHash(hash)
-    t = time()-t    
+    t = time()-t
     print "Check entry [hit] (%s entries)" %load, timestr( t/1000.0 )
 
-    hashes =[ prng.getBytes(20) for i in xrange(1000) ]
+    hashes =[ prng.getBytes(20) for _ in xrange(1000) ]
     t = time()
     for hash in hashes:
         h.seenHash(hash)
-    t = time()-t   
+    t = time()-t
     print "Check entry [miss] (%s entries)" %load, timestr( t/1000.0 )
 
-    hashes =[ prng.getBytes(20) for i in xrange(1000) ]
+    hashes =[ prng.getBytes(20) for _ in xrange(1000) ]
     t = time()
     for hash in hashes:
         h.seenHash(hash)
-        h.logHash(hash)        
-    t = time()-t   
+        h.logHash(hash)
+    t = time()-t
     print "Check entry [miss+add] (%s entries)" %load, timestr( t/1000.0 )
-    
+
     h.close()
     size = 0
     for suffix in ("", ".dat", ".bak", ".dir"):
         if not os.path.exists(fname+suffix):
             continue
         size += os.stat(fname+suffix)[stat.ST_SIZE]
-        
+
     print "File size (%s entries)"%load, spacestr(size)
 
 #----------------------------------------------------------------------
-import mixminion.BuildMessage as BMsg
+from mixminion.BuildMessage import _buildHeader, buildForwardMessage
+from mixminion.ServerInfo import ServerInfo
 
 def buildMessageTiming():
-    from mixminion.ServerInfo import ServerInfo
+
     print "#================= BUILD MESSAGE ====================="
     pk = pk_generate()
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
@@ -268,23 +287,23 @@ def buildMessageTiming():
                               "x"*20) ] * 16
     def bh(np,it, serverinfo=serverinfo):
         ctr = AESCounterPRNG()
-        
-        tm = timeit_( 
-              lambda np=np,it=it,serverinfo=serverinfo,ctr=ctr: 
-                         BMsg._buildHeader(serverinfo[:np], ["Z"*16]*np,
+
+        tm = timeit_(
+              lambda np=np,it=it,serverinfo=serverinfo,ctr=ctr:
+                         _buildHeader(serverinfo[:np], ["Z"*16]*np,
                                         99, "Hello", ctr), it )
-        
+
         print "Build header (%s)" %(np), timestr(tm)
 
     bh(1,100)
     bh(4,40)
     bh(8,20)
     bh(16,10)
-    
+
     def bm(np1,np2,it,serverinfo=serverinfo,payload=payload):
         tm = timeit_( \
               lambda np1=np1,np2=np2,it=it,serverinfo=serverinfo,
-                      payload=payload: BMsg.buildForwardMessage(payload,
+                      payload=payload: buildForwardMessage(payload,
                                                1,
                                                "Hello",
                                                serverinfo[:np1],
@@ -302,8 +321,6 @@ class DummyLog:
     def logHash(self,h): pass
 
 from mixminion.PacketHandler import PacketHandler
-from mixminion.ServerInfo import ServerInfo
-from mixminion.BuildMessage import buildForwardMessage
 from mixminion.Modules import SMTP_TYPE
 
 def serverProcessTiming():
@@ -358,7 +375,7 @@ def timeEfficiency():
     print "              long sha1: %3.1f%%" % (100*2*sha1_keyed_28k/lioness_e)
     print "             short sha1: %3.1f%%" % (100*2*sha1_keyed_20b/lioness_e)
     print "              short xor: %3.1f%%" % (100*2*strxor_20b/lioness_e)
-    
+
     ##### SERVER PROCESS
     pk = pk_generate(1024)
 
@@ -412,10 +429,53 @@ def timeEfficiency():
     print "                    header sha1: %3.1f%%" % (100*sha1_hdr/sp_ns)
     print "                    keygen sha1: %3.1f%%" % (500*sha1_key/sp_ns)
     print " (logs not included)"
-    # FFFF Time the logs too..?  
-    
-    # FFFF It would be nice to time BuildMessage, but less critical.
-    
+    # FFFF Time the logs too..?
+
+    # XXXX BUILDMESSAGE efficiency
+
+#----------------------------------------------------------------------
+
+from mixminion.Common import secureDelete, installSignalHandlers, waitForChildren
+
+def fileOpsTiming():
+    print "#================= File ops ====================="
+    installSignalHandlers(child=1,hup=0,term=0)
+    dname = tempfile.mktemp(".d")
+    try:
+
+        os.mkdir(dname)
+        for i in xrange(200):
+            f = open(os.path.join(dname, str(i)), 'wb')
+            f.write(s32K)
+            f.close()
+        lst = [os.path.join(dname,str(i)) for i in range(100) ]
+        t1 = time()
+        secureDelete(lst)
+        t = time()-t1
+        print "secureDelete (100x32)", timestr(t)
+
+        waitForChildren()
+        t = time()-t1
+        print "               (sync)", timestr(t) 
+
+        lst = [ os.path.join(dname,str(i)) for i in range(100,200) ]
+        t1 = time()
+        for file in lst:
+            secureDelete(file)
+        t = time()-t1
+        print "secureDelete (1)", timestr(t/100)
+        
+        waitForChildren()
+        t = time()-t1
+        print "          (sync)", timestr(t/100) 
+
+        os.rmdir(dname)
+    except:
+        for f in os.listdir(dname):
+            os.unlink(os.path.join(dname,f))
+        os.rmdir(dname)
+        raise
+        
 #----------------------------------------------------------------------
 def testLeaks1():
     print "Trying to leak (sha1,aes,xor,seed,oaep)"
@@ -478,6 +538,7 @@ def timeAll():
     cryptoTiming()
     buildMessageTiming()
     hashlogTiming()
+    fileOpsTiming()
     serverProcessTiming()
     timeEfficiency()
 

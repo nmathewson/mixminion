@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.4 2002/06/02 06:11:16 nickm Exp $
+# $Id: ServerInfo.py,v 1.5 2002/06/24 20:28:19 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -31,7 +31,8 @@ class ServerInfo:
     def getModulus(self): return self.modulus
     def getKeyID(self): return self.keyid
     
-    def getRoutingInfo(self, swap=0):
+    def getRoutingInfo(self):
         """Returns a mixminion.Packet.IPV4Info object for routing messages
            to this server."""
         return IPV4Info(self.addr, self.port, self.keyid)
+
