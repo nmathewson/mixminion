@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.7 2004/12/12 23:24:30 nickm Exp $
+# $Id: ThreadUtils.py,v 1.8 2004/12/13 01:06:43 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -273,9 +273,10 @@ class ProcessingThread(threading.Thread):
         self.mqueue = ClearableQueue()
         self.threadName = name
 
-    def shutdown(self):
+    def shutdown(self,flush=1):
+        """DOCDOC"""
         LOG.info("Telling %s to shut down.", self.threadName)
-        self.mqueue.clear()
+        if flush: self.mqueue.clear()
         self.mqueue.put(ProcessingThread._Shutdown())
 
     def addJob(self, job):

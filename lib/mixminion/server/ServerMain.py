@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.140 2004/12/12 23:24:31 nickm Exp $
+# $Id: ServerMain.py,v 1.141 2004/12/13 01:06:43 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -1006,7 +1006,7 @@ class MixminionServer(_Scheduler):
             # FFFF still want this to happen in another thread.
             #XXXX008 use symbolic constants here
             self.scheduleEvent(RecurringEvent(
-                now+3*60,
+                now+1*60, #3*60
                 lambda self=self: self.pingLog.calculateAll(
                  os.path.join(self.config.getWorkDir(), "pinger", "status")),
                 #1*60*60))
@@ -1132,7 +1132,7 @@ class MixminionServer(_Scheduler):
         self.cleaningThread.shutdown()
         self.processingThread.shutdown()
         self.moduleManager.shutdown()
-        if self.databaseThread: self.databaseThread.shutdown()
+        if self.databaseThread: self.databaseThread.shutdown(flush=0)
 
         self.cleaningThread.join()
         self.processingThread.join()
