@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.107 2003/08/28 01:40:07 nickm Exp $
+# $Id: Common.py,v 1.108 2003/08/28 08:39:21 nickm Exp $
 
 """mixminion.Common
 
@@ -469,8 +469,7 @@ def checkPrivateDir(d, recurse=1):
         if _CHECK_MODE and (mode & 020) and not (mode & stat.S_ISVTX):
             # FFFF We may want to give an even stronger error here.
             if _CHECK_GID and not _WARNED_DIRECTORIES.has_key(d):
-                group = grp.getgrgid(st[stat.ST_GID])[0]
-                groupName = _gidToName(group)
+                groupName = _gidToName(st[stat.ST_GID])
                 LOG.warn("Directory %s is writable by group %s (mode %o)",
                          d, groupName, mode&0777)
                 _WARNED_DIRECTORIES[d] = 1
