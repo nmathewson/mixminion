@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.24 2003/02/12 01:22:14 nickm Exp $
+# $Id: __init__.py,v 1.25 2003/02/13 06:30:23 nickm Exp $
 
 """mixminion
 
@@ -21,6 +21,7 @@ __version__ = "0.0.3alpha"
 version_info = (0, 0, 3, 0, -1)
 __all__ = [ 'server', 'directory' ]
 
+#XXXX003 MOVE THIS TO COMMON!
 def version_tuple_to_string(t):
     assert len(t) == 5
     if t[3] == 0:

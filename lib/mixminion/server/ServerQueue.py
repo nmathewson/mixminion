@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.6 2003/02/09 22:30:58 nickm Exp $
+# $Id: ServerQueue.py,v 1.7 2003/02/13 06:30:23 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -365,7 +365,6 @@ class DeliveryQueue(Queue):
         """ 
         try:
             self._lock.acquire()
-            #DOCDOC nextAttempt 
             handle = self.queueObject( (retry, None, msg, nextAttempt) )
             self.sendable.append(handle)
         finally:

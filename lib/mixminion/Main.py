@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.29 2003/02/11 22:18:13 nickm Exp $
+# $Id: Main.py,v 1.30 2003/02/13 06:30:22 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -123,6 +123,8 @@ _COMMANDS = {
     "update-servers" : ( 'mixminion.ClientMain', 'updateServers' ),
     "decode" :         ( 'mixminion.ClientMain', 'clientDecode' ),
     "generate-surb" :  ( 'mixminion.ClientMain', 'generateSURB' ),
+    "generate-surbs" : ( 'mixminion.ClientMain', 'generateSURB' ),
+    "inspect-surb" :   ( 'mixminion.ClientMain', 'inspectSURBs' ),
     "inspect-surbs" :  ( 'mixminion.ClientMain', 'inspectSURBs' ),
     "flush" :          ( 'mixminion.ClientMain', 'flushPool' ),
     "inspect-pool" :   ( 'mixminion.ClientMain', 'listPool' ),
@@ -138,13 +140,15 @@ _USAGE = (
   "                              (For Everyone)\n"+
   "       version        [Print the version of Mixminion and exit]\n"+
   "       send           [Send an anonymous message]\n"+
+  "       pool           [Schedule an anonymous message to be sent later]\n"+
+  "       flush          [Send all messages waiting in the pool]\n"+
+  "       inspect-pool   [Describe all messages waiting in the pool]\n"+
   "       import-server  [Tell the client about a new server]\n"+
   "       list-servers   [Print a list of currently known servers]\n"+
   "       update-servers [Download a fresh server directory]\n"+
   "       decode         [Decode or decrypt a received message]\n"+
   "       generate-surb  [Generate a single-use reply block]\n"+
-  "       inspect-surbs  [DOCDOC]\n"+
-  "          ???? DOCDOC what else ????\n"+
+  "       inspect-surbs  [Describe a single-use reply block]\n"+
   "                               (For Servers)\n"+
   "       server         [Begin running a Mixminon server]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
@@ -185,6 +189,11 @@ def main(args):
         printUsage()
         sys.exit(1)
 
+    # Read the 'common' module to get the UIError class.  To simplify
+    # command implementation code, we catch all UIError exceptions here.
+    commonModule = __import__('mixminion.Common', {}, {}, ['UIError'])
+    uiErrorClass = getattr(commonModule, 'UIError')
+
     # Read the module and function.
     command_module, command_fn = _COMMANDS[args[1]]
     mod = __import__(command_module, {}, {}, [command_fn])
@@ -199,6 +208,8 @@ def main(args):
     except getopt.GetoptError, e:
         sys.stderr.write(str(e)+"\n")
         func(commandStr, ["--help"])
+    except uiErrorClass, e:
+        e.dumpAndExit()
 
 if __name__ == '__main__':
     main(sys.argv)

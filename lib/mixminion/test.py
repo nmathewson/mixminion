@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.84 2003/02/12 01:21:46 nickm Exp $
+# $Id: test.py,v 1.85 2003/02/13 06:30:23 nickm Exp $
 
 """mixminion.tests
 
@@ -432,6 +432,43 @@ class MiscTests(unittest.TestCase):
         f.write("X")
         f.close()
         self.assertEquals(fn, dX+".2")
+
+    def test_lockfile(self):
+        fn = mix_mktemp()
+        LF1 = Lockfile(fn)
+        LF2 = Lockfile(fn)
+        LF1.acquire("LF1")
+        self.assertEquals("LF1", readFile(fn))
+        self.assertRaises(IOError, LF2.acquire, blocking=0)
+        LF1.release()
+        LF2.acquire("LF2",1)
+        self.assertEquals("LF2", readFile(fn))
+        self.assertRaises(IOError, LF1.acquire, blocking=0)
+
+        # Now try recursivity.
+        LF2.acquire()
+        self.assertRaises(IOError, LF1.acquire, blocking=0)
+        LF2.release()
+        self.assertRaises(IOError, LF1.acquire, blocking=0)
+        LF2.release()
+        LF1.acquire(blocking=1)
+
+        # Now try a blocking lock.
+        released=[0]
+        def threadBody(LF2=LF2,released=released):
+            LF2.acquire("LF2",blocking=1)
+            if not released[0]:
+                released[0] = 'BAD'
+            else:
+                released[0] = 'GOOD'
+        
+        t = threading.Thread(None, threadBody)
+        t.start()
+        time.sleep(.1)
+        released[0] = 1
+        LF1.release()
+        t.join()
+        self.assertEquals("GOOD", released[0])
 
     def _intervalEq(self, a, *others):
         eq = self.assertEquals
@@ -3979,7 +4016,7 @@ Foo: 100
         binmessage = hexread("00ADD1EDC0FFEED00DAD")*40
         tag = ".!..!....!........!."
 
-        def FDPFast(type,message,tag="xyzzyxyzzzyxyzzyxyzzzy"):
+        def FDPFast(type,message,tag="xyzzyxyzzyxyzzyxyzzy"):
             return FakeDeliveryPacket(type,0xFFFE,"addr",message,tag)
 
         ####
@@ -4048,11 +4085,10 @@ class FakeDeliveryPacket(mixminion.server.PacketHandler.DeliveryPacket):
         if tag is None:
             tag = "-="*10
         mixminion.server.PacketHandler.DeliveryPacket.__init__(self,
-                        exitType, exitAddress, None, tag, None)
+                        exitType, exitAddress, "Z"*16, tag, "Q"*(28*1024))
         self.type = type
         self.payload = None
         self.contents = contents
-        
 
 class ModuleTests(unittest.TestCase):
     def testEmailAddressSet(self):

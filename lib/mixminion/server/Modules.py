@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.30 2003/02/09 22:30:58 nickm Exp $
+# $Id: Modules.py,v 1.31 2003/02/13 06:30:23 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -180,18 +180,26 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 self.deliveryFailed(handle, 0)
 
 class DeliveryThread(threading.Thread):
-    "DOCDOC"
-    #DOCDOC
+    """A thread object used by ModuleManager to send messages in the
+       background; delegates to ModuleManager._sendReadyMessages."""
+    ## Fields:
+    # moduleManager -- a ModuleManager object.
+    # event -- an Event that is set when we have messages to deliver, or
+    #    when we're stopping.
+    # __stoppingEvent -- an event that is set when we're shutting down.
     def __init__(self, moduleManager):
+        """Create a new DeliveryThread."""
         threading.Thread.__init__(self)
         self.moduleManager = moduleManager
         self.event = threading.Event()
         self.__stoppingevent = threading.Event()
 
     def beginSending(self):
+        """Tell this thread that there are messages ready to be sent."""
         self.event.set()
 
     def shutdown(self):
+        """Tell this thread to shut down after sending further messages."""
         LOG.info("Telling delivery thread to shut down.")
         self.__stoppingevent.set()
         self.event.set()
@@ -397,6 +405,7 @@ class ModuleManager:
             self.thread.shutdown()
 
     def join(self):
+        """Wait for the delivery thread (if any) to finish shutting down."""
         if self.thread is not None:
             self.thread.join()
 
@@ -460,8 +469,8 @@ class EmailAddressSet:
                or any parent domain thereof.  "Deny allhosts fred.com" matches
                "bob@fred.com" and "bob@host.fred.com", but not "bob@com".
              pattern: match the email address if the provided regex appears
-               anywhere in it.  "Pattern /./" matches everything;
-               "Pattern /(..)*/" matches all addresses with an even number
+               anywhere in it.  "Deny pattern /./" matches everything;
+               "Deny pattern /(..)*/" matches all addresses with an even number
                of characters.
     """
     ## Fields

@@ -155,14 +155,14 @@ For 0.0.3:
                 - Increment packet minor number; make client check
                   packet minor number.
                 - Add fields to serverinfo, server directory.
-        - Bugs
-                - mixminion generate-surb > x should work
+        o Bugs
+                o mixminion generate-surb > x should work
         . Release
-                - Note all places that need documentation comments or
+                o Note all places that need documentation comments or
                   additional testing.
-                - Check all usage messages
+                o Check all usage messages
                 o Triage XXXX's
-                - Resolve XXXX003's
+                . Resolve XXXX003's
                 - Bump version numbers
                 - Update README
                         - What's new?

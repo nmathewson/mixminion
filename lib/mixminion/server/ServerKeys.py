@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.11 2003/02/09 22:30:58 nickm Exp $
+# $Id: ServerKeys.py,v 1.12 2003/02/13 06:30:23 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -382,8 +382,8 @@ class ServerKeyset:
 CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
 
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
-                                    hashdir, validAt=None, now=None,
-                                    useServerKeys=None):
+                                    hashdir, validAt=None, now=None):
+                                    ## useServerKeys=None):
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
 
@@ -393,11 +393,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           keyname -- The name of this new key set within keydir
           hashdir -- The root directory for storing hash logs.
           validAt -- The starting time (in seconds) for this key's lifetime.
-
-          DOCDOC  useServerKeys
-          XXXX test useServerKeys
           """
 
+    useServerKeys = None #XXXX004
+    
     if useServerKeys is None:
         # First, we generate both of our short-term keys...
         packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)

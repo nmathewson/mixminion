@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.31 2003/02/12 01:36:22 nickm Exp $
+# $Id: Packet.py,v 1.32 2003/02/13 06:30:22 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -440,7 +440,12 @@ def parseReplyBlocks(s):
        Raise ParseError on failure.
     """
     blocks = []
-    while s:
+    #DOCDOC
+    while 1:
+        while s and s[0] in ' \t\r\n':
+            s = s[1:]
+        if not s:
+            break
         block, length = parseReplyBlock(s, allowMore=1, returnLen=1)
         blocks.append(block)
         s = s[length:]
@@ -617,7 +622,8 @@ MESSAGE_START_LINE = "======= TYPE III ANONYMOUS MESSAGE BEGINS ======="
 MESSAGE_END_LINE   = "======== TYPE III ANONYMOUS MESSAGE ENDS ========"
 _MESSAGE_START_RE  = re.compile(r"==+ TYPE III ANONYMOUS MESSAGE BEGINS ==+")
 _MESSAGE_END_RE    = re.compile(r"==+ TYPE III ANONYMOUS MESSAGE ENDS ==+")
-_FIRST_LINE_RE = re.compile(r'''^Decoding-handle:\s(.*)\r*\n|
+#XXXX004 disable "decoding handle" format
+_FIRST_LINE_RE = re.compile(r'''^Decoding[- ]handle:\s(.*)\r*\n|
                                  Message-type:\s(.*)\r*\n''', re.X+re.S)
 _LINE_RE = re.compile(r'[^\r\n]*\r*\n', re.S+re.M)
 
@@ -729,7 +735,9 @@ class TextEncodedMessage:
         if self.messageType != 'TXT':
             c = base64.encodestring(c)
         else:
+            #XXXX004 disable "decoding handle" format
             if (c.startswith("Decoding-handle:") or
+                c.startswith("Decoding handle:") or
                 c.startswith("Message-type:")):
                 preNL = "\n"
                 

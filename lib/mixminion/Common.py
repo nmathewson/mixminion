@@ -1,17 +1,17 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.59 2003/02/12 01:36:22 nickm Exp $
+# $Id: Common.py,v 1.60 2003/02/13 06:30:22 nickm Exp $
 
 """mixminion.Common
 
    Common functionality and utility code for Mixminion"""
 
-__all__ = [ 'IntervalSet', 'LOG', 'LogStream', 'MixError', 'MixFatalError',
-            'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
-            'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
-            'formatFnameTime', 'formatTime', 'installSIGCHLDHandler',
-            'isSMTPMailbox', 'openUnique', 'previousMidnight',
-            'readPossiblyGzippedFile', 'secureDelete', 'stringContains',
-            'succeedingMidnight', 'waitForChildren' ]
+__all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
+            'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
+            'ceilDiv', 'checkPrivateDir', 'createPrivateDir', 'floorDiv',
+            'formatBase64', 'formatDate', 'formatFnameTime', 'formatTime',
+            'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
+            'previousMidnight', 'readPossiblyGzippedFile', 'secureDelete',
+            'stringContains', 'succeedingMidnight', 'waitForChildren' ]
 
 import base64
 import bisect
@@ -45,6 +45,21 @@ class MixFatalError(MixError):
 
 class MixProtocolError(MixError):
     """Exception class for MMTP protocol violations"""
+    pass
+
+class UIError(MixError):
+    """Exception raised for an error that should be reported to the user,
+       not dumped as a stack trace."""
+    def dump(self):
+        if str(self): print "ERROR:", str(self)
+    def dumpAndExit(self):
+        self.dump()
+        sys.exit(0)
+
+class UsageError(UIError):
+    """Exception raised for an error that should be reported to the user
+       along with a usage mesage.
+    """
     pass
 
 #----------------------------------------------------------------------
@@ -871,16 +886,24 @@ def openUnique(fname, mode='w'):
 
 #----------------------------------------------------------------------
 class Lockfile:
-    "DOCDOC"
-    #XXXX Testme.
+    """Class to implement a recursive advisory lock, using flock on a
+       'well-known' filename."""
+    ## Fields:
+    # filename--the name of the file to lock
+    # count--the recursion depth of the lock; 0 is unlocked.
+    # fd--If fd>1, a file descriptor open to 'filename'.  Otherwise, None.
     def __init__(self, filename):
-        "DOCDOC"
+        """Create a new Lockfile object to acquire and release a lock on
+           'filename'"""
         self.filename = filename
         self.count = 0
         self.fd = None
 
     def acquire(self, contents="", blocking=0):
-        "Raises IOError DOCDOC"
+        """Acquire this lock.  If we're acquiring the lock for the first time,
+           write 'contents' to the lockfile.  If 'blocking' is true, wait until
+           we can acquire the lock.  If 'blocking' is false, raise IOError if
+           we can't acquire the lock."""
         if self.count > 0:
             self.count += 1
             return
@@ -889,17 +912,18 @@ class Lockfile:
         self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, 0600)
         try:
             if blocking:
-                fcntl.flock(self.fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
-            else:
                 fcntl.flock(self.fd, fcntl.LOCK_EX)
+            else:
+                fcntl.flock(self.fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
             self.count += 1
+            os.write(self.fd, contents)
         except:
             os.close(self.fd)
             self.fd = None
             raise
 
     def release(self):
-        "DOCDOC"
+        """Release the lock."""
         assert self.fd is not None
         self.count -= 1
         if self.count > 0:
@@ -911,6 +935,3 @@ class Lockfile:
             self.fd = None
         except OSError:
             pass
-    
-                
-        

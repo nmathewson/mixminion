@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.52 2003/02/12 01:22:57 nickm Exp $
+# $Id: ClientMain.py,v 1.53 2003/02/13 06:30:22 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -25,10 +25,10 @@ import mixminion.BuildMessage
 import mixminion.Crypto
 import mixminion.MMTPClient
 from mixminion.Common import IntervalSet, LOG, floorDiv, MixError, \
-     MixFatalError, MixProtocolError, ceilDiv, createPrivateDir, \
-     isSMTPMailbox, formatDate, formatFnameTime, formatTime, Lockfile, \
-     openUnique, previousMidnight, readPossiblyGzippedFile, secureDelete, \
-     stringContains, succeedingMidnight
+     MixFatalError, MixProtocolError, UIError, UsageError, ceilDiv, \
+     createPrivateDir, isSMTPMailbox, formatDate, formatFnameTime, formatTime,\
+     Lockfile, openUnique, previousMidnight, readPossiblyGzippedFile, \
+     secureDelete, stringContains, succeedingMidnight
 from mixminion.Crypto import sha1, ctr_crypt, trng
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
@@ -40,38 +40,35 @@ from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
 MIXMINION_DIRECTORY_URL = "http://www.mixminion.net/directory/latest.gz"
 MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 
+#DOCDOC Replace raise MixError with raise UIError as appropriate
+
+#----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
 # concurrent access to the directory cache, message pool, or SURB log.
 _CLIENT_LOCKFILE = None
 
 def clientLock():
-    """DOCDOC"""
+    """Acquire the client lock."""
     assert _CLIENT_LOCKFILE is not None
     _CLIENT_LOCKFILE.acquire(blocking=1)
 
 def clientUnlock():
-    """DOCDOC"""    
+    """Release the client lock."""    
     _CLIENT_LOCKFILE.release()
 
 def configureClientLock(filename):
-    """DOCDOC"""    
+    """Prepare the client lock for use."""
     global _CLIENT_LOCKFILE
     _CLIENT_LOCKFILE = Lockfile(filename)
 
-class UIError(MixError):
-    "DOCDOC"
-    def dump(self):
-        if str(self): print "ERROR:", str(self)
-
-class UsageError(UIError):
-    "DOCDOC"
+#----------------------------------------------------------------------
 
 class ClientDirectory:
     """A ClientDirectory manages a list of server descriptors, either
        imported from the command line or from a directory."""
     ##Fields:
     # dir: directory where we store everything.
-    # lastModified: time when we last modified this keystore
+    # lastModified: time when we last modified this directory.
     # lastDownload: time when we last downloaded a directory
     # serverList: List of (ServerInfo, 'D'|'I:filename') tuples.  The
     #   second element indicates whether the ServerInfo comes from a
@@ -90,7 +87,7 @@ class ClientDirectory:
     # DIR/imported/: A directory of server descriptors.
     MAGIC = "ClientKeystore-0"
 
-    #DOCDOC
+    # The amount of time to require a path to be valid, by default.
     DEFAULT_REQUIRED_LIFETIME = 3600
 
     def __init__(self, directory):
@@ -141,7 +138,8 @@ class ClientDirectory:
         try:
             infile = urllib.FancyURLopener().open(url)
         except IOError, e:
-            raise MixError("Couldn't connect to directory server: %s"%e)
+            #FFFF003 suggest "-D no"
+            raise UIError("Couldn't connect to directory server: %s"%e)
         # Open a temporary output file.
         if url.endswith(".gz"):
             fname = os.path.join(self.dir, "dir_new.gz")
@@ -252,11 +250,11 @@ class ClientDirectory:
                 self.__rebuildTables()
                 return
             else:
-                LOG.warn("Bad magic on keystore cache; rebuilding...")
+                LOG.warn("Bad magic on directory cache; rebuilding...")
         except (OSError, IOError):
-            LOG.info("Couldn't read server cache; rebuilding")
+            LOG.info("Couldn't read directory cache; rebuilding")
         except (cPickle.UnpicklingError, ValueError), e:
-            LOG.info("Couldn't unpickle server cache: %s", e)
+            LOG.info("Couldn't unpickle directory cache: %s", e)
         if self.__scanning:
             raise MixFatalError("Recursive error while regenerating cache")
         self.rescan()
@@ -367,7 +365,8 @@ class ClientDirectory:
     def listServers(self):
         """Returns a linewise listing of the current servers and their caps.
             This will go away or get refactored in future versions once we
-            have client-level modules."""
+            have client-level modules.
+        """
         lines = []
         nicknames = self.byNickname.keys()
         nicknames.sort()
@@ -430,11 +429,13 @@ class ClientDirectory:
             now = time.time()
         cutoff = now - 600
 
-        #DOCDOC
+        # List of (ServerInfo,where) not to scratch.
         newServers = []
         for info, where in self.serverList:
             lcnickname = info.getNickname().lower()
+            # Find all other SI's with the same name.
             others = [ s for s, _ in self.byNickname[lcnickname] ]
+            # Find all digests of servers with the same name, in the directory.
             inDirectory = [ s.getDigest()
                             for s, w in self.byNickname[lcnickname]
                             if w == 'D' ]
@@ -453,6 +454,8 @@ class ClientDirectory:
                 # Don't scratch non-superseded, non-expired servers.
                 newServers.append((info, where))
 
+        # If we've actually deleted any servers, replace self.serverList and
+        # rebuild.
         if len(self.serverList) != len(newServers):
             self.serverList = newServers
             self.__save()
@@ -471,18 +474,24 @@ class ClientDirectory:
         if endAt is None:
             endAt = startAt + self.DEFAULT_REQUIRED_LIFETIME
 
-        #DOCDOC
+            
         if isinstance(name, ServerInfo):
+            # If it's a valid ServerInfo, we're done.
             if name.isValidFrom(startAt, endAt):
                 return name
             else:
                 LOG.error("Server is not currently valid")
         elif self.byNickname.has_key(name.lower()):
+            # If it's a nickname, return a serverinfo with that name.
             s = self.__findOne(self.byNickname[name.lower()], startAt, endAt)
             if not s:
-                raise MixError("Couldn't find valid descriptor %s" % name)
+                # FFFF Beef up this message to say that we know about that
+                # FFFF nickname, but that all suchnamed servers are dead.
+                raise UIError("Couldn't find any valid descriptor with name %s"
+                              % name)
             return s
         elif os.path.exists(os.path.expanduser(name)):
+            # If it's a filename, try to read it.
             fname = os.path.expanduser(name)
             try:
                 return ServerInfo(fname=fname, assumeValid=0)
@@ -622,7 +631,7 @@ class ClientDirectory:
 
         return startServers + midServers + endServers
 
-def resolvePath(keystore, address, enterPath, exitPath,
+def resolvePath(directory, address, enterPath, exitPath,
                 nHops, nSwap, startAt=None, endAt=None, halfPath=0):
     """Compute a two-leg validated path from options as entered on
        the command line.
@@ -636,8 +645,14 @@ def resolvePath(keystore, address, enterPath, exitPath,
        specified descriptors don't support the required capabilities,
        we raise MixError.
 
-       DOCDOC halfPath
+       If 'halfPath' is true, then we're only trying to generate one leg
+       of the path.  In this case, nSwap must be -1; the first leg will be
+       empty, and the second leg will have all the servers.
+
+       If 'address' is None, we make no requirements of the last node in
+       the path except that it support relay.
        """
+    assert (not halfPath) or (nSwap==-1)
     # First, find out what the exit node needs to be (or support).
     if address is None:
         routingType = None
@@ -646,11 +661,13 @@ def resolvePath(keystore, address, enterPath, exitPath,
         routingType, _, exitNode = address.getRouting()
         
     if exitNode:
-        exitNode = keystore.getServerInfo(exitNode, startAt, endAt)
+        exitNode = directory.getServerInfo(exitNode, startAt, endAt)
     if routingType == MBOX_TYPE:
         exitCap = 'mbox'
     elif routingType == SMTP_TYPE:
         exitCap = 'smtp'
+    elif halfPath and address is None:
+        exitCap = 'relay'
     else:
         exitCap = None
 
@@ -659,23 +676,25 @@ def resolvePath(keystore, address, enterPath, exitPath,
         exitPath = exitPath[:]
         exitPath.append(exitNode)
 
-    path = keystore.getPath(length=nHops,
-                            startServers=enterPath,
-                            endServers=exitPath,
-                            midCap='relay', endCap=exitCap,
-                            startAt=startAt, endAt=endAt)
+    # Find an appropriate path.
+    path = directory.getPath(length=nHops,
+                             startServers=enterPath,
+                             endServers=exitPath,
+                             midCap='relay', endCap=exitCap,
+                             startAt=startAt, endAt=endAt)
 
-    #DOCDOC
+    # Make sure all relay servers support relaying.
     for server in path[:-1]:
         if "relay" not in server.getCaps():
             raise MixError("Server %s does not support relay"
                            % server.getNickname())
-    #DOCDOC
+
+    # Make sure the exit server can support the exit capability.
     if exitCap and exitCap not in path[-1].getCaps():
         raise MixError("Server %s does not support %s"
                        % (path[-1].getNickname(), exitCap))
 
-    #DOCDOC
+    # If there is no specified swap point, find one.
     if nSwap is None:
         nSwap = ceilDiv(len(path),2)-1
 
@@ -684,22 +703,27 @@ def resolvePath(keystore, address, enterPath, exitPath,
         raise MixError("Each leg of the path must have at least 1 hop")
     return path1, path2
 
-def parsePath(keystore, config, path, address, nHops=None,
+def parsePath(directory, config, path, address, nHops=None,
               nSwap=None, startAt=None, endAt=None, halfPath=0,
               defaultNHops=None):
     """Resolve a path as specified on the command line.  Returns a
-       (path-leg-1, path-leg-2) tuple.
+       (path-leg-1, path-leg-2) tuple, where each leg is a list of ServerInfo.
 
-       keystore -- the keystore to use.
+       directory -- the ClientDirectory to use.
        config -- unused for now.
        path -- the path, in a format described below.  If the path is
           None, all servers are chosen as if the path were '*'.
        address -- the address to deliver the message to; if it specifies
           an exit node, the exit node is appended to the second leg of the
-          path and does not count against the number of hops.
-       nHops -- the number of hops to use.  Defaults to 6.
+          path and does not count against the number of hops.  If 'address'
+          is None, the exit node must support realy.
+       nHops -- the number of hops to use.  Defaults to defaultNHops.
        nSwap -- the index of the swap-point server.  Defaults to nHops/2.
        startAt/endAt -- A time range during which all servers must be valid.
+       halfPath -- If true, we generate only the second leg of the path
+          and leave the first leg empty.  nSwap must equal -1.
+       defaultNHops -- The default path length to use when we encounter a
+          wildcard in the path.  Defaults to 6.
 
        Paths are ordinarily comma-separated lists of server nicknames or
        server descriptor filenames, as in:
@@ -719,8 +743,6 @@ def parsePath(keystore, config, path, address, nHops=None,
        specified.  Specifically, if nHops is used _without_ a star on the
        path, nHops must equal the path length; and if nHops is used _with_ a
        star on the path, nHops must be >= the path length.
-
-       DOCDOC halfpath, address=None, defaultNHops
     """
     if not path:
         path = '*'
@@ -801,29 +823,56 @@ def parsePath(keystore, config, path, address, nHops=None,
         myNHops = nHops
 
     # Finally, resolve the path.
-    return resolvePath(keystore, address, enterPath, exitPath,
+    return resolvePath(directory, address, enterPath, exitPath,
                        myNHops, myNSwap, startAt, endAt, halfPath=halfPath)
 
-def parsePathLeg(keystore, config, path, nHops, address=None,
+def parsePathLeg(directory, config, path, nHops, address=None,
                  startAt=None, endAt=None, defaultNHops=None):
-    "DOCDOC"
-    path1, path2 = parsePath(keystore, config, path, address, nHops, nSwap=-1,
+    """Parse a single leg of a path.  Used for generating SURBs (second leg
+       only) or reply messages (first leg only).  Returns a list of
+       ServerInfo.
+
+       directory -- the ClientDirectory to use.
+       config -- unused for now.
+       path -- The path, as described in parsePath, except that ':' is not
+           allowed.
+       nHops -- the number of hops to use.  Defaults to defaultNHops.
+       startAt/endAt -- A time range during which all servers must be valid.
+       defaultNHops -- The default path length to use when we encounter a
+          wildcard in the path.  Defaults to 6.
+       """
+    path1, path2 = parsePath(directory, config, path, address, nHops, nSwap=-1,
                              startAt=startAt, endAt=endAt, halfPath=1,
                              defaultNHops=defaultNHops)
     assert path1 == []
     return path2
     
 class ClientKeyring:
-    "DOCDOC"
-    #DOCDOC
-    # XXXX003 testme
+    """Class to manage storing encrypted keys for a client.  Right now, this
+       is limited to a single SURB decryption key.  In the future, we may
+       include more SURB keys, as well as end-to-end encryption keys.
+    """
+    ## Fields:
+    # keyDir: The directory where we store our keys.
+    # surbKey: a 20-byte key for SURBs.
+    ## Format:
+    # We store keys in a file holding:
+    #  variable         [Key specific magic]        "SURBKEY0"
+    #   8               [8 bytes of salt]
+    #  keylen+20 bytes  ENCRYPTED DATA:KEY=sha1(salt+password+salt)[:16]
+    #                                  DATA=encrypted_key+sha1(data+salt+magic)
     def __init__(self, keyDir):
+        """Create a new ClientKeyring to store data in keyDir"""
         self.keyDir = keyDir
         createPrivateDir(self.keyDir)
         self.surbKey = None
 
     def getSURBKey(self, create=0):
-        """DOCDOC"""
+        """Return the 20-byte SURB key.  If it has not already been loaded,
+           load it, asking the user for a password if needed.  If 'create' is
+           true and the key doesn't exist, ask the user for a new password
+           and create a new SURB key.  If 'create' is false and the key
+           doesn't exist, return None."""
         if self.surbKey is not None:
             return self.surbKey
         fn = os.path.join(self.keyDir, "SURBKey")
@@ -832,15 +881,30 @@ class ClientKeyring:
         return self.surbKey
 
     def _getKey(self, fn, magic, which, bytes=20, create=0):
+        """Helper: Load an arbitrary key from the keystore, from file 'fn'.
+           We expect the magic to be 'magic'; Error messages will describe the
+           key as the "'which' key" .  If create is true, and the key doesn't
+           exist, generate a new 'bytes'-byte key.  Else if the key doesn't
+           exist, return None.
+        """
+        
         if os.path.exists(fn):
+            # If the key exists, make sure the magic is correct.
             self._checkMagic(fn, magic)
+            # ...then see if we can load it without a password...
+            try:
+                return self._load(fn, magic, "")
+            except MixError:
+                pass
+            # ...then ask the user for a password 'till it loads.
             while 1:
-                p = self._getPassword(which)
+                p = self._getPassword("Enter password for %s key:"%which)
                 try:
                     return self._load(fn, magic, p)
                 except MixError, e:
-                    LOG.error("Cannot load key: %s", e)
+                    LOG.error("Cannot load %s key: %s", which, e)
         elif create:
+            # If the key file doesn't exist, and 'create' is set, create it.
             LOG.warn("No %s key found; generating.", which)
             key = trng(bytes)
             p = self._getNewPassword(which)
@@ -850,6 +914,8 @@ class ClientKeyring:
             return None
 
     def _checkMagic(self, fn, magic):
+        """Make sure that the magic string on a given key file %s starts with
+           is equal to 'magic'.  Raise MixError if it isn't."""
         f = open(fn, 'rb')
         s = f.read()
         f.close()
@@ -857,8 +923,8 @@ class ClientKeyring:
             raise MixError("Invalid magic on key file")
 
     def _save(self, fn, data, magic, password):
-        # File holds magic, salt (8 bytes), enc(key,data+sha1(data+salt+magic))
-        #      where key = sha1(salt+password+salt)[:16]
+        """Save the key data 'data' into the file 'fn' using the magic string
+           'magic' and the password 'password'."""
         salt = mixminion.Crypto.getCommonPRNG().getBytes(8)
         key = sha1(salt+password+salt)[:16]
         f = open(fn, 'wb')
@@ -868,6 +934,8 @@ class ClientKeyring:
         f.close()
 
     def _load(self, fn, magic, password):
+        """Load and return the key stored in 'fn' using the magic string
+           'magic' and the password 'password'.  Raise MixError on failure."""
         f = open(fn, 'rb')
         s = f.read()
         f.close()
@@ -887,20 +955,41 @@ class ClientKeyring:
             raise MixError("Incorrect password")
         return data
 
-    def _getPassword(self, which):
-        s = "Enter password for %s:"%which
-        p = getpass.getpass(s)
+    def _getPassword(self, message):
+        """Read a password from the console, then return it.  Use the string
+           'message' as a prompt."""
+        # getpass.getpass uses stdout by default .... but stdout may have
+        # been redirected.  If stdout is not a terminal, write the message
+        # to stderr instead.
+        if os.isatty(sys.stdout.fileno()):
+            f = sys.stdout
+            nl = 0
+        else:
+            f = sys.stderr
+            nl = 1
+        f.write(message)
+        f.flush()
+        p = getpass.getpass("")
+        if nl:
+            f.write("\n")
+            f.flush()
         return p
 
     def _getNewPassword(self, which):
+        """Read a new password from the console, then return it."""
         s1 = "Enter new password for %s:"%which
         s2 = "Verify password:".rjust(len(s1))
+        if os.isatty(sys.stdout.fileno()):
+            f = sys.stdout
+        else:
+            f = sys.stderr
         while 1:
             p1 = getpass.getpass(s1)
             p2 = getpass.getpass(s2)
             if p1 == p2:
                 return p1
-            print "Passwords do not match."
+            f.write("Passwords do not match.\n")
+            f.flush()
 
 def installDefaultConfig(fname):
     """Create a default, 'fail-safe' configuration in a given file"""
@@ -937,26 +1026,42 @@ ConnectionTimeout: 20 seconds
     f.close()
 
 class SURBLog:
-    """DOCDOC"""
-    #DOCDOC
-    # XXXX003 testme
-    
-    # DB holds HEX(hash) -> str(expiry)
+    """A SURBLog manipulates a database on disk to remember which SURBs we've
+       used, so we don't reuse them accidentally.
+       """
+    #XXXX003 testme
+    #FFFF Using this feature should be optional.
+
+    ##Fields
+    # log -- a database, as returned by anydbm.open.
+    ## Format:
+    # The database holds two kinds of keys:
+    #    "LAST_CLEANED" -> an integer of the last time self.clean() was called.
+    #    20-byte-hash-of-SURB -> str(expiry-time-of-SURB)
     def __init__(self, filename, forceClean=0):
+        """Open a new SURBLog to store data in the file 'filename'.  If
+           forceClean is true, remove expired entries on startup.
+        """
+        clientLock()
         parent, shortfn = os.path.split(filename)
         createPrivateDir(parent)
         LOG.debug("Opening SURB log")
-        # DOCDOC MUST HOLD LOCK WHILE OPEN
         self.log = anydbm.open(filename, 'c')
-        lastCleaned = int(self.log['LAST_CLEANED'])
+        try:
+            lastCleaned = int(self.log['LAST_CLEANED'])
+        except (KeyError, ValueError):
+            lastCleaned = 0
+        
         if lastCleaned < time.time()-24*60*60 or forceClean:
             self.clean()
 
     def close(self):
-        """DOCDOC"""
+        """Release resources associated with the surblog."""
         self.log.close()
+        clientUnlock()
 
     def isSURBUsed(self, surb):
+        """Return true iff the ReplyBlock object 'surb' is marked as used."""
         hash = binascii.b2a_hex(sha1(surb.pack()))
         try:
             _ = self.log[hash]
@@ -965,10 +1070,14 @@ class SURBLog:
             return 0
 
     def markSURBUsed(self, surb):
+        """Mark the ReplyBlock object 'surb' as used."""
         hash = binascii.b2a_hex(sha1(surb.pack()))
         self.log[hash] = str(surb.timestamp)
 
     def clean(self, now=None):
+        """Remove all entries from this SURBLog the correspond to expired
+           SURBs.  This is safe because if a SURB is expired, we'll never be
+           able to use it inadvertantly."""
         if now is None:
             now = time.time() + 60*60
         allHashes = self.log.keys()
@@ -979,14 +1088,31 @@ class SURBLog:
         del allHashes
         for hash in removed:
             del self.log[hash]
-        self.log['LAST_CLEANED'] = str(now)
+        self.log['LAST_CLEANED'] = str(int(now))
 
 class ClientPool:
-    "DOCDOC"
-    ## DOCDOC
+    """A ClientPool holds packets that have been scheduled for delivery
+       but not yet delivered.  As a matter of policy, we pool messages if
+       the user tells us to, or if deliver has failed and the user didn't
+       tell us not to."""
+    ## Fields:
+    # dir -- a directory to store packets in.
+    # prng -- an instance of mixminion.Crypto.RNG.
+    ## Format:
+    # The directory holds files with names of the form pkt_<handle>.
+    # Each file holds pickled tuple containing:
+    #           ("PACKET-0", 
+    #             a 32K string (the packet),
+    #             an instance of IPV4Info (the first hop),
+    #             the latest midnight preceeding the time when this
+    #                 packet was inserted into the pool.
+    #           )
+    
     # XXXX003 testme
 
     def __init__(self, directory, prng=None):
+        """Create a new ClientPool object, storing packets in 'directory'
+           and generating random filenames using 'prng'."""
         self.dir = directory
         createPrivateDir(directory)
         if prng is not None:
@@ -994,15 +1120,19 @@ class ClientPool:
         else:
             self.prng = mixminion.Crypto.getCommonPRNG()
 
-    def poolPacket(self, message, firstHop):
+    def poolPacket(self, message, routing):
+        """Insert the 32K packet 'message' (to be delivered to 'routing')
+           into the pool.  Return the handle of the newly inserted packet."""
         clientLock()
         f, handle = self.prng.openNewFile(self.dir, "pkt_", 1)
-        cPickle.dump(("PACKET-0", message, firstHop,
+        cPickle.dump(("PACKET-0", message, routing,
                       previousMidnight(time.time())), f, 1)
         f.close()
         return handle
     
     def getHandles(self):
+        """Return a list of the handles of all messages currently in the
+           pool."""
         clientLock()
         fnames = os.listdir(self.dir)
         handles = []
@@ -1012,26 +1142,37 @@ class ClientPool:
         return handles
 
     def getPacket(self, handle):
+        """Given a handle, return a 3-tuple of the corresponding
+           32K packet, IPV4Info, and time of first pooling.  (The time
+           is rounded down to the closest midnight GMT.)"""
         f = open(os.path.join(self.dir, "pkt_"+handle), 'rb')
-        magic, message, firstHop, when = cPickle.load(f)
+        magic, message, routing, when = cPickle.load(f)
         f.close()
         if magic != "PACKET-0":
             LOG.error("Unrecognized packet format for %s",handle)
             return None
-        return message, firstHop, when
+        return message, routing, when
 
     def packetExists(self, handle):
+        """Return true iff the pool contains a packet with the handle
+           'handle'."""
         fname = os.path.join(self.dir, "pkt_"+handle)
         return os.path.exists(fname)
         
     def removePacket(self, handle):
+        """Remove the packet named with the handle 'handle'."""
         fname = os.path.join(self.dir, "pkt_"+handle)
         secureDelete(fname, blocking=1)
 
     def inspectPool(self, now=None):
+        """Print a message describing how many messages in the pool are headed
+           to which addresses."""
         if now is None:
             now = time.time()
         handles = self.getHandles()
+        if not handles:
+            print "[Pool is empty.]"
+            return
         timesByServer = {}
         for h in handles:
             _, routing, when = self.getPacket(h)
@@ -1051,9 +1192,9 @@ class MixminionClient:
     ## Fields:
     # config: The ClientConfig object with the current configuration
     # prng: A pseudo-random number generator for padding and path selection
-    # keyDir: DOCDOC
-    # surbKey: DOCDOC
-    # pool: DOCDOC
+    # keys: A ClientKeyring object.
+    # pool: A ClientPool object.
+    # surbLogFilename: The filename used by the SURB log.
     def __init__(self, conf):
         """Create a new MixminionClient with a given configuration"""
         self.config = conf
@@ -1063,7 +1204,7 @@ class MixminionClient:
         createPrivateDir(userdir)
         keyDir = os.path.join(userdir, "keys")
         self.keys = ClientKeyring(keyDir)
-        self.surbLogFilename = os.path.join("userdir", "surbs", "log")
+        self.surbLogFilename = os.path.join(userdir, "surbs", "log")
 
         # Initialize PRNG
         self.prng = mixminion.Crypto.getCommonPRNG()
@@ -1074,9 +1215,13 @@ class MixminionClient:
         """Generate and send a forward message.
             address -- the results of a parseAddress call
             payload -- the contents of the message to send
-            path1,path2 -- lists of servers for the first and second legs of
-               the path, respectively.
-            DOCDOC pool options"""
+            servers1,servers2 -- lists of ServerInfos for the first and second 
+               legs the path, respectively.
+            forcePool -- if true, do not try to send the message; simply
+               pool it and exit.
+            forceNoPool -- if true, do not pool the message even if delivery
+               fails."""
+        assert not (forcePool and forceNoPool)
 
         message, firstHop = \
                  self.generateForwardMessage(address, payload,
@@ -1091,9 +1236,17 @@ class MixminionClient:
 
     def sendReplyMessage(self, payload, servers, surbList, forcePool=0,
                          forceNoPool=0):
-        """
-        DOCDOC pool options
-        """
+        """Generate and send a reply message.
+            payload -- the contents of the message to send
+            servers -- a list of ServerInfos for the first leg of the path.
+            surbList -- a list of SURBs to consider for the second leg of
+               the path.  We use the first one that is neither expired nor
+               used, and mark it used.
+            forcePool -- if true, do not try to send the message; simply
+               pool it and exit.
+            forceNoPool -- if true, do not pool the message even if delivery
+               fails."""
+
         #XXXX003 testme
         message, firstHop = \
                  self.generateReplyMessage(payload, servers, surbList)
@@ -1107,8 +1260,11 @@ class MixminionClient:
 
 
     def generateReplyBlock(self, address, servers, expiryTime=0):
-        """
-        DOCDOC
+        """Generate an return a new ReplyBlock object.
+            address -- the results of a parseAddress call
+            servers -- lists of ServerInfos for the reply leg of the path.
+            expiryTime -- if provided, a time at which the replyBlock must
+               still be valid, and after which it should not be used.
         """
         #XXXX003 testme
         key = self.keys.getSURBKey(create=1)
@@ -1126,7 +1282,7 @@ class MixminionClient:
             address -- the results of a parseAddress call
             payload -- the contents of the message to send  (None for DROP
               messages)
-            path1,path2 -- lists of servers.
+            servers1,servers2 -- lists of ServerInfo.
             """
 
         #XXXX003 testme
@@ -1138,14 +1294,22 @@ class MixminionClient:
         return msg, servers1[0]
 
     def generateReplyMessage(self, payload, servers, surbList, now=None):
-        """
-        DOCDOC
-        """
+        """Generate a forward message, but do not send it.  Returns
+           a tuple of (the message body, a ServerInfo for the first hop.)
+
+            address -- the results of a parseAddress call
+            payload -- the contents of the message to send  (None for DROP
+              messages)
+            servers -- list of ServerInfo for the first leg of the path.
+            surbList -- a list of SURBs to consider for the second leg of
+               the path.  We use the first one that is neither expired nor
+               used, and mark it used.
+            """
         #XXXX003 testme
         if now is None:
             now = time.time()
         clientLock()
-        surbLog = SURBLog(self.surbLogFilename)
+        surbLog = self.openSURBLog()
         try:
             for surb in surbList:
                 expiry = surb.timestamp
@@ -1168,17 +1332,29 @@ class MixminionClient:
 
                 surbLog.markSURBUsed(surb)
                 return msg, servers[0]
-            raise MixError("No usable SURBs found.")
+            raise UIError("No usable SURBs found; all were used or expired.")
         finally:
             surbLog.close()
             clientUnlock()
 
+    def openSURBLog(self):
+        """Return a new, open SURBLog object for this client; it must be closed
+           when no longer in use.
+        """
+        return SURBLog(self.surbLogFilename)
+
     def sendMessages(self, msgList, routingInfo, noPool=0, lazyPool=0,
                      warnIfLost=1):
-        """Given a list of packets and a ServerInfo object, sends the
-           packets to the server via MMTP
+        """Given a list of packets and an IPV4Info object, sends the
+           packets to the server via MMTP.
 
-           DOCDOC ServerInfo or IPV4Info...
+           If noPool is true, do not pool the message even on failure.
+           If lazyPool is true, only pool the message on failure.
+           Otherwise, insert the message in the pool, and remove it on
+           success.
+
+           If warnIfLost is true, log a warning if we fail to deliver
+           the message, and we don't pool it.
            """
         #XXXX003 testme
         LOG.info("Connecting...")
@@ -1217,8 +1393,7 @@ class MixminionClient:
             raise UIError(str(e))
             
     def flushPool(self):
-        """
-        DOCDOC pool options
+        """Try to send end all messages in the queue to their destinations.
         """
         #XXXX003 testme
         LOG.info("Flushing message pool")
@@ -1255,8 +1430,8 @@ class MixminionClient:
         LOG.info("Pool flushed")
 
     def poolMessages(self, msgList, routing):
-        """
-        DOCDOC
+        """Insert all the messages in msgList into the pool, to be sent
+           to the server identified by the IPV4Info object 'routing'.
         """
         #XXXX003 testme
         LOG.trace("Pooling messages")
@@ -1275,9 +1450,11 @@ class MixminionClient:
         return handles
 
     def decodeMessage(self, s, force=0):
-        """DOCDOC
-
-           Raises ParseError
+        """Given a string 's' containing one or more text-encoed messages,
+           return a list containing the decoded messages.
+           
+           Raise ParseError on malformatted messages.  Unless 'force' is
+           true, do not uncompress possible zlib bombs. 
         """
         #XXXX003 testme
         results = []
@@ -1389,27 +1566,90 @@ def readConfigFile(configFile):
     return None #suppress pychecker warning
 
 class CLIArgumentParser:
-    "DOCDOC"
+    """Helper class to parse common command line arguments.
+
+       The following arguments are recognized:
+          COMMON
+             -h | --help : print usage and exit.
+             -f | --config : specify a configuration file.
+             -v | --verbose : run verbosely.
+          DIRECTORY ONLY   
+             -D | --download-directory : force/disable directory downloading.
+          PATH-RELEATED
+             -t | --to : specify an exit address
+             -R | --reply-block : specify a reply block
+             --swap-at : specify a swap point numerically
+             -H | --hops : specify a path length
+             -P | --path : specify a literal path.
+          REPLY PATH ONLY   
+             --lifetime : Required lifetime of new reply blocks.
+          MESSAGE-SENDING ONLY:
+             --pool | --no-pool : force/disable pooling.
+
+         The class's constructor parses command line options, as required.
+         The .init() method initializes a config file, logging, a
+           MixminionClient object, or the ClientDirectory object as requested.
+         The parsePath method parses the path as given.
+    """
+    ##Fields:
+    #  want*: as given as arguments to __init__
+    # [CALL "init()" before using these.
+    #  config: ClientConfig, or None.
+    #  directory: ClientDirectory, or None.
+    #  client: MixminionClient, or None.
+    #  keyring: ClientKeyring, or None.
+    # [As specified on command line"
+    #  path: path string, or None.
+    #  nHops: number of hops, or None.
+    #  swapAt: index of swap point, or None.
+    #  address: exit address, or None.
+    #  lifetime: SURB lifetime, or None.
+    #  replyBlockFiles: list of SURB filenames.
+    #  configFile: Filename of configuration file, or None.
+    #  forcePool: true if "--pool" is set.
+    #  forceNoPool: true if "--no-pool" is set.
+    #  verbose: true if verbose mode is set.
+    #  download: 1 if the user told us to download the directory, 0 if
+    #    they told us not to download it, and None if they didn't say.
+    # [Not public]
+    #  path1, path2 -- path as generated by parsePath.
+    
     def __init__(self, opts,
-                 wantConfig=0, wantKeystore=0, wantClient=0, wantLog=0,
+                 wantConfig=0, wantClientDirectory=0, wantClient=0, wantLog=0,
                  wantDownload=0, wantForwardPath=0, wantReplyPath=0,
                  minHops=0):
-        """DOCDOC"""
+        """Parse the command line options 'opts' as returned by getopt.getopt.
+
+           wantConfig -- If true, accept options pertaining to the config file,
+              and generate a ClientConfig object when self.init() is called.
+           wantClientDiredctory -- If true, accept options pertaining to the
+              client directory, and generate a ClientDirectory object when
+              self.init() is called.
+           wantClient -- If true, generate a MixminionClient when self.init()
+              is called.
+           wantLog -- If true, configure logging.
+           wantDownload -- If true, accept options pertaining to downloading
+              a new directory, and download the directrory as required.
+           wantForawrdPath -- If true, accept options to specify a forward
+              path (for forward or reply messages), and enable self.parsePath.
+           wantReplyPath -- If true, accept options to specify a path for
+              a reply block, and enable seslf.parsePath.
+           minHops -- Smallest allowable value for -H option.   
+        """
         self.config = None
-        self.keystore = None
+        self.directory = None
         self.client = None
-        self.keyring = None
         self.path1 = None
         self.path2 = None
 
-        if wantForwardPath: wantKeystore = 1
-        if wantReplyPath: wantKeystore = 1
-        if wantDownload: wantKeystore = 1
-        if wantKeystore: wantConfig = 1
+        if wantForwardPath: wantClientDirectory = 1
+        if wantReplyPath: wantClientDirectory = 1
+        if wantDownload: wantClientDirectory = 1
+        if wantClientDirectory: wantConfig = 1
         if wantClient: wantConfig = 1
 
         self.wantConfig = wantConfig
-        self.wantKeystore = wantKeystore
+        self.wantClientDirectory = wantClientDirectory
         self.wantClient = wantClient
         self.wantLog = wantLog
         self.wantDownload = wantDownload
@@ -1422,11 +1662,10 @@ class CLIArgumentParser:
 
         self.path = None
         self.nHops = None
-        self.path = None
         self.swapAt = None
         self.address = None
         self.lifetime = None
-        self.replyBlock = None
+        self.replyBlockFiles = []
 
         self.forcePool = None
         self.forceNoPool = None
@@ -1442,40 +1681,55 @@ class CLIArgumentParser:
                 assert wantDownload
                 download = v.lower()
                 if download in ('0','no','false','n','f'):
-                    self.download = 0
+                    dl = 0
                 elif download in ('1','yes','true','y','t','force'):
-                    self.download = 1
+                    dl = 1
                 else:
-                    raise UsageError(
+                    raise UIError(
                         "Unrecognized value for %s. Expected 'yes' or 'no'"%o)
+                if self.download not in (None, dl):
+                    raise UIError(
+                        "Value of %s for %o conflicts with earlier value" %
+                        (v, o))
+                self.download = dl
             elif o in ('-t', '--to'):
                 assert wantForwardPath or wantReplyPath
+                if self.address is not None:
+                    raise UIError("Multiple addresses specified.")
                 try:
                     self.address = parseAddress(v)
                 except ParseError, e:
                     raise UsageError(str(e))
             elif o in ('-R', '--reply-block'):
                 assert wantForwardPath
-                self.replyBlock = v
+                self.replyBlockFiles.append(v)
             elif o == '--swap-at':
                 assert wantForwardPath
+                if self.swapAt is not None:
+                    raise UIError("Multiple --swap-at arguments specified")
                 try:
                     self.swapAt = int(v)-1
                 except ValueError:
                     raise UsageError("%s expects an integer"%o)
             elif o in ('-H', '--hops'):
                 assert wantForwardPath or wantReplyPath
+                if self.nHops is not None:
+                    raise UIError("Multiple %s arguments specified"%o)
                 try:
                     self.nHops = int(v)
                     if minHops and self.nHops < minHops:
-                        raise UsageError("Must have at least 2 hops")
+                        raise UIError("Must have at least %s hops", minHops)
                 except ValueError:
-                    raise UsageError("%s expects an integer"%o)
+                    raise UIError("%s expects an integer"%o)
             elif o in ('-P', '--path'):
                 assert wantForwardPath or wantReplyPath
+                if self.path is not None:
+                    raise UIError("Multiple paths specified")
                 self.path = v
             elif o in ('--lifetime',):
                 assert wantReplyPath
+                if self.lifetime is not None:
+                    raise UIError("Multiple --lifetime arguments specified")
                 try:
                     self.lifetime = int(v)
                 except ValueError:
@@ -1486,7 +1740,8 @@ class CLIArgumentParser:
                 self.forceNoPool = 1
 
     def init(self):
-        """DOCDOC"""
+        """Configure objects and initialize subsystems as specified by the
+           command line."""
         if self.wantConfig:
             self.config = readConfigFile(self.configFile)
             if self.wantLog:
@@ -1517,46 +1772,50 @@ class CLIArgumentParser:
             LOG.debug("Configuring client")
             self.client = MixminionClient(self.config)
 
-        if self.wantKeystore:
+        if self.wantClientDirectory:
             assert self.wantConfig
             LOG.debug("Configuring server list")
-            self.keystore = ClientDirectory(userdir)
+            self.directory = ClientDirectory(userdir)
 
         if self.wantDownload:
-            assert self.wantKeystore
+            assert self.wantClientDirectory
             if self.download != 0:
                 try:
                     clientLock()
-                    self.keystore.updateDirectory(forceDownload=self.download)
+                    self.directory.updateDirectory(forceDownload=self.download)
                 finally:
                     clientUnlock()
 
     def parsePath(self):
-        """DOCDOC"""
+        """Parse the path specified on the command line and generate a
+           new list of servers to be retrieved by getForwardPath or
+           getReplyPath."""
         if self.wantReplyPath and self.address is None:
             address = self.config['Security'].get('SURBAddress')
             if address is None:
-                raise UsageError("No recipient specified; exiting.")
+                raise UIError("No recipient specified; exiting.")
             try:
                 self.address = parseAddress(address)
             except ParseError, e:
-                raise UsageError(str(e))
-        elif self.address is None and self.replyBlock is None:
-            raise UsageError("No recipients specified; exiting")
-        elif self.address is not None and self.replyBlock is not None:
-            raise UsageError("Cannot use both a recipient and a reply block")
-        elif self.replyBlock is not None:
+                raise UIError(str(e))
+        elif self.address is None and self.replyBlockFiles == []:
+            raise UIError("No recipients specified; exiting")
+        elif self.address is not None and self.replyBlockFiles:
+            raise UIError("Cannot use both a recipient and a reply block")
+        elif self.replyBlockFiles:
             useRB = 1
-            f = open(self.replyBlock, 'rb')
-            s = f.read()
-            f.close()
-            try:
-                if stringContains(s, "== BEGIN TYPE III REPLY BLOCK =="):
-                    surbs = parseTextReplyBlocks(s)
-                else:
-                    surbs = parseReplyBlocks(s)
-            except ParseError, e:
-                raise UIError("Error parsing %s: %s" % (self.replyBlock, e))
+            surbs = []
+            for fn in self.replyBlockFiles:
+                f = open(fn, 'rb')
+                s = f.read()
+                f.close()
+                try:
+                    if stringContains(s, "== BEGIN TYPE III REPLY BLOCK =="):
+                        surbs.extend(parseTextReplyBlocks(s))
+                    else:
+                        surbs.extend(parseReplyBlocks(s))
+                except ParseError, e:
+                        raise UIError("Error parsing %s: %s" % (fn, e))
         else:
             assert self.address is not None
             useRB = 0
@@ -1570,7 +1829,7 @@ class CLIArgumentParser:
             self.endTime = succeedingMidnight(time.time() + duration)
 
             defHops = self.config['Security'].get("SURBPathLength", 4)
-            self.path1 = parsePathLeg(self.keystore, self.config, self.path,
+            self.path1 = parsePathLeg(self.directory, self.config, self.path,
                                       self.nHops, self.address,
                                       startAt=time.time(),
                                       endAt=self.endTime,
@@ -1581,7 +1840,7 @@ class CLIArgumentParser:
         elif useRB:
             assert self.wantForwardPath
             defHops = self.config['Security'].get("PathLength", 6)
-            self.path1 = parsePathLeg(self.keystore, self.config, self.path,
+            self.path1 = parsePathLeg(self.directory, self.config, self.path,
                                       self.nHops, defaultNHops=defHops)
             self.path2 = surbs
             self.usingSURBList = 1
@@ -1591,7 +1850,7 @@ class CLIArgumentParser:
             assert self.wantForwardPath
             defHops = self.config['Security'].get("PathLength", 6)
             self.path1, self.path2 = \
-                        parsePath(self.keystore, self.config, self.path,
+                        parsePath(self.directory, self.config, self.path,
                                   self.address, self.nHops, self.swapAt,
                                   defaultNHops=defHops)
             self.usingSURBList = 0
@@ -1600,16 +1859,18 @@ class CLIArgumentParser:
                      ",".join([ s.getNickname() for s in self.path2 ]))
 
     def getForwardPath(self):
-        """DOCDOC"""
+        """Return a 2-tuple of lists of ServerInfo for the most recently
+           parsed forward path."""
         return self.path1, self.path2
     
     def getReplyPath(self):
-        """DOCDOC"""
+        """Return a list of ServerInfo for the most recently parsed reply
+           block path."""
         return self.path1
     
 _SEND_USAGE = """\
-Usage: %(cmd)s [options]
-        <-t address>|<--to=address>|<-R reply-block>|--reply-block=reply-block>
+Usage: %(cmd)s [options] <-t address>|<--to=address>|
+                          <-R reply-block>|--reply-block=reply-block>
 Options:
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
@@ -1619,14 +1880,16 @@ Options:
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
   -H <n>, --hops=<n>         Force the path to use <n> hops.
-  -i <file>, --input=<file>  Read the message to send from <file>.
-                               (Defaults to standard input.)
+  -i <file>, --input=<file>  Read the messagefrom <file>. (Defaults to stdin.)
   -P <path>, --path=<path>   Specify an explicit message path.
   -t address, --to=address   Specify the recipient's address.
+  -R <file>, --reply-block=<file>
+                             %(Send)s the message to a reply block in <file>
   --swap-at=<n>              Spcecify an explicit swap point.
+%(extra)s
 
 EXAMPLES:
-  Send a message contained in a file <data> to user@domain.
+  %(Send)s a message contained in a file <data> to user@domain.
       %(cmd)s -t user@domain -i data
   As above, but force 6 hops.
       %(cmd)s -t user@domain -i data -H 6
@@ -1639,15 +1902,19 @@ EXAMPLES:
       %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux,Fee,Fie,Foe'
   Specify an explicit path with a swap point
       %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux:Fee,Fie,Foe'
+  %(Send)s the message to a reply block stored in 'FredsBlocks', using a 
+  randomly chosen first leg.
+      %(cmd)s -t user@domain -i data -R FredsBlocks
+  %(Send)s the message to a reply block stored in 'FredsBlocks', specifying
+  the first leg.
+      %(cmd)s -t user@domain -i data -R FredsBlocks -P 'Foo,Bar,Baz'
   Read the message from standard input.
       %(cmd)s -t user@domain
   Force a fresh directory download
       %(cmd)s -D yes
-  Send a message without dowloading a new directory, even if the current
+  %(Send)s a message without dowloading a new directory, even if the current
   directory is out of date.
       %(cmd)s -D no -t user@domain -i data
-
-DOCDOC reply block
 """.strip()
 
 def usageAndExit(cmd, error=None):
@@ -1655,14 +1922,21 @@ def usageAndExit(cmd, error=None):
         print >>sys.stderr, "ERROR: %s"%error
         print >>sys.stderr, "For usage, run 'mixminion send --help'"
         sys.exit(1)
-    print _SEND_USAGE % { 'cmd' : "mixminion send" }
+    if cmd.endswith(" pool"):
+        print _SEND_USAGE % { 'cmd' : cmd, 'send' : 'pool', 'Send': 'Pool',
+                              'extra' : '' }
+    else:
+        print _SEND_USAGE % { 'cmd' : cmd, 'send' : 'send', 'Send': 'Send',
+                              'extra' : """\
+  --pool                     Pool the message; don't send it.
+  --no-pool                  Do not attempt to pool the message.""" }
     sys.exit(0)
 
 # NOTE: This isn't the final client interface.  Many or all options will
 #     change between now and 1.0.0
 def runClient(cmd, args):
-    #DOCDOC Comment this message    
-    if cmd.endswith(" client"):
+    #DOCDOC Comment this function
+    if cmd.endswith(" client"): #XXXX004 remove this.
         print "The 'client' command is deprecated.  Use 'send' instead."
     poolMode = 0
     if cmd.endswith(" pool"):
@@ -1685,14 +1959,14 @@ def runClient(cmd, args):
         usageAndExit(cmd,"Unexpected arguments")
 
     try:
-        parser = CLIArgumentParser(options, wantConfig=1, wantKeystore=1,
+        parser = CLIArgumentParser(options, wantConfig=1, wantClientDirectory=1,
                                    wantClient=1, wantLog=1, wantDownload=1,
                                    wantForwardPath=1)
         if poolMode and parser.forceNoPool:
             raise UsageError("Can't use --no-pool option with pool command")
         if parser.forcePool and parser.forceNoPool:
             raise UsageError("Can't use both --pool and --no-pool")
-    except UIError, e:
+    except UsageError, e:
         e.dump()
         usageAndExit(cmd)
 
@@ -1703,11 +1977,7 @@ def runClient(cmd, args):
     parser.init()
     client = parser.client
 
-    try:
-        parser.parsePath()
-    except UIError, e:
-        e.dump()
-        sys.exit(1)
+    parser.parsePath()
 
     path1, path2 = parser.getForwardPath()
     address = parser.address
@@ -1737,45 +2007,46 @@ def runClient(cmd, args):
             print "Interrupted.  Message not sent."
             sys.exit(1)
 
-    try:
-        if parser.usingSURBList:
-            assert isinstance(path2, ListType)
-            client.sendReplyMessage(payload, path1, path2,
-                                    forcePool, forceNoPool)
-        else:
-            client.sendForwardMessage(address, payload, path1, path2,
-                                      forcePool, forceNoPool)
-    except UIError, e:
-        e.dump()
+    if parser.usingSURBList:
+        assert isinstance(path2, ListType)
+        client.sendReplyMessage(payload, path1, path2,
+                                forcePool, forceNoPool)
+    else:
+        client.sendForwardMessage(address, payload, path1, path2,
+                                  forcePool, forceNoPool)
 
 _IMPORT_SERVER_USAGE = """\
-Usage: %s [options] <filename> ...
+Usage: %(cmd)s [options] <filename> ...
 Options:
    -h, --help:             Print this usage message and exit.
-   -v, --verbose              Display extra debugging messages.
+   -v, --verbose           Display extra debugging messages.
    -f FILE, --config=FILE  Use a configuration file other than ~/.mixminionrc
+
+EXAMPLES:
+  Import a ServerInfo from the file MyServer into our local directory.
+      %(cmd)s MyServer
 """.strip()
 
 def importServer(cmd, args):
     options, args = getopt.getopt(args, "hf:v", ['help', 'config=', 'verbose'])
 
     try:
-        parser = CLIArgumentParser(options, wantConfig=1, wantKeystore=1,
+        parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
                                    wantLog=1)
-    except UIError, e:
+    except UsageError, e:
         e.dump()
-        print _IMPORT_SERVER_USAGE %cmd
+        print _IMPORT_SERVER_USAGE % { 'cmd' : cmd }
         sys.exit(1)
 
     parser.init()
-    keystore = parser.keystore
+    directory = parser.directory
 
     try:
         clientLock()
         for filename in args:
             print "Importing from", filename
             try:
-                keystore.importFromFile(filename)
+                directory.importFromFile(filename)
             except MixError, e:
                 print "Error while importing: %s" % e
     finally:
@@ -1784,15 +2055,18 @@ def importServer(cmd, args):
     print "Done."
 
 _LIST_SERVERS_USAGE = """\
-Usage: %s [options]
+Usage: %(cmd)s [options]
 Options:
   -h, --help:                Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
-                             (You can also use MIXMINIONRC=FILE)
   -D <yes|no>, --download-directory=<yes|no>
                              Force the client to download/not to download a
                                fresh directory.
+
+EXAMPLES:
+  List all currently known servers.
+      %(cmd)s
 """.strip()
 
 def listServers(cmd, args):
@@ -1800,50 +2074,55 @@ def listServers(cmd, args):
                                   ['help', 'config=', "download-directory=",
                                    'verbose'])
     try:
-        parser = CLIArgumentParser(options, wantConfig=1, wantKeystore=1,
+        parser = CLIArgumentParser(options, wantConfig=1, wantClientDirectory=1,
                                    wantLog=1, wantDownload=1)
-    except UIError, e:
+    except UsageError, e:
         e.dump()
-        print _LIST_SERVERS_USAGE % cmd
+        print _LIST_SERVERS_USAGE % {'cmd' : cmd}
         sys.exit(1)
 
     parser.init()
-    keystore = parser.keystore
+    directory = parser.directory
 
-    for line in keystore.listServers():
+    for line in directory.listServers():
         print line
 
 _UPDATE_SERVERS_USAGE = """\
-Usage: %s [options]
+Usage: %(cmd)s [options]
 Options:
   -h, --help:                Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                              (You can also use MIXMINIONRC=FILE)
+
+EXAMPLES:
+  Download a new list of servers.  (Note that the 'mixminion send' and
+  the 'mixminion generate-surbs' commands do this by default.)
+      %(cmd)s
 """.strip()
 
 def updateServers(cmd, args):
     options, args = getopt.getopt(args, "hvf:", ['help', 'verbose', 'config='])
     
     try:
-        parser = CLIArgumentParser(options, wantConfig=1, wantKeystore=1,
+        parser = CLIArgumentParser(options, wantConfig=1, wantClientDirectory=1,
                                    wantLog=1)
-    except UIError, e:
+    except UsageError, e:
         e.dump()
-        print _UPDATE_SERVERS_USAGE % cmd
+        print _UPDATE_SERVERS_USAGE % { 'cmd' : cmd } 
         sys.exit(1)
 
     parser.init()
-    keystore = parser.keystore
+    directory = parser.directory
     try:
         clientLock()
-        keystore.updateDirectory(forceDownload=1)
+        directory.updateDirectory(forceDownload=1)
     finally:
         clientUnlock()
     print "Directory updated"
 
 _CLIENT_DECODE_USAGE = """\
-Usage: %s [options] -i <file>|--input=<file>
+Usage: %(cmd)s [options] -i <file>|--input=<file>
 Options:
   -h, --help:                Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
@@ -1852,7 +2131,13 @@ Options:
   -F, --force:               Decode the input files, even if they seem
                              overcompressed.
   -o <file>, --output=<file> Write the results to <file> rather than stdout.
-  
+  -i <file>, --input=<file>  Read the results from <file>.  
+
+EXAMPLES:
+  Decode message(s) stored in 'NewMail', writing the result to stdout.
+      %(cmd)s -i NewMail
+  Decode message(s) stored in 'NewMail', writing the result to 'Decoded'.
+      %(cmd)s -i NewMail -o  Decoded
 """.strip()
 
 def clientDecode(cmd, args):
@@ -1875,9 +2160,15 @@ def clientDecode(cmd, args):
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantClient=1,
                                    wantLog=1)
-    except UIError, e:
+    except UsageError, e:
         e.dump()
-        print _CLIENT_DECODE_USAGE %cmd
+        print _CLIENT_DECODE_USAGE % { 'cmd' : cmd }
+        sys.exit(1)
+
+    if args:
+        print >>sys.stderr, "Error: unexpected arguments."
+        if len(args) == 1:
+            print >>sys.stderr, "       (Did you mean '-i %s'?)" %args[0]
         sys.exit(1)
 
     if not inputFile:
@@ -1914,10 +2205,48 @@ def clientDecode(cmd, args):
     out.close()
 
 _GENERATE_SURB_USAGE = """\
-Usage: %s [options]
-  This space is temporarily left blank.
-  DOCDOC
-"""
+Usage: %(cmd)s [options]
+Options:
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -D <yes|no>, --download-directory=<yes|no>
+                             Force the client to download/not to download a
+                               fresh directory.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+  -H <n>, --hops=<n>         Force the path to use <n> hops.
+  -P <path>, --path=<path>   Specify an explicit path.
+  -t address, --to=address   Specify the block's address. (Defaults to value
+                               in configuration file.)
+  -o <file>, --output=<file> Write the reply blocks to <file> instead of
+                               stdout.
+  -b, --binary               Write the reply blocks in binary mode instead
+                               of ascii mode.
+  -n <N>, --count=<N>        Generate <N> reply blocks. (Defaults to 1.)
+
+EXAMPLES:
+  Generate a reply block to deliver messages to the address given in
+  ~/.mixminiond.conf; choose a path at random; write the block to stdout.
+      %(cmd)s
+  As above, but force change address to deliver to user@domain.
+      %(cmd)s -t user@domain
+  As above, but force a 6-hop path.
+      %(cmd)s -t user@domain -H 6
+  As above, but force the first hop to be 'Foo' and the last to be 'Bar'.
+      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar'
+  As above, but write the reply block to the file 'MyBlocks'.
+      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar' -o MyBlocks
+  As above, but write the reply block in binary mode.
+      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar' -o MyBlocks -b
+  As above, but generate 100 reply blocks.
+      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar' -o MyBlocks -b -n 100
+  Specify an explicit path.
+      %(cmd)s -P 'Foo,Bar,Baz,Quux'
+  Generate 10 reply blocks without dowloading a new directory, even if the
+  current directory is out of date.
+      %(cmd)s -D no -n 10
+""".strip()
+
 def generateSURB(cmd, args):
     #DOCDOC Comment me
     options, args = getopt.getopt(args, "hvf:D:t:H:P:o:bn:",
@@ -1942,12 +2271,12 @@ def generateSURB(cmd, args):
             
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantClient=1,
-                                   wantLog=1, wantKeystore=1, wantDownload=1,
-                                   wantReplyPath=1)
-    except UIError, e:
+                                   wantLog=1, wantClientDirectory=1,
+                                   wantDownload=1, wantReplyPath=1)
+    except UsageError, e:
         e.dump()
         print _GENERATE_SURB_USAGE % cmd
-        sys.exit(1)
+        sys.exit(0)
 
     if args:
         print >>sys.stderr, "Unexpected arguments"
@@ -1957,11 +2286,7 @@ def generateSURB(cmd, args):
         
     client = parser.client
 
-    try:
-        parser.parsePath()
-    except UIError, e:
-        e.dump()
-        sys.exit(1)
+    parser.parsePath()
     
     path1 = parser.getReplyPath()
     address = parser.address
@@ -1986,46 +2311,65 @@ def generateSURB(cmd, args):
     out.close()
 
 _INSPECT_SURBS_USAGE = """\
-Usage: %s [options] <files>
-  This space is temporarily left blank.
-  DOCDOC
-"""
+Usage: %(cmd)s [options] <files>
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+
+EXAMPLES:
+  Examine properties of reply blocks stored in 'FredsBlocks'.
+      %(cmd)s FredsBlocks
+""".strip()
 
 def inspectSURBs(cmd, args):
     options, args = getopt.getopt(args, "hvf:",
              ["help", "verbose", "config=", ])
 
     try:
-        parser = CLIArgumentParser(options, wantConfig=1, wantLog=1)
-    except UIError, e:
+        parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
+                                   wantClient=1)
+    except UsageError, e:
         e.dump()
-        print _INSPECT_SURBS_USAGE % cmd
+        print _INSPECT_SURBS_USAGE % { 'cmd' : cmd }
         sys.exit(1)
 
     parser.init()
 
-    for fn in args:
-        f = open(fn, 'rb')
-        s = f.read()
-        f.close()
-        print "==== %s"%fn
-        try:
-            if stringContains(s, "== BEGIN TYPE III REPLY BLOCK =="):
-                surbs = parseTextReplyBlocks(s)
-            else:
-                surbs = parseReplyBlocks(s)
-        
-            for surb in surbs:
-                print surb.format()
-        except ParseError, e:
-            print "Error while parsing: %s"%e
-        
+    surblog = parser.client.openSURBLog()
+
+    try:
+        for fn in args:
+            f = open(fn, 'rb')
+            s = f.read()
+            f.close()
+            print "==== %s"%fn
+            try:
+                if stringContains(s, "== BEGIN TYPE III REPLY BLOCK =="):
+                    surbs = parseTextReplyBlocks(s)
+                else:
+                    surbs = parseReplyBlocks(s)
+
+                for surb in surbs:
+                    used = surblog.isSURBUsed(surb) and "yes" or "no"
+                    print surb.format()
+                    print "Used:", used
+            except ParseError, e:
+                print "Error while parsing: %s"%e
+    finally:
+        surblog.close()
 
 _FLUSH_POOL_USAGE = """\
-Usage: %s [options]
-  This space is temporarily left blank.
-  DOCDOC
-"""
+Usage: %(cmd)s [options]
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+
+EXAMPLES:
+  Try to send all currently pooled messages.
+      %(cmd)s
+""".strip()
 
 def flushPool(cmd, args):
     options, args = getopt.getopt(args, "hvf:",
@@ -2033,7 +2377,7 @@ def flushPool(cmd, args):
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
                                    wantClient=1)
-    except UIError, e:
+    except UsageError, e:
         e.dump()
         print _FLUSH_POOL_USAGE % cmd
         sys.exit(1)
@@ -2045,10 +2389,16 @@ def flushPool(cmd, args):
 
 
 _LIST_POOL_USAGE = """\
-Usage: %s [options]
-  This space is temporarily left blank.
-  DOCDOC
-"""
+Usage: %(cmd)s [options]
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+
+EXAMPLES:
+  Describe the current contents of the pool.
+      %(cmd)s
+""".strip()
 
 def listPool(cmd, args):
     options, args = getopt.getopt(args, "hvf:",
@@ -2056,13 +2406,14 @@ def listPool(cmd, args):
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
                                    wantClient=1)
-    except UIError, e:
+    except UsageError, e:
         e.dump()
-        print _LIST_POOL_USAGE % cmd
+        print _LIST_POOL_USAGE % { 'cmd' : cmd }
         sys.exit(1)
 
     parser.init()
     client = parser.client
+
     try:
         clientLock()
         client.pool.inspectPool()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.9 2003/02/09 22:30:58 nickm Exp $
+# $Id: PacketHandler.py,v 1.10 2003/02/13 06:30:23 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -189,25 +189,53 @@ class PacketHandler:
         return RelayedPacket(address, msg)
         
 class RelayedPacket:
-    """DOCDOC"""
+    """A packet that is to be relayed to another server; returned by
+       returned by PacketHandler.processMessage."""
+    ## Fields:
+    # address -- an instance of IPV4Info
+    # msg -- a 32K packet.
     def __init__(self, address, msg):
+        """Create a new packet, given an instance of IPV4Info and a 32K
+           packet."""
         assert isinstance(address, Packet.IPV4Info)
+        assert len(msg) == 1<<15
         self.address = address
         self.msg = msg
 
     def isDelivery(self):
+        """Return true iff this packet is a delivery (non-relay) packet."""
         return 0
 
     def getAddress(self):
+        """Return an instance of IPV4Info indicating the address where this
+           packet is to be delivered."""
         return self.address
 
     def getPacket(self):
+        """Returns the 32K contents of this packet."""
         return self.msg
 
 class DeliveryPacket:
-    """DOCDOC"""
+    """A packet that is to be delivered via some exit module; returned by
+       PacketHandler.processMessage"""
+    ##Fields:
+    # exitType -- a 2-byte integer indicating which exit module to use.
+    # address -- a string encoding the address to deliver to.
+    # key -- the 16-byte application key
+    # tag -- the 20-byte delivery handle
+    # payload -- the unencoded 28K payload
+    # contents -- until decode is called, None.  After decode is called,
+    #     the actual contents of this message as delivered.
+    # type -- until decode is called, None.  After decode is called,
+    #     one of 'plain' (plaintext message), 'long' (overcompressed message),
+    #     'enc' (encrypted message), or 'err' (malformed message).
     def __init__(self, routingType, routingInfo, applicationKey,
                  tag, payload):
+        """Construct a new DeliveryPacket."""
+        assert 0 <= routingType <= 0xFFFF
+        assert len(applicationKey) == 16
+        assert len(tag) == 20
+        assert len(payload) == 28*1024
         self.exitType = routingType
         self.address = routingInfo
         self.key = applicationKey
@@ -217,6 +245,7 @@ class DeliveryPacket:
         self.type = None
 
     def isDelivery(self):
+        """Return true iff this packet is a delivery (non-relay) packet."""
         return 1
 
     def getExitType(self): return self.exitType
@@ -226,30 +255,40 @@ class DeliveryPacket:
     def getPayload(self): return self.payload
 
     def getContents(self):
+        """Return the decoded contents of this packet."""
         if self.type is None: self.decode()
         return self.contents
 
     def isPlaintext(self):
+        """Return true iff this packet is a plaintext, forward packet."""
         if self.type is None: self.decode()
         return self.type == 'plain'
 
     def isOvercompressed(self):
+        """Return true iff this packet is an overcompressed, plaintext, forward
+           packet."""
         if self.type is None: self.decode()
         return self.type == 'long'
 
     def isEncrypted(self):
+        """Return true iff this packet may be an encrypted forward or
+           reply packet."""
         if self.type is None: self.decode()
         return self.type == 'enc'
 
     def isPrintingAscii(self):
+        """Return true iff this packets contents are printing characters
+           suitable for inclusion in a text transport medium."""
         if self.type is None: self.decode()
         return isPrintingAscii(self.contents, allowISO=1)
 
     def isError(self):
+        """Return true iff this packet is malformed."""
         if self.type is None: self.decode()
         return self.type == 'err'
 
     def decode(self):
+        """Helper method: Determines this message's type and contents."""
         if self.payload is None:
             return
         message = self.payload
@@ -276,6 +315,8 @@ class DeliveryPacket:
         self.payload = None
 
     def getAsciiContents(self):
+        """Return the contents of this message, encoded in base64 if they are
+           not already printable."""
         if self.type is None:
             self.decode()
 
@@ -285,9 +326,11 @@ class DeliveryPacket:
             return base64.encodestring(self.contents)
 
     def getAsciiTag(self):
+        """Return a base64-representation of this message's decoding handle."""
         return base64.encodestring(self.tag).strip()
 
     def getTextEncodedMessage(self):
+        """Return a Packet.TextEncodedMessage object for this packet."""
         tag = None
         if self.isOvercompressed():
             tp = 'LONG'

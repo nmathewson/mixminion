@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.22 2003/02/11 22:18:13 nickm Exp $
+# $Id: MMTPClient.py,v 1.23 2003/02/13 06:30:22 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -17,8 +17,6 @@
 
 __all__ = [ "BlockingClientConnection", "sendMessages" ]
 
-#DOCDOC MixProtocolError pattern
-
 import errno
 import signal
 import socket
@@ -26,7 +24,8 @@ import mixminion._minionlib as _ml
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Common import MixProtocolError, LOG, MixError
 
-class TimeoutError(MixError):
+class TimeoutError(MixProtocolError):
+    """Exception raised for protocol timeout."""
     pass
 
 class BlockingClientConnection:
@@ -59,13 +58,22 @@ class BlockingClientConnection:
         self.sock = None
 
     def connect(self, connectTimeout=None):
-        "DOCDOC"
+        """Connect to the server, perform the TLS handshake, check the server
+           key, and negotiate a protocol version.  If connectTimeout is set,
+           wait no more than connectTimeout seconds for TCP handshake to
+           complete.
+
+           Raises TimeoutError on timeout, and MixProtocolError on all other
+           errors."""
         try:
             self._connect(connectTimeout)
         except (socket.error, _ml.TLSError), e:
             self._raise(e, "connecting")
 
     def _raise(self, err, action):
+        """Helper method: given an exception (err) and an action string (e.g.,
+           'connecting'), raises an appropriate MixProtocolError.
+        """
         if isinstance(err, socket.error):
             tp = "Socket"
         elif isinstance(err, _ml.TLSError):
@@ -76,8 +84,7 @@ class BlockingClientConnection:
              tp, action, self.targetIP, self.targetPort, err)
 
     def _connect(self, connectTimeout=None):
-        """Negotiate the handshake and protocol."""
-        #DOCDOC connectTimeout
+        """Helper method; implements _connect."""
         # FFFF There should be a way to specify timeout for communication.
         def sigalarmHandler(sig, _):
             assert sig == signal.SIGALRM
@@ -141,16 +148,40 @@ class BlockingClientConnection:
         LOG.debug("MMTP protocol negotated: version %s", self.protocol)
 
     def renegotiate(self):
+        """Re-do the TLS handshake to renegotiate a new connection key."""
         try:
             self.tls.renegotiate()
             self.tls.do_handshake()
         except (socket.error, _ml.TLSError), e:
             self._raise(e, "renegotiating connection")
 
-    def sendPacket(self, packet,
-                   control="SEND\r\n", serverControl="RECEIVED\r\n",
-                   hashExtra="SEND",serverHashExtra="RECEIVED"):
-        """Send a single packet to a server."""
+    def sendPacket(self, packet):
+        """Send a single 32K packet to the server."""
+        self._sendPacket(packet)
+
+    def sendJunkPacket(self, packet):
+        """Send a single 32K junk packet to the server."""
+        if self.protocol == '0.1':
+            LOG.debug("Not sending junk to a v0.1 server")
+            return
+        self._sendPacket(packet,
+                         control="JUNK\r\n", serverControl="RECEIVED\r\n",
+                         hashExtra="JUNK", serverHashExtra="RECEIVED JUNK")
+        
+    def _sendPacket(self, packet,
+                    control="SEND\r\n", serverControl="RECEIVED\r\n",
+                    hashExtra="SEND",serverHashExtra="RECEIVED"):
+        """Helper method: implements sendPacket and sendJunkPacket.
+              packet -- a 32K string to send
+              control -- a 6-character string ending with CRLF to
+                  indicate the type of message we're sending.
+              serverControl -- a 10-character string ending with CRLF that
+                  we expect to receive if we've sent correctly.
+              hashExtra -- a string to append to the packet when computing
+                  the hash we send.
+              serverHashExtra -- the string we expect the server to append
+                  to the packet when computing the hash it sends in reply.
+           """
         assert len(packet) == 1<<15
         LOG.debug("Sending packet")
         try:
@@ -169,14 +200,6 @@ class BlockingClientConnection:
         except (socket.error, _ml.TLSError), e:
             self._raise(e, "sending packet")
             
-    def sendJunkPacket(self, packet):
-        if self.protocol == '0.1':
-            LOG.debug("Not sending junk to a v0.1 server")
-            return
-        self.sendPacket(packet,
-                        control="JUNK\r\n", serverControl="RECEIVED\r\n",
-                        hashExtra="JUNK", serverHashExtra="RECEIVED JUNK")
-        
     def shutdown(self):
         """Close this connection."""
         LOG.debug("Shutting down connection to %s:%s",
@@ -191,17 +214,19 @@ class BlockingClientConnection:
         LOG.debug("Connection closed")
 
 def sendMessages(routing, packetList, connectTimeout=None, callback=None):
-    """Sends a list of messages to a server.
+    """Sends a list of messages to a server.  Raise MixProtocolError on
+       failure.
 
-       targetIP -- the address to connect to, in dotted-quad format.
-       targetPort -- the port to connect to.
-       targetKeyID -- the keyid to expect, or '\000...\000' to ignore
-           the server's keyid.
+       routing -- an instance of mixminion.Packet.IPV4Info.
+                  If routing.keyinfo == '\000'*20, we ignore the server's
+                  keyid.
        packetList -- a list of 32KB packets and control strings.  Control
            strings must be one of "JUNK" to send a 32KB padding chunk,
            or "RENEGOTIATE" to renegotiate the connection key.
-
-       DOCDOC args are wrong
+       connectTimeout -- None, or a number of seconds to wait for the
+           TCP handshake to finish before raising TimeoutError.
+       callback -- None, or a function to call with a index into packetList
+           after each successful packet delivery.
     """
     # Generate junk before opening connection to avoid timing attacks
     packets = []

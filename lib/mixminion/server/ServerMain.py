@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.37 2003/02/09 22:30:58 nickm Exp $
+# $Id: ServerMain.py,v 1.38 2003/02/13 06:30:23 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -35,13 +35,15 @@ from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
      createPrivateDir, formatBase64, formatTime, installSIGCHLDHandler, \
      Lockfile, secureDelete, waitForChildren
 
-#DOCDOC Re-check fields and args for all classes, methods here!
-
 class IncomingQueue(mixminion.server.ServerQueue.Queue):
     """A DeliveryQueue to accept packets from incoming MMTP connections,
        and hold them until they can be processed.  As packets arrive, and
        are stored to disk, we notify a message queue so that another thread
        can read them."""
+    ## Fields:
+    # packetHandler -- an instance of PacketHandler.
+    # mixPool -- an instance of MixPool
+    # processingThread -- an instance of ProcessingThread
     def __init__(self, location, packetHandler):
         """Create an IncomingQueue that stores its messages in <location>
            and processes them through <packetHandler>."""
@@ -112,6 +114,10 @@ class MixPool:
 
        All methods on this class are invoked from the main thread.
     """
+    ## Fields:
+    # queue -- underlying *MixQueue
+    # outgoingQueue -- instance of OutgoingQueue
+    # moduleManager -- instance of ModuleManager.
     def __init__(self, config, queueDir):
         """Create a new MixPool, based on this server's configuration and
            queue location."""
@@ -138,9 +144,11 @@ class MixPool:
         self.moduleManager = None
 
     def lock(self):
+        """Acquire the lock on the underlying queue"""
         self.queue.lock()
 
     def unlock(self):
+        """Release the lock on the underlying queue"""
         self.queue.unlock()
 
     def queueObject(self, obj):
@@ -169,7 +177,7 @@ class MixPool:
         
         for h in handles:
             packet = self.queue.getObject(h)
-            #XXXX remove the first case after 0.0.3
+            #XXXX004 remove the first case after 0.0.3
             if type(packet) == type(()):
                 LOG.debug("  (skipping message %s in obsolete format)", h)
             elif packet.isDelivery():
@@ -180,6 +188,7 @@ class MixPool:
                 LOG.debug("  (sending message %s to MMTP server)",
                           formatBase64(packet.getPacket()[:8]))
                 self.outgoingQueue.queueDeliveryMessage(packet)
+            # In any case, we're through with this message now.
             self.queue.removeMessage(h)
 
     def getNextMixTime(self, now):
@@ -194,6 +203,8 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
 
        All methods in this class are run from the main thread.
     """
+    ## Fields:
+    # server -- an instance of _MMTPServer
     def __init__(self, location):
         """Create a new OutgoingQueue that stores its messages in a given
            location."""
@@ -201,6 +212,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         self.server = None
 
     def configure(self, config):
+        """Set up this queue according to a ServerConfig object."""
         retry = config['Outgoing/MMTP']['Retry']
         self.setRetrySchedule(retry)
 
@@ -233,6 +245,9 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
 
        All methods in this class are run from the main thread.
        """
+    ## Fields:
+    # incomingQueue -- a Queue to hold messages we receive
+    # outgoingQueue -- a DeliveryQueue to hold messages to be sent.
     def __init__(self, config, tls):
         mixminion.server.MMTPServer.MMTPAsyncServer.__init__(self, config, tls)
 
@@ -248,6 +263,7 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
 
     def onMessageUndeliverable(self, msg, handle, retriable):
         self.outgoingQueue.deliveryFailed(handle, retriable)
+        
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
     """Thread that handles file deletion.  Some methods of secure deletion
@@ -298,11 +314,14 @@ class CleaningThread(threading.Thread):
                           "Exception while cleaning; shutting down thread.")
 
 class ProcessingThread(threading.Thread):
-    """Background thread to handle CPU-intensive functions."""
+    """Background thread to handle CPU-intensive functions.
+
+       Currently used to process packets in the background."""
     # Fields:
     #   mqueue: a MessageQueue of callable objects.
-    
     class _Shutdown:
+        """Callable that raises itself when called.  Inserted into the
+           queue when it's time to shut down."""
         def __call__(self):
             raise self
 
@@ -334,14 +353,14 @@ class ProcessingThread(threading.Thread):
                           "Exception while processing; shutting down thread.")
 
 #----------------------------------------------------------------------
-STOPPING = 0
+STOPPING = 0 # Set to one if we get SIGTERM
 def _sigTermHandler(signal_num, _):
     '''(Signal handler for SIGTERM)'''
     signal.signal(signal_num, _sigTermHandler)
     global STOPPING
     STOPPING = 1
 
-GOT_HUP = 0
+GOT_HUP = 0 # Set to one if we get SIGHUP.
 def _sigHupHandler(signal_num, _):
     '''(Signal handler for SIGTERM)'''
     signal.signal(signal_num, _sigHupHandler)
@@ -376,8 +395,12 @@ class MixminionServer:
     # moduleManager: Instance of ModuleManager.  Map routing types to
     #    outging queues, and processes non-MMTP exit messages.
     # outgoingQueue: Holds messages waiting to be send via MMTP.
-    # DOCDOC cleaningThread, processingthread, incomingQueue
-    
+    # cleaningThread: Thread used to remove packets in the background
+    # processingThread: Thread to handle CPU-intensive activity without
+    #    slowing down network interactivity.
+    # lockFile: An instance of Lockfile to prevent multiple servers from
+    #    running in the same directory
+    # pidFile: Filename in which we store the pid of the running server.
     def __init__(self, config):
         """Create a new server from a ServerConfig."""
         LOG.debug("Initializing server")
