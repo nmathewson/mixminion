@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.5 2003/01/13 06:28:49 nickm Exp $
+# $Id: PacketHandler.py,v 1.6 2003/02/04 02:05:36 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -60,17 +60,12 @@ class PacketHandler:
             h.close()
 
     def processMessage(self, msg):    
-        """DOCDOC
+        """Given a 32K mixminion message, processes it completely.
 
-           Given a 32K mixminion message, processes it completely.
-
-           Returns one of:
+           Return one of:
                     None [if the mesesage should be dropped.]
-                    ("EXIT",
-                       (exit_type, exit_info, application_key,
-                        tag, payload)) [if this is the exit node]
-                    ("QUEUE", (ipv4info, message_out))
-                        [if this is a forwarding node]
+                    a DeliveryPacket object
+                    a RelayedPacket object
 
            May raise CryptoError, ParseError, or ContentError if the packet
            is malformatted, misencrypted, unparseable, repeated, or otherwise
@@ -234,7 +229,7 @@ class DeliveryPacket:
         return self.contents
 
     def isPlaintext(self):
-        if self.type is None: self.decode()        
+        if self.type is None: self.decode()
         return self.type == 'plain'
 
     def isOvercompressed(self):
@@ -277,7 +272,6 @@ class DeliveryPacket:
             self.contents = message
             self.type = 'err'
 
-
         self.payload = None
 
     def getAsciiContents(self):
@@ -291,3 +285,19 @@ class DeliveryPacket:
 
     def getAsciiTag(self):
         return base64.encodestring(self.tag).strip()
+
+    def getAsciiEncodedMessage(self):
+        tag = None
+        if self.isOvercompressed():
+            tp = 'LONG'
+        elif self.isEncrypted():
+            tp = 'ENC'
+            tag = self.tag
+        elif self.isPrintingAscii():
+            assert self.isPlaintext()
+            tp = 'TXT'
+        else:
+            assert self.isPlaintext()
+            tp = 'BIN'
+            
+        return Packet.AsciiEncodedMessage(self.contents, tp, tag)
