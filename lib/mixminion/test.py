@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.127 2003/06/30 17:33:33 nickm Exp $
+# $Id: test.py,v 1.128 2003/07/01 21:18:32 nickm Exp $
 
 """mixminion.tests
 
@@ -71,6 +71,13 @@ from mixminion.server.ServerKeys import generateServerDescriptorAndKeys, \
 # generated independently.  Otherwise, we cache diffie-hellman parameters
 # on disk, and only generate a small number of RSA keys.
 USE_SLOW_MODE = 0
+
+# Flag: are we on a platform with windowsy permissions?
+ON_WINDOWS = (sys.platform in ('cygwin', 'win32'))
+
+# Flag: are we on win32?
+ON_WIN32 = (sys.platform == 'win32')
+
 
 #----------------------------------------------------------------------
 # Misc helper functions
@@ -474,11 +481,13 @@ class MiscTests(unittest.TestCase):
         LF1 = Lockfile(fn)
         LF2 = Lockfile(fn)
         LF1.acquire("LF1")
-        self.assertEquals("LF1", readFile(fn))
+        if not ON_WINDOWS:
+            self.assertEquals("LF1", readFile(fn))
         self.assertRaises(IOError, LF2.acquire, blocking=0)
         LF1.release()
         LF2.acquire("LF2",1)
-        self.assertEquals("LF2", readFile(fn))
+        if not ON_WINDOWS:
+            self.assertEquals("LF2", readFile(fn))
         self.assertRaises(IOError, LF1.acquire, blocking=0)
 
         # Now try recursivity.
@@ -2512,7 +2521,8 @@ class QueueTests(unittest.TestCase):
         # Try to create
         queue = Queue(self.d1, create=1)
         self.failUnless(os.path.isdir(self.d1))
-        self.assertEquals(0700, os.stat(self.d1)[stat.ST_MODE] & 0777)
+        if not ON_WINDOWS:
+            self.assertEquals(0700, os.stat(self.d1)[stat.ST_MODE] & 0777)
         self.assertEquals(0, len(os.listdir(self.d1)))
         queue.queueMessage("Hello world 1")
         h2 = queue.queueMessage("Hello world 2")
@@ -2860,34 +2870,41 @@ class FileParanoiaTests(unittest.TestCase):
 
         # Pick a private directory under tempdir, but don't create it.
         noia = mix_mktemp("noia")
+        subdir = os.path.join(noia, "subdir")
 
         # Nonexistant directory.
         self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
         # Bad permissions.
         os.mkdir(noia)
-        os.chmod(noia, 0777)
-        self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
-        # Bad permissions on parent
-        subdir = os.path.join(noia, "subdir")
-        os.mkdir(subdir, 0700)
-        self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
-        os.chmod(noia, 0755)
-        checkPrivateDir(subdir)
-        os.chmod(noia, 0700)
-        checkPrivateDir(subdir)
-        # Not writable by self
-        os.chmod(subdir, 0600)
-        self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+        if not ON_WINDOWS:
+            os.chmod(noia, 0777)
+            self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
+            # Bad permissions on parent
+            os.mkdir(subdir, 0700)
+            self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+            os.chmod(noia, 0755)
+            checkPrivateDir(subdir)
+            os.chmod(noia, 0700)
+            checkPrivateDir(subdir)
+            # Not writable by self
+            os.chmod(subdir, 0600)
+            self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+            os.rmdir(subdir)
         # Not a directory
-        os.rmdir(subdir)
         writeFile(subdir, "x")
         os.chmod(subdir, 0700)
         self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
         os.unlink(subdir)
         os.mkdir(subdir, 0700)
 
+        # Helper fn: return mode,uid,isdir
+        def mud(f):
+            st = os.stat(f)
+            return st[stat.ST_MODE]&0777, st[stat.ST_UID], os.path.isdir(f)
+
         # Now we test a directory we don't own...
-        if os.getuid() == 0: # If we're root, we can play with chown!
+        if not ON_WIN32 and os.getuid() == 0: 
+            # If we're root, we can play with chown!
             # We don't own the directory
             os.chown(subdir, 1, 1)
             self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
@@ -2896,18 +2913,18 @@ class FileParanoiaTests(unittest.TestCase):
             os.chown(noia, 1, 1)
             self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
             os.chown(noia, 0, os.getgid())
-        else:
+        elif not ON_WIN32:
             # We're not root.  We can't reliably find or make a directory
             # that's non-root and non-us.  Let's just make sure we don't
             # own temp.
-            if os.path.exists("/tmp"):
+            if os.path.exists("/tmp") and mud("/tmp")[1] != os.getuid():
                 self.failUnlessRaises(MixFatalError, checkPrivateDir, "/tmp")
 
-        # Helper fn: return mode,uid,isdir
-        def mud(f):
-            st = os.stat(f)
-            return st[stat.ST_MODE]&0777, st[stat.ST_UID], os.path.isdir(f)
-
+        if ON_WINDOWS:
+            private = permissive = public = 0777
+        else:
+            private, permissive, public = 0700, 0777, 0755
+	
         # Okay.  Now we try createPrivateDir a couple of times...
         old_mask = None
         try:
@@ -2918,31 +2935,33 @@ class FileParanoiaTests(unittest.TestCase):
             os.rmdir(subdir)
             os.rmdir(noia)
             createPrivateDir(subdir)
-            self.assertEquals((0700,os.getuid(),1), mud(subdir))
-            self.assertEquals((0700,os.getuid(),1), mud(noia))
-            # 2. Just create one dir.
-            os.rmdir(subdir)
-            os.chmod(noia, 0755)
-            createPrivateDir(subdir)
-            self.assertEquals((0700,os.getuid(),1), mud(subdir))
-            self.assertEquals((0755,os.getuid(),1), mud(noia))
-            # 3. Fail to create because of bad permissions
-            os.rmdir(subdir)
-            os.chmod(noia, 0777)
-            self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+            if not ON_WINDOWS:
+                self.assertEquals((private,os.getuid(),1), mud(subdir))
+                self.assertEquals((private,os.getuid(),1), mud(noia))
+                # 2. Just create one dir.
+                os.rmdir(subdir)
+                os.chmod(noia, public)
+                createPrivateDir(subdir)
+                self.assertEquals((private,os.getuid(),1), mud(subdir))
+                self.assertEquals((public,os.getuid(),1), mud(noia))
+                # 3. Fail to create because of bad permissions
+                os.rmdir(subdir)
+                os.chmod(noia, permissive)
+                self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
             # 4. Fail to create because of OSError
             os.rmdir(subdir)
             writeFile(subdir, 'W')
             self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
             os.unlink(subdir)
             # 5. Succeed: it's already there.
-            os.chmod(noia, 0700)
-            os.mkdir(subdir, 0700)
+            os.chmod(noia, private)
+            os.mkdir(subdir, private)
             createPrivateDir(subdir)
             # 6. Fail: it's already there, but has bad permissions
-            os.chmod(subdir, 0777)
-            self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
-            os.chmod(subdir, 0700)
+            if not ON_WINDOWS:
+                os.chmod(subdir, permissive)
+                self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+                os.chmod(subdir, private)
         finally:
             if old_mask is not None:
                 os.umask(old_mask)
@@ -2962,11 +2981,12 @@ class FileParanoiaTests(unittest.TestCase):
         subdir_x = os.path.join(subdir, "x")
         writeFile(subdir_x, "zzz")
         os.chmod(subdir_x, 0600)
-        self.failUnlessRaises(MixFatalError,
-                              checkPrivateFile, subdir_x)
+        if not ON_WINDOWS:
+            self.failUnlessRaises(MixFatalError,
+                                  checkPrivateFile, subdir_x)
 
         # File not owned by us. (???)
-        if os.getuid() == 0:
+        if not ON_WINDOWS and os.getuid() == 0:
             os.chmod(subdir_x, 0600)
             os.chown(subdir_x, 1, 1)
             self.failUnlessRaises(MixFatalError, checkPrivateFile, subdir_x)
@@ -2984,9 +3004,10 @@ class FileParanoiaTests(unittest.TestCase):
             checkPrivateFile(subdir_x)
         finally:
             s = resumeLog()
-        self.assertEquals(0700, os.stat(subdir_x)[stat.ST_MODE] & 0777)
-        self.assert_(stringContains(s,
-                             "Repairing permissions on file "+subdir_x))
+        if not ON_WINDOWS:
+            self.assertEquals(0700, os.stat(subdir_x)[stat.ST_MODE] & 0777)
+            self.assert_(stringContains(s,
+                                 "Repairing permissions on file "+subdir_x))
 
         os.chmod(subdir_x, 0606)
         try:
@@ -2994,13 +3015,15 @@ class FileParanoiaTests(unittest.TestCase):
             checkPrivateFile(subdir_x)
         finally:
             s = resumeLog()
-        self.assertEquals(0600, os.stat(subdir_x)[stat.ST_MODE] & 0777)
-        self.assert_(stringContains(s,
-                             "Repairing permissions on file "+subdir_x))
+        if not ON_WINDOWS:
+            self.assertEquals(0600, os.stat(subdir_x)[stat.ST_MODE] & 0777)
+            self.assert_(stringContains(s,
+                                 "Repairing permissions on file "+subdir_x))
 
         # File not private, nofix.
         os.chmod(subdir_x, 0701)
-        self.failUnlessRaises(MixFatalError, checkPrivateFile, subdir_x, 0)
+        if not ON_WINDOWS:
+            self.failUnlessRaises(MixFatalError, checkPrivateFile, subdir_x, 0)
 
 #----------------------------------------------------------------------
 # SIGHANDLERS
@@ -3605,7 +3628,6 @@ IntRS=5
             c = C._parseCommand("ls -l")
             self.assert_(os.path.exists(c[0]) and c[0].endswith("/ls"))
             self.assertEquals(c[1], ['-l'])
-            self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
             c = C._parseCommand("rm")
             self.assert_(os.path.exists(c[0]) and c[0].endswith("/rm"))
             self.assertEquals(c[1], [])
@@ -4983,7 +5005,8 @@ class ServerKeysTests(unittest.TestCase):
         msg = resumeLog()
         self.failUnless(len(msg))
         Crypto.pk_PEM_save(identity, fn)
-        self.assertEquals(os.stat(fn)[stat.ST_MODE] & 0777, 0600)
+        if not ON_WINDOWS:
+            self.assertEquals(os.stat(fn)[stat.ST_MODE] & 0777, 0600)
 
         # Now create a keyset
         now = time.time()
@@ -5913,7 +5936,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ModuleTests))
+        suite.addTest(tc(MiscTests))
         return suite
 
     suite.addTest(tc(MiscTests))

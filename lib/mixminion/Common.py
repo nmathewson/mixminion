@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.95 2003/06/28 05:35:51 arma Exp $
+# $Id: Common.py,v 1.96 2003/07/01 21:18:31 nickm Exp $
 
 """mixminion.Common
 
@@ -1368,7 +1368,7 @@ class Lockfile:
             return
 
         assert self.fd is None
-        self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, 0600)
+        self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT|os.O_SYNC, 0600)
         try:
             if blocking:
                 fcntl.flock(self.fd, fcntl.LOCK_EX)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.18 2003/06/26 17:52:09 nickm Exp $
+# $Id: testSupport.py,v 1.19 2003/07/01 21:18:32 nickm Exp $
 
 """mixminion.testSupport
 
@@ -197,21 +197,30 @@ def deltree(*dirs):
     """Delete each one of a list of directories, along with all of its
        contents."""
     global _WAIT_FOR_KIDS
+    #print "deltree(%r)"%dirs
     if _WAIT_FOR_KIDS:
         print "Waiting for shred processes to finish."
         waitForChildren()
         _WAIT_FOR_KIDS = 0
     for d in dirs:
+        #print "Considering",d
         if os.path.isdir(d):
+            #print "deleting from %s: %s" % (d, os.listdir(d))
             for fn in os.listdir(d):
                 loc = os.path.join(d,fn)
                 if os.path.isdir(loc):
+                    #print "deleting (I)",loc
                     deltree(loc)
                 else:
+                    #print "unlinking (I)",loc
                     os.unlink(loc)
+            #print "remaining in %s: %s" % (d, os.listdir(d))
             os.rmdir(d)
         elif os.path.exists(d):
+            #print "Unlinking", d
             os.unlink(d)
+        else:
+            pass #print "DNE", d
 
 #----------------------------------------------------------------------
 # suspendLog
