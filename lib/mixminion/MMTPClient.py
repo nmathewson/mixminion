@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.31 2003/05/17 00:08:43 nickm Exp $
+# $Id: MMTPClient.py,v 1.32 2003/05/30 08:29:45 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -136,6 +136,8 @@ class BlockingClientConnection:
         # first newline.
         # we don't really want 100; we just want up to the newline.
         inp = self.tls.read(100)
+        if inp in (0, None):
+            raise MixProtocolError("Connection closed during protocol negotiation.")
         while "\n" not in inp and len(inp) < 100:
             inp += self.tls.read(100)
         self.protocol = None
