@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.36 2003/01/08 07:53:24 nickm Exp $
+# $Id: setup.py,v 1.37 2003/01/09 05:50:44 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -114,7 +114,8 @@ if not os.path.exists("build"):
 f = open(SCRIPT_PATH, 'wt')
 # Distutils will take care of the executable path, and actually gets angry
 # if we try to be smart on our own. *sigh*.
-f.write("#!python -O\n")
+#f.write("#!python -O\n")  #disable -O for asserts.
+f.write("#!python\n")
 f.write("import sys\n")
 if pathextra:
     f.write("sys.path[0:0] = [%r]\n"%pathextra)
