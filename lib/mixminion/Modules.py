@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.18 2002/12/02 03:24:23 nickm Exp $
+# $Id: Modules.py,v 1.19 2002/12/02 03:41:49 nickm Exp $
 
 """mixminion.Modules
 
@@ -381,7 +381,10 @@ class MBoxModule(DeliveryModule):
 	address_line_re = re.compile(r'\s*([^\s:=]+)\s*[:=]\s*(\S+)')
 	try:
 	    lineno = 0
-	    for line in f.xreadlines():
+	    while 1:
+                line = f.readline()
+                if not line:
+                    break
 		line = line.strip()
 		lineno += 1
 		if line == '' or line[0] == '#':
