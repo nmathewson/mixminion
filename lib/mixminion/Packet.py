@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.42 2003/05/21 18:03:33 nickm Exp $
+# $Id: Packet.py,v 1.43 2003/05/25 17:07:31 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -612,7 +612,7 @@ def parseTextEncodedMessages(msg,force=0):
         elif d['Message-type'] == 'encrypted':
             msgType = "ENC"
         else:
-            raise ParseError("Unknown message type: %r"%m.group(2))
+            raise ParseError("Unknown message type: %r"%d["Message-type"])
 
         ascTag = d.get("Decoding-handle")
         if ascTag:

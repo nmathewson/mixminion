@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.75 2003/05/23 22:49:29 nickm Exp $
+# $Id: ClientMain.py,v 1.76 2003/05/25 17:07:30 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -18,6 +18,7 @@ import getpass
 import os
 import re
 import signal
+import socket
 import stat
 import string
 import sys
@@ -152,6 +153,7 @@ class ClientDirectory:
         def sigalrmHandler(sig, _):
             pass
         signal.signal(signal.SIGALRM, sigalrmHandler)
+        signal.alarm(DIRECTORY_TIMEOUT)
         try:
             try:
                 infile = urllib2.urlopen(url)

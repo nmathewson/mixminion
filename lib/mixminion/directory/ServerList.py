@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.17 2003/05/23 22:49:30 nickm Exp $
+# $Id: ServerList.py,v 1.18 2003/05/25 17:07:31 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -22,8 +22,8 @@ import mixminion
 
 from mixminion.Crypto import pk_decode_public_key, pk_encode_public_key, \
      pk_same_public_key
-from mixminion.Common import IntervalSet, LOG, MixError, UIError, \
-     createPrivateDir, \
+from mixminion.Common import IntervalSet, LOG, MixError, MixFatalError, \
+     UIError, createPrivateDir, \
      formatBase64, formatDate, formatFnameTime, formatTime, Lockfile, \
      openUnique, \
      previousMidnight, readPickled, readPossiblyGzippedFile, stringContains, \
@@ -451,10 +451,9 @@ class IncomingQueue:
         return len(os.listdir(self.incomingDir)) > 0
 
     def readPendingServers(self):
-        d = self.incomingDir
         res = []
-        for fname in os.listdir(d):
-            path = os.path.join(d,fname)
+        for fname in os.listdir(self.incomingDir):
+            path = os.path.join(self.incomingDir,fname)
             try:
                 text, server = _readServer(path)
             except (ConfigError, MixError),e:
@@ -468,7 +467,7 @@ class IncomingQueue:
     def delPendingServers(self, fnames):
         for fname in fnames:
             try:
-                os.path.unlink(os.path.join(d, fname))
+                os.path.unlink(os.path.join(self.incomingDir, fname))
             except OSError:
                 LOG.warn("delPendingServers: no such server %s"%fname)
 
@@ -585,7 +584,7 @@ class ServerIntake:
         try:
             serverList._lock()
             serverList.learnServerID(incoming[0][1])
-            self._doAccept(serverList, self.newQueue, incmoing, reject,
+            self._doAccept(serverList, self.newQueue, incoming, reject,
                            knownOnly=1)
         finally:
             serverList._unlock()
