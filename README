@@ -1,4 +1,4 @@
-$Id: README,v 1.53 2003/08/21 21:34:01 nickm Exp $
+$Id: README,v 1.54 2003/08/28 08:55:54 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.5alpha, from the Mixminion CVS repository.
 
@@ -432,9 +432,10 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
    the 'Publish' option to 'yes'.  When you restart your server, it will
    advertise itself to the central directory.
 
-   The first time you do this, I have to update the directory manually (to
-   prevent pseudospoofing).  Once your server is listed, future updates will
-   be get into the directory automatically.
+   The first time you do this, your server will not be inserted automatically;
+   the directory server holds your server's information separately until I
+   confirm it (to prevent pseudospoofing).  Once your server is listed, future
+   updates will be get into the directory automatically.
 
    WARNING: We don't have statistics yet, so the system isn't robust in the
    presence of unreliable servers in the directory.  Please don't publish a
