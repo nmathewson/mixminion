@@ -1,0 +1,15 @@
+Acknowledgements
+================
+
+   The following is an incomplete list of everyone who has contributed
+   code or patches to Mixminion.  Thanks, everyone!
+
+Roger Dingledine
+Lucky Green
+Bryce "Zooko" Wilcox-O'Hearn
+
+   Finaly, thanks to George Danezis and the whole Mixminion-Dev team
+   for their work on the Type-III remailer design.
+
+                                              -- Nick
+$Id: ACKS,v 1.1 2003/01/05 04:56:51 nickm Exp $
