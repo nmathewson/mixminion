@@ -1,5 +1,5 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.17 2004/01/03 07:35:24 nickm Exp $
+# $Id: Directory.py,v 1.18 2004/07/27 03:13:02 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -127,7 +127,9 @@ class Directory:
         """Return the ServerList for this directory"""
         if not self.serverList:
             from mixminion.directory.ServerList import ServerList
-            self.serverList = ServerList(self.directoryBase, self.getIDCache())
+            self.serverList = ServerList(self.directoryBase,
+                                         self.config,
+                                         self.getIDCache())
         return self.serverList
 
     def getInbox(self):
@@ -166,6 +168,8 @@ class DirectoryConfig(mixminion.Config._ConfigFile):
            "BadServer" : ("ALLOW*", None, None),
            "BadServerFile" : ("ALLOW*", "filename", None),
            "ExcludeServer" : ("ALLOW*", None, None),
+           "ClientVersions" : ("REQUIRE", "list", None),
+           "ServerVersions" : ("REQUIRE", "list", None),
         },
         'Publishing' : {
            "__SECTION__": ('REQUIRE', None, None),

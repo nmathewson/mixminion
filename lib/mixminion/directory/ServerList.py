@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.55 2004/05/11 16:28:15 nickm Exp $
+# $Id: ServerList.py,v 1.56 2004/07/27 03:13:02 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -34,17 +34,6 @@ from mixminion.Common import IntervalSet, LOG, MixError, MixFatalError, \
 from mixminion.Config import ConfigError
 from mixminion.ServerInfo import ServerDirectory, ServerInfo, \
      _getDirectoryDigestImpl
-
-ACCEPTABLE_CLIENT_VERSIONS = "0.0.6.2 0.0.7rc2 0.0.7 0.0.7.1"
-ACCEPTABLE_SERVER_VERSIONS = "0.0.6.1 0.0.6.2 0.0.7rc2 0.0.7 0.0.7.1"
-
-# Make sure that the VERSIONS variables above are parseable.
-for vl in (ACCEPTABLE_CLIENT_VERSIONS.split(),
-           ACCEPTABLE_SERVER_VERSIONS.split()):
-    for v in vl:
-        mixminion.parse_version_string(v)
-del v
-del vl
 
 class ServerList:
     """A ServerList holds a set of server descriptors for use in generating
@@ -90,11 +79,12 @@ class ServerList:
     #     identity
     #     .lock
 
-    def __init__(self, baseDir, idCache=None):
+    def __init__(self, baseDir, config, idCache=None):
         """Initialize a ServerList to store servers under baseDir/servers,
            creating directories as needed.
         """
         self.baseDir = baseDir
+        self.config = config
         if idCache is None:
             idCache = mixminion.directory.Directory.IDCache(
                 os.path.join(baseDir, "xx_idcache"))
@@ -317,6 +307,9 @@ class ServerList:
             goodServers.sort()
             goodServers = ", ".join(goodServers)
 
+            clientVersions = self.config['Directory']['ClientVersions']
+            serverVersions = self.config['Directory']['ServerVersions']
+
             #FFFF Support for multiple signatures
             header = """\
             [Directory]
@@ -337,8 +330,8 @@ class ServerList:
                    formatDate(endAt),
                    goodServers,
                    formatBase64(pk_encode_public_key(identityKey)),
-                   ACCEPTABLE_CLIENT_VERSIONS,
-                   ACCEPTABLE_SERVER_VERSIONS)
+                   ", ".join(clientVersions),
+                   ", ".join(serverVersions))
 
             directory = header+"".join(contents)
             directory = _getDirectoryDigestImpl(directory, identityKey)
