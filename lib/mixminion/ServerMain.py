@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.15 2002/12/02 03:30:07 nickm Exp $
+# $Id: ServerMain.py,v 1.16 2002/12/02 10:13:49 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -311,7 +311,7 @@ class IncomingQueue(mixminion.Queue.DeliveryQueue):
 
     def queueMessage(self, msg):
 	"""Add a message for delivery"""
-	self.queueDeliveryMessage(self, None, msg)
+	self.queueDeliveryMessage(None, msg)
 
     def _deliverMessages(self, msgList):
 	"Implementation of abstract method from DeliveryQueue."
@@ -367,7 +367,7 @@ class MixPool:
 	    else:
 		assert tp == 'QUEUE'
 		ipv4, msg = info
-		self.outgoingQueue.queueMessage(ipv4, msg)
+		self.outgoingQueue.queueDeliveryMessage(ipv4, msg)
 	    self.queue.removeMessage(h)
 
 class OutgoingQueue(mixminion.Queue.DeliveryQueue):
@@ -550,6 +550,7 @@ def runServer(cmd, args):
     except:
 	getLog().fatal_exc(sys.exc_info(),"Exception while configuring server")
 	print >>sys.stderr, "Shutting down because of exception"
+        #XXXX print stack trace
 	sys.exit(1)
 
     getLog().info("Starting server")
@@ -559,6 +560,7 @@ def runServer(cmd, args):
 	pass
     except:
 	getLog().fatal_exc(sys.exc_info(),"Exception while running server")
+        #XXXX print stack trace
     getLog().info("Server shutting down")
     server.close()
     getLog().info("Server is shut down")

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.8 2002/12/02 03:19:44 nickm Exp $
+# $Id: ClientMain.py,v 1.9 2002/12/02 10:13:48 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -188,14 +188,16 @@ class MixminionClient:
 
 	routingType, routingInfo, lastHop = address.getRouting()
 	if lastHop is None:
+            lastServer = servers2[-1]
+            print path2[-1], routingType
 	    # FFFF This is only a temporary solution.  It needs to get
 	    # FFFF rethought, or refactored into ServerInfo, or something.
 	    if routingType == SMTP_TYPE:
-		ok = path2[-1]['Delivery/SMTP'].get('Version',None)
+		ok = lastServer['Delivery/SMTP'].get('Version',None)
 		if not ok:
 		    raise MixError("Last hop doesn't support SMTP")
 	    elif routingType == MBOX_TYPE:
-		ok = path2[-1]['Delivery/MBOX'].get('Version',None)
+		ok = lastServer['Delivery/MBOX'].get('Version',None)
 		if not ok:
 		    raise MixError("Last hop doesn't support MBOX")
 	else:
@@ -242,10 +244,11 @@ def parseAddress(s):
 	    raise ParseError("Invalid type: 0x%04x"%tp)
 	return Address(tp, val, None)
     elif tp == 'mbox':
-	if "@" not in val:
-	    raise ParseError("No server for mailbox %s" % s)
-	mbox, server = val.split("@",1)
-	return Address(MBOX_TYPE, parseMBOXInfo(mbox).pack(), server)
+	if "@" in val:
+            mbox, server = val.split("@",1)
+            return Address(MBOX_TYPE, parseMBOXInfo(mbox).pack(), server)
+        else:
+	    return Address(MBOX_TYPE, parseMBOXInfo(val).pack(), None)
     elif tp == 'smtp':
 	# May raise ParseError
 	return Address(SMTP_TYPE, parseSMTPInfo(val).pack(), None)

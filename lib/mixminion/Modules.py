@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.20 2002/12/02 04:25:52 nickm Exp $
+# $Id: Modules.py,v 1.21 2002/12/02 10:13:49 nickm Exp $
 
 """mixminion.Modules
 
@@ -170,6 +170,7 @@ class ModuleManager:
     # Fields
     #    syntax: extensions to the syntax configuration in Config.py
     #    modules: a list of DeliveryModule objects
+    #    enabled: a set of enabled DeliveryModule objects
     #    nameToModule: Map from module name to module
     #    typeToModule: a map from delivery type to enabled deliverymodule.
     #    path: search path for python modules.
@@ -177,9 +178,12 @@ class ModuleManager:
     #    queues: a map from module name to queue (Queue objects must support
     #            queueMessage and sendReadyMessages as in DeliveryQueue.)
 
+
     def __init__(self):
         self.syntax = {}
         self.modules = []
+        self.enabled = {}
+
 	self.nameToModule = {}
         self.typeToModule = {}
 	self.path = []
@@ -270,6 +274,7 @@ class ModuleManager:
 	queueDir = os.path.join(self.queueRoot, module.getName())
 	queue = module.createDeliveryQueue(queueDir)
 	self.queues[module.getName()] = queue
+        self.enabled[module.getName()] = 1
 
     def cleanQueues(self):
 	for queue in self.queues.values():
@@ -284,6 +289,8 @@ class ModuleManager:
                 del self.typeToModule[t]
 	if self.queues.has_key(module.getName()):
 	    del self.queues[module.getName()]
+        if self.enabled.has_key(module.getName()):
+            del self.enabled[module.getName()]
 
     def queueMessage(self, message, tag, exitType, address):
         mod = self.typeToModule.get(exitType, None)
@@ -302,14 +309,15 @@ class ModuleManager:
 	    queue.queueDeliveryMessage((exitType, address, tag), message)
 	else:
 	    # forward message
-	    queue.queueDeliveryMessage((exitType, address, tag), payload)
+	    queue.queueDeliveryMessage((exitType, address, None), payload)
 
     def sendReadyMessages(self):
 	for name, queue in self.queues.items():
 	    queue.sendReadyMessages()
 
     def getServerInfoBlocks(self):
-        return [ m.getServerInfoBlock() for m in self.modules ]
+        return [ m.getServerInfoBlock() for m in self.modules
+                       if self.enabled.get(m.getName(),0) ]
 
 #----------------------------------------------------------------------
 class DropModule(DeliveryModule):
@@ -374,7 +382,7 @@ class MBoxModule(DeliveryModule):
         self.nickname = config['Server']['Nickname']
         if not self.nickname:
             self.nickname = socket.gethostname()
-        self.addr = config['Server'].get('IP', "<Unknown host>")
+        self.addr = config['Incoming/MMTP'].get('IP', "<Unknown host>")
 
 	self.addresses = {}
         f = open(self.addressFile)
@@ -492,9 +500,9 @@ class MixmasterSMTPModule(SMTPModule):
         if not self.enabled:
             manager.disableModule(self)
             return
-        cmd = sec['MixmasterCommand']
+        cmd = sec['MixCommand']
         self.server = sec['Server']
-        self.subject = sec['Subject']
+        self.subject = sec['SubjectLine']
         self.command = cmd[0]
         self.options = tuple(cmd[1]) + ("-l", self.server,
 					"-s", self.subject)

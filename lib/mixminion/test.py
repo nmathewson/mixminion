@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.39 2002/12/02 03:25:46 nickm Exp $
+# $Id: test.py,v 1.40 2002/12/02 10:13:49 nickm Exp $
 
 """mixminion.tests
 
@@ -2628,7 +2628,7 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Incoming/MMTP']['Deny'], [("192.168.0.16", "255.255.255.255",
                                             0,65535),
                                            ])
-        eq(info['Delivery/MBOX']['Version'], "0.1")
+        eq(info['Delivery/MBOX'].get('Version'), None)
 
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
@@ -2923,8 +2923,8 @@ class ModuleTests(unittest.TestCase):
 	module = mixminion.Modules.MixmasterSMTPModule()
 	module.configure({"Delivery/SMTP-Via-Mixmaster" :
 			  {"Enabled":1, "Server": "nonesuch",
-			   "Subject":'foobar', 
-			   'MixmasterCommand' : ('ls', ['-z'])}},
+			   "SubjectLine":'foobar', 
+			   'MixCommand' : ('ls', ['-z'])}},
 			 manager)
 	queue = manager.queues['SMTP_MIX2']
 	replaceFunction(os, "spawnl")
@@ -2960,8 +2960,9 @@ class ModuleTests(unittest.TestCase):
 	addrfile = mix_mktemp()
 	writeFile(addrfile, MBOX_ADDRESS_SAMPLE)
 	module.configure({'Server':{'Nickname': "nickname"},
+                          'Incoming/MMTP':{},
 			  "Delivery/MBOX" :
-			  {"Enabled": 1, 
+			  {"Enabled": 1,
 			   "AddressFile": addrfile, 
 			   "ReturnAddress": "returnaddress@x",
 			   "RemoveContact": "removeaddress@x",
@@ -3334,6 +3335,7 @@ class ClientMainTests(unittest.TestCase):
 	    eq(s, server)
 	    eq(a, addr)
 
+        parseEq("mbox:foo", MBOX_TYPE, "foo", None)
 	parseEq("mbox:foo@bar", MBOX_TYPE, "foo", "bar")
 	parseEq("mbox:foo@bar@baz", MBOX_TYPE, "foo", "bar@baz")
 	parseEq("smtp:foo@bar", SMTP_TYPE, "foo@bar", None)
@@ -3350,7 +3352,6 @@ class ClientMainTests(unittest.TestCase):
 
 	parseFails("sxtp:foo@bar.com")
 	parseFails("mbox")
-	parseFails("mbox:x")
 	parseFails("mbox:")
 	parseFails("smtp:Foo")
 	parseFails("smtp:foo@bar@baz")
