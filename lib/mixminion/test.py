@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.83 2003/02/11 22:18:16 nickm Exp $
+# $Id: test.py,v 1.84 2003/02/12 01:21:46 nickm Exp $
 
 """mixminion.tests
 
@@ -204,6 +204,25 @@ class MiscTests(unittest.TestCase):
             self.assertEquals(previousMidnight(t), pm)
             # 3. That previousMidnight is idempotent
             self.assertEquals(previousMidnight(pm), pm)
+
+            # 4. That succeedingMidnight returns the next day, at midnight.
+            sm = succeedingMidnight(t)
+            yyyy2,MM2,dd2,hh2,mm2,ss2 = time.gmtime(sm)[:6]
+            self.assertEquals((0,0,0), (hh2, mm2, ss2))
+            if dd2 == dd + 1:
+                self.assertEquals((yyyy2, MM2), (yyyy, MM))
+            elif MM2 == MM + 1:
+                self.assertEquals((yyyy2, dd2), (yyyy, 1))
+            else:
+                self.assertEquals((yyyy2, MM2, dd2), (yyyy+1, 1, 1))
+            # 5. That succeedingMidnight is repeatable
+            self.assertEquals(succeedingMidnight(t), sm)
+            # 6. That sm(pm(x)) = sm(x)
+            self.assertEquals(succeedingMidnight(previousMidnight(t)),
+                              succeedingMidnight(t))
+            # 7. That pm(sm(x)) = sm(x)
+            self.assertEquals(previousMidnight(succeedingMidnight(t)),
+                              succeedingMidnight(t))
 
         now = time.time()
         ft = formatFnameTime(now)
@@ -4024,7 +4043,7 @@ deny pattern    /nyet.*Nyet/
 """
 
 class FakeDeliveryPacket(mixminion.server.PacketHandler.DeliveryPacket):
-    "DOCDOC"
+    """Stub version of DeliveryPacket used for testing modules"""
     def __init__(self, type, exitType, exitAddress, contents, tag=None):
         if tag is None:
             tag = "-="*10

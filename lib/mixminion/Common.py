@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.57 2003/02/09 22:30:58 nickm Exp $
+# $Id: Common.py,v 1.58 2003/02/12 01:21:46 nickm Exp $
 
 """mixminion.Common
 
@@ -11,7 +11,7 @@ __all__ = [ 'IntervalSet', 'LOG', 'LogStream', 'MixError', 'MixFatalError',
             'formatFnameTime', 'formatTime', 'installSIGCHLDHandler',
             'isSMTPMailbox', 'openUnique', 'previousMidnight',
             'readPossiblyGzippedFile', 'secureDelete', 'stringContains',
-            'waitForChildren' ]
+            'succeedingMidnight', 'waitForChildren' ]
 
 import base64
 import bisect
@@ -573,8 +573,8 @@ def previousMidnight(when):
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
 def succeedingMidnight(when):
-    "DOCDOC"
-    #XXXX003 test me
+    """Given a time_t 'when', return the smallest time_t > when that falls
+       on midnight, GMT."""
     yyyy,MM,dd = time.gmtime(when)[0:3]
     return calendar.timegm((yyyy,MM,dd+1,0,0,0,0,0,0))
 
@@ -863,6 +863,7 @@ def openUnique(fname, mode='w'):
 #----------------------------------------------------------------------
 class Lockfile:
     "DOCDOC"
+    #XXXX Testme.
     def __init__(self, filename):
         "DOCDOC"
         self.filename = filename
