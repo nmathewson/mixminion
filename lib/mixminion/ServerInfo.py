@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.9 2002/08/12 18:12:24 nickm Exp $
+# $Id: ServerInfo.py,v 1.10 2002/08/19 15:33:56 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -132,7 +132,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return IPV4Info(self.getAddr(), self.getPort(), self.getKeyID())
 
 #----------------------------------------------------------------------
-class ServerKeys:
+class ServerKeyset:
     """A set of expirable keys for use by a server.
 
        A server has one long-lived identity key, and two short-lived
@@ -143,7 +143,7 @@ class ServerKeys:
        Whether we publish or not, we always generate a server descriptor
        to store the keys' lifetimes.
 
-       When we create a new ServerKeys object, the associated keys are not
+       When we create a new ServerKeyset object, the associated keys are not
        read from disk unil the object's load method is called."""
     def __init__(self, keyroot, keyname, hashroot):
 	keydir = self.keydir = os.path.join(keyroot, "key_"+keyname)
@@ -232,7 +232,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
     mmtpKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
 
-    serverKeys = ServerKeys(keydir, keyname, hashdir)
+    serverKeys = ServerKeyset(keydir, keyname, hashdir)
     serverKeys.packetKey = packetKey
     serverKeys.mmtpKey = mmtpKey
     serverKeys.save()

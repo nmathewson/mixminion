@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.12 2002/08/12 18:12:24 nickm Exp $
+# $Id: Common.py,v 1.13 2002/08/19 15:33:55 nickm Exp $
 
 """mixminion.Common
 
@@ -13,6 +13,7 @@ import os
 import signal
 import sys
 import time
+import stat
 from types import StringType
 
 class MixError(Exception):
@@ -58,7 +59,7 @@ def createPrivateDir(d):
        XXXX we don't check permissions properly yet."""
     if not os.path.exists(d):
 	try:
-	    os.makedirs(s, 0700)
+	    os.makedirs(d, 0700)
 	except OSError, e:
 	    getLog().fatal("Unable to create directory %s"%d)
 	    raise MixFatalError()

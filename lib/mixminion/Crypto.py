@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.13 2002/08/12 21:05:50 nickm Exp $
+# $Id: Crypto.py,v 1.14 2002/08/19 15:33:56 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -11,6 +11,8 @@
 import os
 import sys
 import stat
+# XXXX is this used?
+import struct
 from types import StringType
 
 import mixminion.Config
@@ -89,13 +91,18 @@ def lioness_encrypt(s,(key1,key2,key3,key4)):
     left = s[:DIGEST_LEN]
     right = s[DIGEST_LEN:]
     del s
-    # Performance note: This business with sha1("".join([key,right,key]))
+    # Performance note: This business with sha1("".join((key,right,key)))
     # may look slow, but it contributes only a 6% to the hashing step,
     # which in turn contributes under 11% of the time for LIONESS.
-    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:AES_KEY_LEN])
-    left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
-    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:AES_KEY_LEN])
-    left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
+    right = _ml.aes_ctr128_crypt(
+	_ml.aes_key(_ml.sha1("".join((key1,left,key1)))[:AES_KEY_LEN]), 
+	right, 0) 
+    left = _ml.strxor(left,  _ml.sha1("".join((key2,right,key2))))
+    right = _ml.aes_ctr128_crypt(
+	_ml.aes_key(_ml.sha1("".join((key3,left,key3)))[:AES_KEY_LEN]), 
+	right, 0)
+    left = _ml.strxor(left,  _ml.sha1("".join((key4,right,key4))))
+
     return left + right
 
 def lioness_decrypt(s,(key1,key2,key3,key4)):
@@ -161,7 +168,7 @@ def pk_check_signature(data, key):
     data = key.crypt(data, 1, 0)
     return check_oaep(data,OAEP_PARAMETER,bytes)
 
-def pk_generate(bits=1024,e=65535):
+def pk_generate(bits=1024,e=65537):
     """Generate a new RSA keypair with 'bits' bits and exponent 'e'.  It is
        safe to use the default value of 'e'.
     """
@@ -171,7 +178,7 @@ def pk_get_modulus(key):
     """Extracts the modulus of a public key."""
     return key.get_public_key()[0]
 
-def pk_from_modulus(n, e=65535L):
+def pk_from_modulus(n, e=65537L):
     """Given a modulus and exponent, creates an RSA public key."""
     return _ml.rsa_make_public_key(long(n),long(e))
 
@@ -400,67 +407,48 @@ class RNG:
 	else:
 	    n = min(n, size)
 
+	if n == size:
+	    series = xrange(n-1)
+	else:
+	    series = xrange(n)
 
         # This permutation algorithm yields all permutation with equal
         # probability (assuming a good rng); others do not.
-        for i in range(n-1):
-            swap = i+self.getInt(size-i)
-            v = lst[swap]
-            lst[swap] = lst[i]
-            lst[i] = v
+	getInt = self.getInt
+        for i in series:
+            swap = i+getInt(size-i)
+	    lst[swap],lst[i] = lst[i],lst[swap]
 
 	return lst[:n]
 
     def getInt(self, max):
         """Returns a random integer i s.t. 0 <= i < max.
 
-           The value of max must be less than 2**32."""
+           The value of max must be less than 2**30."""
 
-        # FFFF This implementation isn't very good.  It determines the number
-        # of bytes in max (nBytes), and a bitmask 1 less than the first power
-        # of 2 less than max.
-        #
-        # Then, it gets nBytes random bytes, ANDs them with the bitmask, and
-        # checks to see whether the result is < max.  If so, it returns.  Else,
-        # it generates more random bytes and tries again.
-        #
-        # On the plus side, this algorithm will obviously give all values
-        # 0 <= i < max with equal probability.  On the minus side, it
-        # requires (on average) 2*nBytes entropy to do so.
-        
-        assert max > 0
-        for bits in xrange(1,33):
-            if max < 1<<bits:
-                nBytes = ceilDiv(bits,8)
-                mask = (1<<bits)-1
-                break
-        if bits == 33:
-            raise "I didn't expect to have to generate a number over 2**32"
+        # FFFF This implementation is about 2-4x as good as the last one, but
+	# FFFF still could be better.  It's faster than getFloat()*max.
 
-        while 1:
-            bytes = self.getBytes(nBytes)
-            r = 0
-            for byte in bytes:
-                r = (r << 8) | ord(byte)
-            r = r & mask
-            if r < max:
-                return r
+        assert 0 < max < 0x3ffffffff
+	_ord = ord
+	while 1:
+	    # Get a random positive int between 0 and 0x7fffffff.
+	    b = self.getBytes(4)
+	    o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) + 
+		  _ord(b[2]))<<8) + _ord(b[3])
+	    # Retry if we got a value that would fall in an incomplete
+	    # run of 'max' elements.
+	    if 0x7fffffff - max >= o:
+		return o % max
 
-    def getFloat(self, bytes=3):
+    def getFloat(self):
 	"""Return a floating-point number between 0 and 1.  The number
 	   will have 'bytes' bytes of resolution."""
-        # We need to special-case the <4 byte case to get good performance
-	# on Python<2.2
-        if bytes <= 3:
-	    max = 1<<(bytes*8)
-	    tot = 0
-	else:
-	    max = 1L<<(bytes*8)
-	    tot = 0L
-	bytes = self.getBytes(bytes)
-	for byte in bytes:
-	    tot = (tot << 8) | ord(byte)
-	return float(tot)/max
+	b = self.getBytes(4)
+	_ord = ord
+	o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) + 
+	      _ord(b[2]))<<8) + _ord(b[3])
+	return o / 2147483647.0
 
     def _prng(self, n):
         """Abstract method: Must be overridden to return n bytes of fresh

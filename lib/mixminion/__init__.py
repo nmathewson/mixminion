@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.4 2002/07/05 19:50:27 nickm Exp $
+# $Id: __init__.py,v 1.5 2002/08/19 15:33:56 nickm Exp $
 
 """mixminion
 
@@ -22,5 +22,4 @@ import mixminion.Config
 import mixminion.MMTPClient
 import mixminion.Packet
 import mixminion.ServerInfo
-
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.7 2002/06/25 11:41:08 nickm Exp $
+# $Id: benchmark.py,v 1.8 2002/08/19 15:33:56 nickm Exp $
 
 """mixminion.benchmark
 
@@ -12,6 +12,7 @@
    """
 
 from time import time
+from mixminion.test import mix_mktemp
 
 __pychecker__ = 'no-funcdoc no-reimport'
 __all__ = [ 'timeAll', 'testLeaks1', 'testLeaks2' ]
@@ -94,6 +95,7 @@ s120b = 'z'*120
 
 def cryptoTiming():
     print "#==================== CRYPTO ======================="
+
     print "SHA1 (short)", timeit((lambda: sha1(short)), 100000)
     print "SHA1 (64b)", timeit((lambda: sha1(s64b)), 100000)
     print "SHA1 (2K)", timeit((lambda: sha1(s2K)), 10000)
@@ -153,6 +155,15 @@ def cryptoTiming():
     print "aesprng.getInt (513)", \
           timeit((lambda c=c: c.getInt(513)), 10000)
 
+    L10 = [ "x" ] * 10
+    L1000 = [ "x" ] * 1000
+    print "aesprng.shuffle (10/10)", \
+	  timeit((lambda c=c,L=L10: c.shuffle(L)), 1000)
+    print "aesprng.shuffle (1000/1000)", \
+	  timeit((lambda c=c,L=L1000: c.shuffle(L)), 30)
+    print "aesprng.shuffle (10/1000)", \
+	  timeit((lambda c=c,L=L1000: c.shuffle(L,10)), 1000)
+    
     lkey = Keyset("keymaterial foo bar baz").getLionessKeys("T")
     print "lioness E (1K)", timeit((
         lambda lkey=lkey: lioness_encrypt(s1K, lkey)), 1000)
@@ -203,6 +214,7 @@ def cryptoTiming():
 
     for (bits,it) in ((2048,10),(4096,10)):
         t = time()
+	print "[generating key...]"
         rsa2 = pk_generate(bits)
         t = time()-t
         print "RSA genrate (%d bit)"%bits, timestr(t)
@@ -216,14 +228,13 @@ def cryptoTiming():
     print "Timing overhead: %s...%s" % (timestr(min(o)),timestr(max(o)))
 
 #----------------------------------------------------------------------
-import tempfile
 import os
 import stat
 
 def hashlogTiming():
     print "#==================== HASH LOGS ======================="
     for load in (100, 1000, 10000, 100000):
-        fname = tempfile.mktemp(".db")
+        fname = mix_mktemp(".db")
         try:
             _hashlogTiming(fname,load)
         finally:
@@ -278,16 +289,16 @@ def _hashlogTiming(fname, load):
 
 #----------------------------------------------------------------------
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage
-from mixminion.ServerInfo import ServerInfo
+from mixminion.test import FakeServerInfo
 
 def buildMessageTiming():
 
     print "#================= BUILD MESSAGE ====================="
     pk = pk_generate()
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
-    serverinfo = [ServerInfo("127.0.0.1", 48099, pk_get_modulus(pk),"x"*20)
+    serverinfo = [FakeServerInfo("127.0.0.1", 48099, pk,"x"*20)
                   ] * 16
-                             
+    
     def bh(np,it, serverinfo=serverinfo):
         ctr = AESCounterPRNG()
 
@@ -330,8 +341,7 @@ def serverProcessTiming():
     print "#================= SERVER PROCESS ====================="
 
     pk = pk_generate()
-    n = pk_get_modulus(pk)
-    server = ServerInfo("127.0.0.1", 1, n, "X"*20)
+    server = FakeServerInfo("127.0.0.1", 1, pk, "X"*20)
     sp = PacketHandler(pk, DummyLog())
 
     m_noswap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
@@ -409,8 +419,7 @@ def timeEfficiency():
         lambda s=s2K,k=lionesskey: lioness_encrypt(s,k)),1000)
     prng_128b = timeit_((lambda k=aeskey: prng(k,128)),10000)
 
-    n = pk_get_modulus(pk)
-    server = ServerInfo("127.0.0.1", 1, n, "X"*20)
+    server = FakeServerInfo("127.0.0.1", 1, pk, "X"*20)
     sp = PacketHandler(pk, DummyLog())
 
     m_noswap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
@@ -444,7 +453,7 @@ from mixminion.Common import secureDelete, installSignalHandlers, \
 def fileOpsTiming():
     print "#================= File ops ====================="
     installSignalHandlers(child=1,hup=0,term=0)
-    dname = tempfile.mktemp(".d")
+    dname = mix_mktemp(".d")
     try:
 
         os.mkdir(dname)
@@ -487,54 +496,55 @@ def testLeaks1():
     keytxt="a"*16
     key = _ml.aes_key(keytxt)
     while 1:
-        if 1:
-            _ml.sha1(s20k)
-            _ml.aes_ctr128_crypt(key,s20k,0)
-            _ml.aes_ctr128_crypt(key,s20k,2000)
-            _ml.aes_ctr128_crypt(key,"",2000,20000)
-            _ml.aes_ctr128_crypt(key,"",0,20000)
-            _ml.aes_ctr128_crypt(key,s20k,0,2000)
-            try:
-                _ml.aes_ctr128_crypt("abc",s20k,0,2000)
-            except:
-                pass
-            _ml.strxor(s20k,s20k)
-            try:
-                _ml.strxor(s20k,keytxt)
-            except:
-                pass
-            _ml.openssl_seed(s20k)
-            r = _ml.add_oaep_padding("Hello",OAEP_PARAMETER,128)
-            _ml.check_oaep_padding(r,OAEP_PARAMETER,128)
-            try:
-                _ml.check_oaep_padding("hello",OAEP_PARAMETER,128)
-            except:
-                pass
-            try:
-                _ml.add_oaep_padding(s20k,OAEP_PARAMETER,128)
-            except:
-                pass
-            try:
-                _ml.add_oaep_padding("a"*127,OAEP_PARAMETER,128)
-            except:
-                pass
+	_ml.sha1(s20k)
+	_ml.aes_ctr128_crypt(key,s20k,0)
+	_ml.aes_ctr128_crypt(key,s20k,2000)
+	_ml.aes_ctr128_crypt(key,"",2000,20000)
+	_ml.aes_ctr128_crypt(key,"",0,20000)
+	_ml.aes_ctr128_crypt(key,s20k,0,2000)
+	try:
+	    _ml.aes_ctr128_crypt("abc",s20k,0,2000)
+	except:
+	    pass
+	_ml.strxor(s20k,s20k)
+	try:
+	    _ml.strxor(s20k,keytxt)
+	except:
+	    pass
+	_ml.openssl_seed(s20k)
+	r = _ml.add_oaep_padding("Hello",OAEP_PARAMETER,128)
+	_ml.check_oaep_padding(r,OAEP_PARAMETER,128)
+	try:
+	    _ml.check_oaep_padding("hello",OAEP_PARAMETER,128)
+	except:
+	    pass
+	try:
+	    _ml.add_oaep_padding(s20k,OAEP_PARAMETER,128)
+	except:
+	    pass
+	try:
+	    _ml.add_oaep_padding("a"*127,OAEP_PARAMETER,128)
+	except:
+	    pass
 
 def testLeaks2():
     print "Trying to leak (rsa)"
 
     s20 = "a"*20
     p = pk_generate(512)
-    n,e = _ml.rsa_get_public_key(p)
+    n,e = p.get_public_key()
 
     while 1:
         if 1:
             p = pk_generate(512)
             pk_decrypt(pk_encrypt(s20,p),p)
             for public in (0,1):
-                x = _ml.rsa_encode_key(p,public)
+                x = p.encode_key(public)
                 _ml.rsa_decode_key(x,public)
-            _ml.rsa_get_public_key(p)
+            p.get_public_key()
             _ml.rsa_make_public_key(n,e)
+
+	    # XXXX rest of rsa functionality
 
 #----------------------------------------------------------------------
 
@@ -550,3 +560,4 @@ if __name__ == '__main__':
     timeAll()
     #testLeaks1()
     #testLeaks2()
+

@@ -5,57 +5,76 @@ SPEC	- Spec not finalized
 	* Top priority
 	. Partially done
 	o Done
+	X Abandoned
 
 NEEDS TO BE WRITTEN
 
 FOR 0.0.1: (The first alpha)
-	- Refactor brokenness
-		- Key sets are their own class
-		- Queue sets are their own class
-		- A server is its own class, and has a better method breakdown
-		- Clean out deleted stuff every so often
+	*. Refactor brokenness
 		o Configuration stuff should go into servermain/clientmain.
 		   Forget this broken system of today.
 		o Reset logic should also go into servermain/clientmain.
 		o Document changes to Queue, MMTPServer
-		. Document and refactor ModuleManager (it needs to know about
-                  queues).
-		- Make individualized queues into special classes.
-		. DeliveryQueue
-			- Tests for Queue.*Object*
+		o DeliveryQueue
+			o Tests for Queue.*Object*
 			o Implement
+			o Change to be dumber about time.
 			o Document
-			- Test
-		. MixQueue
+			o Test
+		o MixQueue
 			o Implement
-			- Test
-		- Document all changes; resolve XXXXs
+			o Test
+		o Document and refactor ModuleManager (it needs to know about
+                  queues).
+			o Document
+			o Add queues
+			o Test
+		o Make Timing run again
+		o Make slow stuff suck less.
+		X "Enabled" should leave config
+		o Key sets are their own class
+		o Make individual queues into special classes.
+		o A server is its own class, and has a better method breakdown
+		o Clean out deleted stuff every so often
+		*- Document all changes; resolve XXXXs
 	o Need hooks for undeliverable messages in MMTPServer.
+	o Not even test should really use mktemp.
 	. Module system
 		o Stub classes
 		o Modules are configurable
-		. Modules are loadable
+		o Modules are loadable
 			o Implement
-			- Test
-		. Modules are self-descibing
+			o Test
+		o Modules are self-describing
 			o Implement
-			- Test
+			o Test
 		*. MBox module
-			*- Implement
+			o Implement
 			*- Test
-	*- Server
-		. Main loop for server
-		. Startup, config
-		. Load keys
-		. Receive messages
-		. Process messages
-		- Deliver MBOX messages.
-		- Better debugging logs
+	*. Server
+		o Main loop for server
+		*. Startup, config
+		o Load keys
+		o Receive messages
+		o Process messages
+		o Deliver MBOX messages.
 		o Design directory layout
+		- Unit test for keyset and various queues.
+		- Better debugging logs
+		- Test code to start 3 or 4 servers on one machine and
+                  try sending some messages through.
+
+	- Add traceback-dumping functionality to Log class. 
+	  (When did trceback.py get added to Python?)
+	- Better log messages at all points throughout system.
+	- Move boilerplate into outside files.  Add a generic 'Boilerplate'
+	  functionality.
+	- Test createPrivateDir
+	- Support for one-side-only MMTP configurations.
+	- Make Mix algorithm configurable
 	*- CLI for server
 		*- Run server
 		*- Generate future key/publish to dirserver
-
 	- CLI client
 		- Send a message
 		- Generate a message
@@ -67,6 +86,8 @@ FOR 0.0.1: (The first alpha)
 		- Infer IP
 		- Validation function for client
 		- Validation function for server		
+		- Example config
+	- Rename versions to 0.1.
 	- Clean shutdown for server
 	- MMTP	
 		. Tests for all cases:
@@ -80,6 +101,7 @@ FOR 0.0.1: (The first alpha)
 	- End-to-end payload encryption, if we ever agree on a spec.
 SPEC		- Reading messages sent to reply blocks
 	- Versioning :)
+	- make sure all FFFF and ???? and XXXX are on this list.
 
 FOR 0.0.2: (The first hacker release)
 	- Key rotation and expiry
@@ -90,13 +112,16 @@ SPEC!!		- Timeout old connections
 	- Very clean build process
 		- Get SSL as needed
 	- RPMS
+	- Configurable mix rules.
+	- Drop undeliverable messages
 	- Key management
 	- Test on other (non-redhat, non-linux) systems
 	- Final license
 	- Handle HUPs sensibly
 SPEC!!	- Key rotation
-SPEC	- Publishing to directory servers
-SPEC	- Downloading from directory servers
+	- Generate new keys as needed
+	- Publishing to directory servers
+	- Downloading from directory servers
 	- Basic HOWTO and documentation
 
 FOR 0.0.3: (First non-guru release)

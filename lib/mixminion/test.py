@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.18 2002/08/12 21:05:50 nickm Exp $
+# $Id: test.py,v 1.19 2002/08/19 15:33:56 nickm Exp $
 
 """mixminion.tests
 
@@ -17,11 +17,11 @@ import os
 import sys
 import threading
 import time
-import atexit
-import tempfile
 import types
 import re
 import binascii
+import stat
+import cPickle
 
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, getLog
 
@@ -29,6 +29,69 @@ try:
     import unittest
 except ImportError:
     import mixminion._unittest as unittest
+
+# Test for acceptable permissions and uid on directory?
+_MM_TESTING_TEMPDIR_PARANOIA = 1
+# Holds 
+_MM_TESTING_TEMPDIR = None
+_MM_TESTING_TEMPDIR_COUNTER = 0
+_MM_TESTING_TEMPDIR_REMOVE_ON_EXIT = 1
+def mix_mktemp(extra=""):
+    '''mktemp wrapper. puts all files under a securely mktemped
+       directory.'''
+    global _MM_TESTING_TEMPDIR
+    global _MM_TESTING_TEMPDIR_COUNTER
+    if _MM_TESTING_TEMPDIR is None:
+	import tempfile
+	temp = tempfile.mktemp()
+	paranoia = _MM_TESTING_TEMPDIR_PARANOIA
+	if paranoia and os.path.exists(temp):
+	    print "I think somebody's trying to exploit mktemp."
+	    sys.exit(1)
+	try:
+	    os.mkdir(temp, 0700)
+	except OSError, e:
+	    print "Something's up with mktemp: %s" % e
+	    sys.exit(1)
+	if not os.path.exists(temp):
+	    print "Couldn't create temp dir %r" %temp
+	    sys.exit(1)
+	st = os.stat(temp)
+	if paranoia and st[stat.ST_MODE] & 077:
+	    print "Couldn't create temp dir %r with secure permissions" %temp
+	    sys.exit(1)
+	if paranoia and st[stat.ST_UID] != os.getuid():
+	    print "The wrong user owns temp dir %r"%temp
+	    sys.exit(1)
+	# XXXX If we're on a bad system, the permissions on /tmp
+	# XXXX might be faulty.  We don't bother checking for that.
+	_MM_TESTING_TEMPDIR = temp
+	if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:
+	    import atexit
+	    atexit.register(deltree, temp)
+    
+    _MM_TESTING_TEMPDIR_COUNTER += 1
+    return os.path.join(_MM_TESTING_TEMPDIR,
+			"tmp%05d%s" % (_MM_TESTING_TEMPDIR_COUNTER,extra))
+
+_WAIT_FOR_KIDS = 1
+def deltree(*dirs):
+    global _WAIT_FOR_KIDS
+    if _WAIT_FOR_KIDS:
+	print "Waiting for shred processes to finish."
+	waitForChildren()
+	_WAIT_FOR_KIDS = 0
+    for d in dirs:
+        if os.path.isdir(d):
+            for fn in os.listdir(d):
+		loc = os.path.join(d,fn)
+		if os.path.isdir(loc):
+		    deltree(loc)
+		else:
+		    os.unlink(loc)
+            os.rmdir(d)
+        elif os.path.exists(d):
+            os.unlink(d)
 
 def hexread(s):
     assert (len(s) % 2) == 0
@@ -41,35 +104,6 @@ def hexread(s):
         assert 0 <= c < 256
         r.append(chr(c))
     return "".join(r)
-
-def try_unlink(fnames):
-    if isinstance(fnames, types.StringType):
-        fnames = [fnames]
-    for fname in fnames:
-        try:
-            if os.path.isdir(fname):
-                try_unlink([os.path.join(fname,f) for f in os.listdir(fname)])
-                os.rmdir(fname)
-            else:
-                os.unlink(fname)
-        except OSError:
-            pass
-
-def try_unlink_db(fname):
-    '''Try to unlink an anydbm file(s)'''
-    for suffix in ("", ".bak", ".dat", ".dir"):
-        try_unlink(fname+suffix)
-
-_unlink_on_exit_list = []
-
-def unlink_db_on_exit(fname):
-    for suffix in ("", ".bak", ".dat", ".dir"):
-        _unlink_on_exit_list.append(fname+suffix)
-    
-def unlink_on_exit(*files):
-    _unlink_on_exit_list.extend(files)
-
-atexit.register(try_unlink, _unlink_on_exit_list)    
 
 def floatEq(f1,f2):
     return abs(f1-f2) < .00001
@@ -199,7 +233,7 @@ class MinionlibCryptoTests(unittest.TestCase):
                               check,x[:-1]+ch,"B",128)
 
     def test_rsa(self):
-        p = _ml.rsa_generate(1024, 65535)
+        p = _ml.rsa_generate(1024, 65537)
 
         #for all of SIGN, CHECK_SIG, ENCRYPT, DECRYPT...
         for pub1 in (0,1):
@@ -237,7 +271,7 @@ class MinionlibCryptoTests(unittest.TestCase):
         n,e = p.get_public_key()
         p2 = _ml.rsa_make_public_key(n,e)
         self.assertEquals((n,e), p2.get_public_key())
-        self.assertEquals(65535,e)
+        self.assertEquals(65537,e)
         self.assertEquals(p.encode_key(1), p.encode_key(1))
 
         # Try private-key ops with public key p3.
@@ -253,11 +287,10 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.failUnlessRaises(TypeError, p2.encode_key, 0)
         self.failUnlessRaises(TypeError, p3.encode_key, 0)
 
-        tf = tempfile.mktemp()
+        tf = mix_mktemp()
         tf_pub = tf + "1"
         tf_prv = tf + "2"
         tf_enc = tf + "3"
-        unlink_on_exit(tf_pub, tf_prv, tf_enc)
 
         p.PEM_write_key(open(tf_pub,'w'), 1)
         p.PEM_write_key(open(tf_prv,'w'), 0)
@@ -411,11 +444,12 @@ class CryptoTests(unittest.TestCase):
             self.failUnless(0 <= PRNG.getInt(i) < i)
 	for i in xrange(100):
 	    self.failUnless(0 <= PRNG.getFloat() < 1)
-	    self.failUnless(0 <= PRNG.getFloat(4) < 1)
-	    self.failUnless(0 <= PRNG.getFloat(5) < 1)
 
-	# Make sure shuffle only shuffles the first n.
 	lst = range(100)
+	# Test shuffle(0)
+	self.assertEquals(PRNG.shuffle(lst,0), [])
+	self.assertEquals(lst, range(100))
+	# Make sure shuffle only shuffles the last n.
 	PRNG.shuffle(lst,10)
 	later = [ item for item in lst[10:] if item >= 10 ]
 	s = later[:]
@@ -432,6 +466,14 @@ class CryptoTests(unittest.TestCase):
 	    for z in crossSection:
 		if z != crossSection[0]: allEq = 0
 	    self.failIf(allEq)
+	foundUnmoved = 0
+	for lst in lists:
+	    for inorder, shuffled in zip(lst, range(100)):
+		if inorder == shuffled:
+		    foundUnmoved = 1
+		    break
+	    if foundUnmoved: break
+	self.failUnless(foundUnmoved)
 	for lst in lists:
 	    s = lst[:]
 	    s.sort()
@@ -589,8 +631,7 @@ from mixminion.HashLog import HashLog
 
 class HashLogTests(unittest.TestCase):
     def test_hashlog(self):
-        fname = tempfile.mktemp(".db")
-        unlink_db_on_exit(fname)
+        fname = mix_mktemp(".db")
 
         h = [HashLog(fname, "Xyzzy")]
 
@@ -1018,12 +1059,10 @@ class BuildMessageTests(unittest.TestCase):
 class PacketHandlerTests(unittest.TestCase):
     def setUp(self):
         from mixminion.PacketHandler import PacketHandler
-        from tempfile import mktemp
         self.pk1 = BMTSupport.pk1
         self.pk2 = BMTSupport.pk2
         self.pk3 = BMTSupport.pk3
-        self.tmpfile = mktemp(".db")
-        unlink_db_on_exit(self.tmpfile)
+        self.tmpfile = mix_mktemp(".db")
         h = self.hlog = HashLog(self.tmpfile, "Z"*20)
 
         self.server1 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
@@ -1231,29 +1270,22 @@ class PacketHandlerTests(unittest.TestCase):
 #----------------------------------------------------------------------
 # QUEUE
 
-import stat
 from mixminion.Common import waitForChildren
-from mixminion.Queue import Queue
+from mixminion.Queue import *
 
-def removeTempDirs(*dirs):
-    print "Waiting for shred processes to finish."
-    waitForChildren()
-    for d in dirs:
-        if os.path.isdir(d):
-            for fn in os.listdir(d):
-                os.unlink(os.path.join(d,fn))
-            os.rmdir(d)
-        elif os.path.exists(d):
-            os.unlink(d)
+class TestDeliveryQueue(DeliveryQueue):
+    def __init__(self,d):
+	DeliveryQueue.__init__(self,d)
+	self._msgs = None
+    def deliverMessages(self, msgList):
+	self._msgs = msgList
 
 class QueueTests(unittest.TestCase):
     def setUp(self):
-        import tempfile 
         mixminion.Common.installSignalHandlers(child=1,hup=0,term=0)
-        self.d1 = tempfile.mktemp("q1")
-        self.d2 = tempfile.mktemp("q2")
-        self.d3 = tempfile.mktemp("q3")
-        atexit.register(removeTempDirs, self.d1, self.d2, self.d3)
+        self.d1 = mix_mktemp("q1")
+        self.d2 = mix_mktemp("q2")
+        self.d3 = mix_mktemp("q3")
         
     def testCreateQueue(self):
         # Nonexistant dir.
@@ -1369,11 +1401,104 @@ class QueueTests(unittest.TestCase):
         self.assertEquals(queue1.count(), 41)
         self.assert_(not os.path.exists(os.path.join(self.d2, "msg_"+h)))
 
+	# Test object functionality
+	obj = [ ("A pair of strings", "in a tuple in a list") ]
+	h1 = queue1.queueObject(obj)
+	h2 = queue1.queueObject(6060842)
+	self.assertEquals(obj, queue1.getObject(h1))
+	self.assertEquals(6060842, queue1.getObject(h2))
+	self.assertEquals(obj, cPickle.loads(queue1.messageContents(h1)))
+
         # Scrub both queues.
         queue1.removeAll()
         queue2.removeAll()
         queue1.cleanQueue()    
         queue2.cleanQueue()
+    
+    def testDeliveryQueues(self):
+	d_d = mix_mktemp("qd")
+
+	queue = TestDeliveryQueue(d_d)
+
+	h1 = queue.queueMessage("Address 1", "Message 1")
+	h2 = queue.queueMessage("Address 2", "Message 2")
+	self.assertEquals((0, "Address 1", "Message 1"), queue.get(h1))
+	queue.sendReadyMessages()
+	msgs = queue._msgs
+	self.assertEquals(2, len(msgs))
+	self.failUnless((h1, "Address 1", "Message 1", 0) in msgs)
+	self.failUnless((h2, "Address 2", "Message 2", 0) in msgs)
+	h3 = queue.queueMessage("Address 3", "Message 3")
+	queue.deliverySucceeded(h1)
+	queue.sendReadyMessages()
+	msgs = queue._msgs
+	self.assertEquals([(h3, "Address 3", "Message 3", 0)], msgs)
+
+	allHandles = queue.getAllMessages()
+	allHandles.sort()
+	exHandles = [h2,h3]
+	exHandles.sort()
+	self.assertEquals(exHandles, allHandles)
+	queue.deliveryFailed(h2, retriable=1)
+	queue.deliveryFailed(h3, retriable=0)
+
+	allHandles = queue.getAllMessages()
+	h4 = allHandles[0]
+	self.assertEquals([h4], queue.getAllMessages())
+	queue.sendReadyMessages()
+	msgs = queue._msgs
+	self.assertEquals([(h4, "Address 2", "Message 2", 1)], msgs)
+	self.assertNotEquals(h2, h4)
+	
+	queue.removeAll()
+	queue.cleanQueue()
+
+    def testDeliveryQueues(self):
+	d_m = mix_mktemp("qm")
+	queue = TimedMixQueue(d_m)
+	h1 = queue.queueMessage("Hello1")
+	h2 = queue.queueMessage("Hello2")
+	h3 = queue.queueMessage("Hello3")
+	b = queue.getBatch()
+	msgs = [h1,h2,h3]
+	msgs.sort()
+	b.sort()
+	self.assertEquals(msgs,b)
+	
+	cmq = CottrellMixQueue(d_m, 600, 6, .5)
+	# Not enough messages
+	self.assertEquals([], cmq.getBatch())
+	self.assertEquals([], cmq.getBatch())
+	# 8 messages: 2 get sent
+	for i in range(5):
+	    cmq.queueMessage("Message %s"%i)
+
+	b1, b2, b3 = cmq.getBatch(), cmq.getBatch(), cmq.getBatch()
+	self.assertEquals(2, len(b1))
+	self.assertEquals(2, len(b2))
+	self.assertEquals(2, len(b3))
+	allEq = 1
+	for x in xrange(13): #fails <one in a trillion
+	    b = cmq.getBatch()
+	    if b != b1:
+		allEq = 0; break
+	self.failIf(allEq)
+	# Don't send more than 3.
+	for x in xrange(100):
+	    cmq.queueMessage("Hello2 %s"%x)
+	for x in xrange(10):
+	    self.assertEquals(3, len(cmq.getBatch()))
+
+	bcmq = BinomialCottrellMixQueue(d_m, 600, 6, .5)
+	allThree = 1
+	for i in range(10):
+	    b = bcmq.getBatch()
+	    if not len(b)==3:
+		allThree = 0
+	self.failIf(allThree)
+
+	bcmq.removeAll()
+	bcmq.cleanQueue()
 
 #---------------------------------------------------------------------
 # LOGGING
@@ -1397,9 +1522,9 @@ class LogTests(unittest.TestCase):
         self.failUnless(buf.getvalue().endswith(
             "[ERROR] All your anonymity are belong to us\n"))
         
-        t = tempfile.mktemp("log")
+        t = mix_mktemp("log")
         t1 = t+"1"
-        unlink_on_exit(t, t1)
+
         log.addHandler(_FileLogHandler(t))
         log.info("Abc")
         log.info("Def")
@@ -1413,11 +1538,11 @@ class LogTests(unittest.TestCase):
         
 #----------------------------------------------------------------------
 # SIGHANDLERS
-# XXXX
+# FFFF Write tests here
 
 #----------------------------------------------------------------------
 # MMTP
-# XXXX Write more tests
+# FFFF Write more tests
 
 import mixminion.MMTPServer
 import mixminion.MMTPClient
@@ -1432,7 +1557,7 @@ def _getTLSContext(isServer):
     global certfile
     if isServer:
         if dhfile is None:
-            f = tempfile.mktemp()
+            f = mix_mktemp()
             dhfile = f+"_dh"
             pkfile = f+"_pk"
             certfile = f+"_cert"
@@ -1448,13 +1573,11 @@ def _getTLSContext(isServer):
 		print "[Generating DH parameters (not caching)...",
 		sys.stdout.flush()
                 _ml.generate_dh_parameters(dhfile, 0)
-                unlink_on_exit(dhfile)
 		print "done.]"
-            pk = _ml.rsa_generate(1024, 65535)
+            pk = _ml.rsa_generate(1024, 65537)
             pk.PEM_write_key(open(pkfile, 'w'), 0)
             _ml.generate_cert(certfile, pk, "Testing certificate",
                               time.time(), time.time()+365*24*60*60)
-            unlink_on_exit(certfile, pkfile)
             
 	pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), 0)
         return _ml.TLSContext_new(certfile, pk, dhfile)
@@ -1583,7 +1706,7 @@ class MMTPTests(unittest.TestCase):
                 server.process(0.1)
             t.join()
         finally:
-            getLog().setMinSeverity(severity) #unsuppress
+            getLog().setMinSeverity(severity) #unsuppress warning
                     
 #----------------------------------------------------------------------
 # Config files
@@ -1669,8 +1792,7 @@ IntRS=5
             "Quz: 88 88\n\n[Sec3]\nIntAS: 9\nIntASD: 10\nIntAMD: 8\n"+
             "IntAMD: 10\nIntRS: 5\n\n"))
         # Test file input
-        fn = tempfile.mktemp()
-        unlink_on_exit(fn)
+        fn = mix_mktemp()
         
         file = open(fn, 'w')
         file.write(longerString)
@@ -1765,7 +1887,7 @@ IntRS=5
         self.assertEquals(pa("192.168.0.1",0),
                           ("192.168.0.1", "255.255.255.255", 0, 65535))
 
-        # XXXX Won't work on Windows.
+        # XXXX This won't work on Windows.
         self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
         self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
         self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
@@ -1821,7 +1943,7 @@ IntRS=5
             cmd, opts = C._parseCommand(nonexistcmd)
             if os.path.exists(cmd):
                 # Ok, I guess they would.
-                self.failUnlessEquals(opts, ["-meow"])
+                self.assertEquals(opts, ["-meow"])
             else:
                 self.fail("_parseCommand is not working as expected")
         except ConfigError, e:
@@ -1866,19 +1988,25 @@ EncryptPrivateKey: no
 Mode: relay
 """
 
+_IDENTITY_KEY = None
+def _getIdentityKey():
+    global _IDENTITY_KEY
+    if _IDENTITY_KEY is None:
+	_IDENTITY_KEY = mixminion.Crypto.pk_generate(2048)
+    return _IDENTITY_KEY
 
 import mixminion.Config
 import mixminion.ServerInfo
 class ServerInfoTests(unittest.TestCase):
     def testServerInfoGen(self):
-        d = tempfile.mktemp()
+	identity = _getIdentityKey()
+        d = mix_mktemp()
         conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG)
-        identity = mixminion.Crypto.pk_generate(2048)
         if not os.path.exists(d):
             os.mkdir(d, 0700)
-        unlink_on_exit(d)
+
         inf = mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
-                                                                   identity,
+								   identity,
                                                                    d,
                                                                    "key1",
                                                                    d)
@@ -1913,7 +2041,7 @@ class ServerInfoTests(unittest.TestCase):
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
         eq(inf, open(os.path.join(keydir, "ServerDesc")).read())
-        keys = mixminion.ServerInfo.ServerKeys(d, "key1", d)
+        keys = mixminion.ServerInfo.ServerKeyset(d, "key1", d)
         packetKey = mixminion.Crypto.pk_PEM_load(
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
@@ -1958,18 +2086,169 @@ class ServerInfoTests(unittest.TestCase):
                               mixminion.ServerInfo.ServerInfo,
                               None, badSig)
         
-        
-        
+#----------------------------------------------------------------------
+# Modules annd ModuleManager
+from mixminion.Modules import *
+
+# test of an example module that we load dynamically from
+EXAMPLE_MODULE_TEXT = \
+"""
+import mixminion.Modules
+from mixminion.Config import ConfigError
+
+class TestModule(mixminion.Modules.DeliveryModule):
+    def __init__(self):
+	self.processedMessages = []
+    def getName(self):
+	return "TestModule"
+    def getConfigSyntax(self):
+	return { "Example" : { "Foo" : ("REQUIRE", 
+					mixminion.Config._parseInt, None) } }
+    def validateConfig(self, cfg, entries, lines, contents):
+	if cfg['Example'] is not None:
+	    if cfg['Example'].get('Foo',1) % 2 == 0:
+		raise ConfigError("Foo was even")
+    def configure(self,cfg, manager):
+	if cfg['Example']:
+	    self.enabled = 1
+	    self.foo = cfg['Example'].get('Foo',1)
+	    manager.enableModule(self)
+	else:
+	    self.foo = None
+	    self.enabled = 0
+    def getServerInfoBlock(self):
+	if self.enabled:
+	    return "[Example]\\nFoo: %s\\n" % self.foo
+	else:
+	    return None
+    def getExitTypes(self):
+	return (1234,)
+    def processMessage(self, message, exitType, exitInfo):
+	self.processedMessages.append(message)
+	if exitInfo == 'fail?':
+	    return mixminion.Modules.DELIVER_FAIL_RETRY
+	elif exitInfo == 'fail!':
+	    return mixminion.Modules.DELIVER_FAIL_NORETRY
+	else:
+	    return mixminion.Modules.DELIVER_OK
+"""
+
+class ModuleManagerTests(unittest.TestCase):
+    def testModuleManager(self):
+	mod_dir = mix_mktemp()
+	home_dir = mix_mktemp()
+
+	os.mkdir(mod_dir, 0700)
+	f = open(os.path.join(mod_dir, "ExampleMod.py"), 'w')
+	f.write(EXAMPLE_MODULE_TEXT)
+	f.close()
+
+	cfg_test = SERVER_CONFIG_SHORT + """
+Homedir = %s
+ModulePath = %s
+Module ExampleMod.TestModule
+[Example]
+Foo: 99
+""" % (home_dir, mod_dir)
+
+        conf = mixminion.Config.ServerConfig(string=cfg_test)	
+	manager = conf.getModuleManager()
+	exampleMod = None
+	for m in manager.modules:
+	    if m.getName() == "TestModule":
+		exampleMod = m
+	self.failUnless(exampleMod is not None)
+	manager.configure(conf)
+
+	self.assertEquals(99, exampleMod.foo)
+        conf = mixminion.Config.ServerConfig(string=cfg_test)	
+	manager = conf.getModuleManager()
+	exampleMod = None
+	for m in manager.modules:
+	    if m.getName() == "TestModule":
+		exampleMod = m
+	self.failUnless(exampleMod is not None)
+
+	manager.configure(conf)
+	self.failUnless(exampleMod is manager.typeToModule[1234])
+
+	manager.queueMessage("Hello 1", 1234, "fail!")
+	manager.queueMessage("Hello 2", 1234, "fail?")
+	manager.queueMessage("Hello 3", 1234, "good")
+	manager.queueMessage("Drop very much", 
+			     mixminion.Modules.DROP_TYPE,  "")
+	queue = manager.queues['TestModule']
+	self.failUnless(isinstance(queue, 
+			   mixminion.Modules._SimpleModuleDeliveryQueue))
+	self.assertEquals(3, queue.count())
+	self.assertEquals(exampleMod.processedMessages, [])
+	try:
+	    severity = getLog().getMinSeverity()
+	    getLog().setMinSeverity("FATAL") #suppress warning
+	    manager.sendReadyMessages()
+	finally:
+            getLog().setMinSeverity(severity) #unsuppress warning
+	self.assertEquals(1, queue.count())
+	self.assertEquals(3, len(exampleMod.processedMessages))
+	manager.sendReadyMessages()
+	self.assertEquals(1, queue.count())
+	self.assertEquals(4, len(exampleMod.processedMessages))
+	self.assertEquals("Hello 2", exampleMod.processedMessages[-1])
+	
+	# Check serverinfo generation.
+	try:
+	    severity = getLog().getMinSeverity()
+	    getLog().setMinSeverity("ERROR")
+	    info = mixminion.ServerInfo.generateServerDescriptorAndKeys(
+		conf, _getIdentityKey(), home_dir, "key11", home_dir)
+	    self.failUnless(info.find("\n[Example]\nFoo: 99\n") >= 0)
+	finally:
+            getLog().setMinSeverity(severity) #unsuppress warning
+
+	# 
+	# Try again, this time with the test module disabled.
+	# 
+	cfg_test = SERVER_CONFIG_SHORT + """
+Homedir = %s
+ModulePath = %s
+Module ExampleMod.TestModule
+""" % (home_dir, mod_dir)
+
+        conf = mixminion.Config.ServerConfig(string=cfg_test)	
+	manager = conf.getModuleManager()
+	exampleMod = None
+	for m in manager.modules:
+	    if m.getName() == "TestModule":
+		exampleMod = m
+	self.failUnless(exampleMod is not None)
+	manager.configure(conf)
+	
+	self.failIf(exampleMod is manager.typeToModule.get(1234))
+
+	# Failing validation
+	cfg_test = SERVER_CONFIG_SHORT + """
+Homedir = %s
+ModulePath = %s
+Module ExampleMod.TestModule
+[Example]
+Foo: 100
+""" % (home_dir, mod_dir)
+	
+	# FFFF Add tests for catching exceptions from buggy modules
+
+#----------------------------------------------------------------------
 def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
+
     suite.addTest(tc(MinionlibCryptoTests))
     suite.addTest(tc(CryptoTests))
     suite.addTest(tc(FormatTests))
     suite.addTest(tc(LogTests))
     suite.addTest(tc(ConfigFileTests))
     suite.addTest(tc(ServerInfoTests))
+    suite.addTest(tc(ModuleManagerTests))
     suite.addTest(tc(HashLogTests))
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))

@@ -1,22 +1,24 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.4 2002/08/12 18:12:24 nickm Exp $
+# $Id: Modules.py,v 1.5 2002/08/19 15:33:56 nickm Exp $
 
 """mixminion.Modules
 
    Type codes and dispatch functions for routing functionality."""
 
-__all__ = [ 'ModuleManager', 'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
+__all__ = [ 'ModuleManager', 'DeliveryModule',
+	    'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
 	    'DELIVER_OK', 'DELIVER_FAIL_RETRY', 'DELIVER_FAIL_NORETRY',
 	    'SMTP_TYPE', 'MBOX_TYPE' ]
 
 import os
+import sys
 import smtplib
 
 import mixminion.Config
 import mixminion.Packet
 import mixminion.Queue
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
-from mixminion.Common import getLog
+from mixminion.Common import getLog, createPrivateDir
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -36,8 +38,8 @@ SMTP_TYPE      = 0x0100  # Mail the message
 MBOX_TYPE      = 0x0101  # Send the message to one of a fixed list of addresses
 
 class DeliveryModule:
-    """Abstract base for modules; delivery modules should implement the methods
-       in this class.
+    """Abstract base for modules; delivery modules should implement
+       the methods in this class.
 
        A delivery module has the following responsibilities:
            * It must have a 0-argument contructor.
@@ -51,15 +53,21 @@ class DeliveryModule:
 	pass
 
     def getConfigSyntax(self):
+	"""Return a map from section names to section syntax, as described
+	   in Config.py"""
         pass
 
     def validateConfig(self, sections, entries, lines, contents):
+	"""See mixminion.Config.validate"""
         pass
 
     def configure(self, config, manager):
+	"""Configure this object using a given Config object, and (if
+	   required) register it with the module manager."""
         pass
 
     def getServerInfoBlock(self):
+	"""Return a block for inclusion in a server descriptor."""
         pass
 
     def getName(self):
@@ -68,9 +76,16 @@ class DeliveryModule:
         pass
 
     def getExitTypes(self):
-	"""Return a list of numeric exit types which this module is willing to
+	"""Return a sequence of numeric exit types that this module can
            handle."""
         pass
+
+    def createDeliveryQueue(self, queueDir):
+	"""Return a DeliveryQueue object suitable for delivering messages
+	   via this module.  The default implementation returns a 
+	   SimpleModuleDeliveryQueue,  which (though adequate) doesn't 
+	   batch messages intended for the same destination."""
+        return _SimpleModuleDeliveryQueue(self, queueDir)
 
     def processMessage(self, message, exitType, exitInfo):
 	"""Given a message with a given exitType and exitInfo, try to deliver
@@ -80,6 +95,58 @@ class DeliveryModule:
               deliverable later), or
 	    DELIVER_FAIL_NORETRY (if the message shouldn't be tried later)."""
         pass
+
+class _ImmediateDeliveryQueue:
+    """Helper class usable as delivery queue for modules that don't
+       actually want a queue.  Such modules should have very speedy
+       processMessage() methods, and should never have deliery fail."""
+    def __init__(self, module):
+	self.module = module
+
+    def queueMessage(self, (exitType, exitInfo), message):
+	try:
+	    res = self.module.processMessage(exitType, exitInfo, message)
+	    if res == DELIVER_OK:
+		return
+	    elif res == DELIVER_FAIL_RETRY:
+		getLog().error("Unable to retry delivery for message")
+	    else:
+		getLog().error("Unable to deliver message")
+	except:
+	    _, e, tb = sys.exc_info()    
+	    getLog().error(
+		"Exception delivering message: %s at line %s of %s", 
+		e, tb.tb_lineno, tb.tb_frame.f_code.co_name)
+
+    def sendReadyMessages(self):
+	pass
+
+class _SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
+    """Helper class used as a default delivery queue for modules that
+       don't care about batching messages to like addresses."""
+    def __init__(self, module, directory):
+	mixminion.Queue.DeliveryQueue.__init__(self, directory)
+	self.module = module
+    
+    def deliverMessages(self, msgList):
+	for handle, addr, message, n_retries in msgList:	  
+	    try:
+		exitType, exitInfo = addr
+		result = self.module.processMessage(message,exitType,exitInfo)
+		if result == DELIVER_OK:
+		    self.deliverySucceeded(handle)
+		elif result == DELIVER_FAIL_RETRY:
+		    # XXXX We need to drop undeliverable messages eventually!
+		    self.deliveryFailed(handle, 1)
+		else:
+		    getLog().error("Unable to deliver message")
+		    self.deliveryFailed(handle, 0)
+	    except:
+		_, e, tb = sys.exc_info()
+		getLog().error(
+		    "Exception delivering message: %s at line %s of %s", 
+		    e, tb.tb_lineno, tb.tb_frame.f_code.co_name)
+		self.deliveryFailed(handle, 0)
 
 class ModuleManager:
     """A ModuleManager knows about all of the modules in the systems.
@@ -91,14 +158,15 @@ class ModuleManager:
        enabled."""
     ## 
     # Fields
-    #    myntax: extensions to the syntax configuration in Config.py
+    #    syntax: extensions to the syntax configuration in Config.py
     #    modules: a list of DeliveryModule objects
     #    nameToModule: XXXX Docdoc
     #    typeToModule: a map from delivery type to enabled deliverymodule.
     #    path: search path for python modules.
     #    queueRoot: directory where all the queues go.
-    #    queues: a map from module name to queue.
-       
+    #    queues: a map from module name to queue (Queue objects must support
+    #            queueMessage and sendReadyMessages as in DeliveryQueue.)
+    
     def __init__(self):
         self.syntax = {}
         self.modules = []
@@ -133,7 +201,10 @@ class ModuleManager:
 
     def setPath(self, path):
 	"""Sets the search path for Python modules"""
-        self.path = path
+	if path:
+	    self.path = path.split(":")
+	else:
+	    self.path = []
 
     def loadExtModule(self, className):
 	"""Load and register a module from a python file.  Takes a classname
@@ -142,8 +213,8 @@ class ModuleManager:
         ids = className.split(".")
         pyPkg = ".".join(ids[:-1])
         pyClassName = ids[-1]
+	orig_path = sys.path[:]
         try:
-            orig_path = sys.path[:]
 	    sys.path[0:0] = self.path
 	    try:
 		m = __import__(pyPkg, {}, {}, [])
@@ -152,7 +223,7 @@ class ModuleManager:
         finally:
             sys.path = orig_path
 	try:
-	    pyClass = getattr(m, pyClassname)
+	    pyClass = getattr(m, pyClassName)
 	except AttributeError, e:
 	    raise MixError("No class %s in module %s" %(pyClassName,pyPkg))
 	try:
@@ -165,8 +236,8 @@ class ModuleManager:
             m.validateConfig(sections, entries, lines, contents)
 
     def configure(self, config):
-	self.queueRoot = os.path.join(config['Server']['Homedir'],
-				      'work', 'queues', 'deliver')
+	self._setQueueRoot(os.path.join(config['Server']['Homedir'],
+					'work', 'queues', 'deliver'))
 	createPrivateDir(self.queueRoot)
         for m in self.modules:
             m.configure(config, self)
@@ -175,10 +246,15 @@ class ModuleManager:
 	"""Maps all the types for a module object."""
         for t in module.getExitTypes():
             self.typeToModule[t] = module
+
 	queueDir = os.path.join(self.queueRoot, module.getName())
-	queue = mixminion.Queue.Queue(queueDiir, create=1, scrub=1)
+	queue = module.createDeliveryQueue(queueDir)
 	self.queues[module.getName()] = queue
 
+    def cleanQueues(self):
+	for queue in self.queues.values():
+	    queue.cleanQueue()
+	    
     def disableModule(self, module):
 	"""Unmaps all the types for a module object."""
         for t in module.getExitTypes():
@@ -189,30 +265,17 @@ class ModuleManager:
 
     def queueMessage(self, message, exitType, exitInfo):
         mod = self.typeToModule.get(exitType, None)
-        if mod is not None:
-	    queue = self.queues[mod.getName()]
-	    f, handle = queue.openNewMessage()
-	    cPickle.dumps((0, exitType, exitInfo, message), f, 1)
-	    queue.finishMessage(f, handle)
-        else:
-            getLog().error("Unable to queue message with unknown type %s",
+        if mod is None:
+            getLog().error("Unable to handle message with unknown type %s",
                            exitType)
+	    return
+	    
+	queue = self.queues[mod.getName()]
+	queue.queueMessage((exitType,exitInfo), message)
 
-    def processMessages(self):
+    def sendReadyMessages(self):
 	for name, queue in self.queues.items():
-	    if len(queue):
-		XXXX
-
-    def processMessage(self, message, exitType, exitInfo):
-	"""Tries to deliver a message.  Return types are as in 
-           DeliveryModule.processMessage"""
-        mod = self.typeToModule.get(exitType, None)
-        if mod is not None:
-            return mod.processMessage(message, exitType, exitInfo)
-        else:
-            getLog().error("Unable to deliver message with unknown type %s",
-                           exitType)
-            return DELIVER_FAIL_NORETRY
+	    queue.sendReadyMessages()
 
     def getServerInfoBlocks(self):
         return [ m.getServerInfoBlock() for m in self.modules ]
@@ -225,17 +288,21 @@ class DropModule(DeliveryModule):
     def getServerInfoBlock(self):
         return ""
     def configure(self, config, manager):
-	manager.enable(self)
+	manager.enableModule(self)
     def getName(self):
         return "DROP"
     def getExitTypes(self):
         return [ DROP_TYPE ]
+    def createDeliveryQueue(self, directory):
+	return _ImmediateDeliveryQueue(self)
     def processMessage(self, message, exitType, exitInfo):
         getLog().debug("Dropping padding message")
         return DELIVER_OK
 
 #----------------------------------------------------------------------
 class MBoxModule(DeliveryModule):
+    # XXXX This implementation can stall badly if we don't have a fast
+    # XXXX local MTA.
     def __init__(self):
         DeliveryModule.__init__(self)
         self.command = None
@@ -257,20 +324,22 @@ class MBoxModule(DeliveryModule):
 
     def configure(self, config, moduleManager):
         # XXXX Check this.  error handling
+	
         self.enabled = config['Delivery/MBOX'].get("Enabled", 0)
-        self.server = config['Delivery/MBOX']['SMTPServer']
-        self.addressFile = config['Delivery/MBOX']['AddressFile']
-        self.returnAddress = config['Delivery/MBOX']['ReturnAddress']
-        self.contact = config['Delivery/MBOX']['RemoveContact']
-        if self.enabled:
-            if not self.addressFile:
-                raise ConfigError("Missing AddressFile field in Delivery/MBOX")
-            if not self.returnAddress:
-                raise ConfigError("Missing ReturnAddress field "+
-                                  "in Delivery/MBOX")
-            if not self.contact:
-                raise ConfigError("Missing RemoveContact field "+
-                                  "in Delivery/MBOX")
+	if not self.enabled:
+	    return
+
+	self.server = config['Delivery/MBOX']['SMTPServer']
+	self.addressFile = config['Delivery/MBOX']['AddressFile']
+	self.returnAddress = config['Delivery/MBOX']['ReturnAddress']
+	self.contact = config['Delivery/MBOX']['RemoveContact']
+	if not self.addressFile:
+	    raise ConfigError("Missing AddressFile field in Delivery/MBOX")
+	if not self.returnAddress:
+	    raise ConfigError("Missing ReturnAddress field in Delivery/MBOX")
+	if not self.contact:
+	    raise ConfigError("Missing RemoveContact field in Delivery/MBOX")
+			      
         
         self.nickname = config['Server']['Nickname']
         if not self.nickname:

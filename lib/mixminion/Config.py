@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.8 2002/08/11 07:50:34 nickm Exp $
+# $Id: Config.py,v 1.9 2002/08/19 15:33:55 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -261,7 +261,7 @@ def _parsePublicKey(s):
 	key = mixminion.Crypto.pk_decode_public_key(asn1)
     except mixminion.Crypto.CryptoError:
 	raise ConfigError("Invalid public key")
-    if key.get_public_key()[1] != 65535:
+    if key.get_public_key()[1] != 65537:
 	raise ConfigError("Invalid exponent on public key")
     return key
 
@@ -695,12 +695,18 @@ class ServerConfig(_ConfigFile):
     _restrictFormat = 0
     # XXXX Missing: Queue-Size / Queue config options
     # XXXX         timeout options
-    # XXXX       listen timeout??
-    def __init__(self, fname=None, string=None):
+    # XXXX         listen timeout??
+    # XXXX         Retry options
+    def __init__(self, fname=None, string=None, moduleManager=None):
+	# We use a copy of SERVER_SYNTAX, because the ModuleManager will
+	# mess it up.
         self._syntax = SERVER_SYNTAX.copy()
 
         import mixminion.Modules
-        self.moduleManager = mixminion.Modules.ModuleManager()
+	if moduleManager is None:
+	    self.moduleManager = mixminion.Modules.ModuleManager()
+	else:
+	    self.moduleManager = moduleManager
         self._addCallback("Server", self.__loadModules)    
 
         _ConfigFile.__init__(self, fname, string)
@@ -715,13 +721,10 @@ class ServerConfig(_ConfigFile):
 	   accordingly."""
         self.moduleManager.setPath(section.get('ModulePath', None))
         for mod in section.get('Module', []):
-	    info("Loading module %s", mod)
+	    getLog().info("Loading module %s", mod)
             self.moduleManager.loadExtModule(mod)
 
         self._syntax.update(self.moduleManager.getConfigSyntax())
     
-##         if sections['Server']['PublicKeyLifeTime'][2] < 24*60*60:
-##             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
-##         elif sections['Server']['PublicKeyLifeTime'][2] % (24*60*60) > 30:
-##             getLog().warn("PublicKeyLifetime rounded to the nearest day")
-##             nDays = sections[60*60*24]
+    def getModuleManager(self):
+	return self.moduleManager

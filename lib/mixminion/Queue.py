@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.10 2002/08/12 21:05:50 nickm Exp $
+# $Id: Queue.py,v 1.11 2002/08/19 15:33:56 nickm Exp $
 
 """mixminion.Queue
 
@@ -12,10 +12,12 @@ import time
 import stat
 import cPickle
 
-from mixminion.Common import MixError, MixFatalError, secureDelete, getLog
+from mixminion.Common import MixError, MixFatalError, secureDelete, getLog, \
+     createPrivateDir
 from mixminion.Crypto import AESCounterPRNG
 
-__all__ = [ 'Queue' ]
+__all__ = [ 'Queue', 'DeliveryQueue', 'TimedMixQueue', 'CottrellMixQueue', 
+	    'BinomialCottrellMixQueue' ]
 
 # Mode to pass to open(2) for creating a new file, and dying if it already
 # exists.
@@ -79,7 +81,7 @@ class Queue:
         if not os.path.exists(location):
             if create:
                 getLog().info("Trying to create queue %s", location)
-                os.mkdir(location, 0700)
+		createPrivateDir(location)
             else:
                 raise MixFatalError("No directory for queue %s" % location)
  
@@ -90,7 +92,7 @@ class Queue:
             getLog().warn("Worrisome mode %o on directory %s", mode, location)
 
         if scrub:
-            self.cleanQueue(1)
+            self.cleanQueue()
 
 	# Count messages on first time through.
 	self.n_entries = -1
@@ -107,7 +109,7 @@ class Queue:
 	"""Queue an object using cPickle, and return a handle to that 
 	   object."""
         f, handle = self.openNewMessage()
-        cPickle.dump(contents, f, 1)
+        cPickle.dump(object, f, 1)
         self.finishMessage(f, handle)
         return handle
       
@@ -261,7 +263,7 @@ class DeliveryQueue(Queue):
     """A DeliveryQueue implements a queue that greedily sends messages
        to outgoing streams that occasionally fail.  Messages in a 
        DeliveryQueue are no longer unstructured text, but rather
-       tuples of: (n_retries, next_retry_time, addressing info, msg).
+       tuples of: (n_retries, addressing info, msg).
 
        This class is abstract. Implementors of this class should
        subclass it to add a deliverMessages method.  Multiple
@@ -278,11 +280,8 @@ class DeliveryQueue(Queue):
     """
     ###
     # Fields:
-    #    sendableAt -- An inorder list of (time, handle) for all messages 
-    #           that we're not currently sending. Each time is either a
-    #           number of seconds since the epoch at which the corresponding
-    #           message will be sendable, or 0 to indicate that the message
-    #           is sendable _now_.  
+    #    sendable -- A list of handles for all messages 
+    #           that we're not currently sending.
     #    pending -- Dict from handle->1, for all messages that we're
     #           currently sending.
 
@@ -293,63 +292,47 @@ class DeliveryQueue(Queue):
     def _rescan(self):
 	"""Rebuild the internal state of this queue from the underlying
            directory."""
-	self.sendableAt = []
 	self.pending = {}
-	now = time.time()
-	for h in self.getAllmessages():
-	    t = self.getObject(handle)[1] # retry time
-	    self.sendableAt.append[(t, h)]
-	self.sendableAt.sort()
+	self.sendable = self.getAllMessages()
     
-    def queueMessage(self, addr, msg, retry=0, retryAt=0):
+    def queueMessage(self, addr, msg, retry=0):
 	"""Schedule a message for delivery.
 	     addr -- An object to indicate the message's destination
 	     msg -- the message itself
-	     retry -- how many times so far have we tried to send?
-	     retryAt -- when should we next retry? (0 for now)."""
+	     retry -- how many times so far have we tried to send?"""
 
-        self.queueObject( (retry, retryAt, addr, msg) )
+        handle = self.queueObject( (retry, addr, msg) )
+	self.sendable.append(handle)
 
-	if retryAt == 0:
-	    self.sendableAt[0:0] = [(0, handle)]
-	else:
-	    bisect.insort_right(self.sendableAt, (retryAt, handle))
 	return handle
 
-    def nextMessageReadyAt(self):
-	"""Return the soonest possible time at which sendReadyMessages
-	   will send something.  If some time < now is returned,
-	   the answer is 'immediately'.  If 'None' is returned, there are
-	   no messages in the queue."""
-	if self.sendableAt:
-	    return self.sendableAt[0][0]
-	else:
-	    return None
-    
-    def messageContents(self,handle):
-	"""Returns a (n_retries, retryAt, addr, msg) payload for a given
+    def get(self,handle):
+	"""Returns a (n_retries, addr, msg) payload for a given
 	   message handle."""
         return self.getObject(handle)
 	
     def sendReadyMessages(self):
-	"""Sends all messages which are ready to be send, and which are not
-           already being sent."""
-	now = time.time()
-	idx = bisect.bisect_right(self.sendableAt, (now, ""))
+	"""Sends all messages which are not already being sent."""
+
+	handles = self.sendable
 	messages = []
-	sendable = self.sendableAt[:idx]
-	del self.sendableAt[:idx]
-	for when, h in self.sendable:
-	    retries, retryAt, addr, msg = self.getObject(h)
+	self.sendable = []
+	for h in handles:
+	    retries, addr, msg = self.getObject(h)
 	    messages.append((h, addr, msg, retries))
 	    self.pending[h] = 1
 	if messages:
-	    self.deliverMessage(messages)
+	    self.deliverMessages(messages)
 
     def deliverMessages(self, msgList):
 	"""Abstract method; Invoked with a list of  
   	   (handle, addr, message, n_retries) tuples every time we have a batch
-	   of messages to send."""
+	   of messages to send.  
+
+           For every handle in the list, delierySucceeded or deliveryFailed
+	   should eventually be called, or the message will sit in the queue
+	   indefinitely, without being retried."""
+
         # We could implement this as a single deliverMessage(h,addr,m,n)
 	# method, but that wouldn't allow implementations to batch
 	# messages being sent to the same address.
@@ -363,18 +346,18 @@ class DeliveryQueue(Queue):
 	self.removeMessage(handle)
 	del self.pending[handle]
 
-    def deliveryFailed(self, handle, retryAt=None):
+    def deliveryFailed(self, handle, retriable=0):
 	"""Removes a message from the outgoing queue, or requeues it
 	   for delivery at a later time.  This method should be
 	   invoked after the corresponding message has been
 	   successfully delivered."""
 	del self.pending[handle]
-	if self.retryAt is not None:
+	if retriable:
 	    # Queue the new one before removing the old one, for 
 	    # crash-proofness
-	    retries, retryAt, addr, msg = self.getObject(h)
-	    self.queueMessage(addr, msg, retries+1, retryAt)
-	self.removeMessage(handle)	    
+	    retries,  addr, msg = self.getObject(handle)
+	    self.queueMessage(addr, msg, retries+1)
+	self.removeMessage(handle)    
 
 class TimedMixQueue(Queue):
     """A TimedMixQueue holds a group of files, and returns some of them
@@ -385,26 +368,14 @@ class TimedMixQueue(Queue):
 	   every 'interval' seconds."""
         Queue.__init__(self, location, create=1, scrub=1)
 	self.interval = interval
-	self.nextSendTime = time.time + interval
 
-    def nextMessageReadyAt(self):
-	"""Return the next time at which the pool will be ready to send
-	   messages"""
-	return self.nextSendTime
-
-    def getReadyMessages(self):
+    def getBatch(self):
 	"""Return handles for all messages that the pool is currently ready 
-	   to send."""
-	now = time.time()
-	if now < self.nextSendTime:
-	    return []
-	self.nextSendTime = now + self.interval
-	return self._getBatch()
-
-    def _getBatch(self):
-	"""Internal method: called by getReadyMessages to return a single
-	   batch of handles."""
+	   to send in the next batch"""
 	return self.pickRandom()
+
+    def getInterval(self):
+	return self.interval
 
 class CottrellMixQueue(TimedMixQueue):
     """A CottrellMixQueue holds a group of files, and returns some of them
@@ -416,22 +387,24 @@ class CottrellMixQueue(TimedMixQueue):
 	   and never sends more than maxSendRate * the current pool size."""
 	TimedMixQueue.__init__(self, location, interval)
 	self.minPoolSize = minPoolSize
-	self.maxSendRate = maxSendRate
+	self.maxBatchSize = int(maxSendRate*minPoolSize)
+	if self.maxBatchSize < 1: 
+	    self.maxBatchSize = 1
 
-    def _getBatch(self):
+    def getBatch(self):
 	pool = self.count()
-	nTransmit = min(pool-self.minPoolSize, int(pool*self.maxSendRate))
+	nTransmit = min(pool-self.minPoolSize, self.maxBatchSize)
 	return self.pickRandom(nTransmit)
 
 class BinomialCottrellMixQueue(CottrellMixQueue):
     """Same algorithm as CottrellMixQueue, but instead of sending N messages
        from the pool of size P, sends each message with probability N/P."""
-    def _getBatch(self):
+    def getBatch(self):
 	pool = self.count()
-	nTransmit = min(pool-self.minPoolSize, int(pool*self.maxSendRate))
+	nTransmit = min(pool-self.minPoolSize, self.maxBatchSize)
 	msgProbability = float(nTransmit) / pool
-	return rng.shuffle([ h for h in self.getAllMessages() 
-			        if self.rng.getFloat() < msgProbability ])
+	return self.rng.shuffle([ h for h in self.getAllMessages() 
+				    if self.rng.getFloat() < msgProbability ])
 
 def _secureDelete_bg(files, cleanFile):
     pid = os.fork()
