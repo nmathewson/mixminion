@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.27 2003/05/30 07:36:28 nickm Exp $
+# $Id: ServerList.py,v 1.28 2003/06/02 20:55:23 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -98,7 +98,7 @@ class ServerList:
             idCache = mixminion.directory.Directory.IDCache(
                 os.path.join(baseDir, "xx_idcache"))
         self.idCache = idCache
-        
+
         self.serverIDDir = os.path.join(self.baseDir, "server-ids")
         self.serverDir = os.path.join(self.baseDir, "servers")
         self.rejectDir = os.path.join(self.baseDir, "reject")
@@ -114,7 +114,7 @@ class ServerList:
         createPrivateDir(self.archiveDir)
         createPrivateDir(self.dirArchiveDir)
         self.rescan()
-        
+
     def isServerKnown(self, server):
         """Return true iff the current server descriptor is known.  Raises
            MixError if we have a server descriptor with this name, but
@@ -141,7 +141,7 @@ class ServerList:
                     LOG.warn("Server %s already known", nickname)
             except mixminion.directory.MismatchedID:
                 raise MixFatalError("Mismatched ID for server %s", nickname)
-                
+
             LOG.info("Learning identity for new server %s", nickname)
             self.idCache.insertServer(server)
             writePickled(os.path.join(self.serverIDDir,
@@ -225,7 +225,7 @@ class ServerList:
             LOG.info("  (%s servers removed)", len(servers))
         finally:
             self._unlock()
-            
+
     def generateDirectory(self,
                           startAt, endAt, extraTime,
                           identityKey,
@@ -233,7 +233,7 @@ class ServerList:
                           badServers=()):
         """Generate and sign a new directory, to be effective from <startAt>
            through <endAt>.  It includes all servers that are valid at
-           any time between <startAt> and <endAt>+>extraTime>.  The directory
+           any time between <startAt> and <endAt>+<extraTime>.  The directory
            is signed with <identityKey> """
         try:
             self._lock()
@@ -242,14 +242,43 @@ class ServerList:
                 publicationTime = time.time()
             if previousMidnight(startAt) >= previousMidnight(endAt):
                 raise MixError("Validity range does not contain a full day.")
-            included = []
-            for fn, s in self.servers.items():
-                if not s.isValidAtPartOf(startAt, endAt+extraTime):
-                    continue
-                nickname = s.getNickname()
-                validAfter = s['Server']['Valid-After']
-                included.append((nickname, validAfter, fn))
 
+            # First, sort all servers by nickname.
+            includedByNickname =  {}
+            for fn, s in self.servers.items():
+                nickname = s.getNickname().lower()
+                includedByNickname.setdefault(nickname, []).append((s, fn))
+
+            # Second, find all servers that are valid for part of the period,
+            # and that aren't superceded for the whole period.
+            timeRange = IntervalSet([(previousMidnight(startAt),
+                                      endAt+extraTime)])
+
+            for nickname, ss in includedByNickname.items():
+                # We prefer the most-recently-published descriptor.  If two
+                # are published at the same time, we prefer the one that
+                # expires last.
+                ss = [ (s['Server']['Published'],
+                        s['Server']['Valid-Until'],
+                        s, fn) for s,fn in ss]
+                ss.sort()
+                ss.reverse()
+                uncovered = timeRange.copy()
+                included = []
+                for _, _, s, fn in ss:
+                    valid = s.getIntervalSet()
+                    if (uncovered * valid):
+                        included.append((s, fn))
+                        uncovered -= valid
+                includedByNickname[nickname] = included
+
+            # Now sort the remaining servers by nickname, then by valid-after.
+            included = []
+            for ss in includedByNickname.values():
+                for s,fn in ss:
+                    nickname = s.getNickname()
+                    validAfter = s['Server']['Valid-After']
+                    included.append((nickname, validAfter, fn))
             included.sort()
 
             # FFFF We should probably not do all of this in RAM, but
@@ -317,7 +346,7 @@ class ServerList:
             f.close()
         finally:
             self._unlock()
-            
+
     def getDirectoryFilename(self):
         """Return the filename of the most recently generated directory"""
         return os.path.join(self.baseDir, "directory")
@@ -363,7 +392,7 @@ class ServerList:
             self.__buildNicknameMap()
         finally:
             self._unlock()
-            
+
     def rescan(self):
         """Reconstruct this ServerList object's internal state."""
         try:
@@ -416,7 +445,7 @@ class ServerList:
             self.__buildNicknameMap()
         finally:
             self._unlock()
-            
+
     def __buildNicknameMap(self):
         """Helper method. Regenerate self.serversByNickname from
            self.servers

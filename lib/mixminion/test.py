@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.113 2003/05/30 03:07:56 nickm Exp $
+# $Id: test.py,v 1.114 2003/06/02 20:55:23 nickm Exp $
 
 """mixminion.tests
 
@@ -3923,19 +3923,18 @@ IP: 192.168.100.4
         # Now generate a directory...
         lst.generateDirectory(now, dayLater, 0,
                               identity, now)
-        # (Fred1, and Lola0, and Lola1 should get included.)
+        # (Fred1, and Lola1 should get included.)
         d = readFile(lst.getDirectoryFilename())
         self.assert_(d.startswith("[Directory]\n"))
-        eq(3, d.count("[Server]\n"))
+        eq(2, d.count("[Server]\n"))
         self.assert_(stringContains(d, examples["Fred"][1]))
-        self.assert_(stringContains(d, examples["Lola"][0]))
         self.assert_(stringContains(d, examples["Lola"][1]))
 
         # Did a backup directory get made?
         eq(1, len(os.listdir(dirArchiveDir)))
         # Validate the directory, and check that values are as expected.
         sd = ServerDirectory(d)
-        eq(len(sd.getServers()), 3)
+        eq(len(sd.getServers()), 2)
         eq(sd["Directory"]["Version"], "0.2")
         eq(sd["Directory"]["Published"], int(now))
         eq(sd["Directory"]["Valid-After"], previousMidnight(now))
@@ -3970,7 +3969,7 @@ IP: 192.168.100.4
                               identity)
         d2 = readFile(lst.getDirectoryFilename())
         sd2 = ServerDirectory(d2)
-        self.assertEquals(3, len(sd2.getServers()))
+        self.assertEquals(2, len(sd2.getServers()))
 
         # Now try cleaning servers.   First, make sure we can't insert
         # an expired server.
