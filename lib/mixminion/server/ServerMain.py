@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.144 2004/12/22 04:47:11 nickm Exp $
+# $Id: ServerMain.py,v 1.145 2004/12/27 00:09:21 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -1025,7 +1025,6 @@ class MixminionServer(_Scheduler):
         nextUpdate = self.updateDirectoryClient(reschedulePings=0)
         self.scheduleEvent(RecurringComplexBackgroundEvent(
             nextUpdate,
-            time.time()+4*60,
             self.processingThread.addJob,
             self.updateDirectoryClient))
 
