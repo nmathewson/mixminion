@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.9 2002/08/25 03:48:48 nickm Exp $
+# $Id: benchmark.py,v 1.10 2002/10/13 18:44:51 nickm Exp $
 
 """mixminion.benchmark
 
@@ -211,6 +211,26 @@ def cryptoTiming():
     enc = pk_encrypt(s70b, rsa)
     print "Pad+RSA private decrypt", \
           timeit((lambda enc=enc,rsa=rsa: pk_decrypt(enc, rsa)),100)
+
+
+    print "RSA generate (1024 bit,e=65535)", timeit((lambda: pk_generate(1024,
+                                                                  65535)),10)
+    rsa = pk_generate()
+    print "Pad+RSA public encrypt",
+    print timeit((lambda rsa=rsa: pk_encrypt(s70b, rsa)),1000)
+    enc = pk_encrypt(s70b, rsa)
+    print "Pad+RSA private decrypt", \
+          timeit((lambda enc=enc,rsa=rsa: pk_decrypt(enc, rsa)),100)
+
+    print "RSA generate (1024 bit,e=3)", timeit((lambda: pk_generate(1024,
+                                                                  3)),10)
+    rsa = pk_generate()
+    print "Pad+RSA public encrypt",
+    print timeit((lambda rsa=rsa: pk_encrypt(s70b, rsa)),1000)
+    enc = pk_encrypt(s70b, rsa)
+    print "Pad+RSA private decrypt", \
+          timeit((lambda enc=enc,rsa=rsa: pk_decrypt(enc, rsa)),100)
+
 
     for (bits,it) in ((2048,10),(4096,10)):
         t = time()
