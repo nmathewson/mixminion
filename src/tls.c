@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.28 2003/10/13 17:11:09 nickm Exp $ */
+/* $Id: tls.c,v 1.29 2003/10/17 13:24:45 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -122,7 +122,6 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
         mm_RSA *rsa = NULL;
         int err = 0;
 
-        SSL_METHOD *method;
         SSL_CTX *ctx = NULL;
         DH *dh = NULL;
         BIO *bio = NULL;
@@ -138,10 +137,12 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
                 return NULL;
 
         Py_BEGIN_ALLOW_THREADS;
-        method = TLSv1_method();
 
-        if (!(ctx = SSL_CTX_new(method)))
+        /* Allow SSL2 and SSL3 and TLS1 */
+        if (!(ctx = SSL_CTX_new(SSLv23_method())))
                 err = 1;
+        /* But not actually SSL2. */
+        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
         if (!err && !SSL_CTX_set_cipher_list(ctx,
                                        TLS1_TXT_DHE_RSA_WITH_AES_128_SHA))
                 err = 1;
