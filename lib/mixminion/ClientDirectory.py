@@ -980,6 +980,7 @@ class DescriptorPathElement(PathElement):
 class RandomServersPathElement(PathElement):
     def __init__(self, n=None, approx=None):
         assert not (n and approx)
+        assert n is None or approx is None
         self.n=n
         self.approx=approx
     def validate(self, directory, start, end):
@@ -987,14 +988,17 @@ class RandomServersPathElement(PathElement):
     def getFixedServer(self, directory, start, end):
         return None
     def getServerNames(self):
-        if self.n:
+        if self.n is not None:
             n = self.n
         else:
             prng = mixminion.Crypto.getCommonPRNG()
             n = int(prng.getNormal(self.approx,1.5)+0.5)
         return [ None ] * n
     def getMinLength(self):
-        return max(self.n,self.approx)
+        if self.n is not None: 
+            return self.n
+        else:
+            return self.approx
     def __repr__(self):
         if self.n:
             assert not self.approx
