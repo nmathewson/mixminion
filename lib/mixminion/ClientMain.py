@@ -40,7 +40,7 @@ from mixminion.Common import AtomicFile, IntervalSet, LOG, floorDiv, \
 from mixminion.Crypto import sha1, ctr_crypt, trng
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
-from mixminion.Packet import encodeMessageHeaders, ParseError, parseMBOXInfo, \
+from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
      parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
@@ -2172,6 +2172,11 @@ def sendUsageAndExit(cmd, error=None):
   --no-queue                 Do not attempt to queue the message.""" }
     sys.exit(0)
 
+if sys.platform == 'win32':
+    EOF_STR = "Ctrl-Z, Return"
+else:
+    EOF_STR = "Ctrl-D"
+
 def runClient(cmd, args):
     """[Entry point]  Generate an outgoing mixminion message and possibly
        send it.  Implements 'mixminion send' and 'mixminion queue'."""
@@ -2267,7 +2272,8 @@ def runClient(cmd, args):
 
         try:
             if inFile == '-':
-                print "Enter your message now.  Type Ctrl-D when you are done."
+                print "Enter your message now.  Type %s when you are done."%(
+                        EOF_STR)
                 payload = sys.stdin.read()
             else:
                 payload = readFile(inFile)
@@ -2275,7 +2281,7 @@ def runClient(cmd, args):
             print "Interrupted.  Message not sent."
             sys.exit(1)
 
-    payload = "%s%s" % headerStr, payload
+    payload = "%s%s" % (headerStr, payload)
 
     if parser.usingSURBList:
         assert isinstance(path2, ListType)
