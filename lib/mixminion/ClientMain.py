@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.23 2003/01/05 04:29:11 nickm Exp $
+# $Id: ClientMain.py,v 1.24 2003/01/05 05:15:03 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -443,9 +443,10 @@ class ClientKeystore:
             if not s:
                 raise MixError("Couldn't find valid descriptor %s" % name)
             return s
-        elif os.path.exists(name):
+        elif os.path.exists(os.path.expanduser(name)):
+            fname = os.path.expanduser(name)
             try:
-                return ServerInfo(fname=name, assumeValid=0)
+                return ServerInfo(fname=fname, assumeValid=0)
             except OSError, e:
                 raise MixError("Couldn't read descriptor %r: %s" %
                                (name, e))
