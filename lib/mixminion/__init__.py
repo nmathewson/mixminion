@@ -1,12 +1,12 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.11 2002/12/15 03:44:40 nickm Exp $
+# $Id: __init__.py,v 1.12 2002/12/16 17:43:24 nickm Exp $
 
 """mixminion
 
    Client and shared code for type III anonymous remailers.
    """
 
-__version__ = "0.0.1a0"
+__version__ = "0.0.1"
 __all__ = [ 'server' ]
 
 ## import mixminion.BuildMessage
