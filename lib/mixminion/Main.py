@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.38 2003/04/04 20:28:55 nickm Exp $
+# $Id: Main.py,v 1.39 2003/04/04 20:59:53 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -117,7 +117,9 @@ _COMMANDS = {
     "benchmarks" :     ( 'mixminion.benchmark',  'timeAll' ),
     "send" :           ( 'mixminion.ClientMain', 'runClient' ),
     "client" :         ( 'mixminion.ClientMain', 'runClient' ),
+    # XXXX Obsolete; use "queue"; remove in 0.0.5
     "pool" :           ( 'mixminion.ClientMain', 'runClient' ),
+    "queue" :          ( 'mixminion.ClientMain', 'runClient' ),    
     "import-server" :  ( 'mixminion.ClientMain', 'importServer' ),
     "list-servers" :   ( 'mixminion.ClientMain', 'listServers' ),
     "update-servers" : ( 'mixminion.ClientMain', 'updateServers' ),
@@ -147,9 +149,9 @@ _USAGE = (
   "                              (For Everyone)\n"+
   "       version        [Print the version of Mixminion and exit]\n"+
   "       send           [Send an anonymous message]\n"+
-  "       pool           [Schedule an anonymous message to be sent later]\n"+
-  "       flush          [Send all messages waiting in the pool]\n"+
-  "       inspect-pool   [Describe all messages waiting in the pool]\n"+
+  "       queue          [Schedule an anonymous message to be sent later]\n"+
+  "       flush          [Send all messages waiting in the queue]\n"+
+  "       inspect-queue  [Describe all messages waiting in the queue]\n"+
   "       import-server  [Tell the client about a new server]\n"+
   "       list-servers   [Print a list of currently known servers]\n"+
   "       update-servers [Download a fresh server directory]\n"+

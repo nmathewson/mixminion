@@ -1,4 +1,4 @@
-$Id: README,v 1.39 2003/03/27 15:34:37 nickm Exp $
+$Id: README,v 1.40 2003/04/04 20:59:53 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3
 
@@ -303,27 +303,27 @@ To send a dummy message, specify "drop" instead of an email address, as in:
       mixminion send -t drop -P '*,Foo'
       mixminion send -t drop -H 8
 
-[NEW IN 0.0.3] To pool a message for later transmission, run "mixminion pool"
-instead of "mixminion send":
+To queue a message for later transmission, run "mixminion queue" instead of
+"mixminion send":
 
-      mixminion pool -t <address> -i <file> -P <path>
+      mixminion queue -t <address> -i <file> -P <path>
 
-      To see all the packets waiting in the pool:
+      To see all the packets waiting in the queue:
       
-      mixminion inspect-pool
+      mixminion inspect-queue
 
-      To attempt to deliver all messages waiting in the pool:
+      To attempt to deliver all messages waiting in the queue:
 
       mixminion flush
 
-      (POOL NOTE: By default, when "mixminion send" fails to deliver a
-      message, it leaves that message in the pool to be reattempted later.
-      To suppress this behavior, use the "--no-pool" option:
-            mixminion send --no-pool -t <address> -i <file> -P <path>
-      Also, as a final sidenote, "mixminion send --pool" is a synonym for
-      "mixminion pool".)
+      (QUEUE NOTE: By default, when "mixminion send" fails to deliver a
+      message, it leaves that message in the queue to be reattempted later.
+      To suppress this behavior, use the "--no-queue" option:
+            mixminion send --no-queue -t <address> -i <file> -P <path>
+      Also, as a final sidenote, "mixminion send --queue" is a synonym for
+      "mixminion queue".)
 
-[NEW IN 0.0.3] To decode a message you have received, type:
+To decode a message you have received, type:
 
       mixminion decode -i <input-file> -o <output-file>.
 
@@ -336,7 +336,7 @@ instead of "mixminion send":
       its contents will be encrypted.  The "mixminion decode" command
       extracts the original text from either kind of message as best it can.)
 
-[NEW IN 0.0.3] To generate a reply block, type:
+To generate a reply block, type:
 
       mixminion generate-surb -t <your-address>
 
@@ -378,8 +378,8 @@ instead of "mixminion send":
          mixminion generate-surb --identity=alice -o alices_surb
          mixminion generate-surb --identity=bob   -o bobs_surb
 
-[NEW IN 0.0.3] Once you have a reply block for a user, you can send reply
-messages by typing:
+Once you have a reply block for a user, you can send reply messages by
+typing:
 
       mixminion send -R <reply-block-filename> -i <input-filename>
 
