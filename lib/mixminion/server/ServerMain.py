@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.44 2003/02/20 16:57:40 nickm Exp $
+# $Id: ServerMain.py,v 1.44.2.1 2003/04/22 02:08:00 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -495,6 +495,7 @@ class MixminionServer:
         now = time.time()
 
         scheduledEvents.append( (now + 600, "SHRED") )#FFFF make configurable
+        scheduledEvents.append( (now + 180, "WAIT") )#FFFF make configurable
         scheduledEvents.append( (self.mmtpServer.getNextTimeoutTime(now),
                                  "TIMEOUT") )
         nextMix = self.mixPool.getNextMixTime(now)
@@ -550,6 +551,15 @@ class MixminionServer:
             elif event == 'SHRED':
                 self.cleanQueues()
                 insort(scheduledEvents, (now + 600, "SHRED"))
+            elif event == 'WAIT':
+                # Every few minutes, we reap zombies.  Why, you ask?  Isn't
+                # catching sigchild enough?  Nope -- sometimes buggy delivery
+                # software forks, stays along long enough to ignore a child's
+                # sigchild, then dies itself.  Or something -- in any case, we
+                # sure seem to be leaving a bunch of zombie mixmaster processes
+                # around.  This should fix it.
+                waitForChildren(blocking=0)
+                insort(scheduledEvents, (now + 180, "WAIT"))
             elif event == 'MIX':
                 # Before we mix, we need to log the hashes to avoid replays.
                 try:
@@ -576,7 +586,7 @@ class MixminionServer:
                 insort(scheduledEvents, (nextMix, "MIX"))
                 LOG.trace("Next mix at %s", formatTime(nextMix,1))
             else:
-                assert event in ("MIX", "SHRED", "TIMEOUT")
+                assert event in ("MIX", "SHRED", "TIMEOUT", "WAIT")
 
     def cleanQueues(self):
         """Remove all deleted messages from queues"""
