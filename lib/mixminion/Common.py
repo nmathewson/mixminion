@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.63 2003/02/17 15:02:25 nickm Exp $
+# $Id: Common.py,v 1.64 2003/02/17 16:14:36 nickm Exp $
 
 """mixminion.Common
 
@@ -129,7 +129,7 @@ def encodeBase64(s, lineWidth=64):
        base64.encodestring by having a variable line width.  Implementation
        is based upon that function.
     """
-    # XXXX003 test me
+    # XXXX004 test me
     pieces = []
     bytesPerLine = floorDiv(lineWidth, 4) * 3
     for i in xrange(0, len(s), bytesPerLine):
