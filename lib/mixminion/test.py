@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.56 2003/01/04 04:12:51 nickm Exp $
+# $Id: test.py,v 1.57 2003/01/04 04:38:44 nickm Exp $
 
 """mixminion.tests
 
@@ -3680,10 +3680,10 @@ Foo: 100
         ####
         # Tests escapeMessageForEmail
         self.assert_(stringContains(eme(message, None), message))
-        expect = "BEGINS ============\n"+\
+        expect = "BEGINS ========\n"+\
                  base64.encodestring(binmessage)+"====="
         self.assert_(stringContains(eme(binmessage, None), expect))
-        expect = "BEGINS ============\nDecoding handle: "+\
+        expect = "BEGINS ========\nDecoding handle: "+\
                  base64.encodestring(tag)+\
                  base64.encodestring(encoded)+"====="
         self.assert_(stringContains(eme(encoded, tag), expect))
@@ -3711,12 +3711,12 @@ and you will be removed.
 This message is not in plaintext.  It's either 1) a reply; 2) a forward
 message encrypted to you; or 3) junk.
 
-============ ANONYMOUS MESSAGE BEGINS ============
+======= TYPE III ANONYMOUS MESSAGE BEGINS ========
 Decoding handle: eHh4eHh4eHh4eHh4eHh4eHh4eHg=
 7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v
 +s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6
 zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3g==
-============= ANONYMOUS MESSAGE ENDS =============
+======== TYPE III ANONYMOUS MESSAGE ENDS =========
 """
 
 class ModuleTests(unittest.TestCase):
@@ -4191,7 +4191,7 @@ class ClientMainTests(unittest.TestCase):
         ## Test empty keystore
         eq(None, ks.getServerInfo("Fred"))
         self.assertRaises(MixError, ks.getServerInfo, "Fred", strict=1)
-        fred = ks.getServerInfo(os.path.join(impdirname, "fred2"))
+        fred = ks.getServerInfo(os.path.join(impdirname, "Fred2"))
         self.assertEquals("Fred", fred.getNickname())
         self.assertSameSD(edesc["Fred"][2],fred)
 
