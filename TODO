@@ -10,79 +10,9 @@ SPEC	- Spec not finalized
 
 NEEDS TO BE WRITTEN
 
-For 0.0.2: [The 'desireable features' release.  This should contain
-    user-visible improvements to address the most glaring defects in 0.0.1.]
-
-	o Real SMTP module
-		o Exit filtering support
-		o Tests for blacklist
-		o Tests for SMTP module
-		o Actually try it out.
-	D Interface for reply blocks
-	o Minimal directory support
-		o Make everything resistant to newline corruption
-		       o Signatures are independent of newline style
-		       o Config files are read independent of newline style.
-		       o Tests for above.
-		       o Directories are independent of nl style
-		       o Tests for above
-		o Test whether serverinfo is really pickleable.
-		o Client-side directory support
-			o Backend
-			o Integrated server list management
-			o Tests for backend
-			o CLI support
-				o 'Import' support
-				D 'Remove' support
-				o Actually invoke 'downloadDirectory'
-			o Tests for new server lists
-			o Tests for CLI support
-			o Test CLI
-		o Server-side directory generation (not automated;
-	          still no automatic rotation.)
-		  	o Backend
-			o CLI
-			o Tests for backend
-			o Test CLI
-		- Retest CLI one last time before shipping
-	o Path selection
-		o Implement
-		o Test backend
-		o Test CLI code
-		o Test CLI
-	o Minimal DOS prevention
-		o SMTP-address blacklisting (for SMTP module)
-		o Prevent bogus nicknames from bombing server.
-		o Prevent zlib bombing: minimal version.
-		        o Implement
-			o Tests for BuildMessage functionality
-			o Tests for ModuleManager functionality
-			o Mention in the spec.
-			o Arg! Make space-bound zlib work under Python <2.2.
-		o Timeout connections.
-			o Implement timeout logic in MMTPServer
-			o Implement in ServerMain
-			o Tests for MMTPServer code: setting lastActivity
-			o Tests for MMTPServer code: timing out.
-			o Test server
-	o Correct README to mention: no 'make build'.
-	o Correct mixminiond.conf to mention that ~ must be mode 0700.
-	o Fix Makefile to work on FreeBSD.
-	o Configurable mix algorithm, defaulting to cottrell-style
-	  mixing with a medium-long interval.
-	  	o Implement
-		o Tests for configuration
-		o Tests for new validation functions.
-		o Add examples to mixminiond.conf
-	o Refactor main loop to be event based
-	o Balance =-signs on "==ANONYMOUS MESSAGE BEGINS"
-	o Acknowledgments
-	o Triage XXXX'S for 002.
-	o Fix all XXXX002's.
-	. Document everything
-	. Clean whitespace
-	o Make __version__ get set automatically, from only one place.
-	- Write a "whatsnew" as a part of the README.
+For 0.0.3:
+	- Client support for reply blocks.
+	- ????
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out

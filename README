@@ -1,44 +1,87 @@
-This is Mixminion version 0.0.1.
+This is Mixminion version 0.0.2, release candidate 1.
+
+CONTENTS:
+        I.    Overview
+        II.   What's new in this version
+        III.  How to upgrade
+        IV.   How to install
+        V.    How to send messages
+        VI.   How to run a server
+        VII.  How to report bugs and suggestions.
+        VIII. How to contribute
+
+I. OVERVIEW
+===========
 
 Mixminion is the standard implementation for the Type-III anonymous Mix
 protocol, which lets you send very anonymous email.  This best-of-breed
-remailer uses conservative design approaches to provide security against
-most known attacks. We chose a simple extensible design so we can provide a
-robust core system, and then go on to experiment with new research features
-such as dummy policies, directory servers, and reputation systems.
+remailer uses conservative design approaches to provide security against most
+known attacks. We chose a simple extensible design so we can provide a robust
+core system, and then go on to experiment with new research features such as
+dummy policies, directory servers, and reputation systems.
 
-This is a testing alpha release.  You will probably only want to use it
-if you are technically inclined, curious, and interested in helping the
+This is a testing alpha release.  You will probably only want to use it if
+you are technically inclined, curious, and interested in helping the
 Mixminion development effort.
 
 WARNING!  Don't use this release if you require strong anonymity.  It has
-known deficiencies, including some that make it possible for an adversary
-to trace your message through the system.
+known deficiencies, including some that make it possible for an adversary to
+trace your message through the system.
 
-IN THIS VERSION:
+II. WHAT'S NEW IN THIS VERSION?
+===============================
+
+NEW IN VERSION 0.0.2:
+   - A real SMTP exit module to relay messages via a local MTA.  Blacklisting
+     is supported by address, by username, by host, by domain, and by regular
+     expression.
+   - Integrated directory support for clients.
+   - Automatic path selection, along with a better user interface to specify
+     paths.
+   - You can now enable Cottrell (DynamicPool) and Binomial Dynamic Pool
+     batching, though they are disabled by default to make the system more
+     testable.
+   - Servers resist certain trivial DOS attacks more strongly.  In
+     particular, you should no longer be able to send zlib bombs or flood a
+     server with open connections.
+   - Clean build process under FreeBSD.
+   - Ability to run server as a daemon.
+   - Slightly better documentation and error messages.
+   - Better resistance to newline corruption of server descriptors.
+   - Other bugfixes and performance improvements too numerous to mention.
+
+NEW IN VERSION 0.0.1:
    - You can run a rudimentary server that can deliver to other Mixminion
      servers, that can use Mixmaster to deliver to any external address,
      or that sends SMTP directly to a preconfigured set of addresses.
    - You can send anonymous email via these servers.
 
-NOT IN THIS VERSION:
+STILL NOT IN THIS VERSION:
    - There is no client interface for sending replies or generating reply
      blocks (the code is written but not exposed).
-   - There are still some ways to DoS the server.
+   - We could use some man pages.
    - IP-based restrictions don't work.
-   - There is no exit module for servers that want to send SMTP directly to
-     unrestricted addresses.
-   - There is no integrated directory support yet.
-   - No automatic key generation.
-   - No automatic path selection.
+   - No automatic key generation or server publication.
+   - No support for distributed directories.
    - MMTP does not exactly follow the specification yet.
-   - Cottrell batching is disabled; instead we use a simple timed mix. The
-     mix interval is set to a ridiculously low 5 minutes for testing.
+   - Other stuff too numerous to mention; see TODO.
 
-HOW TO BUILD, TEST, AND INSTALL MIXMINION: The quick version.
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.1.tar.gz>
+III. HOW TO UPGRADE FROM MIXMINION 0.0.1
+========================================
 
-  % cd Mixminion-0.0.1
+Just follow the installation instructions below. :)
+
+Be aware that the client command line has changed significantly since version
+0.0.1, and there are important new options in the server configuration file.
+
+IV. HOW TO INSTALL MIXMINION
+============================
+
+The quick version.
+------------------
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.2.tar.gz>
+
+  % cd Mixminion-0.0.2
   % make download-openssl
   % make build-openssl
   % make
@@ -50,7 +93,9 @@ HOW TO BUILD, TEST, AND INSTALL MIXMINION: The quick version.
  OR:
     % make install PREFIX=~
 
-HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
+The verbose version
+-------------------
+
   1) You must have Python version 2.0 or later installed on your system.  The
      binary may be called "python", "python2", "python2.X", or something else.
      If you don't have Python >=v2.0, go install it.  You can find source and
@@ -81,48 +126,133 @@ HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
      executable if no prefix is provided.  To make sure that everything was
      installed correctly, you can run "mixminion unittests".
 
-HOW TO SEND AN EMAIL MESSAGE VIA MIXMINION:
- [First time only. These steps won't be necessary once v0.0.2 is out.]
-   1) Download the latest directory from
-         http://www.mixminion.net/miniondir.tar.gz
-   2) Unpack it into your homedir; it will create the directory
-         "~/.mixminion/servers/".
+V. HOW TO SEND MESSAGES VIA MIXMINION
+=====================================
 
- [All subsequent times. The first two steps won't be necessary once v0.0.2 is
-    out.]
-   1) Check out your list of servers: run 'mixminion list-servers'.
-   2) Decide on a two-part path.  Each part of the path must be a comma-
-      separated list of servers.  The last server in the second part of the
-      path must support smtp.  All intermediate servers must support 'relay'.
-   3) Run (type this as a single line):
-         mixminion client -t <email address>
-              --path1=<first part of your path>
-              --path2=<second part of your path>
-              -i <filename to send, or - to read from stdin>.
+Just run the following command line:
 
-      Example:
-         mixminion client -t nosuchuser@mixminion.net --path1=server1,server9 \
-              --path2=server5,server10 -i /etc/motd
+     mixminion send -t <email address> -i <filename to send, or '-' for stdin>
 
-HOW TO RUN YOUR OWN MIXMINION SERVER:
-   1) Create your own mixminiond.conf based on "etc/mixminiond.conf" from the
-      mixminion distribution.
-   2) Edit mixminiond.conf to refer to your own setup.
-   3) Run your server for the first time:
+Mixminion will then take the following steps:
+
+     A) Download and validate the latest server directory.
+        (But only if you haven't done so since midnight GMT.)
+     B) Select a path that ends at a server with SMTP support. 
+        (Currently, this defaults to 4 hops.)            
+     C) Read your message.
+     D) Construct a Type-III Mix packet containing your message. 
+        (For more information, see the links at http://www.mixminion.net/)
+     E) Send the message to the first server in your path.
+
+To see a list of currently known servers, type:
+
+      mixminion list-servers
+
+To force a reload of the server directory, type:
+
+      mixminion send -t <address> -i <file> -D yes
+
+To send a message _without_ reloading the directory, type:
+
+      mixminion send -t <address> -i <file> -D no
+
+To force a path of a given length, type:
+
+      mixminion send -t <address> -i <file> -H <number of hops>
+
+      You can change the default by editing ~/.mixminionrc
+
+To specify a path manually, type:
+
+      mixminion send -t <address> -i <file> -P <path>
+
+      The argument <path> must be a comma separated list of either:
+          (a) Server nicknames as given by 'list-servers'
+          (b) Paths to files containing server descriptors [more info below]
+
+      For example, to send a message through the servers Foo, Bar, Baz, and
+      Quux, you would type "-P Foo,Bar,Baz,Quux."
+
+      If you only care about the servers at the beginning or end of your
+      path, you can include a wildcard, like this:
+
+             -P 'Foo,*'           [Path that starts with Foo]
+             -P '*,Foo'           [Path that ends with Foo]
+             -P 'Foo,Bar,*,Quux'  [Path that starts with Foo and Bar,
+                                   and ands with Quux]
+
+      {ADVANCED} To specify a swap point explicitly, you use a colon in
+      your path, as in:
+             -P 'Foo,Bar:Baz,Quux'    [Swap headers at server Bar]
+             --swap-at=<n>            [Swap headers at the n'th server]
+      If you don't know what a swap point is, don't worry. :)
+
+VI. HOW TO RUN YOUR OWN MIXMINION SERVER:
+=========================================
+
+1) Create your own mixminiond.conf based on "etc/mixminiond.conf" from the
+   mixminion distribution.
+
+2) Edit mixminiond.conf to refer to your own setup.
+
+3) Run your server for the first time:
+
         "mixminion server -f <path to mixminiond.conf>"
-   4) {This step will change in future version once directories are supported.}
 
-      For clients to use your server, they'll need a copy of your server
-      descriptor, which should be stored in $SERVER_HOME/keys/key_*/ServerDesc.
-      For example, if your mixminiond.conf contains the following line:
+   {If you put mixminiond.conf in /etc, you don't need to specify the path.}
+
+4) To try out your server, clients will need a copy of your server
+   descriptor, which should be stored in $SERVER_HOME/keys/key_*/ServerDesc.
+
+   For example, if your mixminiond.conf contains the following line:
+
            Homedir: /home/mixminion/spool
 
-      Then your first server descriptor will be stored in
-            "/home/mixminion/spool/keys/key_0001/ServerDesc".
+   Then your first server descriptor will be stored in:
 
-      Clients should place a copy of this file, named whatever you like,
-      in their "~/.mixminion/servers" directory.
+           "/home/mixminion/spool/keys/key_0001/ServerDesc".
 
-      Since v0.0.1 is just a working alpha release, we're going to wait
-      until we have directories working before we ask people to give us
-      their server descriptors. Stay tuned.
+   And clients can then import this file by running:
+
+           mixminion import-server <filename>
+
+5) When you're ready to advertise your server, email your server descriptor
+   to <nickm@freehaven.net>.  I'll try out your server for a while, then add
+   it to the directory.
+
+   WARNING: we don't have statistics yet, so the system isn't robust in the
+   presence of unreliable servers in the directory.  Please let me know if
+   you're going to take down a server, and please don't publish a server if
+   you don't think you can keep it up for a good while.
+
+   {This step will be more automated in later versions.}
+
+VII. HOW TO REPORT BUGS AND SUGGEST NEW FEATURES
+================================================
+
+Just email <nickm@freehaven.net>.
+
+For help in debugging, please try to send a copy of:
+        * What command you were running
+        * The complete error you got, including stack trace (if any)
+
+If your error occurred on a running server, please make a copy of your
+log--it might be helpful.
+
+VIII. HOW TO CONTRIBUTE
+=======================
+
+Send patches to <nickm@freehaven.net>.  If you can, please submit unified
+diffs against the latest version of the code in CVS.
+
+Make sure to run 'make test' before you send in any patches, so you can see
+whether your patch broke existing code.  (It's okay if you're not sure how to
+fix the test, but please let me know when you send your patch.)
+
+------------------
+(for emacs)
+  Local Variables:
+  mode:text
+  indent-tabs-mode:nil
+  fill-column:77
+  End:
