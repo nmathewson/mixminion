@@ -713,11 +713,12 @@ class ClientDirectory:
            server is known, and a slash-separated string if multiple
            servers are known.
         """
+        #XXXX008 unit tests
         self.__scanAsNeeded()
         self._lock.read_in()
         try:
             nicknames = []
-            for desc,where in self.fullServerList:
+            for desc,where in self.serverList:
                 if addr in (desc.getIP(), desc.getHostname()):
                     if desc.getNickname() not in nicknames:
                         nicknames.append(desc.getNickname())
