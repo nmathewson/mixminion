@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.13 2002/08/19 15:33:55 nickm Exp $
+# $Id: Common.py,v 1.14 2002/08/19 20:27:02 nickm Exp $
 
 """mixminion.Common
 
@@ -52,12 +52,12 @@ def ceilDiv(a,b):
     return divmod(a-1,b)[0]+1
 
 #----------------------------------------------------------------------
-def createPrivateDir(d):
+def createPrivateDir(d, nocreate=0):
     """Create a directory, and all parent directories, checking permissions
-       as we go along.  All superdirectories must be owned by root or us.
-       
-       XXXX we don't check permissions properly yet."""
+       as we go along.  All superdirectories must be owned by root or us."""
     if not os.path.exists(d):
+	if nocreate:
+	    raise MixFatalError("Nonexistant directory %s"%d)
 	try:
 	    os.makedirs(d, 0700)
 	except OSError, e:
@@ -67,11 +67,29 @@ def createPrivateDir(d):
         getLog().fatal("%s is not a directory"%d)
         raise MixFatalError()
     else:
-        m = os.stat(d)[stat.ST_MODE]
-        # check permissions
-        if m & 0077:
-            getLog().fatal("Directory %s must be mode 0700" %d)
-            raise MixFatalError()
+	m = os.stat(d)[stat.ST_MODE]
+	# check permissions
+	if m & 0077:
+	    getLog().fatal("Directory %s must be mode 0700" %d)
+	    raise MixFatalError()
+
+    # Check permissions on parents.
+    me = os.getuid()
+    while 1:
+	st = os.stat(d)
+	mode = st[stat.ST_MODE]
+	owner = st[stat.ST_UID]
+	if owner not in (0, me):
+	    getLog().fatal("Bad owner (uid=%s) on directory %s", owner, d)
+	    raise MixFatalError()
+	# FFFF Check group permissions
+	if (mode & 02) and not (mode & stat.S_ISVTX):
+	    getLog().fatal("Bad mode (%o) on directory %s", mode, d)
+
+	parent, _ = os.path.split(d)
+	if parent == d:
+	    return
+	d = parent
 
 #----------------------------------------------------------------------
 # Secure filesystem operations.
@@ -106,7 +124,7 @@ def secureDelete(fnames, blocking=0):
        return until the remove is complete.  If blocking=0, returns
        immediately, and returns the PID of the process removing the
        files.  (Returns None if this process unlinked the files
-       itself.) XXXX Clarify this.
+       itself.) 
 
        XXXX Securely deleting files only does so much good.  Metadata on
        XXXX the file system, such as atime and dtime, can still be used

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.7 2002/08/06 16:09:21 nickm Exp $ */
+/* $Id: tls.c,v 1.8 2002/08/19 20:27:02 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -110,7 +110,7 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 	mm_TLSContext *result;
 	BIO *bio;
 	RSA *_rsa = NULL;
-	EVP_PKEY *pkey = NULL; /* Leaked? ???? */
+	EVP_PKEY *pkey = NULL;
 	
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sO!s:TLSContext_new", 
 					 kwlist,
@@ -143,6 +143,7 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 			EVP_PKEY_free(pkey);
 			SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 		}
+		EVP_PKEY_free(pkey);
 	} 
 
 	if (dhfile) {
@@ -463,17 +464,6 @@ mm_TLSSock_shutdown(PyObject *self, PyObject *args, PyObject *kwargs)
 	return Py_None;
 } 
 
-#if 0
-static char mm_TLSSock_renegotiate__doc__[] = "XXXX";
-
-static PyObject*
-mm_TLSSock_renegotiate(PyObject *self, PyObject *args, PyObject *kwargs)
-{
-	
-	
-} 
-#endif
-
 static char mm_TLSSock_fileno__doc__[] = 
     "tlssock.fileno()\n\n"
     "Returns the integer filehandle underlying this TLS socket.\n";
@@ -507,15 +497,16 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 	
 	ssl = ((mm_TLSSock*)self)->ssl;
 	if (!(cert = SSL_get_peer_certificate(ssl))) {
-		mm_SSL_ERR(0); return NULL; /* ???? */
+		mm_SSL_ERR(0); return NULL;
 	}
 	pkey = X509_get_pubkey(cert);
-	/* ???? free? leak? */
-	if (!(rsa = EVP_PKEY_get1_RSA(pkey))) 
-		return NULL; /* XXXX */
+	if (!(rsa = EVP_PKEY_get1_RSA(pkey))) {
+		EVP_PKEY_free(pkey); mm_SSL_ERR(0); return NULL; 
+	}
+	EVP_PKEY_free(pkey);
 	
 	if (!(result = PyObject_New(mm_RSA, &mm_RSA_Type))) {
-		PyErr_NoMemory(); return NULL; 
+		RSA_free(rsa); PyErr_NoMemory(); return NULL;
 	}
 	result->rsa = rsa;
 

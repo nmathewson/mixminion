@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.19 2002/08/19 15:33:56 nickm Exp $
+# $Id: test.py,v 1.20 2002/08/19 20:27:02 nickm Exp $
 
 """mixminion.tests
 
@@ -57,14 +57,28 @@ def mix_mktemp(extra=""):
 	    print "Couldn't create temp dir %r" %temp
 	    sys.exit(1)
 	st = os.stat(temp)
-	if paranoia and st[stat.ST_MODE] & 077:
-	    print "Couldn't create temp dir %r with secure permissions" %temp
-	    sys.exit(1)
-	if paranoia and st[stat.ST_UID] != os.getuid():
-	    print "The wrong user owns temp dir %r"%temp
-	    sys.exit(1)
-	# XXXX If we're on a bad system, the permissions on /tmp
-	# XXXX might be faulty.  We don't bother checking for that.
+	if paranoia:
+	    if st[stat.ST_MODE] & 077:
+		print "Couldn't make temp dir %r with secure permissions" %temp
+		sys.exit(1)
+	    if st[stat.ST_UID] != os.getuid():
+		print "The wrong user owns temp dir %r"%temp
+		sys.exit(1)
+	    parent = temp
+	    while 1:
+		p = os.path.split(parent)[0]
+		if parent == p:
+		    break
+		parent = p
+		st = os.stat(parent)
+		m = st[stat.ST_MODE]
+		if m & 02 and not (m & stat.S_ISVTX):
+		    print "Directory %s has fishy permissions %o" %(parent,m)
+		    sys.exit(1)
+		if st[stat.ST_UID] not in (0, os.getuid()):
+		    print "Directory %s has bad owner %s" % st[stat.UID]
+		    sys.exit(1)
+		    
 	_MM_TESTING_TEMPDIR = temp
 	if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:
 	    import atexit
@@ -953,7 +967,7 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
 
-        # ???? Need to do something about size encoding.
+        # FFFF Need to do something about size encoding.
         self.assertEquals(payload, p[:len(payload)])
 
 
@@ -1887,11 +1901,13 @@ IntRS=5
         self.assertEquals(pa("192.168.0.1",0),
                           ("192.168.0.1", "255.255.255.255", 0, 65535))
 
-        # XXXX This won't work on Windows.
-        self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
-        self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
-        self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
-        self.failUnless(C._parseCommand("python")[0] is not None)
+	if not sys.platform == 'win32':
+	    # XXXX This should get implemented for Windows.
+	    self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
+	    self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
+	    self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
+	    self.failUnless(C._parseCommand("python")[0] is not None)
+
 	self.assertEquals(C._parseBase64(" YW\nJj"), "abc")
 	self.assertEquals(C._parseHex(" C0D0"), "\xC0\xD0")
 	tm = C._parseDate("30/05/2002")

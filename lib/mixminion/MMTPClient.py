@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.6 2002/08/06 16:09:21 nickm Exp $
+# $Id: MMTPClient.py,v 1.7 2002/08/19 20:27:02 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -12,11 +12,8 @@
    introduce messages into the system, and [B] so that we've got an
    easy-to-verify reference implementation of the protocol.)
 
-   XXXX We don't yet check for the correct keyid.
-
-   XXXX: As yet unsupported are: Session resumption and key renegotiation.
-
-   XXXX: Also unsupported: timeouts."""
+   FFFF: As yet unsupported are: Session resumption and key renegotiation.
+   FFFF: Also unsupported: timeouts."""
 
 import socket
 import mixminion._minionlib as _ml

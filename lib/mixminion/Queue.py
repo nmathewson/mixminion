@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.11 2002/08/19 15:33:56 nickm Exp $
+# $Id: Queue.py,v 1.12 2002/08/19 20:27:02 nickm Exp $
 
 """mixminion.Queue
 
@@ -78,18 +78,7 @@ class Queue:
         if os.path.exists(location) and not os.path.isdir(location):
             raise MixFatalError("%s is not a directory" % location)
 
-        if not os.path.exists(location):
-            if create:
-                getLog().info("Trying to create queue %s", location)
-		createPrivateDir(location)
-            else:
-                raise MixFatalError("No directory for queue %s" % location)
- 
-        # Check permissions
-        mode = os.stat(location)[stat.ST_MODE]
-        if mode & 0077:
-            # XXXX be more Draconian.
-            getLog().warn("Worrisome mode %o on directory %s", mode, location)
+	createPrivateDir(location, nocreate=(not create))
 
         if scrub:
             self.cleanQueue()

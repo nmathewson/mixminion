@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.14 2002/08/19 15:33:56 nickm Exp $
+# $Id: Crypto.py,v 1.15 2002/08/19 20:27:02 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -11,8 +11,6 @@
 import os
 import sys
 import stat
-# XXXX is this used?
-import struct
 from types import StringType
 
 import mixminion.Config
@@ -138,7 +136,7 @@ OAEP_PARAMETER = "He who would make his own liberty secure, "+\
                  "must guard even his enemy from oppression."
 
 def pk_encrypt(data,key):
-    """Returns the RSA encryption of OAEP-padded data, using the public key
+    """Return the RSA encryption of OAEP-padded data, using the public key
        in key.
     """
     bytes = key.get_modulus_bytes()
@@ -147,14 +145,15 @@ def pk_encrypt(data,key):
     return key.crypt(data, 1, 1)
 
 def pk_sign(data, key):
-    """XXXX"""
+    """Return the RSA signature of OAEP-padded data, using the public key
+       in key."""
     bytes = key.get_modulus_bytes()
     data = add_oaep(data,OAEP_PARAMETER,bytes)
     return key.crypt(data, 0, 1)
 
 def pk_decrypt(data,key):
-    """Returns the unpadded RSA decryption of data, using the private key in\n
-       key
+    """Returns the unpadded RSA decryption of data, using the private key in
+       key.
     """
     bytes = key.get_modulus_bytes()
     # private key decrypt
@@ -162,7 +161,9 @@ def pk_decrypt(data,key):
     return check_oaep(data,OAEP_PARAMETER,bytes)
 
 def pk_check_signature(data, key):
-    """XXXX"""
+    """If data holds the RSA signature of some OAEP-padded data, check the
+       signature using public key 'key', and return the orignal data.  
+       Throw CryptoError on failure. """
     bytes = key.get_modulus_bytes()
     # private key decrypt
     data = key.crypt(data, 1, 0)
@@ -363,8 +364,6 @@ class Keyset:
 def lioness_keys_from_payload(payload):
     '''Given a payload, returns the LIONESS keys to encrypt the off-header
        at the swap point.''' 
-    
-    # XXXX Temporary method till George and I agree on a key schedule.
     digest = sha1(payload)
     return Keyset(digest).getLionessKeys(HIDE_HEADER_MODE)
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.5 2002/07/01 18:03:05 nickm Exp $
+# $Id: PacketHandler.py,v 1.6 2002/08/19 20:27:02 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -30,7 +30,6 @@ class PacketHandler:
            though: PK decryption is expensive.  Also, a hashlog must be
            provided for each private key.
         """
-        # ???? Any way to support multiple keys in protocol?
         try:
             # Check whether we have a key or a tuple of keys.
             _ = privatekey[0]

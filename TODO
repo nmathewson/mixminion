@@ -10,7 +10,7 @@ SPEC	- Spec not finalized
 NEEDS TO BE WRITTEN
 
 FOR 0.0.1: (The first alpha)
-	*. Refactor brokenness
+	o Refactor brokenness
 		o Configuration stuff should go into servermain/clientmain.
 		   Forget this broken system of today.
 		o Reset logic should also go into servermain/clientmain.
@@ -36,7 +36,7 @@ FOR 0.0.1: (The first alpha)
 		o Make individual queues into special classes.
 		o A server is its own class, and has a better method breakdown
 		o Clean out deleted stuff every so often
-		*- Document all changes; resolve XXXXs
+		o Document all changes; resolve XXXXs
 	o Need hooks for undeliverable messages in MMTPServer.
 	o Not even test should really use mktemp.
 	. Module system
@@ -59,6 +59,7 @@ FOR 0.0.1: (The first alpha)
 		o Process messages
 		o Deliver MBOX messages.
 		o Design directory layout
+		- Automatic keygen as needed
 		- Unit test for keyset and various queues.
 		- Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
@@ -70,6 +71,8 @@ FOR 0.0.1: (The first alpha)
 	- Move boilerplate into outside files.  Add a generic 'Boilerplate'
 	  functionality.
 	- Test createPrivateDir
+		- Normal cases
+		- Failing cases
 	- Support for one-side-only MMTP configurations.
 	- Make Mix algorithm configurable
 	*- CLI for server

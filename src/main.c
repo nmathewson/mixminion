@@ -1,5 +1,5 @@
 /* Copyright 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.6 2002/07/25 15:52:57 nickm Exp $ */
+/* $Id: main.c,v 1.7 2002/08/19 20:27:02 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -55,19 +55,23 @@ exc(PyObject *module_dict, PyObject **exception, char *longName,
 	PyObject *s, *exc_d;
 	if (!(s = PyString_FromString(doc)))
 		return 1;
-	if (!(exc_d = PyDict_New()))
-		return 1; /* XXXX FREE */
+	if (!(exc_d = PyDict_New())) {
+		Py_DECREF(s);
+		return 1;
+	}
 	if (PyDict_SetItemString(exc_d, "__doc__", s)<0) {
-		/* XXXX FREE */ 
+		Py_DECREF(s); Py_DECREF(exc_d);
 		return 1;
 	}
 	*exception = PyErr_NewException(longName, PyExc_Exception, exc_d);
 	if (! *exception) {
-		/* XXXX FREE */
+		Py_DECREF(s); Py_DECREF(exc_d);
 		return 1;
 	}
-	if (PyDict_SetItemString(module_dict,itemString,*exception) < 0)
+	if (PyDict_SetItemString(module_dict,itemString,*exception) < 0) {
+		Py_DECREF(s); Py_DECREF(exc_d); Py_DECREF(*exception);
 		return 1;
+	}
 
 	return 0;
 }

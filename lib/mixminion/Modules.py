@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.5 2002/08/19 15:33:56 nickm Exp $
+# $Id: Modules.py,v 1.6 2002/08/19 20:27:02 nickm Exp $
 
 """mixminion.Modules
 
@@ -160,7 +160,7 @@ class ModuleManager:
     # Fields
     #    syntax: extensions to the syntax configuration in Config.py
     #    modules: a list of DeliveryModule objects
-    #    nameToModule: XXXX Docdoc
+    #    nameToModule: Map from module name to module
     #    typeToModule: a map from delivery type to enabled deliverymodule.
     #    path: search path for python modules.
     #    queueRoot: directory where all the queues go.
@@ -301,8 +301,8 @@ class DropModule(DeliveryModule):
 
 #----------------------------------------------------------------------
 class MBoxModule(DeliveryModule):
-    # XXXX This implementation can stall badly if we don't have a fast
-    # XXXX local MTA.
+    # FFFF This implementation can stall badly if we don't have a fast
+    # FFFF local MTA.
     def __init__(self):
         DeliveryModule.__init__(self)
         self.command = None
@@ -323,7 +323,7 @@ class MBoxModule(DeliveryModule):
         pass
 
     def configure(self, config, moduleManager):
-        # XXXX Check this.  error handling
+        # XXXX Check this.  Conside error handling
 	
         self.enabled = config['Delivery/MBOX'].get("Enabled", 0)
 	if not self.enabled:
@@ -417,7 +417,7 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 	res = DELIVER_OK
     except smtplib.SMTPException, e:
 	getLog().warn("Unsuccessful smtp: "+str(e))
-	res = DELIVER_FAIL_RETRY #????
+	res = DELIVER_FAIL_RETRY
 
     con.quit()
     con.close()

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.10 2002/08/06 16:09:21 nickm Exp $ */
+/* $Id: crypt.c,v 1.11 2002/08/19 20:27:02 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -708,7 +708,7 @@ mm_RSA_getattr(PyObject *self, char *name)
 }
 
 static const char mm_RSA_Type__doc__[] = 
-  "XXXX";
+  "An RSA key.  May be public or private.";
  
 PyTypeObject mm_RSA_Type = {
 	PyObject_HEAD_INIT(&PyType_Type)
@@ -888,7 +888,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 	char *filename, *cn;
 	PyObject *_rsa;
 	/* XXXX Python wants to write into longs.  C wants time_t.  We should
-	 * XXXX check somewhere to be sure that we can case long to time_t
+	 * XXXX check somewhere to be sure that we can cast long to time_t
 	 * XXXX without ill effects.
 	 */
 	long start_time, end_time;

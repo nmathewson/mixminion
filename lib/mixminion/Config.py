@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.9 2002/08/19 15:33:55 nickm Exp $
+# $Id: Config.py,v 1.10 2002/08/19 20:27:02 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -385,17 +385,22 @@ def _formatEntry(key,val,w=79,ind=4):
        avoidably longer than 'w' characters, and with continuation lines
        indented by 'ind' spaces.
     """
-    ind = " "*ind
+    ind_s = " "*(ind-1)
     if len(str(val))+len(key)+2 <= 79:
         return "%s: %s\n" % (key,val)
 
-    lines = [ "%s: " %key ]
-    #XXXX Bad implementation.
+    lines = [  ]
+    linecontents = [ "%s:" % key ]
+    linelength = len(linecontents[0])
     for v in val.split(" "):
-        if len(lines[-1])+1+len(v) <= w:
-            lines[-1] = "%s %s" % (lines[-1],v)
+        if linelength+1+len(v) <= w:
+            linescontents.append(v)
+	    linelength += 1+len(v)
         else:
-            lines.append(ind+v)
+	    lines.append(" ".join(linecontents))
+	    linecontents = [ ind_s, v ]
+	    linelength = ind+len(v)
+    lines.append(" ".join(linecontents))
     lines.append("") # so the last line ends with \n
     return "\n".join(lines)
 
@@ -574,13 +579,6 @@ class _ConfigFile:
                 self_sectionEntries[secName] = {}
                 
         if not self.assumeValid:
-            # Make sure that sectionEntries is correct (sanity check)
-            #XXXX remove this
-            for s in self_sectionNames:
-                for k,v in self_sectionEntries[s]:
-                    assert (v==self_sections[s][k] or
-                            v in self_sections[s][k])
-                    
             # Call our validation hook.
             self.validate(self_sections, self_sectionEntries, 
                           sectionEntryLines, fileContents)
@@ -685,6 +683,10 @@ SERVER_SYNTAX =  {
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
                             'Allow' : ('ALLOW*', _parseAddressSet_allow, None),
                             'Deny' : ('ALLOW*', _parseAddressSet_deny, None) },
+	# FFFF Missing: Queue-Size / Queue config options
+	# FFFF         timeout options
+	# FFFF         listen timeout??
+	# FFFF         Retry options
         }
 
 class ServerConfig(_ConfigFile):
@@ -693,10 +695,6 @@ class ServerConfig(_ConfigFile):
     #   moduleManager
     #
     _restrictFormat = 0
-    # XXXX Missing: Queue-Size / Queue config options
-    # XXXX         timeout options
-    # XXXX         listen timeout??
-    # XXXX         Retry options
     def __init__(self, fname=None, string=None, moduleManager=None):
 	# We use a copy of SERVER_SYNTAX, because the ModuleManager will
 	# mess it up.

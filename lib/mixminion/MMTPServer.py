@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.11 2002/08/19 15:33:56 nickm Exp $
+# $Id: MMTPServer.py,v 1.12 2002/08/19 20:27:02 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -9,10 +9,8 @@
 
    If you just want to send messages into the system, use MMTPClient.
 
-   XXXX As yet unsupported are: Session resumption, key renegotiation,
-   XXXX checking KeyID.
-
-   XXXX: Also unsupported: timeouts."""
+   FFFF As yet unsupported are: Session resumption, key renegotiation,
+   FFFF: Also unsupported: timeouts."""
 
 # NOTE FOR THE CURIOUS: The 'asyncore' module in the standard library
 #    is another general select/poll wrapper... so why are we using our
@@ -430,7 +428,7 @@ class MMTPServerConnection(SimpleTLSConnection):
         """
         trace("done w/ client sendproto")
         inp = self.getInput()
-        m =PROTOCOL_RE.match(inp)
+        m = PROTOCOL_RE.match(inp)
 
         if not m:
             warn("Bad protocol list.  Closing connection.")
@@ -438,7 +436,7 @@ class MMTPServerConnection(SimpleTLSConnection):
         protocols = m.group(1).split(",")
         if "1.0" not in protocols:
             warn("Unsupported protocol list.  Closing connection.")
-            self.shutdown(err=1); return #XXXX
+            self.shutdown(err=1); return
         else:
             trace("proto ok.")
             self.finished = self.__sentProtocol
@@ -483,13 +481,13 @@ class MMTPServerConnection(SimpleTLSConnection):
         """Called once we're done sending an ACK.  Begins reading a new
            message."""
         trace("done w/ send ack")
-        #XXXX Rehandshake
+        #FFFF Rehandshake
         self.finished = self.__receivedMessage
         self.expectRead(SEND_RECORD_LEN)
 
 #----------------------------------------------------------------------
-        
-# XXXX We need logic to do retires.
+
+# FFFF We need to note retriable situations better.
 class MMTPClientConnection(SimpleTLSConnection):
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None):
@@ -592,7 +590,7 @@ class MMTPClientConnection(SimpleTLSConnection):
           Otherwise, begins shutting down.
        """
        trace("received ack")
-       #XXXX Rehandshake
+       # FFFF Rehandshake
        inp = self.getInput()
        if inp != (RECEIVED_CONTROL+self.expectedDigest):
 	   # We only get bad ACKs if an adversary somehow subverts TLS's
@@ -623,7 +621,6 @@ class MMTPServer(AsyncServer):
         self.context = config.getTLSContext(server=1)
 	# FFFF Don't always listen; don't always retransmit!
 	# FFFF Support listening on specific IPs
-	# FFFF File
         self.listener = ListenConnection("127.0.0.1",
                                          config['Outgoing/MMTP']['Port'],
 					 LISTEN_BACKLOG,
@@ -634,7 +631,7 @@ class MMTPServer(AsyncServer):
     def _newMMTPConnection(self, sock):
 	"""helper method.  Creates and registers a new server connection when
 	   the listener socket gets a hit."""
-        # XXXX Check whether incoming IP is allowed!
+        # FFFF Check whether incoming IP is allowed!
         tls = self.context.sock(sock, serverMode=1)
         sock.setblocking(0)
         con = MMTPServerConnection(sock, tls, self.onMessageReceived)
