@@ -1,4 +1,4 @@
-$Id: README,v 1.42 2003/05/30 05:16:15 nickm Exp $
+$Id: README,v 1.43 2003/05/30 07:04:09 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.4, Release Candidate 2.
 
@@ -212,7 +212,8 @@ STILL NOT IN THIS VERSION:
 III. HOW TO UPGRADE FROM MIXMINION 0.0.3
 ========================================
 
-Just follow the installation instructions below.
+First, follow the installation instructions from section IV to install the
+new version of the software.
 
 If you're running a server, you will need to upgrade your server's files.
 Follow these steps:
