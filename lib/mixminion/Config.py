@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.46 2003/06/05 05:48:38 nickm Exp $
+# $Id: Config.py,v 1.47 2003/06/05 18:41:40 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -376,7 +376,6 @@ def _readConfigFile(contents):
     if not isPrintingAscii(contents):
         raise ConfigError("Invalid characters in file")
 
-    #FFFF We should really use xreadlines or something if we have a file.
     fileLines = contents.split("\n")
     if fileLines[-1] == '':
         del fileLines[-1]
@@ -569,7 +568,7 @@ class _ConfigFile:
             self._sectionEntries[secName] = sectionEntries
             sectionEntryLines[secName] = entryLines
 
-            secConfig = self._syntax.get(secName, None)
+            secConfig = self._syntax.get(secName)
 
             if not secConfig:
                 LOG.warn("Skipping unrecognized section %s", secName)
@@ -634,7 +633,7 @@ class _ConfigFile:
                             assert rule == 'ALLOW*'
                             section[k] = map(parseFn,default)
 
-            cb = self._callbacks.get(secName, None)
+            cb = self._callbacks.get(secName)
             if cb:
                 cb(section, sectionEntries)
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.117 2003/06/05 05:48:38 nickm Exp $
+# $Id: test.py,v 1.118 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.tests
 
@@ -3008,7 +3008,7 @@ def _getTLSContext(isServer):
             dhfile = f+"_dh"
             pkfile = f+"_pk"
             certfile = f+"_cert"
-            dh_fname = os.environ.get("MM_TEST_DHPARAMS", None)
+            dh_fname = os.environ.get("MM_TEST_DHPARAMS")
             if dh_fname and not USE_SLOW_MODE:
                 dhfile = dh_fname
                 if not os.path.exists(dh_fname):
@@ -4910,7 +4910,6 @@ def _getServerKeyring():
 
 class ServerKeysTests(unittest.TestCase):
     def testServerKeyring(self):
-        #XXXX004 rethink this
         keyring = _getServerKeyring()
         home = _FAKE_HOME
 
@@ -5407,7 +5406,6 @@ class ClientMainTests(unittest.TestCase):
                               None, [None]*4, startAt=now+100*oneDay)
         finally:
             s = resumeLog()
-        self.assertEquals(4, s.count("Not enough servers for distinct"))
         self.assertEquals(4, s.count("to avoid same-server hops"))
         self.assertEquals(3, s.count("Only one relay known"))
 
@@ -5559,6 +5557,10 @@ class ClientMainTests(unittest.TestCase):
         pathIs((p1[1],p2[0],p2[-1]), (bob, joe, joe))
         eq((len(p1),len(p2)), (5,4))
 
+        # 1f. Half-path
+        p1,p2 = ppath(ks, None, "*3", email, halfPath=1)
+        eq((len(p1),len(p2)), (0,3))
+
         # 2. Failing cases
         raises = self.assertRaises
         # Nonexistant server
@@ -5640,7 +5642,7 @@ class ClientMainTests(unittest.TestCase):
         fname = os.path.join(dirname, "surblog")
         s = SURBLog(fname)
         try:
-            #XXXX writeme
+            #XXXX005 writeme
             pass
         finally:
             s.close()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.72 2003/06/05 05:48:39 nickm Exp $
+# $Id: ServerMain.py,v 1.73 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -180,7 +180,7 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
         except:
             LOG.error_exc(sys.exc_info(),
                     "Unexpected error when processing IN:%s", handle)
-            self.removeMessage(handle) # ???? Really dump this message?
+            self.removeMessage(handle)
 
 class MixPool:
     """Wraps a mixminion.server.Queue.*MixPool to send messages to an exit
@@ -351,21 +351,21 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
 
     def onMessageReceived(self, msg):
         self.incomingQueue.queueMessage(msg)
-        # XXXX Replace with server.
+        # FFFF Replace with server.
         EventStats.log.receivedPacket()
 
     def onMessageSent(self, msg, handle):
         self.outgoingQueue.deliverySucceeded(handle)
-        EventStats.log.attemptedRelay() # XXXX replace with addr
-        EventStats.log.successfulRelay() # XXXX replace with addr
+        EventStats.log.attemptedRelay() # FFFF replace with addr
+        EventStats.log.successfulRelay() # FFFF replace with addr
 
     def onMessageUndeliverable(self, msg, handle, retriable):
         self.outgoingQueue.deliveryFailed(handle, retriable)
-        EventStats.log.attemptedRelay() # XXXX replace with addr
+        EventStats.log.attemptedRelay() # FFFF replace with addr
         if retriable:
-            EventStats.log.failedRelay() # XXXX replace with addr
+            EventStats.log.failedRelay() # FFFF replace with addr
         else:
-            EventStats.log.unretriableRelay() # XXXX replace with addr
+            EventStats.log.unretriableRelay() # FFFF replace with addr
 
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
@@ -805,7 +805,6 @@ class MixminionServer(_Scheduler):
         if self.config['Server'].get("Daemon",1):
             closeUnusedFDs()
 
-        # FFFF Support for automatic key rotation.
         while 1:
             nextEventTime = self.firstEventTime()
             now = time.time()
@@ -953,7 +952,7 @@ def usageAndExit(cmd):
     sys.exit(0)
 
 def configFromServerArgs(cmd, args, usage=None):
-    #XXXX
+    """DOCDOC"""
     options, args = getopt.getopt(args, "hf:", ["help", "config="])
     if args:
         if usage:
@@ -975,7 +974,7 @@ def configFromServerArgs(cmd, args, usage=None):
     return readConfigFile(configFile)
 
 def readConfigFile(configFile):
-    #XXXX
+    """DOCDOC"""
     if configFile is None:
         configFile = None
         for p in ["~/.mixminiond.conf", "~/etc/mixminiond.conf",
@@ -1216,7 +1215,7 @@ Options:
 """.strip()
 
 def printServerStats(cmd, args):
-    #XXXX
+    """DOCDOC"""
     config = configFromServerArgs(cmd, args, _PRINT_STATS_USAGE)
     checkHomedirVersion(config)
     _signalServer(config, 1)

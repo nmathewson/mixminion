@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.19 2003/06/05 05:24:23 nickm Exp $
+# $Id: ServerQueue.py,v 1.20 2003/06/05 18:41:41 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -510,8 +510,8 @@ class DeliveryQueue(Queue):
     def _repOk(self):
         """Raise an assertion error if the internal state of this object is
            nonsensical."""
-        #XXXX004 Later in the release cycle, we should call this less.  It
-        #XXXX004 adds ~8-9ms on my laptop for ~400 messages
+        # XXXX Later in the release cycle, we should call this *even* less.
+        # XXXX It adds ~8-9ms on my laptop for ~400 messages
         try:
             self._lock.acquire()
 
@@ -552,7 +552,6 @@ class DeliveryQueue(Queue):
         finally:
             self._lock.release()
 
-        self._repOk()
         return handle
 
     def _inspect(self,handle):
@@ -583,6 +582,7 @@ class DeliveryQueue(Queue):
         """Sends all messages which are not already being sent, and which
            are scheduled to be sent."""
         assert self.retrySchedule is not None
+        self._repOk()
         if now is None:
             now = time.time()
         LOG.trace("ServerQueue checking for deliverable messages in %s",
@@ -609,11 +609,15 @@ class DeliveryQueue(Queue):
                     self.sendable.append(h)
         finally:
             self._lock.release()
-        self._repOk()
+
         if messages:
             self._deliverMessages(messages)
-            self._repOk()
+        self._repOk()
 
+    # FFFF004 This interface is inefficient in space: we don't need to load 
+    # FFFF004 the messages to tell whether they need to be delivered.  We
+    # FFFF004 should have _deliverMessages() take a list of handles, not of
+    # FFFF004 messages.
     def _deliverMessages(self, msgList):
         """Abstract method; Invoked with a list of (handle, message)
            tuples every time we have a batch of messages to send.
@@ -730,7 +734,6 @@ class DeliveryQueue(Queue):
                     except KeyError:
                         LOG.error("Handle %s was not pending", handle)
 
-                    self._repOk()
                     self._writeState(handle)
                     return
 
@@ -739,7 +742,6 @@ class DeliveryQueue(Queue):
             # If we reach this point, the message is undeliverable.
             LOG.trace("     (Giving up on %s)", handle)
             self.removeMessage(handle)
-            self._repOk()
         finally:
             self._lock.release()
 

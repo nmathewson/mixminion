@@ -1,9 +1,7 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.24 2003/06/03 17:28:12 nickm Exp $ */
+/* $Id: tls.c,v 1.25 2003/06/05 18:41:41 nickm Exp $ */
 #include "_minionlib.h"
 
-/* XXXX REMOVE*/
-#include <stdio.h>
 #include <time.h>
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
@@ -572,6 +570,7 @@ static char mm_TLSSock_check_cert_alive__doc__[] =
 static PyObject*
 mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
 {
+        /* ???? Should be threadified? */
         time_t now;
         X509 *cert = NULL;
         SSL *ssl = NULL;

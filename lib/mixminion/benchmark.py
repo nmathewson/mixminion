@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.39 2003/06/05 05:34:56 nickm Exp $
+# $Id: benchmark.py,v 1.40 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.benchmark
 
@@ -56,7 +56,7 @@ def timeit_(fn, iters, ov=1):
     if iters < 1: iters = 1
     nones = [None]*iters
     if ov:
-        overhead = loop_overhead.get(iters, None)
+        overhead = loop_overhead.get(iters)
         if overhead is None:
             overhead = loop_overhead[iters] = timeit_((
                 lambda:(lambda:None)()), iters, 0)
@@ -808,7 +808,7 @@ def testLeaks4():
     fn = mix_mktemp()
     dh = mix_mktemp()
     _ml.generate_cert(fn, p, p2, "A", "B", 100, 10000)
-    dh_fname = os.environ.get("MM_TEST_DHPARAMS", None)
+    dh_fname = os.environ.get("MM_TEST_DHPARAMS")
     if dh_fname and os.path.exists(dh_fname):
         dh = dh_fname
     elif dh_fname:

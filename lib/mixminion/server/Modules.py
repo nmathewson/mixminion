@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.41 2003/06/05 05:48:39 nickm Exp $
+# $Id: Modules.py,v 1.42 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -135,20 +135,20 @@ class ImmediateDeliveryQueue:
         """Instead of queueing our message, pass it directly to the underlying
            DeliveryModule."""
         try:
-            EventStats.log.attemptedDelivery() #XXXX
+            EventStats.log.attemptedDelivery() #FFFF
             res = self.module.processMessage(packet)
             if res == DELIVER_OK:
-                EventStats.log.successfulDelivery() #XXXX
+                EventStats.log.successfulDelivery() #FFFF
             elif res == DELIVER_FAIL_RETRY:
                 LOG.error("Unable to retry delivery for message")
-                EventStats.log.unretriableDelivery() #XXXX
+                EventStats.log.unretriableDelivery() #FFFF
             else:
                 LOG.error("Unable to deliver message")
-                EventStats.log.unretriableDelivery() #XXXX
+                EventStats.log.unretriableDelivery() #FFFF
         except:
             LOG.error_exc(sys.exc_info(),
                                "Exception delivering message")
-            EventStats.log.unretriableDeliery() #XXXX
+            EventStats.log.unretriableDeliery() #FFFF
 
         return "<nil>"
 
@@ -407,7 +407,7 @@ class ModuleManager:
         """
         exitType = packet.getExitType()
 
-        mod = self.typeToModule.get(exitType, None)
+        mod = self.typeToModule.get(exitType)
         if mod is None:
             LOG.error("Unable to handle message with unknown type %s",
                       exitType)
@@ -587,7 +587,7 @@ class EmailAddressSet:
         domparts = dom.split(".")
         for idx in range(len(domparts)):
             subdom = ".".join(domparts[idx:])
-            if self.domains.get(subdom,None) == 'SUB':
+            if self.domains.get(subdom) == 'SUB':
                 return 1
 
         # Does it match any patterns?
@@ -888,7 +888,7 @@ class MixmasterSMTPModule(SMTPModule):
                  }
 
     def validateConfig(self, config, lines, contents):
-        #XXXX write more
+        #FFFF write more
         sec = config['Delivery/SMTP-Via-Mixmaster']
         if not sec.get("Enabled"):
             return

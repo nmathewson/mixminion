@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.87 2003/06/05 05:34:56 nickm Exp $
+# $Id: Common.py,v 1.88 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.Common
 
@@ -501,7 +501,7 @@ def configureShredCommand(conf):
     global _SHRED_OPTS
     cmd, opts = None, None
     if conf is not None:
-        val = conf['Host'].get('ShredCommand', None)
+        val = conf['Host'].get('ShredCommand')
         if val is not None:
             cmd, opts = val
 
@@ -710,8 +710,7 @@ class Log:
             self.addHandler(_ConsoleLogHandler(sys.stderr))
         else:
             self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
-            logfile = config['Server'].get('LogFile',None)
-            # ???? Does this even work if 'logfile' is not given?
+            logfile = config['Server'].get('LogFile')
             if logfile is None:
                 homedir = config['Server']['Homedir']
                 if homedir:

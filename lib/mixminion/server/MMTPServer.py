@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.35 2003/06/05 01:52:52 nickm Exp $
+# $Id: MMTPServer.py,v 1.36 2003/06/05 18:41:40 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -91,12 +91,12 @@ class AsyncServer:
     def hasReader(self, reader):
         """Return true iff 'reader' is a reader on this server."""
         fd = reader.fileno()
-        return self.readers.get(fd, None) is reader
+        return self.readers.get(fd) is reader
 
     def hasWriter(self, writer):
         """Return true iff 'writer' is a writer on this server."""
         fd = writer.fileno()
-        return self.writers.get(fd, None) is writer
+        return self.writers.get(fd) is writer
 
     def registerReader(self, reader):
         """Register a connection as a reader.  The connection's 'handleRead'
@@ -965,14 +965,12 @@ class MMTPAsyncServer(AsyncServer):
         # FFFF Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs
 
-        if config['Incoming/MMTP'].get('ListenIP',None) is not None:
-            IP = config['Incoming/MMTP']['ListenIP']
-        else:
+        IP = config['Incoming/MMTP'].get('ListenIP')
+        if IP is None:
             IP = config['Incoming/MMTP']['IP']
 
-        if config['Incoming/MMTP'].get('ListenPort',None) is not None:
-            port = config['Incoming/MMTP']['ListenPort']
-        else:
+        port =  config['Incoming/MMTP'].get('ListenPort')
+        if port is None:
             port = config['Incoming/MMTP']['Port']
 
         self.listener = ListenConnection(IP, port,
@@ -1011,7 +1009,7 @@ class MMTPAsyncServer(AsyncServer):
 
     def sendMessages(self, ip, port, keyID, messages, handles):
         """Begin sending a set of messages to a given server."""
-        # ???? Can we remove these asserts yet?
+
         for m,h in zip(messages, handles):
             if m in ("JUNK", "RENEGOTIATE"):
                 assert h is None

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.44 2003/06/05 05:24:23 nickm Exp $
+# $Id: Crypto.py,v 1.45 2003/06/05 18:41:40 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -655,7 +655,7 @@ def configure_trng(config):
        none is provided, tries some sane defaults."""
     global _TRNG_FILENAME
     if config is not None:
-        requestedFile = config['Host'].get('EntropySource', None)
+        requestedFile = config['Host'].get('EntropySource')
     else:
         requestedFile = None
 

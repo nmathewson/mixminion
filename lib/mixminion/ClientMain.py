@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.88 2003/06/05 05:48:38 nickm Exp $
+# $Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -464,9 +464,9 @@ class ClientDirectory:
            elements with a given nickname are valid over the given time
            interval, the most-recently-published one is included.
            """
-        # XXXX This is not really good: servers may be the same, even if
-        # XXXX their nicknames are different.  The logic should probably
-        # XXXX go into directory, though.
+        # FFFF This is not really good: servers may be the same, even if
+        # FFFF their nicknames are different.  The logic should probably
+        # FFFF go into directory, though.
 
         u = {} # Map from lcnickname -> latest-expiring info encountered in lst
         for info, _  in lst:
@@ -542,10 +542,9 @@ class ClientDirectory:
             s = self.__findOne(self.byNickname[name.lower()], startAt, endAt)
 
             if not s:
-                # FFFF Beef up this message to say that we know about that
-                # FFFF nickname, but that all suchnamed servers are dead.
-                raise UIError("Couldn't find any valid descriptor with name %s"
-                              % name)
+                raise UIError(
+                    "Couldn't find any currently live descriptor with name %s"
+                    % name)
 
             if not self.goodServerNicknames.has_key(s.getNickname().lower()):
                 LOG.warn("Server %s is not recommended",name)
@@ -639,45 +638,32 @@ class ClientDirectory:
         used = filter(None, servers)
         nNeeded = len([info for info in servers if info is None])
         relays = self.__find(self.byCapability['relay'], startAt, endAt)
-        unusedRelays = setSub(relays, used)
-        if relays:
-            # We know at least one relay, but not enough to choose without
-            # replacement.  First, give an appropriate warning...
-
-            #XXXX004 These warnings are all wrong
-            if len(unusedRelays) >= nNeeded:
-                pass
-            elif len(relays) >= 3:
-                LOG.warn("Not enough servers for distinct path (%s unused, %s known)",
-                         len(unusedRelays), len(relays))
-            elif len(relays) > 1:
-                LOG.warn("Not enough servers to avoid same-server hops")
-            else:
-                assert len(relays) == 1
-                LOG.warn("Only one relay known")
-
-            # Now fill in the servers. For each relay we need...
-            for i in xrange(len(servers)):
-                if servers[i] is not None:
-                    continue
-                # Find the servers adjacent to it, if any...
-                if i>0:
-                    abutters = filter(None,[ servers[i-1], servers[i+1]])
-                else:
-                    abutters = filter(None,[ servers[i+1] ])
-                # ...and see if there are any relays left that aren't adjacent.
-                candidates = setSub(relays, abutters)
-                if candidates:
-                    # Good.  There are.
-                    servers[i] = prng.pick(candidates)
-                else:
-                    # Nope.  Choose a random relay.
-                    servers[i] = prng.pick(relays)
-        else:
-            # If we don't know any relays, give up.
+        if not relays:
             raise UIError("No relays known")
+        elif len(relays) == 2:
+            LOG.warn("Not enough servers to avoid same-server hops")
+        elif len(relays) == 1:
+            LOG.warn("Only one relay known")
 
-        # XXXX004 We need to make sure that the path isn't totally junky.
+        # Now fill in the servers. For each relay we need...
+        for i in xrange(len(servers)):
+            if servers[i] is not None:
+                continue
+            # Find the servers adjacent to it, if any...
+            if i>0:
+                abutters = filter(None,[ servers[i-1], servers[i+1]])
+            else:
+                abutters = filter(None,[ servers[i+1] ])
+            # ...and see if there are any relays left that aren't adjacent.
+            candidates = setSub(relays, abutters)
+            if candidates:
+                # Good.  There are.
+                servers[i] = prng.pick(candidates)
+            else:
+                # Nope.  Choose a random relay.
+                servers[i] = prng.pick(relays)
+
+        # FFFF We need to make sure that the path isn't totally junky.
 
         return servers
 
@@ -747,7 +733,8 @@ def parsePath(directory, config, path, address, nHops=None,
        You can use a question mark to indicate a randomly chosen server:
              'foo,bar,?,quux,?'.
        As an abbreviation, you can use star followed by a number to indicate
-       that number of randomly chosen
+       that number of randomly chosen servers:
+             'foo,bar,*2,quux'.
 
        You can use a star to specify a fill point where randomly-selected
        servers will be added:
@@ -758,6 +745,7 @@ def parsePath(directory, config, path, address, nHops=None,
        path, nHops must equal the path length; and if nHops is used _with_ a
        star on the path, nHops must be >= the path length.
     """
+    #DOCDOC comment this.
     if not path:
         path = '*'
     explicitSwap = 0
@@ -782,7 +770,6 @@ def parsePath(directory, config, path, address, nHops=None,
                 raise UIError("Can't have two variable-length wildcards in a path")
             starPos = i
 
-    # XXXX004 check for match with nHops.
     myNHops = nHops or defaultNHops or 6
     if starPos is not None:
         haveHops = len(path) - 1
@@ -797,7 +784,7 @@ def parsePath(directory, config, path, address, nHops=None,
         firstLegLen = colonPos
         del path[colonPos]
     elif halfPath:
-        firstLegLen = len(path)
+        firstLegLen = 0
     else:
         firstLegLen = ceilDiv(len(path), 2)
 
@@ -807,7 +794,7 @@ def parsePath(directory, config, path, address, nHops=None,
     for i in xrange(len(path)):
         if path[i] == '?': path[i] = None
 
-    # Remark: why do this now
+    # DOCDOC Remark: why do this now
     if address is None:
         rt, ri, exitNode = None, None, None
         exitCap = 'relay'
@@ -924,8 +911,11 @@ class ClientKeyring:
             self._checkMagic(fn, magic)
             # ...then see if we can load it without a password...
             try:
-                return self._load(fn, magic, "")
-            except MixError:
+                data = self._load(fn, magic, "")
+                self.keyring = cPickle.loads(data)
+                self.keyringPassword = ""
+                return self.keyring
+            except MixError, e:
                 pass
             # ...then ask the user for a password 'till it loads.
             while 1:
@@ -955,7 +945,7 @@ class ClientKeyring:
             return {}
 
     def _saveKeyring(self):
-        assert self.keyringPassword
+        assert self.keyringPassword is not None
         fn = os.path.join(self.keyDir, "keyring")
         LOG.trace("Saving keyring to %s", fn)
         self._save(fn+"_tmp",
@@ -1217,7 +1207,7 @@ class ClientQueue:
     #           )
     # XXXX change this to be OO; add nicknames.
 
-    # XXXX004 write unit tests
+    # XXXX write unit tests
 
     def __init__(self, directory, prng=None):
         """Create a new ClientQueue object, storing packets in 'directory'
@@ -1364,7 +1354,7 @@ class MixminionClient:
                queue it and exit.
             forceNoQueue -- if true, do not queue the message even if delivery
                fails."""
-        #XXXX004 write unit tests
+        #XXXX write unit tests
         message, firstHop = \
                  self.generateReplyMessage(payload, servers, surbList)
 
@@ -1382,7 +1372,7 @@ class MixminionClient:
             expiryTime -- if provided, a time at which the replyBlock must
                still be valid, and after which it should not be used.
         """
-        #XXXX004 write unit tests
+        #XXXX write unit tests
         key = self.keys.getSURBKey(name=name, create=1)
         exitType, exitInfo, _ = address.getRouting()
 
@@ -1419,7 +1409,7 @@ class MixminionClient:
                the path.  We use the first one that is neither expired nor
                used, and mark it used.
             """
-        #XXXX004 write unit tests
+        #XXXX write unit tests
         if now is None:
             now = time.time()
         surbLog = self.openSURBLog() # implies lock
@@ -1473,7 +1463,7 @@ class MixminionClient:
            If warnIfLost is true, log a warning if we fail to deliver
            the message, and we don't queue it.
            """
-        #XXXX004 write unit tests
+        #XXXX write unit tests
         timeout = self.config['Network'].get('ConnectionTimeout')
         if timeout:
             timeout = int(timeout)
@@ -1522,7 +1512,7 @@ class MixminionClient:
     def flushQueue(self, maxMessages=None):
         """Try to send end all messages in the queue to their destinations.
         """
-        #XXXX004 write unit tests
+        #XXXX write unit tests
 
         LOG.info("Flushing message queue")
         # XXXX This is inefficient in space!
@@ -1573,7 +1563,7 @@ class MixminionClient:
         """Insert all the messages in msgList into the queue, to be sent
            to the server identified by the IPV4Info object 'routing'.
         """
-        #XXXX004 write unit tests
+        #XXXX write unit tests
         LOG.trace("Queueing messages")
         handles = []
         try:
@@ -1596,7 +1586,7 @@ class MixminionClient:
            Raise ParseError on malformatted messages.  Unless 'force' is
            true, do not uncompress possible zlib bombs.
         """
-        #XXXX004 write unit tests
+        #XXXX write unit tests
         results = []
         for msg in parseTextEncodedMessages(s, force=force):
             if msg.isOvercompressed() and not force:
@@ -1688,7 +1678,7 @@ def readConfigFile(configFile):
        we create a fresh one.
     """
     if configFile is None:
-        configFile = os.environ.get("MIXMINIONRC", None)
+        configFile = os.environ.get("MIXMINIONRC")
     if configFile is None:
         configFile = "~/.mixminionrc"
     configFile = os.path.expanduser(configFile)

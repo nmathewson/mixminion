@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.13 2003/06/05 05:24:23 nickm Exp $
+# $Id: HashLog.py,v 1.14 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -151,7 +151,7 @@ class HashLog:
             self.__lock.acquire()
             self.journal[hash] = 1
             os.write(self.journalFile, hash)
-            #XXXX Make this configurable.
+            # FFFF Make this configurable.
             if len(self.journal) > MAX_JOURNAL:
                 self.sync()
         finally:

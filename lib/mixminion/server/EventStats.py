@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.5 2003/06/05 05:24:23 nickm Exp $
+# $Id: EventStats.py,v 1.6 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -16,10 +16,12 @@ from mixminion.Common import formatTime, LOG, previousMidnight, floorDiv, \
 
 # _EVENTS: a list of all recognized event types.
 _EVENTS = [ 'ReceivedPacket',
-           'AttemptedRelay',
-           'SuccessfulRelay', 'FailedRelay', 'UnretriableRelay',
-           'AttemptedDelivery',
-           'SuccessfulDelivery', 'FailedDelivery', 'UnretriableDelivery',
+           
+            'AttemptedRelay', 'SuccessfulRelay',
+            'FailedRelay', 'UnretriableRelay',
+           
+            'AttemptedDelivery', 'SuccessfulDelivery',
+            'FailedDelivery', 'UnretriableDelivery',
             ]
 
 class NilEventLog:
@@ -130,6 +132,9 @@ class EventLog(NilEventLog):
             assert self.count is not None
             assert self.lastRotation is not None
             assert self.accumulatedTime is not None
+            for e in _EVENTS:
+                if not self.count.has_key(e):
+                    self.count[e] = {}
         else:
             self.count = {}
             for e in _EVENTS:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.38 2003/06/05 05:24:23 nickm Exp $
+# $Id: ServerKeys.py,v 1.39 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -51,7 +51,6 @@ PREPUBLICATION_INTERVAL = 14*24*60*60
 #
 #FFFF Make this configurable
 DIRECTORY_UPLOAD_URL = "http://mixminion.net/minion-cgi/publish"
-#DIRECTORY_UPLOAD_URL = "http://192.168.0.1/cgi-bin/publish"
 
 #----------------------------------------------------------------------
 class ServerKeyring:
@@ -1028,7 +1027,12 @@ def _guessLocalIP():
         raise IPGuessError("Multiple addresses found: %s" % (
                     ", ".join(ip_set.keys())))
 
-    return ip_set.keys()[0]
+    IP = ip_set.keys()[0]
+    if IP.startswith("192.168.") or IP.startswith("10.") or \
+       IP.startswith("176.16."):
+        raise IPGuessError("Only address found is in a private IP block")
+
+    return IP
 
 def generateCertChain(filename, mmtpKey, identityKey, nickname,
                       certStarts, certEnds):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.32 2003/06/05 05:48:39 nickm Exp $
+# $Id: ServerConfig.py,v 1.33 2003/06/05 18:41:40 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -99,7 +99,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
         """Callback from the [Server] section of a config file.  Parses
            the module options, and adds new sections to the syntax
            accordingly."""
-        self.moduleManager.setPath(section.get('ModulePath', None))
+        self.moduleManager.setPath(section.get('ModulePath'))
         for mod in section.get('Module', []):
             LOG.info("Loading module %s", mod)
             self.moduleManager.loadExtModule(mod)
@@ -147,7 +147,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
            is reasonable.  Warn or raise ConfigError if it isn't.  Ignore
            the entry if it isn't there.
         """
-        entry = self[sectionName].get(entryName,None)
+        entry = self[sectionName].get(entryName)
         if not entry:
             return
         mixInterval = self['Server']['MixInterval'].getSeconds()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.46 2003/05/29 03:37:02 nickm Exp $
+# $Id: ServerInfo.py,v 1.47 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -113,7 +113,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                     if k == 'Descriptor-Version' and v.strip() != '0.2':
                         raise ConfigError("Unrecognized descriptor version: %s"
                                           % v.strip())
-            #XXXX Remove sections with unrecognized versions.
+            # FFFF005 Remove sections with unrecognized versions.
 
         return contents
 
@@ -227,14 +227,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def getCaps(self):
         # FFFF refactor this once we have client addresses.
         caps = []
-        if not self['Incoming/MMTP'].get('Version',None):
+        if not self['Incoming/MMTP'].get('Version'):
             return caps
-        if self['Delivery/MBOX'].get('Version', None):
+        if self['Delivery/MBOX'].get('Version'):
             caps.append('mbox')
-        if self['Delivery/SMTP'].get('Version', None):
+        if self['Delivery/SMTP'].get('Version'):
             caps.append('smtp')
         # XXXX This next check is highly bogus.
-        if self['Outgoing/MMTP'].get('Version',None):
+        if self['Outgoing/MMTP'].get('Version'):
             caps.append('relay')
         return caps
 

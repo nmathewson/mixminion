@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.23 2003/05/17 00:08:45 nickm Exp $ */
+/* $Id: crypt.c,v 1.24 2003/06/05 18:41:41 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -493,7 +493,6 @@ const char mm_RSA_PEM_write_key__doc__[]=
 PyObject *
 mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
-        /* XXXX make this threadsafe. */
         static char* kwlist[] = { "file", "public", "password", NULL };
         PyObject *pyfile;
         int public, passwordlen=0;
@@ -502,6 +501,7 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
         RSA *rsa = NULL;
         EVP_PKEY *pkey = NULL;
         FILE *file;
+        int ok = 0;
 
         assert(mm_RSA_Check(self));
         if (!PyArg_ParseTupleAndKeywords(args, kwdict, "O!i|s#:PEM_write_key",
@@ -514,6 +514,7 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS
         if (public) {
                 rsa = ((mm_RSA*)self)->rsa;
                 if (!PEM_write_RSAPublicKey(file, rsa))
@@ -540,18 +541,23 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
                                                        NULL, NULL))
                                 goto error;
                 }
-                EVP_PKEY_free(pkey);
         }
-        Py_INCREF(Py_None);
-        return Py_None;
 
+        ok = 1;
+        goto done;
  error:
+        mm_SSL_ERR(1);
+ done:
         if (rsa && !public)
                 RSA_free(rsa);
         if (pkey)
                 EVP_PKEY_free(pkey);
 
-        mm_SSL_ERR(1);
+        Py_END_ALLOW_THREADS
+        if (ok) {
+                Py_INCREF(Py_None);
+                return Py_None;
+        }
         return NULL;
 }
 
@@ -965,7 +971,6 @@ const char mm_generate_cert__doc__[] =
 PyObject *
 mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-        /* ???? should be threadified? */
         static char *kwlist[] = { "filename", "rsa", "rsa_sign",
                                   "cn", "cn_issuer",
                                   "start_time", "end_time", NULL };
@@ -1001,6 +1006,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
                                          &start_time, &end_time))
                 return NULL;
 
+        Py_BEGIN_ALLOW_THREADS
         if (!(rsa = RSAPrivateKey_dup(((mm_RSA*)_rsa)->rsa)))
                 goto error;
         if (!(pkey = EVP_PKEY_new()))
@@ -1085,6 +1091,7 @@ error:
         if (pkey_sign)
                 EVP_PKEY_free(pkey_sign);
 
+        Py_END_ALLOW_THREADS
         return retval;
 }
 
