@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.165 2003/11/19 09:48:10 nickm Exp $
+# $Id: test.py,v 1.166 2003/11/20 08:51:28 nickm Exp $
 
 """mixminion.tests
 
@@ -20,6 +20,7 @@ import os
 import re
 import socket
 import stat
+import struct
 import sys
 import threading
 import time
@@ -1199,14 +1200,6 @@ class CryptoTests(TestCase):
             self.failUnless(0 <= v <= 10)
             tot += v
         self.failUnless(4900<tot<5100)
-
-##      itot=ftot=0
-##      for i in xrange(1000000):
-##          itot += PRNG.getInt(10)
-##          ftot += PRNG.getFloat()
-
-##      print "AVG INT", itot/1000000.0
-##      print "AVG FLT", ftot/1000000.0
 
         for i in xrange(100):
             self.failUnless(0 <= PRNG.getFloat() < 1)
@@ -2416,16 +2409,6 @@ class BuildMessageTests(TestCase):
         self.assertEquals(payload,
              BuildMessage._decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1).getUncompressedContents())
 
-##      # Stateful reply
-##      secrets = [ "Is that you, Des","troyer?Rinehart?" ]
-##      sdict = { 'tag1'*5 : secrets }
-##      ks = Keyset(secrets[1])
-##      m = lioness_decrypt(encoded1, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
-##      ks = Keyset(secrets[0])
-##      m = lioness_decrypt(m, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
-##      self.assertEquals(payload, BuildMessage._decodeReplyPayload(m,secrets))
-##      repl1 = m
-
         # Stateless reply
         tag = "To light my way out\xBE"
         passwd = "out I would have to burn every paper in the briefcase"
@@ -2449,19 +2432,16 @@ class BuildMessageTests(TestCase):
         decodePayload = BuildMessage.decodePayload
         # fwd
         for pk in (self.pk1, None):
-            ##for d in (sdict, None): # stateful replies disabled.
-                for p in (passwd, None):
-                    for tag in ("zzzz"*5, "pzzz"*5):
-                        self.assertPayloadDecodesTo(payload,
-                                                    encoded1, tag, pk, p)
+            for p in (passwd, None):
+                for tag in ("zzzz"*5, "pzzz"*5):
+                    self.assertPayloadDecodesTo(payload,
+                                                encoded1, tag, pk, p)
 
         # efwd
-        ##for d in (sdict, None): # stateful replies disabled
-        if 1:
-            for p in (passwd, None):
-                self.assertPayloadDecodesTo(payload, efwd_p, efwd_t, rsa1, p)
-                self.assertPayloadDecodesTo(None, efwd_p, efwd_t, None, p)
-                self.assertPayloadDecodesTo(None, efwd_p, efwd_t, self.pk2, p)
+        for p in (passwd, None):
+            self.assertPayloadDecodesTo(payload, efwd_p, efwd_t, rsa1, p)
+            self.assertPayloadDecodesTo(None, efwd_p, efwd_t, None, p)
+            self.assertPayloadDecodesTo(None, efwd_p, efwd_t, self.pk2, p)
 
         # Stateful replies are disabled.
 
@@ -4235,7 +4215,7 @@ IntRS=5
         tm = C._parseTime("2001-12-25 06:15:10.623")
         self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
         # nicknames
-        self.assertEquals(C._parseNickname("Mrs.Premise"), "Mrs.Premise")
+        self.assertEquals(C._parseNickname("Mrs-Premise"), "Mrs-Premise")
         # Filenames
         self.assertEquals(C._parseFilename(" ab/c/d"), "ab/c/d")
         self.assertEquals(C._parseFilename("  ~/ab/c/d"),
@@ -4307,6 +4287,7 @@ IntRS=5
         fails(C._parseDate, "2000-50-01 12:12:12.3")
         fails(C._parseTime, "2000/50/01 12:12:99")
         fails(C._parseNickname, "Mrs Premise")
+        fails(C._parseNickname, "-Mrs-Premise")
         fails(C._parseNickname, "../../../AllYourBase")
         fails(C._parseNickname, "Z"*129)
         fails(C._parseNickname, ""*129)
@@ -4371,7 +4352,7 @@ PublicKeyLifetime: 10 days
 EncryptPrivateKey: no
 Homedir: %s
 Mode: relay
-Nickname: The_Server
+Nickname: The-Server
 Contact-Email: a@b.c
 Comments: This is a test of the emergency
    broadcast system
@@ -4439,7 +4420,7 @@ class ServerInfoTests(TestCase):
         eq(info['Server']['Descriptor-Version'], "0.2")
         eq(info['Incoming/MMTP']['IP'], "192.168.0.1")
         eq(info['Incoming/MMTP']['Hostname'], "Theserver")
-        eq(info['Server']['Nickname'], "The_Server")
+        eq(info['Server']['Nickname'], "The-Server")
         self.failUnless(0 <= time.time()-info['Server']['Published'] <= 120)
         self.failUnless(0 <= time.time()-info['Server']['Valid-After']
                           <= 24*60*60)
@@ -6167,38 +6148,44 @@ class ClientUtilTests(TestCase):
         d = mix_mktemp()
         createPrivateDir(d)
         f1 = os.path.join(d, "foo")
+        magic1 = "ABCDEFGH"
         # Test reading and writing.
-        CU.writeEncryptedFile(f1, password="x", magic="ABC", data="xyzzyxyzzy")
+        CU._writeEncryptedFile(f1,password="x",magic=magic1,data="xyzzyxyzzy")
         contents = readFile(f1)
-        self.assertEquals(contents[:3], "ABC")
-        salt = contents[3:11]
-        key = mixminion.Crypto.sha1(salt+"x"+salt)[:16]
-        decrypted = mixminion.Crypto.ctr_crypt(contents[11:], key)
-        self.assertEquals(decrypted, "xyzzyxyzzy"+mixminion.Crypto.sha1(
-            "xyzzyxyzzy"+salt+"ABC"))
+        self.assert_(contents.startswith(
+            "-----BEGIN TYPE III KEYRING-----\n"
+            "Version: 0.1\n\n"))
+        self.assert_(contents.endswith(
+            "\n-----END TYPE III KEYRING-----\n"))
+        idx1 = contents.index("\n\n")+2
+        idx2 = contents.rindex("\n-----END TYPE")
+        contents = base64.decodestring(contents[idx1:idx2])
         
-        self.assertEquals("xyzzyxyzzy",
-              CU.readEncryptedFile(f1, "x", "ABC"))
-
+        self.assertEquals(contents[:8], magic1)
+        self.assertEquals(contents[8], '\x00')
+        salt = contents[9:17]
+        key = mixminion.Crypto.sha1(salt+"x"+salt)[:16]
+        decrypted = mixminion.Crypto.ctr_crypt(contents[17:], key)
+        self.assertEquals(len(decrypted), 4+1024+20)
+        self.assertEquals(decrypted[:4], "\x00\x00\x00\x0A")
+        self.assertEquals(decrypted[4:14], "xyzzyxyzzy")
+        self.assertEquals(decrypted[-20:],
+                          mixminion.Crypto.sha1(decrypted[:-20]+salt+magic1))
+        
+        self.assertEquals((magic1,"xyzzyxyzzy"),
+                          CU._readEncryptedFile(f1, "x", [magic1, "BLIZNERT"]))
+        
         # Try reading with wrong password.
-        self.assertRaises(CU.BadPassword, CU.readEncryptedFile,
-                          f1, "nobodaddy", "ABC")
+        self.assertRaises(CU.BadPassword, CU._readEncryptedFile,
+                          f1, "nobodaddy", [magic1])
 
         # Try reading with wrong magic.
-        self.assertRaises(ValueError, CU.readEncryptedFile,
-                          f1, "x", "ABX")
+        self.assertRaises(ValueError, CU._readEncryptedFile,
+                          f1, "x", ["XXXXYYYY"])
 
         # Try empty data.
-        CU.writeEncryptedFile(f1, password="x", magic="ABC", data="")
-        self.assertEquals("", CU.readEncryptedFile(f1, "x", "ABC"))
-        
-        # Test pickles.
-        f2 = os.path.join(d, "bar")
-        CU.writeEncryptedPickled(f2, "pswd", "ZZZ", [1,2,3])
-        self.assertEquals([1,2,3],CU.readEncryptedPickled(f2,"pswd","ZZZ"))
-        CU.writeEncryptedPickled(f2, "pswd", "ZZZ", {9:10,11:12})
-        self.assertEquals({9:10,11:12},
-                          CU.readEncryptedPickled(f2,"pswd","ZZZ"))
+        CU._writeEncryptedFile(f1, password="x", magic=magic1, data="")
+        self.assertEquals((magic1,""),CU._readEncryptedFile(f1, "x", [magic1]))
         
         # Test LazyEncryptedStore
         class DummyPasswordManager(CU.PasswordManager):
@@ -6211,9 +6198,10 @@ class ClientUtilTests(TestCase):
                 return self.d.get(name)
 
         f3 = os.path.join(d, "Baz")
+        magic0 = "MAGIC000"
         dpm = DummyPasswordManager({"Password1" : "p1"})
-        lep = CU.LazyEncryptedStore(f3, dpm, "Password1", "Q:", "N:",
-                                    "magic0", lambda: "x"*3)
+        lep = CU._LazyEncryptedStore(f3, dpm, "Password1", "Q:", "N:",
+                                     magic0, lambda: "x"*3)
         # Don't create.
         self.assert_(not lep.isLoaded())
         lep.load(create=0)
@@ -6221,14 +6209,86 @@ class ClientUtilTests(TestCase):
         lep.load(create=1)
         self.assert_(lep.isLoaded())
         self.assertEquals("x"*3, lep.get())
-        self.assertEquals("x"*3, CU.readEncryptedPickled(f3,"p1","magic0"))
+        m,v = CU._readEncryptedFile(f3,"p1",[magic0])
+        self.assertEquals((magic0,"x"*3), (m,cPickle.loads(v)))
 
-        lep = CU.LazyEncryptedStore(f3, dpm, "Password1", "Q:", "N:",
-                                     "magic0", lambda: "x"*3)
+        lep = CU._LazyEncryptedStore(f3, dpm, "Password1", "Q:", "N:",
+                                     magic0, lambda: "x"*3)
         lep.load()
         self.assertEquals("x"*3, lep.get())
         dpm.d = {}
         self.assertEquals("x"*3, lep.get())
+
+        # Finally, test keyring.
+        f4 = os.path.join(d, "keyring")
+        dpm.d = {"ClientKeyring" : "ckr" }
+        kr = CU.Keyring(f4, dpm)
+        kr.load(create=1) # We should already have the password cached.
+        # Test empty keyring.
+        self.assertEquals(kr.getAllSURBKeys(), [])
+        self.assertEquals(kr.getNewestSURBKey(""), None)
+        self.assert_(not kr.isDirty())
+        kr.save()
+        self.assertEquals(("KEYRING2", ""),
+                          CU._readEncryptedFile(f4, "ckr", ["KEYRING2"]))
+        kr = CU.Keyring(f4, dpm)
+        kr.load()
+        self.assertEquals(kr.getAllSURBKeys(), [])
+
+        # Now generate a few keys.
+        now = time.time()
+        month1 = now+30*24*60*60
+        month2 = now+60*24*60*60
+        month1d = succeedingMidnight(month1)
+        month2d = succeedingMidnight(month2)
+        alice1 = kr.newSURBKey("Alice", month1)
+        alice2 = kr.newSURBKey("Alice", month2)
+        bob = kr.newSURBKey("Bobby",month1)
+        self.assertEquals(len(alice1), 20)
+        self.assertEquals(len(bob), 20)
+        self.assertNotEquals(alice1, alice2)
+        self.assert_(kr.isDirty())
+        for i in (1,2):
+            self.assertEquals(alice2, kr.getNewestSURBKey("alice"))
+            self.assertUnorderedEq([("alice",alice1), ("alice",alice2),
+                                    ("bobby",bob)], kr.getAllSURBKeys())
+            self.assertEquals(None, kr.getNewestSURBKey("alice",
+                                               minLifetime=70*24*60*60))
+            if i == 1:
+                kr.save()
+                kr = CU.Keyring(f4, dpm)
+                kr.load()
+
+        # Check that contents are correctly encoded.
+        _, contents = CU._readEncryptedFile(f4, "ckr", ["KEYRING2"])
+        ln = 33
+        self.assertEquals(len(contents), ln*3)
+        k1, k2, k3 = contents[0:ln], contents[ln:ln*2], contents[ln*2:]
+        ex1 = ("\x00" +  # It's a SURB key
+               "\x00\x1E" +  # The rest is 30 bytes long
+               struct.pack("!L",month1d) + "alice\x00" + alice1)
+        ex2 = ("\x00" +  # It's a SURB key
+               "\x00\x1E" +  # The rest is 30 bytes long
+               struct.pack("!L",month2d) + "alice\x00" + alice2)
+        ex3 = ("\x00" +  # It's a SURB key
+               "\x00\x1E" +  # The rest is 30 bytes long
+               struct.pack("!L",month1d) + "bobby\x00" + bob)
+        self.assertUnorderedEq([ex1,ex2,ex3],[k1,k2,k3])
+
+        # Now get fancier: Add an unrecognized type, but expire Alice1 and Bob.
+        dummy = "\xFF\x00\x1E"+("X"*30)
+        CU._writeEncryptedFile(f4, "ckr", "KEYRING2", contents+dummy)
+        kr = CU.Keyring(f4, dpm)
+        kr.load(now=now+33*24*60*60)
+        self.assert_(kr.isDirty())
+        self.assertEquals(kr.getAllSURBKeys(), [('alice', alice2)])
+        self.assertEquals(kr.object.unrecognized, [(0xFF, "X"*30)])
+        kr.save()
+        self.assert_(not kr.isDirty())
+        _, contents = CU._readEncryptedFile(f4, "ckr", ["KEYRING2"])
+        self.assertEquals(len(contents), 66)
+        k1,k2 = contents[0:ln],contents[ln:]
+        self.assertUnorderedEq([dummy,ex2], [k1,k2])
 
     def testSURBLog(self):
         brb = BuildMessage.buildReplyBlock
@@ -6734,9 +6794,6 @@ class ClientDirectoryTests(TestCase):
         raises(MixError, ppath, ks, None, "Alice:Bob,Fred", mboxWithoutServer)
         # Two stars.
         raises(MixError, ppath, ks, None, "Alice,*,Bob,*,Joe", email)
-        # NHops mismatch -- no longer an error.
-        ##raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=2)
-        ##raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=4)
         # Nonexistent file
         raises(MixError, ppath, ks, None, "./Pierre:Alice,*", email)
 
@@ -6923,7 +6980,7 @@ class ClientMainTests(TestCase):
         keydir = mix_mktemp()
         keyring = mixminion.ClientMain.ClientKeyring(keydir)
         # Check for some nonexistent keys.
-        self.assertEquals({}, keyring.getSURBKeys(password="pwd"))
+        self.assertEquals([], keyring.getSURBKeys(password="pwd"))
         self.assertEquals(None, keyring.getSURBKey(create=0))
         # Reload, try again:
         kfirst = None
@@ -6939,7 +6996,7 @@ class ClientMainTests(TestCase):
             k2 = keyring.getSURBKey(name="Bob",create=1)
             self.assertEquals(20, len(k2))
             self.assertNotEquals(k1,k2)
-            self.assertEquals({"":k1,"Bob":k2}, keyring.getSURBKeys())
+            self.assertUnorderedEq([("",k1),("bob",k2)], keyring.getSURBKeys())
 
         # Incorrect password
         keyring = mixminion.ClientMain.ClientKeyring(keydir)
@@ -7307,7 +7364,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ServerInfoTests))
+        suite.addTest(tc(ClientUtilTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -7326,6 +7383,7 @@ def testSuite():
                    EventStatsTests,
                    NetUtilTests,
                    DNSFarmTests,
+                   ClientUtilTests,
            
                    ModuleTests,
                    ClientDirectoryTests,

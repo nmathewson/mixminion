@@ -1036,6 +1036,8 @@ class ExitAddress:
                 sware.startswith("Mixminion 0.0.5alpha1")):
                 raise UIError("Server %s is running old software that doesn't support exit headers.", nickname)
 
+        exitKB = ceilDiv(self.exitSize, 1024)
+
         if self.isSSFragmented:
             dfsec = desc['Delivery/Fragmented']
             if not dfsec.get("Version"):
@@ -1044,24 +1046,31 @@ class ExitAddress:
             if self.nFragments > dfsec.get("Maximum-Fragments",0):
                 raise UIError("Too many fragments for server %s to reassemble."
                               %nickname)
+        else:
+            # If we're not asking the server to defrag, we only need 32K
+            if exitKB > 32:
+                exitKB = 32
+
+        needFrom = self.headers.has_key("FROM")
+        
         if self.exitType in ('smtp', SMTP_TYPE):
             ssec = desc['Delivery/SMTP']
             if not ssec.get("Version"):
                 raise UIError("Server %s doesn't support SMTP"%nickname)
-            if self.headers.has_key("FROM") and not ssec['Allow-From']:
+            if needFrom and not ssec['Allow-From']:
                 raise UIError("Server %s doesn't support user-supplied From"%
                               nickname)
-            if floorDiv(self.exitSize,1024) > ssec['Maximum-Size']:
+            if exitKB > ssec['Maximum-Size']:
                 raise UIError("Message to long for server %s to deliver."%
                               nickname)
         elif self.exitType in ('mbox', MBOX_TYPE):
             msec = desc['Delivery/MBOX']
             if not msec.get("Version"):
                 raise UIError("Server %s doesn't support MBOX"%nickname)
-            if self.headers.has_key("FROM") and not msec['Allow-From']:
+            if needFrom and not msec['Allow-From']:
                 raise UIError("Server %s doesn't support user-supplied From"%
                               nickname)
-            if floorDiv(self.exitSize,1024) > msec['Maximum-Size']:
+            if exitKB > msec['Maximum-Size']:
                 raise UIError("Message to long for server %s to deliver."%
                               nickname)
         elif self.exitType in ('drop', DROP_TYPE):

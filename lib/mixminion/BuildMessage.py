@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.61 2003/11/10 04:12:20 nickm Exp $
+# $Id: BuildMessage.py,v 1.62 2003/11/20 08:51:27 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -340,16 +340,18 @@ def decodePayload(payload, tag, key=None, userKeys=None):
 
            key: an RSA key to decode encrypted forward messages, or None
            userKeys: a map from identity names to keys for reply blocks,
-                or None.
+                or None. DOCDOC : prefer list of (name,key)
 
        If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,
        we return None.  If the payload is corrupt, we raise MixError.
     """
     if userKeys is None:
-        userKeys = {}
+        userKeys = []
     elif type(userKeys) is types.StringType:
-        userKeys = { "" : userKeys }
+        userKeys = [ ("", userKeys) ]
+    elif type(userKeys) is types.DictType:
+        userKeys = userKeys.items()
 
     if len(payload) != PAYLOAD_LEN:
         raise MixError("Wrong payload length")
@@ -368,16 +370,15 @@ def decodePayload(payload, tag, key=None, userKeys=None):
     # If H(tag|userKey|"Validate") ends with 0, then the message _might_
     # be a reply message using H(tag|userKey|"Generate") as the seed for
     # its master secrets.  (There's a 1-in-256 chance that it isn't.)
-    if userKeys:
-        for name,userKey in userKeys.items():
-            if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00':
-                try:
-                    p = _decodeStatelessReplyPayload(payload, tag, userKey)
-                    if name:
-                        LOG.info("Decoded reply message to identity %r", name)
-                    return p
-                except MixError:
-                    pass
+    for name,userKey in userKeys:
+        if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00':
+            try:
+                p = _decodeStatelessReplyPayload(payload, tag, userKey)
+                if name:
+                    LOG.info("Decoded reply message to identity %r", name)
+                return p
+            except MixError:
+                pass
 
     # If we have an RSA key, and none of the above steps get us a good
     # payload, then we may as well try to decrypt the start of tag+key with

@@ -25,7 +25,7 @@ import mixminion.MMTPClient
 from mixminion.Common import LOG, Lockfile, LockfileLocked, MixError, \
      MixFatalError, MixProtocolBadAuth, MixProtocolError, UIError, \
      UsageError, createPrivateDir, isPrintingAscii, isSMTPMailbox, readFile, \
-     stringContains, succeedingMidnight, writeFile, previousMidnight
+     stringContains, succeedingMidnight, writeFile, previousMidnight, floorDiv
 from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
      parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE, \
@@ -63,26 +63,29 @@ class ClientKeyring:
     """
     # XXXX Most of this class should go into ClientUtils?
     # XXXX006 Are the error messages here still reasonable?
+    # DOCDOC -- very changed.
+    KEY_LIFETIME = 3*30*24*60*60
+    MIN_KEY_LIFETIME_TO_USE = 30*24*60*60
+    
     def __init__(self, keyDir, passwordManager=None):
         """DOCDOC"""
         if passwordManager is None:
             passwordManager = mixminion.ClientUtils.CLIPasswordManager()
         createPrivateDir(keyDir)
-        fn = os.path.join(keyDir, "keyring")
-        self.keyring = mixminion.ClientUtils.LazyEncryptedStore(
-            fn, passwordManager, pwdName="ClientKeyring",
-            queryPrompt="Enter password for keyring:",
-            newPrompt="Entrer new keyring password:",
-            magic="KEYRING1",
-            initFn=lambda:{})
+        obsoleteFn = os.path.join(keyDir, "keyring")
+        if os.path.exists(obsoleteFn):
+            LOG.warn("Ignoring obsolete keyring stored in %r",obsoleteFn)
+        fn = os.path.join(keyDir, "keyring.txt")
+        self.keyring = mixminion.ClientUtils.Keyring(fn, passwordManager)
 
-    def _getKey(self, keyid, create=0, createFn=None, password=None):
+    def getSURBKey(self, name="", create=0, password=None):
         """Helper function. Return a key for a given keyid.
 
            keyid -- the name of the key.
            create -- If true, create a new key if none is found.
            createFn -- a callback to return a new key.
            password -- Optionally, a password for the keyring.
+           DOCDOC
         """
         if not self.keyring.isLoaded():
             try:
@@ -92,42 +95,33 @@ class ClientKeyring:
                 return None
             if not self.keyring.isLoaded():
                 return None
+
         try:
-            return self.keyring.get()[keyid]
-        except KeyError:
-            if not create:
+            key = self.keyring.getNewestSURBKey(
+                name,minLifetime=self.MIN_KEY_LIFETIME_TO_USE)
+            if key:
+                return key
+            elif not create:
                 return None
             else:
-                LOG.info("Creating new key for identity %r", keyid)
-                key = createFn()
-                self.keyring.get()[keyid] = key
+                # No key, we're allowed to create.
+                LOG.info("Creating new key for identity %r", name)
+                return self.keyring.newSURBKey(name,
+                                               time.time()+self.KEY_LIFETIME)
+        finally:
+            if self.keyring.isDirty():
                 self.keyring.save()
-                return key
-
-    def getSURBKey(self, name="", create=0, password=None):
-        """Return the key for a given SURB identity."""
-        k = self._getKey("SURB-"+name,
-                        create=create, 
-                         createFn=lambda: mixminion.Crypto.trng(20),
-                        password=password)
-        if k is not None and len(k) != 20:
-            raise MixError("Bad length on SURB key")
-        return k
-
-    def getSURBKeys(self, name="", password=None):
-        """Return the keys for _all_ SURB identities as a map from
-           name to key."""
+        
+    def getSURBKeys(self, password=None):
+        """Return the keys for _all_ SURB identities as a list of
+           (name,key) tuples."""
         try:
             self.keyring.load(create=0,password=password)
         except mixminion.ClientUtils.BadPassword:
             LOG.error("Incorrect password")
-        if not self.keyring.isLoaded(): return {}
-        r = {}
-        d = self.keyring.get()
-        for k,v in d.items():
-            if k.startswith("SURB-"):
-                r[k[5:]] = v
-        return r
+        if not self.keyring.isLoaded(): return []
+        if self.keyring.isDirty(): self.keyring.save()
+        return self.keyring.getAllSURBKeys()
 
 def installDefaultConfig(fname):
     """Create a default, 'fail-safe' configuration in a given file"""
@@ -306,7 +300,7 @@ class MixminionClient:
             payloads = mixminion.BuildMessage.encodeMessage(message, 0,
                                 fragmentedMessagePrefix)
             if len(payloads) > 1:
-                address.setFragmented(not noSSFragmented, len(payloads))
+                address.setFragmented(not noSSFragments, len(payloads))
             else:
                 address.setFragmented(0,1)
         else:
@@ -597,6 +591,7 @@ def readConfigFile(configFile):
     configFile = os.path.expanduser(configFile)
 
     if not os.path.exists(configFile):
+        print >>sys.stderr,"Writing default configuration file to %r"%configFile
         installDefaultConfig(configFile)
 
     try:
@@ -994,7 +989,8 @@ def runClient(cmd, args):
              ["help", "verbose", "config=", "download-directory=",
               "to=", "hops=", "path=", "reply-block=",
               "input=", "queue", "no-queue",
-              "subject=", "from=", "in-reply-to=", "references=", ])
+              "subject=", "from=", "in-reply-to=", "references=",
+              "deliver-fragments" ])
 
     if not options:
         sendUsageAndExit(cmd)
@@ -1013,7 +1009,7 @@ def runClient(cmd, args):
             h_irt = val
         elif opt == '--references':
             h_references = val
-        elif opt == '?????????':
+        elif opt == '--deliver-fragments':
             no_ss_fragment = 1
 
     if args:
@@ -1101,7 +1097,7 @@ def runClient(cmd, args):
         client.sendForwardMessage(
             parser.directory, parser.exitAddress, parser.pathSpec,
             message, parser.startAt, parser.endAt, forceQueue, forceNoQueue,
-            no_ss_fragment)
+            forceNoServerSideFragments=no_ss_fragment)
 
 _PING_USAGE = """\
 Usage: mixminion ping [options] serverName
@@ -1665,6 +1661,21 @@ def listQueue(cmd, args):
 
     try:
         clientLock()
-        client.queue.inspectQueue()
+        res = client.queue.inspectQueue()
     finally:
         clientUnlock()
+
+    if not res:
+        print "(No packets in queue)"
+        return
+
+    res_items = [ (displayServer(ri),count,date)
+                  for ri,(count,date) in res.items() ]
+    res_items.sort()
+    now = time.time()
+    for server, count, date in res_items:
+        days = floorDiv(now-date, 24*60*60)
+        if days < 1:
+            days = "<1"
+        print "%2d packets for %s (oldest is %s days old)"%(
+            count, server, days)
