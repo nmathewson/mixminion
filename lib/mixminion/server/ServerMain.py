@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.12 2002/12/29 21:00:48 nickm Exp $
+# $Id: ServerMain.py,v 1.13 2002/12/31 04:38:00 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -373,15 +373,28 @@ class MixminionServer:
 def daemonize():
     """Put the server into daemon mode with the standard trickery."""
     # ??? This 'daemonize' logic should go in Common.
+
+    # This logic is more-or-less verbatim from Stevens's _Advanced
+    # Programming in the Unix Environment_:
+
+    # Fork, to run in the background.
     pid = os.fork()
     if pid != 0:
         os._exit(0)
+    # Call 'setsid' to make ourselves a new session.
     if hasattr(os, 'setsid'):
         # Setsid is not available everywhere.
         os.setsid()
+    # Chdir to / so that we don't hold the CWD unnecessarily.
+    os.chdir(os.path.normpath("/")) #???? Is this right on Win32?
+    # Set umask to 000 so that we drop any (possibly nutty) umasks that
+    # our users had before.
+    os.umask(0000)
+    # Close all unused fds.
     sys.stderr.close()
     sys.stdout.close()
     sys.stdin.close()
+    # Override stdout and stderr in case some code tries to use them
     sys.stdout = LogStream("STDOUT", "WARN")
     sys.stderr = LogStream("STDERR", "WARN")
 
