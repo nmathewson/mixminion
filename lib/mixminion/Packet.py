@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.30 2003/02/11 22:18:13 nickm Exp $
+# $Id: Packet.py,v 1.31 2003/02/12 01:36:22 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -805,6 +805,8 @@ def uncompressData(payload, maxLength=None):
             raise CompressedDataTooLong()
         except zlibutil.DecompressError, e:
             raise ParseError("Error in compressed data: %s"%e)
+        except (IOError, ValueError), e:
+            raise ParseError("Error in compressed data: %s"%e)
 
     try:
         # We can't just call zlib.decompress(payload), since we may
@@ -828,6 +830,8 @@ def uncompressData(payload, maxLength=None):
         return d
     except zlib.error:
         raise ParseError("Error in compressed data")
+    except (IOError, ValueError), e:
+        raise ParseError("Error in compressed data: %s"%e)
 
 def _validateZlib():
     """Internal function:  Make sure that zlib is a recognized version, and

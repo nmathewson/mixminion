@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.58 2003/02/12 01:21:46 nickm Exp $
+# $Id: Common.py,v 1.59 2003/02/12 01:36:22 nickm Exp $
 
 """mixminion.Common
 
@@ -576,7 +576,16 @@ def succeedingMidnight(when):
     """Given a time_t 'when', return the smallest time_t > when that falls
        on midnight, GMT."""
     yyyy,MM,dd = time.gmtime(when)[0:3]
-    return calendar.timegm((yyyy,MM,dd+1,0,0,0,0,0,0))
+    try:
+        return calendar.timegm((yyyy,MM,dd+1,0,0,0,0,0,0))
+    except ValueError:
+        # Python 2.3 seems to raise ValueError when dd is the last day of the
+        # month.
+        pass
+    if MM < 12:
+        return calendar.timegm((yyyy,MM+1,1,0,0,0,0,0,0))
+    else:
+        return calendar.timegm((yyyy+1,1,1,0,0,0,0,0,0))
 
 def formatTime(when,localtime=0):
     """Given a time in seconds since the epoch, returns a time value in the
