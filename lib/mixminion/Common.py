@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.73 2003/05/17 00:08:42 nickm Exp $
+# $Id: Common.py,v 1.74 2003/05/17 05:04:32 arma Exp $
 
 """mixminion.Common
 
@@ -258,6 +258,9 @@ class AtomicFile:
     def __init__(self, fname, mode='w'):
         self.fname = fname
         self.tmpname = fname + ".tmp"
+        # XXXX Put a note here saying we've thought about the security
+        # XXXX issues (eg having a file that ends in .tmp that gets
+        # XXXX overwritten by this thing).
         fd = os.open(self.tmpname, os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0600)
         self.f = os.fdopen(fd, mode)
 
