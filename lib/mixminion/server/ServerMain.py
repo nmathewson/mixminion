@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.6 2002/12/16 02:40:11 nickm Exp $
+# $Id: ServerMain.py,v 1.7 2002/12/16 04:01:14 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -263,6 +263,8 @@ class MixminionServer:
         f.write("%s\n" % os.getpid())
         f.close()
 
+        self.cleanQueues()
+
         now = time.time()
         MIX_INTERVAL = 600  # FFFF Configurable!
         nextMix = now + MIX_INTERVAL
@@ -299,12 +301,16 @@ class MixminionServer:
 
             if now > nextShred:
                 # FFFF Configurable shred interval
-                LOG.trace("Expunging deleted messages from queues")
-                self.incomingQueue.cleanQueue()
-                self.mixPool.queue.cleanQueue()
-                self.outgoingQueue.cleanQueue()
-                self.moduleManager.cleanQueues()
+                self.cleanQueues()
                 nextShred = now + 6000
+
+    def cleanQueues(self):
+        """Remove all deleted messages from queues"""
+        LOG.trace("Expunging deleted messages from queues")
+        self.incomingQueue.cleanQueue()
+        self.mixPool.queue.cleanQueue()
+        self.outgoingQueue.cleanQueue()
+        self.moduleManager.cleanQueues()
 
     def close(self):
         """Release all resources; close all files."""

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.5 2002/12/16 03:49:19 nickm Exp $
+# $Id: Modules.py,v 1.6 2002/12/16 04:01:14 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -301,7 +301,7 @@ class ModuleManager:
         self.queues[module.getName()] = queue
         self.enabled[module.getName()] = 1
 
-    def cleanQueue(self):
+    def cleanQueues(self):
         """Remove trash messages from all internal queues."""
         for queue in self.queues.values():
             queue.cleanQueue()
