@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.9 2002/07/28 22:42:33 nickm Exp $ */
+/* $Id: crypt.c,v 1.10 2002/08/06 16:09:21 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -828,7 +828,7 @@ gen_dh_callback(int p, int n, void *arg)
 }
 
 const char mm_generate_dh_parameters__doc__[] = 
-   "generate_dh_parameters(filename, [bits, [verbose]])\n\n"
+   "generate_dh_parameters(filename, [verbose, [bits]])\n\n"
    "Generate a DH parameter file named <filename>. The parameters will be of\n"
    "size <bits>, which defaults to 512.  If <verbose>, a pattern of dots\n"
    "will appear on the screen to let you know that the program is still\n"
@@ -837,7 +837,7 @@ const char mm_generate_dh_parameters__doc__[] =
 PyObject *
 mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-	static char *kwlist[] = { "filename", "verbose", NULL };
+	static char *kwlist[] = { "filename", "verbose", "bits", NULL };
 	char *filename;
 	int bits=512, verbose=0;
 	
@@ -845,9 +845,9 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 	DH *dh = NULL;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
-					 "s|i:generate_dh_parameters", 
+					 "s|ii:generate_dh_parameters", 
 					 kwlist,
-					 &filename, &verbose))
+					 &filename, &verbose, &bits))
 		return NULL;
 	
 	if (!(out = BIO_new_file(filename, "w")))

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.5 2002/07/01 18:03:05 nickm Exp $
+# $Id: Packet.py,v 1.6 2002/08/06 16:09:21 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -8,8 +8,8 @@
 __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseMessage', 'parseHeader', 'parseSubheader',
             'getTotalBlocksForRoutingInfoLen', 'ReplyBlock',
-            'IPV4Info', 'SMTPInfo', 'LocalInfo', 'parseIPV4Info',
-            'parseSMTPInfo', 'parseLocalInfo', 'ReplyBlock',
+            'IPV4Info', 'SMTPInfo', 'MBOXInfo', 'parseIPV4Info',
+            'parseSMTPInfo', 'parseMBOXInfo', 'ReplyBlock',
             'parseReplyBlock', 'ENC_SUBHEADER_LEN',
             'HEADER_LEN', 'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO',
             'SECRET_LEN']
@@ -348,17 +348,17 @@ class SMTPInfo:
         else:
             return self.email
 
-def parseLocalInfo(s):
-    """Convert the encoding of an LOCAL routinginfo into an LocalInfo
+def parseMBOXInfo(s):
+    """Convert the encoding of an MBOX routinginfo into an MBOXInfo
        object."""
     lst = s.split("\000",1)
     if len(lst) == 1:
-        return LocalInfo(s,None)
+        return MBOXInfo(s,None)
     else:
-        return LocalInfo(lst[0], lst[1])
+        return MBOXInfo(lst[0], lst[1])
 
-class LocalInfo:
-    """Represents the routinginfo for a LOCAL hop.
+class MBOXInfo:
+    """Represents the routinginfo for an MBOX hop.
 
        Fields: user (a user identifier), tag (an arbitrary tag, optional)."""
     def __init__(self, user, tag):

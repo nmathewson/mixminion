@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.6 2002/07/28 22:42:33 nickm Exp $ */
+/* $Id: tls.c,v 1.7 2002/08/06 16:09:21 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -93,6 +93,7 @@ const char mm_TLSContext_new__doc__[] =
    "Allocates a new TLSContext object.  The files, if provided, are used\n"
    "contain the PEM-encoded X509 public keys, private key, and DH\n"
    "parameters for this context.\n\n"
+   "If a cert is provided, assume we're working in server mode, and allow\n"
    "BUG:In the future, certs, pks, and dh parameters will be first-class.\n\n"
    "LIMITATION: We don\'t expose any more features than Mixminion needs.\n";
 
@@ -174,15 +175,17 @@ mm_TLSContext_dealloc(mm_TLSContext *self)
 }
 
 static char mm_TLSContext_sock__doc__[] = 
-   "context.sock(socket)\n\n"
+   "context.sock(socket, [serverMode])\n\n"
    "Creates a new TLS socket to send and receive from a given underlying\n"
-   "socket.";
+   "socket.\n\n"
+   "If serverMode is set, allow incoming non-DHE connections.\n";
 
 static PyObject *
 mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-	static char *kwlist[] = { "socket", NULL };
+	static char *kwlist[] = { "socket", "serverMode", NULL };
 	PyObject *sockObj;
+	int serverMode = 0;
 	int sock;
 
 	SSL_CTX *ctx;
@@ -190,8 +193,8 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 	SSL *ssl;
 	mm_TLSSock *ret;
 	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:sock", 
-					 kwlist, &sockObj))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:sock", 
+					 kwlist, &sockObj, &serverMode))
 		return NULL;
 	assert(mm_TLSContext_Check(self));
 
@@ -204,6 +207,12 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	if (!(ssl = SSL_new(ctx))) {
 		mm_SSL_ERR(0); return NULL;
+	}
+
+	if (serverMode && !SSL_set_cipher_list(ssl, 
+		    TLS1_TXT_DHE_RSA_WITH_AES_128_SHA ":"
+		    SSL3_TXT_RSA_DES_192_CBC3_SHA)) {
+		mm_SSL_ERR(0); SSL_free(ssl); return NULL;
 	}
 
 	if (!(bio = BIO_new_socket(sock, BIO_NOCLOSE))) {

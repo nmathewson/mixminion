@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.5 2002/07/25 15:52:57 nickm Exp $
+# $Id: MMTPClient.py,v 1.6 2002/08/06 16:09:21 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -52,9 +52,9 @@ class BlockingClientConnection:
         ####
         # Protocol negotiation
         # For now, we only support 1.0
-        self.tls.write("PROTOCOL 1.0\r\n")
+        self.tls.write("MMTP 1.0\r\n")
         inp = self.tls.read(len("PROTOCOL 1.0\r\n"))
-        if inp != "PROTOCOL 1.0\r\n":
+        if inp != "MMTP 1.0\r\n":
             raise MixProtocolError("Protocol negotiation failed")
         
     def sendPacket(self, packet):

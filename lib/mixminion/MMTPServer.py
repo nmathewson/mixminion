@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.7 2002/07/25 15:52:57 nickm Exp $
+# $Id: MMTPServer.py,v 1.8 2002/08/06 16:09:21 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -398,11 +398,11 @@ class SimpleTLSConnection(Connection):
         return self.__con.get_peer_cert_pk()
     
 #----------------------------------------------------------------------
-# XXXX Need to support future protos.
-PROTOCOL_STRING      = "PROTOCOL 1.0\r\n"
-PROTOCOL_RE = re.compile("PROTOCOL ([^\s\r\n]+)\r\n")
-SEND_CONTROL         = "SEND\r\n" #XXXX Not as in spec
-RECEIVED_CONTROL     = "RECEIVED\r\n" #XXXX Not as in spec
+PROTOCOL_STRING      = "MMTP 1.0\r\n"
+PROTOCOL_RE = re.compile("MMTP ([^\s\r\n]+)\r\n")
+SEND_CONTROL         = "SEND\r\n"
+JUNK_CONTROL         = "JUNK\r\n"
+RECEIVED_CONTROL     = "RECEIVED\r\n"
 SEND_CONTROL_LEN     = len(SEND_CONTROL)
 RECEIVED_CONTROL_LEN = len(RECEIVED_CONTROL)
 SEND_RECORD_LEN      = len(SEND_CONTROL) + MESSAGE_LEN + DIGEST_LEN
@@ -429,7 +429,11 @@ class MMTPServerConnection(SimpleTLSConnection):
         """
         trace("done w/ client sendproto")
         inp = self.getInput()
-        m = PROTOCOL_RE.match(inp)
+        m =PROTOCOL_RE.match(inp)
+
+        if not m:
+            warn("Bad protocol list.  Closing connection.")
+            self.shutdown(err=1)
         protocols = m.group(1).split(",")
         if "1.0" not in protocols:
             warn("Unsupported protocol list.  Closing connection.")
@@ -454,14 +458,24 @@ class MMTPServerConnection(SimpleTLSConnection):
         msg = data[SEND_CONTROL_LEN:-DIGEST_LEN]
         digest = data[-DIGEST_LEN:]
 
-        if (not (data.startswith(SEND_CONTROL) and
-                 sha1(msg+"SEND") == digest)):
+        if data.startswith(JUNK_CONTROL):
+            expectedDigest = sha1(msg+"JUNK")
+            replyDigest = sha1(msg+"RECEIVED JUNK")
+        elif data.startswith(SEND_CONTROL):
+            expectedDigest = sha1(msg+"SEND")
+            replyDigest = sha1(msg+"RECEIVED")
+        else:
+            warn("Unrecognized command.  Closing connection.")
+            self.shutdown(err=1)
+            return
+        if expectedDigest != digest:
             warn("Invalid checksum. Closing connection.")
             self.shutdown(err=1)
+            return
         else:
             debug("Packet received; Checksum valid.")
             self.finished = self.__sentAck
-            self.beginWrite(RECEIVED_CONTROL+sha1(msg+"RECEIVED"))
+            self.beginWrite(RECEIVED_CONTROL+replyDigest)
             self.messageConsumer(msg)
 
     def __sentAck(self):
@@ -553,7 +567,7 @@ class MMTPClientConnection(SimpleTLSConnection):
        """Called when we're done reading the ACK.  If the ACK is bad,
           closes the connection.  If the ACK is correct, removes the
           just-sent message from the connection's internal queue, and
-          calls sentCallback.
+          calls sentCallback with the sent message.
 
           If there are more messages to send, begins sending the next.
           Otherwise, begins shutting down.
@@ -566,9 +580,39 @@ class MMTPClientConnection(SimpleTLSConnection):
            return
 
        debug("Received valid ACK for message.")
+       justSent = self.messageList[0]
        del self.messageList[0]
        if self.sentCallback is not None:
-           self.sentCallback()
+           self.sentCallback(justSent)
 
        self.beginNextMessage()
 
+class MMTPServer(AsyncServer):
+    "XXXX"
+    def __init__(self, config):
+        self.context = config.getTLSContext(server=1)
+        self.listener = ListenConnection("127.0.0.1",
+                                         config['Outgoing/MMTP']['Port']
+                                         10, self._newMMTPConnection)
+        self.config = config
+        self.listener.register(self)
+
+    def _newMMTPConnection(self, sock):
+        "XXXX"
+        # XXXX Check whether incoming IP is valid XXXX
+        tls = self.context.sock(sock, serverMode=1)
+        sock.setblocking(0)
+        con = MMTPServerConnection(sock, tls, self.onMessageReceived)
+        con.register(self)
+        
+    def sendMessages(self, ip, port, keyID, messages):
+        con = MMTPClientConnection(ip, port, keyID, messages,
+                                   self.onMessageSent)
+        con.register(self)
+
+    def onMessageReceived(self, msg):
+        pass
+
+    def onMessageSent(self, msg):
+        pass
+    

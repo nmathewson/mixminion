@@ -9,49 +9,44 @@ SPEC	- Spec not finalized
 NEEDS TO BE WRITTEN
 
 FOR 0.0.1: (The rough edges release)
-	*- Local delivery module
+	. Module system
+		o Stub classes
+		o Modules are configurable
+		. Modules are loadable
+			o Implement
+			- Test
+		. Modules are self-descibing
+			o Implement
+			- Test
+		*. MBox module
+			*- Implement
+			*- Test
+	*- Server
+		- Main loop for server
+		- Startup, config
+		- Load keys
+		o Design directory layout
+	*- CLI for server
+		*- Run server
+		*- Generate future key/publish to dirserver
+
 	- CLI client
 		- Send a message
 		- Generate a message
 		- Generate a reply block
 		- Read message from reply block
 		- Design directory layout
-	*- Config
+	- Config
+		o Infer nickname
+		- Infer IP
 		- Validation function for client
 		- Validation function for server		
-	o Server description blocks
-		o Tests for crypto.sign	
-		o Implementation
-		o Generate server blocks
-			o Basic generation
-			o Keygen
-			o Extra fields
-			o Section inclusion rules
-			o Expiry
-		o Document code
-		o Tests for generation
-			o Generate from maximal config file
-				o Generate ok
-				o Check contents
-				o Check keys
-			o Generate from minimal config file
-		o Tests for implementation
-			o Restricted conffile mode
-			o Bad digests, overlong fields, bad sigs, etc
-		o Bugfixes
-			o Allow/deny on incoming???
-	*- Re-merge MMTP changes
-	*- Server
-		- Main loop for server
-		- Startup, config
-		o Design directory layout
 	- Clean shutdown for server
-	*- CLI for server
-		*- Run server
-		*- Generate future key/publish to dirserver
 
-	- MMTP		
+	- MMTP	
+		- Code to send junk
 		. Tests for all cases:
+			- Junk
 			- Multiple senders
 			- Bad senders
 			- Bad recipients

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.7 2002/07/28 22:42:33 nickm Exp $
+# $Id: ServerInfo.py,v 1.8 2002/08/06 16:09:21 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -13,6 +13,7 @@ __all__ = [ 'ServerInfo' ]
 import time
 import os
 import binascii
+import socket
 
 from mixminion.Modules import SWAP_FWD_TYPE, FWD_TYPE
 from mixminion.Packet import IPV4Info
@@ -62,16 +63,16 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Allow": ("ALLOW*", C._parseAddressSet_allow, None),
                      "Deny": ("ALLOW*", C._parseAddressSet_deny, None),
 		     },
-	"Modules/MMTP" : {
+	"Outgoing/MMTP" : {
  	             "Version": ("REQUIRE", None, None),
 		     "Protocols": ("REQUIRE", None, None),
                      "Allow": ("ALLOW*", C._parseAddressSet_allow, None),
                      "Deny": ("ALLOW*", C._parseAddressSet_deny, None),
 		     },
-	"Modules/MBOX" : {
+	"Delivery/MBOX" : {
    	             "Version": ("REQUIRE", None, None),
 		     },
-	"Modules/SMTP" : {
+	"Delivery/SMTP" : {
            	     "Version": ("REQUIRE", None, None),
 		     }
 	}
@@ -241,7 +242,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 
     nickname = config['Server']['Nickname']
     if not nickname:
-        nickname = config['Incoming/MMTP'].get('IP', "<Unnamed server>")
+        nickname = socket.gethostname()
+        if not nickname or nickname.lower().startswith("localhost"):
+            nickname = config['Incoming/MMTP'].get('IP', "<Unknown host>")
     contact = config['Server']['Contact-Email']
     comments = config['Server']['Comments']
     if not validAt:
@@ -305,7 +308,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 
     if config["Outgoing/MMTP"].get("Enabled", 0):
 	info += """\
-            [Modules/MMTP]
+            [Outgoing/MMTP]
 	    Version: 1.0
             Protocols: 1.0
             """
@@ -314,12 +317,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                 continue
             info += "%s: %s" % (k, _rule(k=='Allow',v))
 
-    if config["Delivery/MBOX"].get("Enabled", 0):
-	info += """\
-            [Modules/MBOX]
-            Version: 1.0
-            """
-	
+    info += "".join(config.moduleManager.getServerInfoBlocks())
+
     # Remove extra (leading) whitespace.
     lines = [ line.strip() for line in info.split("\n") ]
     # Remove empty lines

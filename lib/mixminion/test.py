@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.15 2002/07/28 22:42:33 nickm Exp $
+# $Id: test.py,v 1.16 2002/08/06 16:09:21 nickm Exp $
 
 """mixminion.tests
 
@@ -523,9 +523,9 @@ class FormatTests(unittest.TestCase):
         self.failUnlessRaises(ParseError, parseIPV4Info, ri+"x")
     
 
-    def test_smtpinfolocalinfo(self):
+    def test_smtpinfomboxinfo(self):
         for _class, _parse, _key in ((SMTPInfo, parseSMTPInfo, 'email'),
-                                     (LocalInfo, parseLocalInfo, 'user')):
+                                     (MBOXInfo, parseMBOXInfo, 'user')):
             ri = "no-such-user@wangafu.net\x00xyzzy"
             inf = _parse(ri)
             self.assertEquals(getattr(inf,_key), "no-such-user@wangafu.net")
@@ -776,7 +776,7 @@ class BuildMessageTests(unittest.TestCase):
         longStr2 = longStr * 2
 
         def getLongRoutingInfo(longStr2=longStr2):
-            return LocalInfo("fred",longStr2)
+            return MBOXInfo("fred",longStr2)
 
         server4 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
         server4.getRoutingInfo = getLongRoutingInfo
@@ -961,7 +961,7 @@ class BuildMessageTests(unittest.TestCase):
                      "fred", "Galaxy Far Away.", 0)
 
         sec,(loc,) = self.do_header_test(reply.header, pks_1, None,
-                            (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,LOCAL_TYPE),
+                            (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
                             infos+(None,))
         s = "fred\x00RTRN"
         self.assert_(loc.startswith(s))
@@ -974,7 +974,7 @@ class BuildMessageTests(unittest.TestCase):
                       self.server1, self.server3],
                      "fred", None)
         sec,(loc,) = self.do_header_test(reply.header, pks_1, None,
-                            (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,LOCAL_TYPE),
+                            (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
                                          infos+(None,))
         self.assert_(loc.startswith(s))
         seed = loc[len(s):]
@@ -1099,7 +1099,7 @@ class PacketHandlerTests(unittest.TestCase):
             def pack(self): return "x"*200
         server1X.getRoutingInfo = lambda _packable=_packable: _packable()
 
-        m = bfm("Z", LOCAL_TYPE, "hello\000bye",
+        m = bfm("Z", MBOX_TYPE, "hello\000bye",
                 [self.server2, server1X, self.server3],
                 [server1X, self.server2, self.server3])
         self.failUnlessRaises(ContentError, self.sp2.processMessage, m)
@@ -1123,7 +1123,7 @@ class PacketHandlerTests(unittest.TestCase):
         prng = AESCounterPRNG(" "*16)
         reply1,s = brb([self.server1], SMTP_TYPE, "fred@invalid",0,prng)
         prng = AESCounterPRNG(" "*16)
-        reply2,s = brb([self.server2], LOCAL_TYPE, "foo",0,prng)
+        reply2,s = brb([self.server2], MBOX_TYPE, "foo",0,prng)
         m = brm("Y", [self.server3], reply1)
         m2 = brm("Y", [self.server3], reply2)
         q, (a,m) = self.sp3.processMessage(m)
@@ -1174,7 +1174,7 @@ class PacketHandlerTests(unittest.TestCase):
 
         # Subhead that claims to be impossibly long: exit case
         subh = parseSubheader(subh_real)
-        subh.routingtype = LOCAL_TYPE
+        subh.routingtype = MBOX_TYPE
         subh.setRoutingInfo("X"*10000)
         m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
@@ -1192,7 +1192,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
 
         # Corrupt payload
-        m = bfm("Z", LOCAL_TYPE, "Z", [self.server1, self.server2],
+        m = bfm("Z", MBOX_TYPE, "Z", [self.server1, self.server2],
                 [self.server3])
         m_x = m[:-30] + " "*30
         assert len(m_x) == len(m)
@@ -1439,7 +1439,7 @@ def _getMMTPServer():
             m.append(pkt)
         def conFactory(sock, context=_getTLSContext(1),
                        receiveMessage=receivedHook):
-            tls = context.sock(sock)
+            tls = context.sock(sock, serverMode=1)
             sock.setblocking(0)
             return mixminion.MMTPServer.MMTPServerConnection(sock,tls,
                                                              receiveMessage)
@@ -1467,7 +1467,7 @@ class MMTPTests(unittest.TestCase):
                     self.server.process(0.1)
                     count = count + 1
 
-    def ___testBlockingTransmission(self):
+    def testBlockingTransmission(self):
         self.doTest(self._testBlockingTransmission)
 
     def testNonblockingTransmission(self):
@@ -1542,8 +1542,6 @@ class MMTPTests(unittest.TestCase):
             while not clientcon.isShutdown():
                 async.process(2)
             
-
-
         severity = getLog().getMinSeverity()
         getLog().setMinSeverity("ERROR") #suppress warning
         try:
@@ -1807,7 +1805,7 @@ SERVER_CONFIG = """
 [Server]
 EncryptIdentityKey: no
 PublicKeyLifetime: 10 days
-EncryptPublicKey: no
+EncryptPrivateKey: no
 Mode: relay
 Nickname: The Server
 Contact-Email: a@b.c
@@ -1826,14 +1824,15 @@ Enabled = yes
 Allow: *
 
 [Delivery/MBOX]
-Enabled: yes
+Enabled: no
+
 """
 
 SERVER_CONFIG_SHORT = """
 [Server]
 EncryptIdentityKey: no
 PublicKeyLifetime: 10 days
-EncryptPublicKey: no
+EncryptPrivateKey: no
 Mode: relay
 """
 
@@ -1870,8 +1869,8 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Incoming/MMTP']['Version'], "1.0")
         eq(info['Incoming/MMTP']['Port'], 48099)
         eq(info['Incoming/MMTP']['Protocols'], "1.0")
-        eq(info['Modules/MMTP']['Version'], "1.0")
-        eq(info['Modules/MMTP']['Protocols'], "1.0")
+        eq(info['Outgoing/MMTP']['Version'], "1.0")
+        eq(info['Outgoing/MMTP']['Protocols'], "1.0")
         eq(info['Incoming/MMTP']['Allow'], [("192.168.0.16", "255.255.255.255",
                                             1,1024),
                                            ("0.0.0.0", "0.0.0.0",
@@ -1879,7 +1878,7 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Incoming/MMTP']['Deny'], [("192.168.0.16", "255.255.255.255",
                                             0,65535),
                                            ])
-        eq(info['Modules/MBOX']['Version'], "1.0")
+        eq(info['Delivery/MBOX']['Version'], "1.0")
 
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.10 2002/07/26 20:52:17 nickm Exp $
+# $Id: BuildMessage.py,v 1.11 2002/08/06 16:09:21 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -70,7 +70,7 @@ def buildStatelessReplyBlock(path, user, userKey, email=0, expiryTime=0):
                   path: a list of ServerInfo objects
                   user: the user's username/email address
                   userKey: an AES key to encrypt the seed, or None.
-                  email: If true, delivers via SMTP; else delivers via LOCAL.
+                  email: If true, delivers via SMTP; else delivers via MBOX
        """
     #XXXX Out of sync with the spec.
     if email and userKey:
@@ -86,8 +86,8 @@ def buildStatelessReplyBlock(path, user, userKey, email=0, expiryTime=0):
         exitType = Modules.SMTP_TYPE
         exitInfo = SMTPInfo(user, "RTRN"+tag).pack()
     else:
-        exitType = Modules.LOCAL_TYPE
-        exitInfo = LocalInfo(user, "RTRN"+tag).pack()
+        exitType = Modules.MBOX_TYPE
+        exitInfo = MBOXInfo(user, "RTRN"+tag).pack()
 
     prng = Crypto.AESCounterPRNG(seed)
     return buildReplyBlock(path, exitType, exitInfo, expiryTime, prng)[0]

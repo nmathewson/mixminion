@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.6 2002/07/28 22:42:33 nickm Exp $
+# $Id: Config.py,v 1.7 2002/08/06 16:09:21 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -28,7 +28,6 @@
    Key3 = value3
    # A comment
    Key4=value4
-
    [Section2]
    Key5 value5
       value5 value5 value5
@@ -53,6 +52,7 @@ import os
 import re
 import binascii
 import time
+import copy
 from cStringIO import StringIO
 
 import mixminion.Common
@@ -422,6 +422,7 @@ class _ConfigFile:
     #  _sections: A map from secname->key->value.
     #  _sectionEntries: A  map from secname->[ (key, value) ] inorder.
     #  _sectionNames: An inorder list of secnames.
+    #  _callbacks: XXXX DOC
     #
     # Fields to be set by a subclass:
     #     _syntax is map from sec->{key:
@@ -451,6 +452,9 @@ class _ConfigFile:
            steps.  (Use this to load a file that's already been checked as
            valid.)"""
         assert filename is None or string is None
+        if not hasattr(self, '_callbacks'):
+            self._callbacks = {}
+
         self.assumeValid = assumeValid
         self.fname = filename
         if filename:
@@ -568,6 +572,10 @@ class _ConfigFile:
                         assert rule == 'ALLOW*'
                         section[k] = map(parseFn,default)
 
+            cb = self._callbacks.get(secName, None)
+            if cb:
+                cb(section, sectionEntries)
+
         # Check for missing required sections, setting any missing
         # allowed sections to {}.
         for secName, secConfig in self._syntax.items():
@@ -594,6 +602,11 @@ class _ConfigFile:
         self._sections = self_sections
         self._sectionEntries = self_sectionEntries
         self._sectionNames = self_sectionNames
+
+    def _addCallback(self, section, cb):
+        if not hasattr(self, '_callbacks'):
+            self._callbacks = {}
+        self._callbacks[section] = cb
 
     def validate(self, sections, sectionEntries, entryLines,
 		 fileContents):
@@ -652,9 +665,8 @@ class ClientConfig(_ConfigFile):
         #XXXX Write this
         pass
 
-class ServerConfig(_ConfigFile):
-    _restrictFormat = 0
-    _syntax = {
+
+SERVER_SYNTAX =  {
         'Host' : ClientConfig._syntax['Host'],
         'Server' : { '__SECTION__' : ('REQUIRE', None, None),
                      'Homedir' : ('ALLOW', None, "/var/spool/minion"),
@@ -666,11 +678,13 @@ class ServerConfig(_ConfigFile):
                                             "30 days"),
                      'PublicKeySloppiness': ('ALLOW', _parseInterval,
                                              "5 minutes"),
-                     'EncryptPublicKey' : ('REQUIRE', _parseBoolean, "no"),
+                     'EncryptPrivateKey' : ('REQUIRE', _parseBoolean, "no"),
                      'Mode' : ('REQUIRE', _parseServerMode, "local"),
                      'Nickname': ('ALLOW', None, None),
                      'Contact-Email': ('ALLOW', None, None),
                      'Comments': ('ALLOW', None, None),
+                     'ModulePath': ('ALLOW', None, None),
+                     'Module': ('ALLOW*', None, None),
                      },
         'DirectoryServers' : { 'ServerURL' : ('ALLOW*', None, None),
                                'Publish' : ('ALLOW', _parseBoolean, "no"),
@@ -684,18 +698,33 @@ class ServerConfig(_ConfigFile):
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
                             'Allow' : ('ALLOW*', _parseAddressSet_allow, None),
                             'Deny' : ('ALLOW*', _parseAddressSet_deny, None) },
-        'Delivery/MBOX' : { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
-                            'AddressFile' : ('ALLOW', None, None),
-                            'Command' : ('ALLOW', _parseCommand, "sendmail") },
         }
+
+class ServerConfig(_ConfigFile):
+    _restrictFormat = 0
     # XXXX Missing: Queue-Size / Queue config options
     # XXXX         timeout options
     def __init__(self, fname=None, string=None):
+        self._syntax = SERVER_SYNTAX.copy()
+
+        import mixminion.Modules
+        self.moduleManager = mixminion.Modules.ModuleManager()
+        self._addCallback("Server", self.loadModules)    
+
         _ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
         #XXXX write this.
-        pass
+        self.moduleManager.validate(sections, entries, lines, contents)
+
+    def loadModules(self, section, sectionEntries):
+        self.moduleManager.setPath(section.get('ModulePath', None))
+        for mod in section.get('Module', []):
+            self.moduleManager.loadExtModule(mod)
+
+        self._syntax.update(self.moduleManager.getConfigSyntax())
+    
+        
     
 ##         if sections['Server']['PublicKeyLifeTime'][2] < 24*60*60:
 ##             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
