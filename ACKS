@@ -7,7 +7,7 @@ Acknowledgements
 Roger Dingledine
 Brian L. Fordham
 Lucky Green
-Peter Hendricks
+Peter Hendrickson
 Peter Palfrader
 Robyn Wagner
 Brian Warner
@@ -22,4 +22,4 @@ Bryce "Zooko" Wilcox-O'Hearn
    for their work on the Type III remailer design.
 
                                               -- Nick
-$Id: ACKS,v 1.7 2004/05/10 16:48:33 nickm Exp $
+$Id: ACKS,v 1.8 2004/05/31 02:36:03 nickm Exp $
