@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.26 2002/12/31 17:40:54 nickm Exp $
+# $Id: BuildMessage.py,v 1.27 2002/12/31 17:47:41 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -13,7 +13,7 @@ import mixminion.Crypto as Crypto
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG
 
-if sys.version[:3] < (2,2,0):
+if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
 
 __all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
