@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.25 2003/08/31 19:29:29 nickm Exp $
+# $Id: PacketHandler.py,v 1.26 2003/09/03 15:54:40 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -290,15 +290,25 @@ class DeliveryPacket:
         self.dPayload = None
         self.error = None
 
+    def __getstate__(self):
+        return "V0", self.__dict__
+        
     def __setstate__(self, state):
-        self.__dict__.update(state)
-        # XXXX006 remove
-        if not hasattr(self, 'isfrag'):
-            self.isfrag = 0
-        if not hasattr(self, 'dPayload'):
-            self.dPayload = None
-        if not hasattr(self, 'error'):
-            self.error = None
+        if type(state) == types.DictType:
+            #XXXX006 remove this case.
+            self.__dict__.update(state)
+            if not hasattr(self, 'isfrag'):
+                self.isfrag = 0
+            if not hasattr(self, 'dPayload'):
+                self.dPayload = None
+            if not hasattr(self, 'error'):
+                self.error = None
+            if not hasattr(self, 'headers'):
+                self.headers = {}
+        elif state[0] == 'V0':
+            self.__dict__.update(state[1])
+        else:
+            raise MixError("Unrecognized state version %s", state[0])
 
     def isDelivery(self):
         """Return true iff this packet is a delivery (non-relay) packet."""
@@ -406,7 +416,9 @@ class DeliveryPacket:
         """Return a dict containing the headers for this message."""
         if self.type is None:
             self.decode()
-        assert self.headers is not None
+        if self.headers is None:
+            LOG.warn("getHeaders found no decoded headers")
+            return {}
         return self.headers
 
     def getAsciiTag(self):
