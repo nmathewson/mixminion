@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.3 2002/07/01 18:03:05 nickm Exp $
+# $Id: Queue.py,v 1.4 2002/07/05 19:50:27 nickm Exp $
 
 """mixminion.Queue
 
@@ -11,7 +11,7 @@ import base64
 import time
 import stat
 
-from mixminion.Common import MixError, MixFatalError, secureDelete
+from mixminion.Common import MixError, MixFatalError, secureDelete, warn
 from mixminion.Crypto import AESCounterPRNG
 
 __all__ = [ 'Queue' ]
@@ -65,8 +65,7 @@ class Queue:
         self.dir = location
 
         if not os.path.isabs(location):
-            #FFFF Need a warning mechanism.
-            print "Warning: queue path '%s' isn't absolute"%location
+            warn("Queue path %s isn't absolute.", location)
 
         if os.path.exists(location) and not os.path.isdir(location):
             raise MixFatalError("%s is not a directory" % location)
@@ -81,8 +80,7 @@ class Queue:
         mode = os.stat(location)[stat.ST_MODE]
         if mode & 0077:
             # FFFF be more Draconian.
-            # FFFF Need a warning mechanism.
-            print "Worrisome mode %o on directory %s" % (mode, location)
+            warn("Worrisome more %o on directory %s", mode, location)
 
         if scrub:
             self.cleanQueue(1)

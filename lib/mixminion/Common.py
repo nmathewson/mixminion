@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.6 2002/07/01 18:03:05 nickm Exp $
+# $Id: Common.py,v 1.7 2002/07/05 19:50:27 nickm Exp $
 
 """mixminion.Common
 
@@ -7,11 +7,13 @@
 
 __all__ = [ 'MixError', 'MixFatalError', 'onReset', 'onTerminate',
             'installSignalHandlers', 'secureDelete', 'secureRename',
-            'ceilDiv', 'floorDiv', 'log', 'debug' ]
+            'ceilDiv', 'floorDiv', 'debug', 'warn', 'info', 'error',
+            'fatal' ]
 
 import os
 import signal
 import sys
+import time
 from types import StringType
 
 class MixError(Exception):
@@ -56,9 +58,7 @@ def ceilDiv(a,b):
 _SHRED_CMD = "/usr/bin/shred"
 
 if not os.path.exists(_SHRED_CMD):
-    # XXXX use real logging
-    log("Warning: %s not found. Files will not be securely deleted." %
-        _SHRED_CMD)
+    warn("%s not found. Files will not be securely deleted.", _SHRED_CMD)
     _SHRED_CMD = None
 
 def secureDelete(fnames, blocking=0):
@@ -97,10 +97,80 @@ def secureDelete(fnames, blocking=0):
 
 #----------------------------------------------------------------------
 # Logging
+#
+# I'm trying to make this interface look like a subset of the one in
+# the draft PEP-0282 (http://www.python.org/peps/pep-0282.html).
 
-# XXXX Placeholder for a real logging mechanism
-def log(s):
-    print s
+#XXXX XXXX DOC DOC DOCDOC
+
+def _logtime():
+    #XXXX Is this guaranteed to work?
+    return time.strftime("%b %d %H:%m:%S")
+
+class FileLogTarget:
+    def __init__(self, fname):
+        self.file = None
+        self.fname = fname
+        self.reset()
+    def reset(self):
+        if self.file is not None:
+            self.file.close()
+        self.file = open(self.fname, 'a')
+    def close(self):
+        self.file.close()
+    def write(self, severity, message):
+        print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
+        
+class ConsoleLogTarget: 
+    def __init__(self, file):
+        self.file = file 
+    def reset(self): pass
+    def close(self): pass
+    def write(self, severity, message):
+        print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
+
+class Log:
+    def __init__(self, minSeverity):
+        self.handlers = []
+
+    def addHandler(self, handler):
+        self.handlers.append(handler)
+
+    def reset(self):
+        for h in self.handlers:
+            h.reset()
+
+    def close(self):
+        for h in self.handlers:
+            h.close()
+        
+    def log(self, severity, message, *args):
+        # Check that severity is okay.
+        for h in self.handlers:
+            h.write(severity, message % args)
+
+    def debug(self, message, *args):
+        # Need a means to filter messages
+        self.log("DEBUG", message, *args)
+    def info(self, message, *args):
+        self.log("INFO", message, *args)
+    def warn(self, message, *args):
+        self.log("WARN", message, *args)
+    def error(self, message, *args):
+        self.log("ERROR", message, *args)
+    def fatal(self, message, *args):
+        self.log("FATAL", message, *args)
+
+_theLog = Log('DEBUG')
+_theLog.addHandler(ConsoleLogTarget(sys.stderr))
+# XXXX Configure the log for real
+
+log = _theLog.log
+debug = _theLog.debug
+info = _theLog.info
+warn = _theLog.warn
+error = _theLog.error
+fatal = _theLog.fatal
 
 #----------------------------------------------------------------------
 # Signal handling
