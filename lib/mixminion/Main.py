@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.62 2003/11/24 19:59:04 nickm Exp $
+# $Id: Main.py,v 1.63 2003/11/26 18:21:49 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -271,8 +271,8 @@ def main(args):
     # Read the 'common' module to get the UIError class.  To simplify
     # command implementation code, we catch all UIError exceptions here.
     commonModule = __import__('mixminion.Common', {}, {}, ['UIError'])
-    uiErrorClass = getattr(commonModule, 'UIError')
-    filePermissionErrorClass = getattr(commonModule, 'MixFilePermissionError')
+    uiErrorClass = commonModule.UIError
+    filePermissionErrorClass = commonModule.MixFilePermissionError
 
     # Read the module and function.
     command_module, command_fn = _COMMANDS[args[1]]

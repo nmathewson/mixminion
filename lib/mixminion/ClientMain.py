@@ -126,6 +126,8 @@ class ClientKeyring:
             # new keys, so this check is always necessary.
             if self.keyring.isDirty():
                 self.keyring.save()
+
+        assert 0 # Unreached.
         
     def getSURBKeys(self, password=None):
         """Return the keys for _all_ SURB identities as a list of
@@ -1304,7 +1306,6 @@ def listServers(cmd, args):
         features.append(("caps",))
         features.append(("status",))
         for f in features:
-            fCanon = f[0]
             if len(f)>1:
                 print "%-30s (abbreviate as %s)" % (
                     f[0], englishSequence(f[1:],compound="or"))

@@ -251,7 +251,7 @@ class _LazyEncryptedStore:
         self.initFn = initFn
         self.obsoleteMagic = [] 
         
-    def load(self, create=0,password=None):
+    def load(self, create=0,password=None,now=None):
         """Try to load the encrypted file from disk.  If 'password' is
            not provided, query it from the password manager.  If the file
            does not exist, and 'create' is true, get a new password and
@@ -260,9 +260,9 @@ class _LazyEncryptedStore:
             # No need to re-load an already-loaded object.
             return 
         elif os.path.exists(self.fname):
-            # Okay, the file is there. Snarf it from disk and try to give a
-            # good warning for its magic string.
-            contents = readFile(self.fname)
+##             # Okay, the file is there. Snarf it from disk and try to give a
+##             # good warning for its magic string.
+##             contents = readFile(self.fname)
 ##             if contents[:8] in self.obsoleteMagic:
 ##                 raise MixError("Found an obsolete keyring at %r.  Remove this file to use SURBs with this version of Mixminion."%self.fname)
 ##             if len(contents)<8 or contents[:8] not in self.okMagic:

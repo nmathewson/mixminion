@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.66 2003/11/24 19:59:04 nickm Exp $
+# $Id: Packet.py,v 1.67 2003/11/26 18:21:49 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -994,7 +994,7 @@ def _validateZlib():
        would make senders partitionable by payload compression.)
     """
     global _ZLIB_LIBRARY_OK
-    ver = getattr(zlib, "ZLIB_VERSION")
+    ver = getattr(zlib, "ZLIB_VERSION", None)
     if ver and ver < "1.1.2":
         raise MixFatalError("Zlib version %s is not supported"%ver)
 
