@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.50.2.2 2003/10/01 14:57:54 nickm Exp $
+# $Id: MMTPServer.py,v 1.50.2.3 2003/10/31 01:17:25 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -1069,7 +1069,8 @@ class MMTPAsyncServer(AsyncServer):
     def __init__(self, config, tls):
         AsyncServer.__init__(self)
 
-        self.context = tls
+        self.serverContext = tls
+        self.clientContext = _ml.TLSContext_new()
         # FFFF Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs
 
@@ -1093,7 +1094,7 @@ class MMTPAsyncServer(AsyncServer):
     def setContext(self, context):
         """Change the TLS context used for newly received connections.
            Used to rotate keys."""
-        self.context = context
+        self.serverContext = context
 
     def getNextTimeoutTime(self, now=None):
         """Return the time at which we next purge connections, if we have
@@ -1106,7 +1107,7 @@ class MMTPAsyncServer(AsyncServer):
         """helper method.  Creates and registers a new server connection when
            the listener socket gets a hit."""
         # FFFF Check whether incoming IP is allowed!
-        tls = self.context.sock(sock, serverMode=1)
+        tls = self.serverContext.sock(sock, serverMode=1)
         sock.setblocking(0)
         con = MMTPServerConnection(sock, tls, self.onMessageReceived)
         con.register(self)
@@ -1140,7 +1141,7 @@ class MMTPAsyncServer(AsyncServer):
             # There isn't any connection to the right server. Open one...
             addr = (ip, port, keyID)
             finished = lambda addr=addr, self=self: self.__clientFinished(addr)
-            con = MMTPClientConnection(self.context,
+            con = MMTPClientConnection(self.clientContext,
                                      ip, port, keyID, deliverable,
                                      finishedCallback=finished,
                                      certCache=self.certificateCache)
