@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.8 2003/08/18 00:41:11 nickm Exp $ */ 
+/* $Id: fec.c,v 1.9 2003/08/21 21:32:30 nickm Exp $ */ 
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -192,7 +192,8 @@ gf_mul(x,y)
  * i use malloc so many times, it is easier to put checks all in
  * one place.
  *
- * XXXX005 Pythonize this. -NM 
+ * XXXX Use Python's memory allocation instead, and raise an OOM error
+ * XXXX as appropriate.
  */
 static void *
 my_malloc(int sz, char *err_string)

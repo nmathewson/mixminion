@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.27 2003/07/14 15:38:50 nickm Exp $ */
+/* $Id: crypt.c,v 1.28 2003/08/21 21:32:30 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -326,12 +326,12 @@ static HCRYPTPROV getProvider()
                                  PROV_RSA_FULL,
                                  0)) {
                 if (GetLastError() != NTE_BAD_KEYSET) {
-                        /* XXXX005 error */
+                        /* XXXX006 error */
                         return 0;
                 }
                 if (!CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL,
                                         CRYPT_NEWKEYSET)) {
-                        /* XXXX005 error */
+                        /* XXXX006 error */
                         return 0;
                 }
         }
@@ -365,7 +365,7 @@ mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
         }
 
         if (!(p = getProvider())) {
-                TYPE_ERR("XXXX005 internal error 2 ");
+                TYPE_ERR("XXXX006 internal error 2 ");
                 return NULL;
         }
 
@@ -381,9 +381,9 @@ mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
         Py_END_ALLOW_THREADS
         
         if (!r) {
-               /*XXXX005 error */
+               /*XXXX006 error */
                Py_DECREF(result);
-               TYPE_ERR("XXXX005 internal error ");
+               TYPE_ERR("XXXX006 internal error ");
                return NULL;
         }
 
