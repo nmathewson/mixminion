@@ -134,8 +134,8 @@ For 0.0.4:
                                 o replace old ones if superceded, 
                                   reject them if invalid,
                                   and queue them if unrecognized.
+     5                          o The actual CGI
 2                               - Tests for above
-.5-1.5                         *. The actual CGI
                         o Ability to move servers from queue to good-list.
 0.5                             - Tests
                         . Code to remember whether descriptors are published,

@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.3 2003/05/26 21:08:13 nickm Exp $
+# $Id: Directory.py,v 1.4 2003/05/27 04:56:48 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -19,9 +19,13 @@ from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
      formatBase64, writePickled, readPickled
 
 class Directory:
-    def __init__(self, config):
+    def __init__(self, config=None, location=None):
         self.config = config
-        self.location = config['Directory-Store']['Homedir']
+        if config and not location:
+            self.location = config['Directory-Store']['Homedir']
+        else:
+            self.location = location
+        assert location
         self.inboxBase = os.path.join(self.location, "inbox")
         self.directoryBase = os.path.join(self.location, "dir")
         self.cacheFile = os.path.join(self.location, "identity_cache")
