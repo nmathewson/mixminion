@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.64 2003/02/20 00:31:12 nickm Exp $
+# $Id: ClientMain.py,v 1.65 2003/02/20 00:34:35 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1271,7 +1271,6 @@ class ClientPool:
         timesByServer = {}
         for h in handles:
             _, routing, when = self.getPacket(h)
-            print str(routing)
             timesByServer.setdefault(routing, []).append(when)
         for s in timesByServer.keys():
             count = len(timesByServer[s])
