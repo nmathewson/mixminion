@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.7 2003/01/03 05:14:47 nickm Exp $
+# $Id: ServerConfig.py,v 1.8 2003/01/05 01:30:20 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -184,5 +184,4 @@ SERVER_SYNTAX =  {
         # FFFF Missing: Queue-Size / Queue config options
         # FFFF         listen timeout??
         # FFFF         Retry options
-        # FFFF         pool options
         }

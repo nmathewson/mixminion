@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.13 2002/12/31 04:38:00 nickm Exp $
+# $Id: ServerMain.py,v 1.14 2003/01/05 01:30:20 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -258,7 +258,7 @@ class MixminionServer:
                        self.incomingQueue.count())
 
         mixDir = os.path.join(queueDir, "mix")
-        # FFFF The choice of mix algorithm should be configurable
+
         LOG.trace("Initializing Mix pool")
         self.mixPool = MixPool(config, mixDir)
         LOG.trace("Found %d pending messages in Mix pool",
@@ -300,8 +300,14 @@ class MixminionServer:
         LOG.trace("Next mix at %s", formatTime(nextMix,1))
         scheduledEvents.sort()
 
-        #FFFF Unused
-        #nextRotate = self.keyring.getNextKeyRotation()
+        # FFFF Support for automatic key rotation.
+
+        # ???? Our cuurent approach can make the server unresponsive when 
+        # ???? mixing many messages at once: We stop answering requests, and
+        # ???? don't start again until we've delivered all the pending
+        # ???? messages!  Also, we process every packet as soon as it arrives,
+        # ???? which can also make the system pause for a few ms at a time.
+        # ????   Possible solutions:  Multiple threads or processes...?
         while 1:
             nextEventTime = scheduledEvents[0][0]
             timeLeft = nextEventTime - time.time()
@@ -321,11 +327,12 @@ class MixminionServer:
             del scheduledEvents[0]
 
             if event == 'TIMEOUT':
-                LOG.info("Timing out.")
+                LOG.debug("Timing out old connections")
                 self.mmtpServer.tryTimeout(now)
                 insort(scheduledEvents,
                        (self.mmtpServer.getNextTimeoutTime(now), "TIMEOUT"))
             elif event == 'SHRED':
+                LOG.debug("Overwriting deleted files")
                 self.cleanQueues()
                 insort(scheduledEvents,
                        (now + 6000, "SHRED"))
