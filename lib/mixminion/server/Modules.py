@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
+# $Id: Modules.py,v 1.3 2002/12/15 04:35:55 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -186,6 +186,8 @@ class ModuleManager:
     #    queueRoot: directory where all the queues go.
     #    queues: a map from module name to queue (Queue objects must support
     #            queueMessage and sendReadyMessages as in DeliveryQueue.)
+    #    _isConfigured: flag: has this modulemanager's configure method been
+    #            called?
 
     def __init__(self):
 	"Create a new ModuleManager"
@@ -202,6 +204,12 @@ class ModuleManager:
         self.registerModule(MBoxModule())
         self.registerModule(DropModule())
         self.registerModule(MixmasterSMTPModule())
+
+        self._isConfigured = 0
+
+    def isConfigured(self):
+        """Return true iff this object's configure method has been called"""
+        return self._isConfigured
 
     def _setQueueRoot(self, queueRoot):
 	"""Sets a directory under which all modules' queue directories
@@ -269,6 +277,7 @@ class ModuleManager:
 	createPrivateDir(self.queueRoot)
         for m in self.modules:
             m.configure(config, self)
+        self._isConfigured = 1
 
     def enableModule(self, module):
 	"""Sets up the module manager to deliver all messages whose exitTypes

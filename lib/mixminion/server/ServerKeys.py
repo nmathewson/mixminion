@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.1 2002/12/12 19:56:47 nickm Exp $
+# $Id: ServerKeys.py,v 1.2 2002/12/15 04:35:55 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -502,6 +502,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
             if k not in ("Allow", "Deny"):
                 continue
             info += "%s: %s" % (k, _rule(k=='Allow',v))
+
+    if not config.moduleManager.isConfigured():
+        config.moduleManager.configure(config)
 
     # Ask our modules for their configuration information.
     info += "".join(config.moduleManager.getServerInfoBlocks())

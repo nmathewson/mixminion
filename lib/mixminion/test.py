@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.47 2002/12/12 19:56:46 nickm Exp $
+# $Id: test.py,v 1.48 2002/12/15 04:35:54 nickm Exp $
 
 """mixminion.tests
 
@@ -2721,6 +2721,7 @@ SERVER_CONFIG = """
 EncryptIdentityKey: no
 PublicKeyLifetime: 10 days
 EncryptPrivateKey: no
+Homedir: %s
 Mode: relay
 Nickname: The Server
 Contact-Email: a@b.c
@@ -2748,6 +2749,7 @@ SERVER_CONFIG_SHORT = """
 EncryptIdentityKey: no
 PublicKeyLifetime: 10 days
 EncryptPrivateKey: no
+Homedir: %s
 Mode: relay
 Nickname: fred-the-bunny
 """
@@ -2760,7 +2762,7 @@ class ServerInfoTests(unittest.TestCase):
         d = mix_mktemp()
 	try:
 	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=SERVER_CONFIG)
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=(SERVER_CONFIG % mix_mktemp()))
 	finally:
 	    resumeLog()
         if not os.path.exists(d):
@@ -2824,7 +2826,7 @@ class ServerInfoTests(unittest.TestCase):
         # Now with a shorter configuration
 	try:
 	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=SERVER_CONFIG_SHORT+
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=(SERVER_CONFIG_SHORT%mix_mktemp())+
 					   """[Incoming/MMTP]
 Enabled: yes
 IP: 192.168.0.99
@@ -2914,8 +2916,7 @@ class ModuleManagerTests(unittest.TestCase):
 	writeFile(os.path.join(mod_dir, "ExampleMod.py"),
 		  EXAMPLE_MODULE_TEXT)
 
-	cfg_test = SERVER_CONFIG_SHORT + """
-Homedir = %s
+	cfg_test = (SERVER_CONFIG_SHORT%home_dir) + """
 ModulePath = %s
 Module ExampleMod.TestModule
 [Example]
@@ -2923,7 +2924,7 @@ Foo: 99
 [Incoming/MMTP]
 Enabled: yes
 IP: 1.0.0.1
-""" % (home_dir, mod_dir)
+""" % (mod_dir)
 
         try:
 	    suspendLog()
@@ -3016,11 +3017,10 @@ IP: 1.0.0.1
 
 	# Try again, this time with the test module disabled.
 	#
-	cfg_test = SERVER_CONFIG_SHORT + """
-Homedir = %s
+	cfg_test = (SERVER_CONFIG_SHORT%home_dir) + """
 ModulePath = %s
 Module ExampleMod.TestModule
-""" % (home_dir, mod_dir)
+""" % (mod_dir)
 
         try:
 	    suspendLog()
@@ -3038,13 +3038,12 @@ Module ExampleMod.TestModule
 	self.failIf(exampleMod is manager.typeToModule.get(1234))
 
 	# Failing validation
-	cfg_test = SERVER_CONFIG_SHORT + """
-Homedir = %s
+	cfg_test = SERVER_CONFIG_SHORT%home_dir + """
 ModulePath = %s
 Module ExampleMod.TestModule
 [Example]
 Foo: 100
-""" % (home_dir, mod_dir)
+""" % (mod_dir)
 
 	# FFFF Add tests for catching exceptions from buggy modules
 
@@ -3301,7 +3300,7 @@ class ModuleTests(unittest.TestCase):
 
     def getManager(self):
 	d = mix_mktemp()
-	c = SERVER_CONFIG_SHORT+"\nHomedir: %s\n"%d
+	c = SERVER_CONFIG_SHORT % d
 	try:
 	    suspendLog()
 	    conf = mixminion.server.ServerConfig.ServerConfig(string=c)
