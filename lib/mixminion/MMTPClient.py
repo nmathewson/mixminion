@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.32 2003/05/30 08:29:45 nickm Exp $
+# $Id: MMTPClient.py,v 1.33 2003/06/03 17:28:11 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -270,6 +270,7 @@ class PeerCertificateCache:
     # cache: A map from peer (temporary) KeyID's to a (signing) KeyID.
     def __init__(self):
         self.cache = {}
+
 
     def check(self, tls, targetKeyID, address):
         """Check whether the certificate chain on the TLS connection 'tls'

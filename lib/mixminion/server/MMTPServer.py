@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.33 2003/06/03 07:42:14 nickm Exp $
+# $Id: MMTPServer.py,v 1.34 2003/06/03 17:28:12 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -519,6 +519,7 @@ class SimpleTLSConnection(Connection):
         self.__server.unregister(self)
         self.__server = None
         self.__state = None
+        self.finished = None
 
 
 #----------------------------------------------------------------------
@@ -998,6 +999,7 @@ class MMTPAsyncServer(AsyncServer):
             con = self.clientConByAddr[(ip,port,keyID)]
             LOG.debug("Queueing %s messages on open connection to %s",
                       len(messages), con.address)
+            #XXXX004 check for possible race here!
             con.addMessages(messages, handles)
             return
         except KeyError:

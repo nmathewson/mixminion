@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.114 2003/06/02 20:55:23 nickm Exp $
+# $Id: test.py,v 1.115 2003/06/03 17:28:11 nickm Exp $
 
 """mixminion.tests
 
@@ -2969,7 +2969,7 @@ def _getTLSContextKeyID():
     keyid = sha1(ident.encode_key(1))
     return keyid
 
-def _getMMTPServer(minimal=0,reject=0):
+def _getMMTPServer(minimal=0,reject=0,port=TEST_PORT):
     """Helper function: create a new MMTP server with a listener connection
        Return a tuple of AsyncServer, ListenerConnection, list of received
        messages, and keyid."""
@@ -2999,7 +2999,7 @@ def _getMMTPServer(minimal=0,reject=0):
     if minimal:
         conFactory = conFactoryMin
     listener = mixminion.server.MMTPServer.ListenConnection("127.0.0.1",
-                                                 TEST_PORT, 5, conFactory)
+                                                          port, 5, conFactory)
     listener.register(server)
     keyid = _getTLSContextKeyID()
 
@@ -5746,7 +5746,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientMainTests))
+        suite.addTest(tc(MMTPTests))
         return suite
 
     suite.addTest(tc(MiscTests))

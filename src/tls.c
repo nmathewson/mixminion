@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.23 2003/06/03 16:31:05 nickm Exp $ */
+/* $Id: tls.c,v 1.24 2003/06/03 17:28:12 nickm Exp $ */
 #include "_minionlib.h"
 
 /* XXXX REMOVE*/
@@ -549,6 +549,7 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
                 mm_SSL_ERR(0); return NULL;
         }
         pkey = X509_get_pubkey(cert);
+        X509_free(cert);
         if (!(rsa = EVP_PKEY_get1_RSA(pkey))) {
                 EVP_PKEY_free(pkey); mm_SSL_ERR(0); return NULL;
         }

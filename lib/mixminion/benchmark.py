@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.36 2003/05/28 06:37:35 nickm Exp $
+# $Id: benchmark.py,v 1.37 2003/06/03 17:28:11 nickm Exp $
 
 """mixminion.benchmark
 
@@ -849,6 +849,74 @@ def testLeaks5_send():
         n += 1
         print n, "sent"
 
+
+import gc
+import pprint
+
+def testLeaks5_send2():
+    from mixminion.test import _getMMTPServer
+    from mixminion.test import TEST_PORT, _getTLSContext
+    import mixminion.MMTPClient
+
+    #msg = "X" * 32 * 1024
+    n = 0
+    server, listener, messagesIn, keyid = _getMMTPServer(1,port=(TEST_PORT+1))
+    #t = threading.Thread(None, testLeaks5_send,
+    #                     args=(keyid,))
+    #t.start()
+
+    sending = [0]
+    def sentHook(sending=sending):
+        sending[0]=0
+
+    certcache = mixminion.MMTPClient.PeerCertificateCache()
+
+    print len(gc.get_objects())
+
+    import socket
+
+    context = _getTLSContext(0)
+
+    i = 0
+    while 0:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setblocking(1)
+        sock.connect(("127.0.0.1", TEST_PORT))
+        tls = _getTLSContext(0).sock(sock)
+        tls.connect()
+        #tls.check_cert_alive()
+        #tls.verify_cert_and_get_identity_pk()
+        #tls.get_peer_cert_pk()
+        certcache.check(tls, keyid, ("127.0.0.1", TEST_PORT))
+        #print certcache.cache 
+        
+        tls.shutdown()
+        sock.close()
+            
+
+
+    while 1:
+        clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
+            _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid,
+            ["X"*(32*1024), "JUNK"], ["z", None],
+            finishedCallback=sentHook, certCache=certcache)
+        clientcon.register(server)
+        i += 1
+        sending[0] = 1
+        print "Sending",i
+        while sending[0]:
+            server.process(0.5)
+
+        #pprint.pprint( clientcon.__dict__ )
+        old = clientcon
+        clientcon = None
+        gc.collect()
+        #print len(certcache.cache)
+        print len(gc.get_objects())
+        print len(server.readers), len(server.writers)
+        print gc.get_referrers(old)
+
+
 def testLeaks6():
     import socket
     p = pk_generate(512)
@@ -904,7 +972,7 @@ def testLeaks6_2():
 #----------------------------------------------------------------------
 def timeAll(name, args):
     if 1:
-        serverQueueTiming()
+        testLeaks5_send()
         return
     
     cryptoTiming()
