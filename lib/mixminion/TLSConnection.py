@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.10 2004/02/07 07:25:14 nickm Exp $
+# $Id: TLSConnection.py,v 1.11 2004/02/07 08:58:53 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -278,6 +278,7 @@ class TLSConnection:
                 # give up.
                 s = "x"
                 while s != 0:
+                    #XXXX007 respect cap.
                     s = self.tls.read(_READLEN) # might raise TLSWant*
                     if s == 0:
                         LOG.debug("Read returned 0; shutdown to %s done",
@@ -300,11 +301,12 @@ class TLSConnection:
                 LOG.debug("Got a completed shutdown from %s", self.address)
                 self.shutdownFinished()
                 raise _Closing()
-                return 0
             else:
                 LOG.trace("Shutdown returned zero -- entering read mode.")
                 self.__awaitingShutdown = 1
                 self.__bytesReadOnShutdown = 0
+                self.wantRead = 1
+                return 1
 
     def __closedFn(self,r,w, cap):
         """state function: called when the connection is closed"""
@@ -358,10 +360,11 @@ class TLSConnection:
                 self.outbuflen -= n
                 cap -= n
                 self.onWrite(n)
-        # There's no more data to write.  We only want write events now if
-        # read is blocking on write.
-        self.wantWrite = self.__readBlockedOnWrite
-        self.doneWriting()
+        if not self.outbuf:
+            # There's no more data to write.  We only want write events now if
+            # read is blocking on write.
+            self.wantWrite = self.__readBlockedOnWrite
+            self.doneWriting()
         return cap
 
     def __doRead(self, cap):
@@ -390,12 +393,11 @@ class TLSConnection:
                         self.onRead()
             except _ml.TLSWantRead:
                 self.wantRead = 1
-                return cap
             except _ml.TLSWantWrite:
                 self.wantRead = 0
                 self.wantWrite = 1
                 self.__readBlockedOnWrite = 1
-                return cap
+            return cap
 
     def process(self, r, w, x, maxBytes=None):
         """Given that we've received read/write events as indicated in r/w,
@@ -409,7 +411,7 @@ class TLSConnection:
         if not (r or w):
             return self.wantRead, self.wantWrite, (self.sock is not None),0
 
-        bytesAtStart = bytesNow = self.tls.get_num_bytes_raw();
+        bytesAtStart = bytesNow = self.tls.get_num_bytes_raw()
         if maxBytes is None:
             bytesCutoff = sys.maxint
             maxBytes = sys.maxint-bytesNow
