@@ -47,7 +47,8 @@ FOR 0.0.1: (The first alpha)
 		o Ability to build ssl.
 		- Marginal 'make install'
 	- Integration testing
-		*- Fake delivery module for MBOX-less testing of core
+		. Fake delivery module for MBOX-less testing of core
+			*- Tests for fake delivery module
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
 	- Rename versions to 0.1.

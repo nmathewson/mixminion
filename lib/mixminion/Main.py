@@ -17,7 +17,7 @@ def filesAreSame(f1, f2):
 	ino1 = os.stat(f1)[stat.ST_INO]
 	ino2 = os.stat(f2)[stat.ST_INO]
 	return ino1 and ino1 > 0 and ino1 == ino2
-    except OSError, e:
+    except OSError, _:
 	return 0
 
 def correctPath(myself):
@@ -33,14 +33,14 @@ def correctPath(myself):
     orig_cmd = myself
     # First, resolve all links.
     while os.path.islink(myself):
-	f = os.readlink(myself)
+	myself = os.readlink(myself)
 
     # Now, the module ought to be living in x/y/z/mixminon/Foo.py.
     # The "x/y/z" is the part we're interested in.
     mydir = os.path.split(myself)[0]
     parentdir, miniondir = os.path.split(mydir)
     if not miniondir == 'mixminion':
-	print >>sys.stderrr, ("Bad mixminion installation:\n"+
+	print >>sys.stderr, ("Bad mixminion installation:\n"+
 	 " I resolved %s to %s, but expected to find ../mixminion/Main.py")%(
 	     orig_cmd, myself)
 
@@ -62,8 +62,8 @@ def correctPath(myself):
 
     # Finally, we make sure it all works.
     try:
-	import mixminion.Main
-    except ImportError, e:
+	import mixminion.Main as _
+    except ImportError, _:
 	print >>sys.stderr,"Unable to find correct path for mixminion."
 	sys.exit(1)
 

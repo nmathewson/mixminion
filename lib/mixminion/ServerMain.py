@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.5 2002/08/21 20:49:17 nickm Exp $
+# $Id: ServerMain.py,v 1.6 2002/08/25 05:58:02 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -10,11 +10,15 @@
 import os
 import getopt
 import sys
+import time
+import bisect
 
 import mixminion._minionlib
 import mixminion.Queue
-from mixminion.ServerInfo import ServerKeySet, ServerInfo
-from mixminion.Common import getLog, MixFatalError, MixError, createPrivateDir
+import mixminion.MMTPServer
+from mixminion.ServerInfo import ServerKeyset, ServerInfo
+from mixminion.Common import getLog, MixFatalError, MixError, secureDelete, \
+     createPrivateDir
 
 # Directory layout:
 #     MINION_HOME/work/queues/incoming/
@@ -34,13 +38,13 @@ from mixminion.Common import getLog, MixFatalError, MixError, createPrivateDir
 
 class ServerKeyring:
     # homeDir: ----
-    # keysDir: ----
+    # keyDir: ----
     # keySloppiness: ----
-    # keyIntervals: list of (start, end, ServerKeySetName)
+    # keyIntervals: list of (start, end, ServerKeyset Name)
     def __init__(self, config):
 	self.configure(config)
 
-    def configure(self):
+    def configure(self, config):
 	self.homeDir = config['Server']['Homedir']
 	self.keyDir = os.path.join(self.homeDir, 'keys')
 	self.keySloppiness = config['Server']['PublicKeySloppiness']
@@ -48,15 +52,15 @@ class ServerKeyring:
 
     def checkKeys(self):
         self.keyIntervals = [] 
-        for dirname in os.listdir(self.keysDir):
+        for dirname in os.listdir(self.keyDir):
             if not dirname.startswith('key_'):
 		getLog().warn("Unexpected directory %s under %s",
-			      dirname, self.keysDir)
+			      dirname, self.keyDir)
                 continue
             keysetname = dirname[4:]
             
-            d = os.path.join(self.keysDir, dirname)
-            si = os.path.join(self.keysDir, "ServerDesc")
+            d = os.path.join(self.keyDir, dirname)
+            si = os.path.join(d, "ServerDesc")
             if os.path.exists(si):
                 inf = ServerInfo(fname=si, assumeValid=1)
                 t1 = inf['Server']['Valid-After']
@@ -73,8 +77,8 @@ class ServerKeyring:
 
 	for dirname in dirs:
 	    files = [ os.path.join(dirname,f) 
-		                      for f in os.listdir(dirname) ])
-	    secureDelete(filenames, blocking=1)
+		                 for f in os.listdir(dirname) ]
+	    secureDelete(files, blocking=1)
 	    os.rmdir(dirname)
 	    
 	self.checkKeys()
@@ -92,17 +96,17 @@ class ServerKeyring:
 	# FFFF Support passwords on keys
 	_, _, name = self._getLiveKey()
 	hashroot = os.path.join(self.homeDir, 'work', 'hashlogs')
-	keyset = ServerKeySet(self.keyDir, name, hashroot)
-	keyset.load
+	keyset = ServerKeyset(self.keyDir, name, hashroot)
+	keyset.load()
 	return self.keyset
 	
     def getDHFile(self):
-	dhdir = os.path.join(self.homedir, 'work', 'tls')
+	dhdir = os.path.join(self.homeDir, 'work', 'tls')
 	createPrivateDir(dhdir)
 	dhfile = os.path.join(dhdir, 'dhparam')
         if not os.path.exists(dhfile):
             getLog().info("Generating Diffie-Helman parameters for TLS...")
-            mixminion._minionlib.generate_dh_parameters(self.dhfile, verbose=0)
+            mixminion._minionlib.generate_dh_parameters(dhfile, verbose=0)
             getLog().info("...done")
 
         return dhfile
@@ -136,18 +140,18 @@ class IncomingQueue(mixminion.Queue.DeliveryQueue):
 	    try:
 		res = ph.packetHandler(message)
 		if res is None:
-		    log.info("Padding message dropped")
+		    getLog().info("Padding message dropped")
 		else:
 		    self.mixQueue.queueObject(res)
 		    self.deliverySucceeded(handle)
 	    except mixminion.Crypto.CryptoError, e:
-		log.warn("Invalid PK or misencrypted packet header:"+str(e))
+		getLog().warn("Invalid PK or misencrypted packet header:"+str(e))
 		self.deliveryFailed(handle)
 	    except mixminion.Packet.ParseError, e:
-		log.warn("Malformed message dropped:"+str(e))
+		getLog().warn("Malformed message dropped:"+str(e))
 		self.deliveryFailed(handle)
 	    except mixminion.PacketHandler.ContentError, e:
-		log.warn("Discarding bad packet:"+str(e))
+		getLog().warn("Discarding bad packet:"+str(e))
 		self.deliveryFailed(handle)
 
 class MixQueue:
@@ -166,7 +170,7 @@ class MixQueue:
 	    tp, info = self.queue.getObject(h)
 	    if tp == 'EXIT':
 		rt, ri, app_key, payload = info
-		self.moduleManger.queueMessage((rt, ri), payload)
+		self.moduleManager.queueMessage((rt, ri), payload)
 	    else:
 		assert tp == 'QUEUE'
 		ipv4, msg = info
@@ -178,7 +182,7 @@ class OutgoingQueue(mixminion.Queue.DeliveryQueue):
 	self.server = None
 
     def connectQueues(self, server):
-	self.server = sever
+	self.server = server
 
     def deliverMessages(self, msgList):
 	# Map from addr -> [ (handle, msg) ... ]
@@ -190,11 +194,11 @@ class OutgoingQueue(mixminion.Queue.DeliveryQueue):
 	    self.server.sendMessages(addr.ip, addr.port, addr.keyinfo,
 				     messages, handles)
 
-class _MMTPConnection(MMTPServer):
+class _MMTPConnection(mixminion.MMTPServer):
     def __init__(self, config):
         MMTPServer.__init__(self, config)
 
-    def connectQueues(self, incoming, outgoing)
+    def connectQueues(self, incoming, outgoing):
         self.incomingQueue = incoming
         self.outgoingQueue = outgoing
 
@@ -228,7 +232,7 @@ class MixminionServer:
 
 	mixDir = os.path.join(queueDir, "mix")
 	# FFFF The choice of mix algorithm should be configurable
-	self.mixQueue = MixQueue(TimedMixQueue(mixDir, 60))
+	self.mixQueue = MixQueue(mixminion.Queue.TimedMixQueue(mixDir, 60))
 
 	outgoingDir = os.path.join(queueDir, "outgoing")
 	self.outgoingQueue = OutgoingQueue(outgoingDir)
@@ -266,16 +270,16 @@ class MixminionServer:
 
 #----------------------------------------------------------------------
 
-def usageAndExit():
+def usageAndExit(cmd):
     executable = sys.argv[0]
     # XXXX show versioning info
     print >>sys.stderr, "Usage: %s [-h] [-f configfile]" % cmd
     sys.exit(0)
 
 def configFromArgs(cmd, args):
-    options, args = getopt.getopt(args, "hf=", ["help", "config="])
+    options, args = getopt.getopt(args, "hf:", ["help", "config="])
     if args:
-	usageAndExit()
+	usageAndExit(cmd)
     configFile = "/etc/miniond.conf"
     for o,v in options:
 	if o in ('-h', '--help'):
@@ -284,7 +288,7 @@ def configFromArgs(cmd, args):
 	    configFile = v
     try:
 	config = mixminion.Config.ServerConfig(fname=configFile)
-    except OSError:
+    except (IOError, OSError), e:
 	print >>sys.stderr, "Error reading configuration file %r"%configFile
 	sys.exit(1)
     except mixminion.Config.ConfigError, e:
@@ -319,6 +323,3 @@ def runServer(cmd, args):
     getLog().info("Server shutting down")
     
     sys.exit(0)
-
-if __name__ = '__main__':
-    runServer(sys.argv[0], sys.argv[1])

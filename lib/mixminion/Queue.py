@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.14 2002/08/21 20:49:16 nickm Exp $
+# $Id: Queue.py,v 1.15 2002/08/25 05:58:02 nickm Exp $
 
 """mixminion.Queue
 
@@ -136,7 +136,6 @@ class Queue:
 
     def removeAll(self):
         """Removes all messages from this queue."""
-        removed = []
         for m in os.listdir(self.dir):
             if m[:4] in ('inp_', 'msg_'):
                 self.__changeState(m[4:], m[:3], "rmv")
@@ -406,11 +405,12 @@ def _secureDelete_bg(files, cleanFile):
     # Now we're in the child process.
     try:
         secureDelete(files, blocking=1)
-    except OSError, e:
+    except OSError, _:
         # This is sometimes thrown when shred finishes before waitpid.
         pass
     try:
         os.unlink(cleanFile)
-    except OSError, e:
+    except OSError, _:
         pass
     os._exit(0)
+    return None # Never reached.

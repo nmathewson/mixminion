@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.22 2002/08/25 03:48:48 nickm Exp $
+# $Id: test.py,v 1.23 2002/08/25 05:58:02 nickm Exp $
 
 """mixminion.tests
 
@@ -1391,7 +1391,7 @@ class QueueTests(unittest.TestCase):
 	queue.removeAll()
 	queue.cleanQueue()
 
-    def testDeliveryQueues(self):
+    def testMixQueues(self):
 	d_m = mix_mktemp("qm")
 	queue = TimedMixQueue(d_m)
 	h1 = queue.queueMessage("Hello1")
@@ -1462,7 +1462,7 @@ class LogTests(unittest.TestCase):
         
 	buf.truncate(0)
 	try:
-	    1/0
+	    raise MixError()
 	except:
 	    inf = sys.exc_info()
 	log.error_exc(inf)
@@ -1493,6 +1493,8 @@ from mixminion.Common import createPrivateDir, checkPrivateDir
 
 class FileParanoiaTests(unittest.TestCase):
     def testPrivateDirs(self):
+	import mixminion.testSupport
+
 	noia = mix_mktemp("noia")
 	tempdir = mixminion.testSupport._MM_TESTING_TEMPDIR
 	try:
@@ -1696,7 +1698,7 @@ class MMTPTests(unittest.TestCase):
             server.process(0.1)
         t.join()
 
-        for i in xrange(10):
+        for _ in xrange(10):
             server.process(0.1)
 
         self.failUnless(messagesIn == messages)
@@ -1890,7 +1892,6 @@ IntRS=5
         self.assertEquals(f['Sec3']['IntRS'], 9)
 
     def testBadFiles(self):
-        TCF = TestConfigFile
         def fails(string, self=self):
             self.failUnlessRaises(ConfigError, TestConfigFile, None, string)
 
@@ -1906,13 +1907,13 @@ IntRS=5
         fails("[Sec1]\nFoo: Bar\n[Sec3]\nIntRS=Z\n") # Failed validation
 
         # now test the restricted format
-        def fails(string, self=self):
+        def failsR(string, self=self):
             self.failUnlessRaises(ConfigError, TestConfigFile, None, string, 1)
-        fails("[Sec1]\nFoo=Bar\n")
-        fails("[Sec1]\nFoo Bar\n")
-        fails("[Sec1]\n\nFoo: Bar\n")
-        fails("\n[Sec1]\nFoo: Bar\n")
-        fails("\n[Sec1]\nFoo: Bar\n\n")
+        failsR("[Sec1]\nFoo=Bar\n")
+        failsR("[Sec1]\nFoo Bar\n")
+        failsR("[Sec1]\n\nFoo: Bar\n")
+        failsR("\n[Sec1]\nFoo: Bar\n")
+        failsR("\n[Sec1]\nFoo: Bar\n\n")
 
     def testValidationFns(self):
         import mixminion.Config as C
@@ -2003,7 +2004,7 @@ IntRS=5
                 self.assertEquals(opts, ["-meow"])
             else:
                 self.fail("_parseCommand is not working as expected")
-        except ConfigError, e:
+        except ConfigError, _:
             # This is what we expect
             pass
 
@@ -2098,7 +2099,7 @@ class ServerInfoTests(unittest.TestCase):
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
         eq(inf, open(os.path.join(keydir, "ServerDesc")).read())
-        keys = mixminion.ServerInfo.ServerKeyset(d, "key1", d)
+	mixminion.ServerInfo.ServerKeyset(d, "key1", d) # Can we load?
         packetKey = mixminion.Crypto.pk_PEM_load(
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
@@ -2119,11 +2120,11 @@ class ServerInfoTests(unittest.TestCase):
 
         # Now with a shorter configuration
         conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG_SHORT)
-        inf2 = mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
-                                                                    identity,
-                                                                    d,
-                                                                    "key2",
-                                                                    d)
+	mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
+							     identity,
+							     d,
+							     "key2",
+							     d)
         
         # Now with a bad signature
         sig2 = mixminion.Crypto.pk_sign(sha1("Hello"), identity)
@@ -2138,7 +2139,7 @@ class ServerInfoTests(unittest.TestCase):
         mixminion.ServerInfo.ServerInfo(None, badSig, assumeValid=1)
 
         # Now with a bad digest
-        badDig = inf.replace("a@b.c", "---")
+        badSig = inf.replace("a@b.c", "---")
         self.failUnlessRaises(ConfigError,
                               mixminion.ServerInfo.ServerInfo,
                               None, badSig)

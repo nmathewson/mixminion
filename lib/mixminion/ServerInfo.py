@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.10 2002/08/19 15:33:56 nickm Exp $
+# $Id: ServerInfo.py,v 1.11 2002/08/25 05:58:02 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,6 +15,7 @@ import os
 import binascii
 import socket
 
+from mixminion.Common import createPrivateDir
 from mixminion.Modules import SWAP_FWD_TYPE, FWD_TYPE
 from mixminion.Packet import IPV4Info
 import mixminion.Config
@@ -146,14 +147,14 @@ class ServerKeyset:
        When we create a new ServerKeyset object, the associated keys are not
        read from disk unil the object's load method is called."""
     def __init__(self, keyroot, keyname, hashroot):
-	keydir = self.keydir = os.path.join(keyroot, "key_"+keyname)
+	keydir  = os.path.join(keyroot, "key_"+keyname)
 	self.hashlogFile = os.path.join(hashroot, "hash_"+keyname)
 	self.packetKeyFile = os.path.join(keydir, "mix.key")
 	self.mmtpKeyFile = os.path.join(keydir, "mmtp.key")
 	self.certFile = os.path.join(keydir, "mmtp.cert")
         self.descFile = os.path.join(keydir, "ServerDesc")
         if not os.path.exists(keydir):
-            os.mkdir(keydir, 0700)
+	    createPrivateDir(keydir)
         
     def load(self, password=None):
         "Read this set of keys from disk."

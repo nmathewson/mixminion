@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.11 2002/08/21 19:09:48 nickm Exp $
+# $Id: Config.py,v 1.12 2002/08/25 05:58:02 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -52,7 +52,6 @@ import os
 import re
 import binascii
 import time
-import copy
 import socket # for inet_aton and error
 from cStringIO import StringIO
 
@@ -128,7 +127,7 @@ def _parseInt(integer):
     i = integer.strip().lower()
     try:
         return int(i)
-    except ValueError, e:
+    except ValueError, _:
         raise ConfigError("Expected an integer but got %r" % (integer))
 
 _ip_re = re.compile(r'\d+\.\d+\.\d+\.\d+')
@@ -145,7 +144,7 @@ def _parseIP(ip):
 	raise ConfigError("Invalid IP %r" % i)
     try:
         f = socket.inet_aton(i)
-    except socket.error, ex:
+    except socket.error, _:
         raise ConfigError("Invalid IP %r" % i)
 
     return i
@@ -225,7 +224,7 @@ def _parseBase64(s,_hexmode=0):
 	    return binascii.a2b_hex(s)
 	else:
 	    return binascii.a2b_base64(s)
-    except (TypeError, binascii.Error, binascii.Incomplete), e:
+    except (TypeError, binascii.Error, binascii.Incomplete), _:
 	raise ConfigError("Invalid Base64 data")
 
 def _parseHex(s):
@@ -377,7 +376,7 @@ def _formatEntry(key,val,w=79,ind=4):
     linelength = len(linecontents[0])
     for v in val.split(" "):
         if linelength+1+len(v) <= w:
-            linescontents.append(v)
+            linecontents.append(v)
 	    linelength += 1+len(v)
         else:
 	    lines.append(" ".join(linecontents))
@@ -419,6 +418,9 @@ class _ConfigFile:
     # If the entry is (permissibly) absent, and default is set, then
     #   the entry's value will be set to default.  Otherwise, the value
     #   will be set to None.
+
+    _syntax = None
+    _restrictFormat = 0
 
     def __init__(self, filename=None, string=None, assumeValid=0):
         """Create a new _ConfigFile.  If <filename> is set, read from
@@ -709,4 +711,5 @@ class ServerConfig(_ConfigFile):
         self._syntax.update(self.moduleManager.getConfigSyntax())
     
     def getModuleManager(self):
+	"Return the module manager initialized by this server."
 	return self.moduleManager

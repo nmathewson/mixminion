@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.7 2002/08/19 20:27:02 nickm Exp $
+# $Id: MMTPClient.py,v 1.8 2002/08/25 05:58:02 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -41,7 +41,7 @@ class BlockingClientConnection:
         #XXXX session resumption
         self.tls.connect()
         peer_pk = self.tls.get_peer_cert_pk()
-        keyID = sha1(self.tls.get_peer_cert_pk().encode_key(public=1))
+        keyID = sha1(peer_pk.encode_key(public=1))
         if self.targetKeyID is not None and (keyID != self.targetKeyID):
             raise MixProtocolError("Bad Key ID: Expected %r but got %r" % (
                 self.targetKeyID, keyID))

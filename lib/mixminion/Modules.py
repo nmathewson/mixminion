@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.8 2002/08/25 03:48:48 nickm Exp $
+# $Id: Modules.py,v 1.9 2002/08/25 05:58:02 nickm Exp $
 
 """mixminion.Modules
 
@@ -13,12 +13,14 @@ __all__ = [ 'ModuleManager', 'DeliveryModule',
 import os
 import sys
 import smtplib
+import socket
+import base64
 
 import mixminion.Config
 import mixminion.Packet
 import mixminion.Queue
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
-from mixminion.Common import getLog, createPrivateDir
+from mixminion.Common import getLog, createPrivateDir, MixError
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -50,6 +52,7 @@ class DeliveryModule:
 	   * It must know which types it handles.
 	   * Of course, it needs to know how to deliver a message."""
     def __init__(self):
+	"Zero-argument constructor, as required by Module protocol."
 	pass
 
     def getConfigSyntax(self):
@@ -195,6 +198,7 @@ class ModuleManager:
             if self.syntax.has_key(sec):
                 raise ConfigError("Multiple modules want to define [%s]"% sec)
         self.syntax.update(syn)
+	self.nameToModule[module.getName()] = module
 
     def setPath(self, path):
 	"""Sets the search path for Python modules"""
@@ -302,7 +306,6 @@ class MBoxModule(DeliveryModule):
     # FFFF local MTA.
     def __init__(self):
         DeliveryModule.__init__(self)
-        self.command = None
         self.enabled = 0
         self.addresses = {}
 
@@ -324,6 +327,7 @@ class MBoxModule(DeliveryModule):
 	
         self.enabled = config['Delivery/MBOX'].get("Enabled", 0)
 	if not self.enabled:
+	    moduleManager.disableModule(self)
 	    return
 
 	self.server = config['Delivery/MBOX']['SMTPServer']
@@ -357,10 +361,7 @@ class MBoxModule(DeliveryModule):
                 raise ConfigError("Duplicate MBOX user %s"%k)
             self.addresses[k] = v
 
-        if enabled:
-            moduleManager.enableModule(self)
-        else:
-            moduleManager.disableModule(self)
+	moduleManager.enableModule(self)
 
     def getServerInfoBlock(self):
         return """\
@@ -377,16 +378,16 @@ class MBoxModule(DeliveryModule):
     def processMessage(self, message, exitType, exitInfo):
         assert exitType == MBOX_TYPE
         getLog().trace("Received MBOX message")
-        info = mixminion.packet.parseMBOXInfo(exitInfo)
+        info = mixminion.Packet.parseMBOXInfo(exitInfo)
 	try:
-	    address = addresses[info.user]
-	except KeyError, e:
+	    address = self.addresses[info.user]
+	except KeyError, _:
             getLog.warn("Unknown MBOX user %r", info.user)
 
         msg = _escapeMessageForEmail(message)
 
         fields = { 'user': address,
-                   'return': self.returnAddr,
+                   'return': self.returnAddress,
                    'nickname': self.nickname,
                    'addr': self.addr,
                    'contact': self.contact,
@@ -404,7 +405,7 @@ will be removed.
 %(msg)s
 """ % fields
 
-        return sendSMTPMessage(self.server, [address], self.returnAddr, msg)
+        return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
 #----------------------------------------------------------------------
 def sendSMTPMessage(server, toList, fromAddr, message):

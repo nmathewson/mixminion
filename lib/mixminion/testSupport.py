@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.1 2002/08/25 03:48:48 nickm Exp $
+# $Id: testSupport.py,v 1.2 2002/08/25 05:58:02 nickm Exp $
 
 """mixminion.testSupport
 
@@ -10,13 +10,23 @@ import os
 import sys
 import stat
 
-from mixminion.Common import waitForChildren
+from mixminion.Common import waitForChildren, createPrivateDir
 from mixminion.Config import _parseBoolean, ConfigError
 from mixminion.Modules import DeliveryModule, ImmediateDeliveryQueue, \
      SimpleModuleDeliveryQueue, DELIVER_OK, DELIVER_FAIL_RETRY, \
      DELIVER_FAIL_NORETRY
 
-def DirectoryDumpModule(DeliveryModule):
+class DirectoryStoreModule(DeliveryModule):
+    """Delivery module for testing: puts messages in files in a given
+       directory.  Can be configured to use a delivery queue or not.
+
+       When this module delivers a message:
+       If the routing info is 'FAIL!', the message is treated as undeliverable.
+       If the routing info is 'fail', the message is treated as temporarily
+         undeliverable (and so will eventually time out).
+       Otherwise, creates a file in the specified directory, containing
+          the routing info, a newline, and the message contents.
+    """
     def getConfigSyntax(self):
 	return { 'Testing/DirectoryDump':
 		 { 'Location' : ('REQUIRE', None, None),
@@ -34,6 +44,9 @@ def DirectoryDumpModule(DeliveryModule):
 	self.useQueue = sections['Testing/DirectoryDump']['UseQueue']
 	manager.registerModule(self)
 	
+	if not os.path.exits(self.loc):
+	    createPrivateDir(self.loc)
+
 	max = -1
 	for f in os.listdir(self.loc):
 	    if int(f) > max: 
@@ -59,7 +72,7 @@ def DirectoryDumpModule(DeliveryModule):
 	assert exitType == 0xFFFE
 	if exitInfo == 'fail':
 	    return DELIVER_FAIL_RETRY
-	elif exitIno == 'FAIL!':
+	elif exitInfo == 'FAIL!':
 	    return DELIVER_FAIL_NORETRY
 
 	f = open(os.path.join(self.loc, self.next), 'w')
@@ -118,7 +131,7 @@ def mix_mktemp(extra=""):
 		    print "Directory %s has fishy permissions %o" %(parent,m)
 		    sys.exit(1)
 		if st[stat.ST_UID] not in (0, os.getuid()):
-		    print "Directory %s has bad owner %s" % st[stat.UID]
+		    print "Directory %s has bad owner %s" % st[stat.ST_UID]
 		    sys.exit(1)
 		    
 	_MM_TESTING_TEMPDIR = temp
@@ -132,6 +145,8 @@ def mix_mktemp(extra=""):
 
 _WAIT_FOR_KIDS = 1
 def deltree(*dirs):
+    """Delete each one of a list of directories, along with all of its
+       contents"""
     global _WAIT_FOR_KIDS
     if _WAIT_FOR_KIDS:
 	print "Waiting for shred processes to finish."

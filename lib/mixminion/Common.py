@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.16 2002/08/21 20:49:16 nickm Exp $
+# $Id: Common.py,v 1.17 2002/08/25 05:58:01 nickm Exp $
 
 """mixminion.Common
 
@@ -60,7 +60,7 @@ def createPrivateDir(d, nocreate=0):
 	    raise MixFatalError("Nonexistent directory %s" % d)
 	try:
 	    os.makedirs(d, 0700)
-	except OSError, e:
+	except OSError, _:
 	    raise MixFatalError("Unable to create directory %s" % d)
 
     checkPrivateDir(d)
@@ -194,10 +194,12 @@ class _FileLogHandler:
     """Helper class for logging.  Represents a file on disk, and allows the
        usual close-and-open gimmick for log rotation."""
     def __init__(self, fname):
+	"Create a new FileLogHandler to append messages to fname"
         self.file = None
         self.fname = fname
         self.reset()
     def reset(self):
+	"Close and reopen our underlying file"
         if self.file is not None:
             self.file.close()
 	try: 
@@ -206,6 +208,7 @@ class _FileLogHandler:
 	    self.file = None
 	    raise MixError("Unable to open log file %r"%self.fname)
     def close(self):
+	"Close the underlying file"
         self.file.close()
     def write(self, severity, message):
 	if self.file is None:
@@ -274,7 +277,7 @@ class Log:
         for k,v in _SEVERITIES.items():
             if v == self.severity:
                 return k
-        assert 0    
+	return _SEVERITIES['INFO']
         
     def addHandler(self, handler):
         self.handlers.append(handler)

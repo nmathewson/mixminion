@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.13 2002/08/21 19:09:48 nickm Exp $
+# $Id: MMTPServer.py,v 1.14 2002/08/25 05:58:02 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -489,6 +489,8 @@ class MMTPServerConnection(SimpleTLSConnection):
 
 # FFFF We need to note retriable situations better.
 class MMTPClientConnection(SimpleTLSConnection):
+    """Asynchronious implementation of the sending ("client") side of a
+       mixminion connection."""
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None):
 	"""Create a connection to send messages to an MMTP server.  
@@ -604,11 +606,12 @@ class MMTPClientConnection(SimpleTLSConnection):
        del self.messageList[0]
        del self.handleList[0]
        if self.sentCallback is not None:
-           self.sentCallback(justSent, justSetHandle)
+           self.sentCallback(justSent, justSentHandle)
 	   
        self.beginNextMessage()
 
     def handleFail(self, retriable):
+	"""Invoked when a message is not deliverable."""
 	if self.failCallback is not None:
 	    for msg, handle in zip(self.messageList, self.handleList):
 		self.failCallback(msg,handle,retriable)
@@ -618,6 +621,8 @@ class MMTPServer(AsyncServer):
     """A helper class to invoke AsyncServer, MMTPServerConnection, and
        MMTPClientConnection"""
     def __init__(self, config):
+	AsyncServer.__init__(self)
+
         self.context = config.getTLSContext(server=1)
 	# FFFF Don't always listen; don't always retransmit!
 	# FFFF Support listening on specific IPs
@@ -625,7 +630,7 @@ class MMTPServer(AsyncServer):
                                          config['Outgoing/MMTP']['Port'],
 					 LISTEN_BACKLOG,
                                          self._newMMTPConnection)
-        self.config = config
+	#self.config = config
         self.listener.register(self)
 
     def _newMMTPConnection(self, sock):

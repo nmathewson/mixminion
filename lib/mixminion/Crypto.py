@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.16 2002/08/21 19:09:48 nickm Exp $
+# $Id: Crypto.py,v 1.17 2002/08/25 05:58:02 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -13,7 +13,6 @@ import sys
 import stat
 from types import StringType
 
-import mixminion.Config
 import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, getLog
 
@@ -43,7 +42,7 @@ def init_crypto(config=None):
     try:
         # Try to read /dev/urandom
         trng(1)
-    except MixFatalError, e:
+    except MixFatalError, _:
 	raise
     except:
         raise MixFatalError("Error initializing entropy source")
