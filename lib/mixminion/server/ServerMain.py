@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.26 2003/01/08 03:56:54 nickm Exp $
+# $Id: ServerMain.py,v 1.26.2.1 2003/01/10 19:44:46 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -13,6 +13,7 @@ __all__ = [ 'MixminonServer' ]
 import fcntl
 import getopt
 import os
+import signal
 import sys
 import time
 
@@ -191,6 +192,28 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     def onMessageUndeliverable(self, msg, handle, retriable):
         self.outgoingQueue.deliveryFailed(handle, retriable)
 
+
+#----------------------------------------------------------------------
+STOPPING = 0
+def _sigTermHandler(signal_num, _):
+    '''(Signal handler for SIGTERM)'''
+    signal.signal(signal_num, _sigTermHandler)
+    global STOPPING
+    STOPPING = 1
+
+GOT_HUP = 0
+def _sigHupHandler(signal_num, _):
+    '''(Signal handler for SIGTERM)'''
+    signal.signal(signal_num, _sigHupHandler)
+    global GOT_HUP
+    GOT_HUP = 1
+
+def installSignalHandlers():
+    "DOCDOC"
+    signal.signal(signal.SIGHUP, _sigHupHandler)
+    signal.signal(signal.SIGTERM, _sigTermHandler)
+
+#----------------------------------------------------------------------
 class MixminionServer:
     """Wraps and drives all the queues, and the async net server.  Handles
        all timed events."""
@@ -286,7 +309,8 @@ class MixminionServer:
 
     def run(self):
         """Run the server; don't return unless we hit an exception."""
-
+        global GOT_HUP
+        
         f = open(self.pidFile, 'wt')
         f.write("%s\n" % os.getpid())
         f.close()
@@ -319,7 +343,15 @@ class MixminionServer:
             timeLeft = nextEventTime - now
             while timeLeft > 0:
                 # Handle pending network events
-                self.mmtpServer.process(timeLeft)
+                self.mmtpServer.process(2)
+                if STOPPING:
+                    LOG.info("Caught sigterm; shutting down.")
+                    return
+                elif GOT_HUP:
+                    LOG.info("Caught sighup")
+                    LOG.info("Resetting logs")
+                    LOG.reset()
+                    GOT_HUP = 0
                 # Process any new messages that have come in, placing them
                 # into the mix pool.
                 self.incomingQueue.sendReadyMessages()
@@ -494,6 +526,8 @@ def runServer(cmd, args):
             LOG.fatal_exc(info,
                           "Exception while starting server in the background")
             os._exit(0)
+
+    installSignalHandlers()            
 
     LOG.info("Starting server")
     try:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.12 2003/01/07 19:17:57 nickm Exp $
+# $Id: MMTPServer.py,v 1.12.2.1 2003/01/10 19:44:46 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -70,11 +70,6 @@ class AsyncServer:
            If we receive an unblocked signal, return immediately.
            """
 
-##         trace("%s readers (%s), %s writers (%s)" % (len(self.readers),
-##                                                  readers,
-##                                                  len(self.writers),
-##                                                  writers))
-
         readfds = self.readers.keys()
         writefds = self.writers.keys()
         try:
@@ -86,13 +81,10 @@ class AsyncServer:
                 raise e
 
         for fd in readfds:
-            #trace("Select got a read on fd %s",fd)
             self.readers[fd].handleRead()
         for fd in writefds:
-            #trace("Select got a write on fd %s", fd)
             self.writers[fd].handleWrite()
         for fd in exfds:
-            #trace("Select got an exception on fd %s", fd)
             if self.readers.has_key(fd): del self.readers[fd]
             if self.writers.has_key(fd): del self.writers[fd]
 
@@ -438,10 +430,10 @@ class SimpleTLSConnection(Connection):
             self.handleFail(retriable=1)
             self.__sock.close()
             self.__server.unregister(self)
-        except _ml.TLSError:
+        except _ml.TLSError, e:
             if self.__state != self.__shutdownFn:
-                warn("Unexpected error: closing connection to %s",
-                     self.address)
+                warn("Unexpected error: %s. Closing connection to %s.",
+                     e, self.address)
                 self.shutdown(err=1, retriable=1)
             else:
                 warn("Error while shutting down: closing connection to %s",
@@ -531,11 +523,13 @@ class MMTPServerConnection(SimpleTLSConnection):
         if not m:
             warn("Bad protocol list.  Closing connection to %s", self.address)
             self.shutdown(err=1)
+            return
         protocols = m.group(1).split(",")
         if "0.1" not in protocols:
             warn("Unsupported protocol list.  Closing connection to %s",
                  self.address)
-            self.shutdown(err=1); return
+            self.shutdown(err=1)
+            return
         else:
             trace("protocol ok (fd %s)", self.fd)
             self.finished = self.__sentProtocol
@@ -599,6 +593,8 @@ class MMTPClientConnection(SimpleTLSConnection):
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None):
         """Create a connection to send messages to an MMTP server.
+           Raises socket.error if the connection fails.
+        
            ip -- The IP of the destination server.
            port -- The port to connect to.
            keyID -- None, or the expected SHA1 hash of the server's public key
@@ -616,10 +612,12 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.ip = ip
         try:
             sock.connect((ip, port))
-        except socket.error:
+        except socket.error, e:
             # This will always raise an error, since we're nonblocking.  That's
-            # okay.
-            pass
+            # okay... but it had better be EINPROGRESS.
+            if e[0] != errno.EINPROGRESS:
+                raise e
+
         tls = context.sock(sock)
 
         SimpleTLSConnection.__init__(self, sock, tls, 0, "%s:%s"%(ip,port))
@@ -638,9 +636,11 @@ class MMTPClientConnection(SimpleTLSConnection):
         keyID = sha1(self.getPeerPK().encode_key(public=1))
         if self.keyID is not None:
             if keyID != self.keyID:
-                warn("Got unexpected Key ID from %s", self.address)
-                # This may work again in a couple of hours
+                warn("Got unexpected Key ID from %s; shutting down connection",
+                     self.address)
+                # The keyid may start being good in a while.
                 self.shutdown(err=1,retriable=1)
+                return
             else:
                 debug("KeyID from %s is valid", self.address)
 
@@ -778,11 +778,17 @@ class MMTPAsyncServer(AsyncServer):
             assert len(m) == MESSAGE_LEN
             assert len(h) < 32
 
-        con = MMTPClientConnection(self.context,
-                                   ip, port, keyID, messages, handles,
-                                   self.onMessageSent,
-                                   self.onMessageUndeliverable)
-        con.register(self)
+        try:
+            con = MMTPClientConnection(self.context,
+                                       ip, port, keyID, messages, handles,
+                                       self.onMessageSent,
+                                       self.onMessageUndeliverable)
+            con.register(self)
+        except socket.error, e:
+            LOG.error("Unexpected socket error connecting to %s:%s: %s",
+                      ip, port, e)
+            for m,h in zip(messages, handles):
+                self.onMessageUndeliverable(m,h,1)
 
     def onMessageReceived(self, msg):
         pass

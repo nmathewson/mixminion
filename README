@@ -1,4 +1,4 @@
-This is Mixminion version 0.0.2.1.
+This is Mixminion version 0.0.2.2.
 
 CONTENTS:
         I.    Overview
@@ -35,6 +35,12 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.2.2:
+   - Fixed a bug that crashed your server when another server's KeyID was
+     incorrect.
+   - Add minimal handlers for TERM and HUP signals.
+   - Add a disclaimer to main usage message.
 
 NEW IN VERSION 0.0.2.1:
    - BUGFIX: A nasty bug is fixed that could, under just the right
@@ -93,9 +99,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.2.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.2.2.tar.gz>
 
-  % cd Mixminion-0.0.2
+  % cd Mixminion-0.0.2.2
   % make download-openssl
   % make build-openssl
   % make
@@ -214,7 +220,6 @@ To send a dummy message, specify "drop" instead of an email address, as in:
       mixminion send -t drop
       mixminion send -t drop -P '*,Foo'
       mixminion send -t drop -H 8
-
 
 If you need to use a proxy server to use the web you can specify it using the
 http_proxy environment variable:
