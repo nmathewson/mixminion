@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.54 2003/10/19 05:21:45 nickm Exp $
+# $Id: MMTPServer.py,v 1.55 2003/11/07 08:11:36 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -32,7 +32,7 @@ from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN, IPV4Info, MMTPHostInfo
 from mixminion.MMTPClient import PeerCertificateCache
-from mixminion.NetUtils import IN_PROGRESS_ERRNOS
+from mixminion.NetUtils import IN_PROGRESS_ERRNOS, getProtocolSupport
 import mixminion.server.EventStats as EventStats
 from mixminion.Filestore import CorruptedFile
 
@@ -1069,7 +1069,7 @@ class MMTPAsyncServer(AsyncServer):
         # FFFF Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs
 
-        ip4_supported, ip6_supported = mixminion.NetUtils.getProtocolSupport()
+        ip4_supported, ip6_supported = getProtocolSupport()
         IP, IP6 = None, None
         if ip4_supported:
             IP = config['Incoming/MMTP'].get('ListenIP')
@@ -1163,7 +1163,7 @@ class MMTPAsyncServer(AsyncServer):
         """DOCDOC"""
         while 1:
             try:
-                family,addr,port,keyID,deliverable=self.msgQueue.get(1)
+                family,addr,port,keyID,deliverable=self.msgQueue.get(block=0)
             except QueueEmpty:
                 return
             self.sendMessages(family,addr,port,keyID,deliverable)

@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.2 2003/10/19 03:12:02 nickm Exp $
+# $Id: DNSFarm.py,v 1.3 2003/11/07 08:11:36 nickm Exp $
 
 """mixminion.server.DNSFarm DOCDOC"""
 
@@ -79,7 +79,7 @@ class DNSCache:
                     del cache[name]
 
             # Remove dead threads from self.threads
-            self.threads = [ thr for thr in self.threads()
+            self.threads = [ thr for thr in self.threads
                              if thr.isLive() ]
 
             # Make sure we have enough threads.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.55 2003/11/07 07:30:37 nickm Exp $
+# $Id: ServerKeys.py,v 1.56 2003/11/07 08:11:36 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -158,7 +158,7 @@ class ServerKeyring:
                   len(self.keySets), len(badKeySets))
 
         if badKeySets:
-            LOG.warn("Removing %s invalid keysets")
+            LOG.warn("Removing %s invalid keysets", len(badKeySets))
         for b in badKeySets:
             b.delete()
 
@@ -285,6 +285,8 @@ class ServerKeyring:
 
         if self.keySets:
             lastExpiry = self.keySets[-1][1]
+            if lastExpiry < now:
+                lastExpiry = now
         else:
             lastExpiry = now
 
@@ -308,6 +310,8 @@ class ServerKeyring:
         if startAt is None:
             if self.keySets:
                 startAt = self.keySets[-1][1]+60
+                if startAt < time.time():
+                    startAt = time.time()+60
             else:
                 startAt = time.time()+60
 
@@ -1185,12 +1189,12 @@ def _checkHostnameIsLocal(name):
         for family, addr, _ in r:
             if family == mixminion.NetUtils.AF_INET:
                 if addr.startswith("127.") or addr.startswith("0."):
-                    raise UIError("Hostname %r resolves to reserved address %s"
-                                  %(name, addr))
+                    LOG.warn("Hostname %r resolves to reserved address %s",
+                             name, addr)
             else:
                 if addr in ("::", "::1"):
-                    raise UIError("Hostname %r resolves to reserved address %s"
-                                  %(name,addr))
+                    LOG.warn("Hostname %r resolves to reserved address %s",
+                             name,addr)
     except socket.error, e:
         raise UIError("Cannot resolve hostname %r: %s"%(name,e))
     _KNOWN_LOCAL_HOSTNAMES[name] = 1
