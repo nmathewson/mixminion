@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.13 2002/09/10 14:45:29 nickm Exp $
+# $Id: BuildMessage.py,v 1.14 2002/10/13 01:34:44 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -11,53 +11,121 @@ from mixminion.Common import MixError
 import mixminion.Crypto as Crypto
 import mixminion.Modules as Modules
 
-__all__ = [ 'buildForwardMessage', 'buildReplyBlock', 'buildReplyMessage',
-            'buildStatelessReplyBlock' ]
+__all__ = [ 'Address', 
+           'buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
+           'buildStatelessReplyBlock', 'buildReplyBlock', 'decodePayload',
+	   'decodeForwardPayload', 'decodeEncryptedPayload', 
+	   'decodeReplyPayload', 'decodeStatelessReplyPayload' ]
 
-def buildForwardMessage(payload, exitType, exitInfo, path1, path2):
+def buildForwardMessage(payload, exitType, exitInfo, path1, path2, 
+			paddingPRNG=None):
     """Construct a forward message.
-            payload: The payload to deliver.
+            payload: The payload to deliver.  Must compress to under 28K-22b.
             exitType: The routing type for the final node
-            exitInfo: The routing info for the final node
+            exitInfo: The routing info for the final node, not including tag.
             path1: Sequence of ServerInfo objects for the first leg of the path
             path2: Sequence of ServerInfo objects for the 2nd leg of the path
+	    paddingPRNG
 
         Note: If either path is empty, the message is vulnerable to tagging 
          attacks! (FFFF we should check this.)
     """
-    return _buildMessage(payload, exitType, exitInfo, path1, path2)
+    if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
 
-def buildReplyMessage(payload, path1, replyBlock):
+    payload = _encodePayload(payload, 0, paddingPRNG)
+    tag = _getRandomTag(paddingPRNG)
+    exitInfo = tag + exitInfo 
+    return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
+
+def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2, 
+				 key, paddingPRNG=None, secretRNG=None):
+    """XXXX
+    """
+    if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
+    if secretRNG is None: secretRNG = paddingPRNG
+
+    payload = _encodePayload(payload, OAEP_OVERHEAD, paddingPRNG)
+
+    sessionKey = secretRNG.getBytes(SECRET_LEN)
+    payload = sessionKey+payLoad
+    rsaDataLen = key.get_modulus_bytes()-OAEP_OVERHEAD
+    rsaPart = payload[:rsaDataLen]
+    lionessPart = payload[rsaDataLen:]
+    # XXXX DOC
+    while 1:
+	encrypted = mixminion.Crypto.pk_encrypt(rsaPart, key)
+	if not (ord(encrypted[0]) & 0x80):
+	    break
+    #XXXX doc mode 'End-to-end encrypt'
+    k = mixminion.Crypto.Keyset(sessionKey).getLionessKeys("End-to-end encrypt")
+    lionessPart = mixminion.Crypto.lioness_encrypt(lionessPart, k)
+    payload = encrypted + lionessPart
+    tag = payload[:TAG_LEN]
+    payload = payload[TAG_LEN:]
+    exitInfo = tag + exitInfo 
+    assert len(payload) == 28*1024
+    return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
+
+def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     """Build a message using a reply block.  'path1' is a sequence of
        ServerInfo for the nodes on the first leg of the path.
     """
+    if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
+
+    payload = _encodePayload(payload, 0, paddingPRNG)
+   
+    # XXXX Document this mode
+    k = Crypto.Keyset(replyBlock.encryptionKey).getLionessKeys(
+	                 Crypto.PAYLOAD_ENCRYPT_MODE)
+    # XXXX Document why this is decrypt
+    payload = Crypto.lioness_decrypt(payload, k)
+
     return _buildMessage(payload, None, None,
                          path1=path1, path2=replyBlock)
 
-def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None):
-    """Return a 2-tuple containing (1) a newly-constructed reply block and (2)
-       a list of secrets used to make it.
+def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None, 
+                    tag=None):
+    """Return a 3-tuple containing (1) a newly-constructed reply block, (2)
+       a list of secrets used to make it, (3) a tag.
        
               path: A list of ServerInfo
               exitType: Routing type to use for the final node
-              exitInfo: Routing info for the final node
+              exitInfo: Routing info for the final node, not including tag.
               expiryTime: The time at which this block should expire.
               secretPRNG: A PRNG to use for generating secrets.  If not
                  provided, uses an AES counter-mode stream seeded from our
-                 entropy source.
+                 entropy source.  Note: the secrets are generated so that they
+                 will be used to encrypt the message in reverse order.
+              tag: If provided, a 159-bit tag.  If not provided, a new one 
+                 is generated.
        """
     if secretPRNG is None:
         secretPRNG = Crypto.AESCounterPRNG()
-    secrets = [ secretPRNG.getBytes(SECRET_LEN) for _ in path ]
-    header = _buildHeader(path, secrets, exitType, exitInfo, 
+
+    # The message is encrypted first by the end-to-end key, then by
+    # each of the path keys in order. We need to reverse these steps, so we
+    # generate the path keys back-to-front, followed by the end-to-end key.
+    secrets = [ secretPRNG.getBytes(SECRET_LEN) for _ in range(len(path)+1) ]
+
+    headerSecrets = secrets[:-1]
+    headerSecrets.reverse()
+    sharedKey = secrets[-1]
+
+    if tag is None:
+	tag = _getRandomTag(secretPRNG)
+
+    header = _buildHeader(path, headerSecrets, exitType, tag+exitInfo, 
                           paddingPRNG=Crypto.AESCounterPRNG())
+
     return ReplyBlock(header, expiryTime,
                       Modules.SWAP_FWD_TYPE,
-                      path[0].getRoutingInfo().pack()), secrets
+                      path[0].getRoutingInfo().pack(), sharedKey), secrets, tag
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
-def buildStatelessReplyBlock(path, user, userKey, email=0, expiryTime=0):
-    """Construct a 'stateless' reply block that does not require the
+def buildStatelessReplyBlock(path, exitType, exitInfo, userKey, 
+			     expiryTime=0, secretRNG=None):
+    """XXXX DOC IS NOW WRONG HERE
+       Construct a 'stateless' reply block that does not require the
        reply-message recipient to remember a list of secrets.
        Instead, all secrets are generated from an AES counter-mode
        stream, and the seed for the stream is stored in the 'tag'
@@ -76,24 +144,86 @@ def buildStatelessReplyBlock(path, user, userKey, email=0, expiryTime=0):
                   email: If true, delivers via SMTP; else delivers via MBOX
        """
     #XXXX Out of sync with the spec.
-    if email and userKey:
-        raise MixError("Requested EMail delivery without password-protection")
+    if secretRNG is None: secretRNG = Crypto.AESCounterPRNG()
+    
+    while 1:
+	seed = _getRandomTag(secretRNG)
+	if Crypto.sha1(seed+userKey+"Validate")[-1] == '\x00':
+	    break
+	
+    prng = Crypto.AESCounterPRNG(Crypto.sha1(seed+userKey+"Generate")[:16])
 
-    seed = Crypto.trng(16)
-    if userKey:
-        tag = Crypto.ctr_crypt(seed,userKey)
-    else:
-        tag = seed
-        
-    if email:
-        exitType = Modules.SMTP_TYPE
-        exitInfo = SMTPInfo(user, "RTRN"+tag).pack()
-    else:
-        exitType = Modules.MBOX_TYPE
-        exitInfo = MBOXInfo(user, "RTRN"+tag).pack()
+    return buildReplyBlock(path, exitType, exitInfo, expiryTime, prng, seed)[0]
 
+#----------------------------------------------------------------------
+# MESSAGE DECODING
+
+def decodePayload(payload, tag, key=None, storedKeys=None, userKey=None):
+    """ DOCDOC XXXX
+        Contract: return payload on success; raise MixError on certain failure,
+          return None if neither.
+    """
+    if _checkPayload(payload):
+	return decodeForwardPayload(payload)
+
+    if storedKeysFn is not None:
+	secrets = storedKeys.get(tag)
+	if secrets is not None:
+	    del storedKeys[tag]
+	    return decodeReplyPayload(payload, secrets)
+
+    if userKey is not None:
+	if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00': 
+	    try:
+		return decodeStatelessReplyPayload(payload, tag, userKey)
+	    except MixError, _:
+		pass
+
+    if key is not None:
+	p = decodeEncryptedPayload(payload, tag, key)
+	if p is not None:
+	    return p
+	
+    return None
+
+def decodeForwardPayload(payload):
+    "XXXX"
+    return _decodePayload(payload)
+
+def decodeEncryptedPayload(payload, tag, key):
+    "XXXX"
+    msg = tag+payload
+    try:
+	rsaPart = Crypto.pk_decrypt(msg[:key.get_modulus_bytes()], key)
+    except Crypto.CryptoError, _:
+	return None
+    rest = msg[key.get_modulus_bytes():]
+    #XXXX magic string
+    k = Crypto.Keyset(rsaPart[:SECRET_LEN]).getLionessKeys("End-to-end encrypt")
+    rest = rsaPart[SECRET_LEN:] + Crypto.lioness_decrypt(rest, k)
+    return _decodePayload(rest)
+
+def decodeReplyPayload(payload, secrets, check=0):
+    "XXXX"
+    for sec in secrets:
+	k = Crypto.Keyset(sec).getLionessKeys(Crypto.PAYLOAD_ENCRYPT_MODE)
+	# XXXX document why this is encrypt
+	payload = Crypto.lioness_encrypt(payload, k)
+	if check and _checkPayload(payload):
+	    break
+
+    return _decodePayload(payload)
+
+def decodeStatelessReplyPayload(payload, tag, userKey):
+    "XXXX"
+    seed = Crypto.sha1(tag+userKey+"Generate")[:16]
     prng = Crypto.AESCounterPRNG(seed)
-    return buildReplyBlock(path, exitType, exitInfo, expiryTime, prng)[0]
+    secrets = [ prng.getBytes(SECRET_LEN) for _ in xrange(17) ]
+			 
+    return decodeReplyBlock(payload, secrets, check=1)
+	
+	
+    
 
 #----------------------------------------------------------------------
 def _buildMessage(payload, exitType, exitInfo,
@@ -101,7 +231,7 @@ def _buildMessage(payload, exitType, exitInfo,
     """Helper method to create a message.
 
     The following fields must be set:
-       payload: the intended exit payload.
+       payload: the intended exit payload.  Must be 28K.
        (exitType, exitInfo): the routing type and info for the final node.
               (Ignored for reply messages)
        path1: a sequence of ServerInfo objects, one for each of the nodes
@@ -115,13 +245,15 @@ def _buildMessage(payload, exitType, exitInfo,
              a replyBlock object.
 
     The following fields are optional:
-       paddingPRNG: A pseudo-random number generator used to pad the headers
-         and the payload.  If not provided, we use a counter-mode AES stream
-         seeded from our entropy source.
+       paddingPRNG: A pseudo-random number generator used to pad the headers.
+         If not provided, we use a counter-mode AES stream seeded from our 
+         entropy source. 
+         
        paranoia: If this is false, we use the padding PRNG to generate
          header secrets too.  Otherwise, we read all of our header secrets
          from the true entropy source. 
     """
+    assert len(payload) == PAYLOAD_LEN
     reply = None
     if isinstance(path2, ReplyBlock):
         reply = path2
@@ -146,11 +278,6 @@ def _buildMessage(payload, exitType, exitInfo,
     else:
         path1exittype = Modules.SWAP_FWD_TYPE
         path1exitinfo = path2[0].getRoutingInfo().pack()
-
-    # Pad the payload, as needed.
-    if len(payload) < PAYLOAD_LEN:
-        # ???? Payload padding/sizing must be handled in spec.
-        payload += paddingPRNG.getBytes(PAYLOAD_LEN-len(payload))
 
     # Generate secrets for path1.
     secrets1 = [ secretRNG.getBytes(SECRET_LEN) for _ in path1 ]
@@ -179,7 +306,6 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
            exitInfo: The routing info for the last node in the header
            paddingPRNG: A pseudo-random number generator to generate padding
     """
-
     assert len(path) == len(secrets)
     if len(path) * ENC_SUBHEADER_LEN > HEADER_LEN:
         raise MixError("Too many nodes in path")
@@ -294,3 +420,40 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
         payload = Crypto.lioness_encrypt(payload,pkey)
 
     return Message(header1, header2, payload).pack()
+
+def _encodePayload(payload, overhead, paddingPRNG):
+    """XXXX
+    """
+    # FFFF Do fragmentation here.
+    
+    payload = compressData(payload)
+
+    length = len(payload)
+    paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
+    if paddingLen < 0:
+	raise MixError("Payload too long for singleton message")
+    
+    payload += paddingPRNG.getBytes(paddingLen)
+
+    return SingletonPayload(length, Crypto.sha1(payload), payload).pack()
+
+def _getRandomTag(rng):
+    "XXXX"
+    b = ord(rng.getBytes(1)) & 0x7f
+    return chr(b) + rng.getBytes(TAG_LEN-1)
+
+def _decodePayload(payload):
+    if not _checkPayload(payload):
+	raise MixError("Hash doesn't match")
+    payload = parsePayload(payload)
+
+    if not payload.isSingleton():
+	raise MixError("Message fragments not yet supported")
+    #if payload.hash != Crypto.sha1(payload.data):
+    #    raise MixError("Hash doesn't match")
+
+    return uncompressData(payload.getContents())
+
+def _checkPayload(payload):
+    return payload[2:22] == Crypto.sha1(payload[22:])
+
