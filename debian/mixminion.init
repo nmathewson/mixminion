@@ -4,6 +4,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/bin/mixminion
 NAME=mixminion
 DESC="mixminion daemon"
+PIDFILE=/var/run/$NAME/mixminion.pid
+WAITFORDAEMON=15
+PYTHON=/usr/bin/python2.3
+PYTHON_BASE=`basename $PYTHON`
 
 test -x $DAEMON || exit 0
 
@@ -14,6 +18,32 @@ fi
 
 set -e
 
+
+wait_for_deaddaemon () {
+	pid=$1
+	sleep 1
+	if test -n "$pid"
+	then
+		if kill -0 $pid 2>/dev/null
+		then
+			echo -n "."
+			cnt=0
+			while kill -0 $pid 2>/dev/null
+			do
+				cnt=`expr $cnt + 1`
+				if [ $cnt -gt $WAITFORDAEMON ]
+				then
+					echo " FAILED."
+					return 1
+				fi
+				sleep 1
+				echo -n "."
+			done
+		fi
+	fi
+	return 0
+}
+
 case "$1" in
   start)
 	if [ "$RUN_DAEMON" != "yes" ]; then
@@ -22,21 +52,44 @@ case "$1" in
 		echo -n "Starting $DESC: "
 		start-stop-daemon --start --quiet --oknodo \
 			--chuid debian-mixminion:debian-mixminion \
-			--pidfile /var/run/$NAME/mixminion.pid \
-			--exec /usr/bin/python2.3 -- /usr/bin/mixminion server-start --daemon --quiet
+			--pidfile $PIDFILE \
+			--exec $PYTHON \
+			-- /usr/bin/mixminion server-start --daemon --quiet
 		echo "$NAME."
 	fi
 	;;
   stop)
 	echo -n "Stopping $DESC: "
-	start-stop-daemon --stop --quiet --oknodo --pidfile /var/run/$NAME/mixminion.pid \
-		--exec /usr/bin/python2.3 -- /usr/bin/mixminion
-	echo "$NAME."
+	pid=`cat $PIDFILE 2>/dev/null` || true
+	if test ! -f $PIDFILE -o -z "$pid"
+	then
+		echo "not running (there is no $PIDFILE)."
+	elif start-stop-daemon --stop --quiet --pidfile $PIDFILE --name $PYTHON_BASE
+	then
+		wait_for_deaddaemon $pid
+		echo "$NAME."
+	elif kill -0 $pid 2>/dev/null
+	then
+		echo "FAILED (Is $pid not $NAME?)."
+	else
+		echo "FAILED ($DAEMON died: process $pid not running; or permission denied)."
+	fi
 	;;
   reload|force-reload)
-	echo "Reloading $DESC configuration."
-	start-stop-daemon --stop --signal 1 --oknodo --quiet --pidfile /var/run/$NAME/mixminion.pid \
-		--exec /usr/bin/python2.3 -- /usr/bin/mixminion
+	echo -n "Reloading $DESC configuration: "
+	pid=`cat $PIDFILE 2>/dev/null` || true
+	if test ! -f $PIDFILE -o -z "$pid"
+	then
+		echo "not running (there is no $PIDFILE)."
+	elif start-stop-daemon --stop --signal 1 --quiet --pidfile $PIDFILE --name $PYTHON_BASE
+	then
+		echo "$NAME."
+	elif kill -0 $pid 2>/dev/null
+	then
+		echo "FAILED (Is $pid not $NAME?)."
+	else
+		echo "FAILED ($DAEMON died: process $pid not running; or permission denied)."
+	fi
 	;;
   restart)
 	$0 stop

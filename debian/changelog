@@ -1,9 +1,12 @@
 mixminion (0.0.XXXXX) unreleased; urgency=low
 
   * Update debian/copyright: Mixminion relicensed to MIT.
-  * Build depend on python too, in addition to python2.3.
+  * Build depend on python too, in addition to python2.3
+    (closes: #271922, #271202).
+  * Wait until mixminion is dead in init script stop
+    (closes: #257758).
 
- -- Peter Palfrader <weasel@debian.org>  Wed, 28 Jul 2004 14:53:54 +0200
+ -- Peter Palfrader <weasel@debian.org>  Sat,  2 Oct 2004 18:29:12 +0200
 
 mixminion (0.0.7.1-1) experimental; urgency=low
 
