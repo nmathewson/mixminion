@@ -1,6 +1,6 @@
-$Id: README,v 1.70.2.1 2003/12/18 23:13:55 nickm Exp $
+$Id: README,v 1.70.2.2 2003/12/19 05:52:51 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.6, from the Mixminion CVS repository.
+This is Mixminion version 0.0.6.1.
 
 CONTENTS:
         I.    Overview
@@ -37,6 +37,21 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.6.1:
+   - Several documentation fixes.
+
+   - Make the -H option work again when -P is not provided, and give a
+     useful error when it is.
+
+   - Make 'list-server -R' work properly.
+
+   - Fix a bug that made it impossible to send replies messages with text
+     from the command line.
+
+   - Never try to clean client queues without holding the proper lock.
+
+   - Prevent the server from crashing on an unresolvable hostname.
 
 NEW IN VERSION 0.0.6:
    - Several documentation fixes.
@@ -153,7 +168,7 @@ new version of the software.
 
 If you aren't running a server, you are done.  (Compatibility note: SURB
 keyrings used by version 0.0.5 are _not_ compatible with keyrings used by
-0.0.6!)
+0.0.6.X!)
 
 If you're running a server, you may need to upgrade your configuration file.
 Follow these steps:
@@ -179,9 +194,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version: For Unix-clones, Mac OS X, or Windows with Cygwin
 ---------------------------------------------------------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.6.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.6.1.tar.gz>
 
-  % cd Mixminion-0.0.6
+  % cd Mixminion-0.0.6.1
   % make download-openssl
   % make build-openssl
   % make
@@ -248,7 +263,7 @@ The very easy version: For Windows
 
    First, make sure that you're running Win98 or later.
 
-   Download 'Mixminion-0.0.6.win32.zip", and unpack it anywhere you like.
+   Download 'Mixminion-0.0.6.1.win32.zip", and unpack it anywhere you like.
    It will create a directory named 'mixminion'.
 
    Use mixminion.exe from that directory as your command-line client.
@@ -265,7 +280,7 @@ The slightly harder version: For Windows with Python 2.3
    First, make sure that you have the latest official release of Python 2.3
    installed.  As of 5 Dec 2003, this is 2.3.2.
 
-   Download and run "Mixminion-0.0.6.win32-py2.3.exe".  It will unpack
+   Download and run "Mixminion-0.0.6.1.win32-py2.3.exe".  It will unpack
    its files into your Python directory.
 
    The script to invoke Mixminion will be stored in the 'Scripts'
