@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.24 2003/08/17 21:09:56 nickm Exp $
+# $Id: HashLog.py,v 1.25 2003/09/19 04:32:46 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -97,7 +97,7 @@ class HashLog(mixminion.Filestore.BooleanJournaledDBBase):
                 raise MixFatalError("Log KEYID does not match current KEYID")
         except KeyError:
             self.log["KEYID"] = keyid
-            self.log.sync()
+            self._syncLog()
 
     def seenHash(self, hash):
         return self.has_key(hash)
