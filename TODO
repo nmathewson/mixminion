@@ -55,8 +55,10 @@ FOR 0.0.1: (The first alpha)
 		o Make all config files reject bogus characters.
 		- Example config
 	. Build
-		. Ability to pull ssl.
+		o Ability to pull ssl.
 		o Ability to build ssl.
+		o Good error message on missing zlib module
+		- Use sane arguments when testing with multiple python versions
 		- Marginal 'make install'
 	- Integration testing
 		- Better log messages at all points throughout system.
