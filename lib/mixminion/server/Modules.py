@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.66 2003/12/08 07:13:58 nickm Exp $
+# $Id: Modules.py,v 1.67 2003/12/14 01:43:25 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -1028,7 +1028,7 @@ class MBoxModule(DeliveryModule, MailBase):
                 raise ConfigError("Missing field %s in [Delivery/MBOX]"%field)
         if not os.path.exists(sec['AddressFile']):
             raise ConfigError("Address file %s seems not to exist."%
-                              sec['AddresFile'])
+                              sec['AddressFile'])
         for field in ['ReturnAddress', 'RemoveContact']:
             if not isSMTPMailbox(sec[field]):
                 LOG.warn("Value of %s (%s) doesn't look like an email address",
