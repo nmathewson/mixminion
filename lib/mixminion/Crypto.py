@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.55 2003/11/12 04:35:14 nickm Exp $
+# $Id: Crypto.py,v 1.56 2003/11/20 08:47:24 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -509,6 +509,7 @@ class RNG:
 
     def getBytes(self, n):
         """Returns a string of 'n' random bytes."""
+        assert n >= 0
 
         if n > len(self.bytes):
             # If we don't have enough bytes, fetch enough so that we'll have
