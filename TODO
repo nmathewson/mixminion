@@ -49,6 +49,10 @@ For 0.0.5:
                 o Rephrase tests to use new names.
                 o Remove old 'Queue' class.
                 o Tests for metadata methods
+        . Refactor database logic out of SURBLog, HashLog
+                o Implement common logic
+                o Refactor existing classes
+                - Tests for new logic
         . Initial support for email headers (client side)
                 o Implement
                 - Give error messages on bad headers
@@ -56,12 +60,18 @@ For 0.0.5:
         . Support for large messages and K-of-N
                 o fec backend code
                 o Tests and timing for fec backend
+                . Common fragment-pool code
+                        o Implement
+                        - Test
                 - Fragment genration code for client
                 - Fragment-pool logic for server
+                - Fragment-pool logic for client
+                - Advertise fragment reassembly in server descriptors
+                - Check server descriptors when fragmenting
                 - Tests
-        . Change descriptors to accept YYYY-MM-DD.
+        o Change descriptors to accept YYYY-MM-DD.
                 o Implement
-                - Test
+                o Test
         . UI improvements:
                 o If we can't read serverdescs on startup, suggest a
                   server-DELKEYS.
@@ -104,7 +114,7 @@ For 0.0.6:
                   incompatibility list.
                 - Installer
                 - Instructions
-        - RFC822 interface to help integrators
+        - RFC822 interface and maildir-style exit module to help integrators
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
                 - SIGHUP should reconfigure everything:
                         - Logs
@@ -251,6 +261,7 @@ Other features for "1.0" (no research required):
                   nicknames for other servers rather than just IP addresses.
         - Port to Twisted, if reasonable (see HACKING)
         - MMTP / async
+               - Make MMTP bursty
                - Tests for all cases:
                         - Packet to server with bogus IP
                         - Junk
@@ -278,11 +289,10 @@ Features for "1.0" (some research/specification required):
                   random servers.
                 - Notice Allow/Deny.
                 - Notice MMTP protocol versions.
+        - Fragment and unfragment large messages on disk.
         - Client support: other
                 - Send message to user with known public key
                 - Real PKI for end-to-end encryption
-        - MMTP / async
-                - Make MMTP bursty
         - Directories
                 - Support for full-blown multiple-server agreement mechanism
         - IPv6 support (must solve non-clique problem)
