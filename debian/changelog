@@ -5,8 +5,9 @@ mixminion (0.0.XXXXX) unreleased; urgency=low
     (closes: #271922, #271202).
   * Wait until mixminion is dead in init script stop
     (closes: #257758).
+  * Also logrotate /var/log/mixminion/stats (closes: #289669).
 
- -- Peter Palfrader <weasel@debian.org>  Sat,  2 Oct 2004 18:29:12 +0200
+ -- Peter Palfrader <weasel@debian.org>  Mon, 10 Jan 2005 15:31:51 +0100
 
 mixminion (0.0.7.1-1) experimental; urgency=low
 

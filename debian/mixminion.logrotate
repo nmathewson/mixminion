@@ -9,3 +9,11 @@
 		/etc/init.d/mixminion reload > /dev/null
 	endscript
 }
+/var/log/mixminion/stats {
+	monthly
+	rotate 24
+	compress
+	delaycompress
+	missingok
+	notifempty
+}
