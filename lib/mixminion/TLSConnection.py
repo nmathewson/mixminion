@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.3 2004/01/04 19:36:29 nickm Exp $
+# $Id: TLSConnection.py,v 1.4 2004/01/11 07:38:27 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -153,6 +153,7 @@ class TLSConnection:
         if self.lastActivity <= cutoff:
             LOG.warn("Connection to %s timed out: %s seconds without activity",
                      self.address, time.time()-self.lastActivity)
+            self.onTimeout()
             self.__close()
 
     def getInbuf(self, maxBytes=None, clear=0):
@@ -447,6 +448,10 @@ class TLSConnection:
 
     def onTLSError(self):
         """Called when we get an error on the connection."""
+        raise NotImplemented()
+
+    def onTimeout(self):
+        """DOCDOC"""
         raise NotImplemented()
 
     def onClosed(self):

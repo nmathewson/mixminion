@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.69 2004/01/08 22:33:33 nickm Exp $
+# $Id: MMTPServer.py,v 1.70 2004/01/11 07:38:27 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -353,6 +353,7 @@ class MMTPServerConnection(mixminion.TLSConnection.TLSConnection):
 
     def onDataWritten(self, n): pass
     def onTLSError(self): pass
+    def onTimeout(self): pass
     def onClosed(self): pass
     def doneWriting(self): pass
     def receivedShutdown(self): pass

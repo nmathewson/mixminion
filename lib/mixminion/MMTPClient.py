@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.47 2004/01/03 07:35:23 nickm Exp $
+# $Id: MMTPClient.py,v 1.48 2004/01/11 07:38:27 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -322,6 +322,8 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
             EventStats.log.failedConnect()
         self._isConnected = 0
         self._failPendingPackets()
+    def onTimeout(self):
+        self.onTLSError()
     def onClosed(self): pass
     def doneWriting(self): pass
     def receivedShutdown(self):
