@@ -808,7 +808,7 @@ class CLIArgumentParser:
         self.wantReplyPath = wantReplyPath
 
         self.configFile = None
-        self.verbose = 0
+        self.verbose = self.quiet = 0
         self.download = None
         self.password_fileno = None
 
@@ -829,6 +829,8 @@ class CLIArgumentParser:
                 self.configFile = v
             elif o in ('-v', '--verbose'):
                 self.verbose = 1
+            elif o in ('-Q', '--quiet'):
+                self.quiet = 1
             elif o in ('-D', '--download-directory'):
                 assert wantDownload
                 download = v.lower()
@@ -899,17 +901,24 @@ class CLIArgumentParser:
         elif self.nHops:
             raise UIError("You cannot specify both a path (-P/--path) and a number of hops (-H/--hops)")
 
+        if self.quiet and self.verbose:
+            raise UsageError("I can't be quiet and verbose at the same time.")
+
     def init(self):
         """Configure objects and initialize subsystems as specified by the
            command line."""
+        if self.verbose:
+            severity = "TRACE"
+        elif self.quiet:
+            severity = "ERROR"
+        else:
+            severity = "INFO"
+
         if self.wantConfig:
             self.config = readConfigFile(self.configFile)
             if self.wantLog:
                 LOG.configure(self.config)
-                if self.verbose:
-                    LOG.setMinSeverity("TRACE")
-                else:
-                    LOG.setMinSeverity("INFO")
+                LOG.setMinSeverity(severity)
             mixminion.Common.configureShredCommand(self.config)
             mixminion.Common.configureFileParanoia(self.config)
             if not self.verbose:
@@ -917,7 +926,7 @@ class CLIArgumentParser:
                     LOG.setMinSeverity("WARN")
                     mixminion.Crypto.init_crypto(self.config)
                 finally:
-                    LOG.setMinSeverity("INFO")
+                    LOG.setMinSeverity(severity)
             else:
                 mixminion.Crypto.init_crypto(self.config)
 
@@ -925,7 +934,7 @@ class CLIArgumentParser:
             configureClientLock(os.path.join(userdir, "lock"))
         else:
             if self.wantLog:
-                LOG.setMinSeverity("ERROR")
+                LOG.setMinSeverity(severity)
             userdir = None
 
         if self.wantClient:
@@ -1124,8 +1133,8 @@ def runClient(cmd, args):
 
     ###
     # Parse and validate our options.
-    options, args = getopt.getopt(args, "hvf:D:t:H:P:R:i:",
-             ["help", "verbose", "config=", "download-directory=",
+    options, args = getopt.getopt(args, "hvQf:D:t:H:P:R:i:",
+             ["help", "verbose", "quiet", "config=", "download-directory=",
               "to=", "hops=", "path=", "reply-block=", "reply-block-fd=",
               "input=", "queue", "no-queue",
               "subject=", "from=", "in-reply-to=", "references=",
@@ -1254,8 +1263,8 @@ def runPing(cmd, args):
         print _PING_USAGE
         sys.exit(0)
 
-    options, args = getopt.getopt(args, "hvf:D:",
-             ["help", "verbose", "config=", "download-directory=", ])
+    options, args = getopt.getopt(args, "hvQf:D:",
+             ["help", "verbose", "quiet", "config=", "download-directory=", ])
 
     if len(args) == 0:
         raise UsageError("(No servers provided)")
@@ -1321,7 +1330,8 @@ EXAMPLES:
 
 def importServer(cmd, args):
     """[Entry point] Manually add a server to the client directory."""
-    options, args = getopt.getopt(args, "hf:v", ['help', 'config=', 'verbose'])
+    options, args = getopt.getopt(args, "hf:vQ",
+                     ['help', 'config=', 'verbose', 'quiet'])
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
@@ -1376,9 +1386,9 @@ EXAMPLES:
 
 def listServers(cmd, args):
     """[Entry point] Print info about """
-    options, args = getopt.getopt(args, "hf:D:vF:JTRs:cC",
+    options, args = getopt.getopt(args, "hf:D:vQF:JTRs:cC",
                                   ['help', 'config=', "download-directory=",
-                                   'verbose', 'feature=', 'justify',
+                                   'verbose', 'quiet', 'feature=', 'justify',
                                    'with-time', "no-collapse", "recommended",
                                    "separator=", "cascade","cascade-features",
                                    'list-features' ])
@@ -1493,7 +1503,8 @@ EXAMPLES:
 """.strip()
 
 def updateServers(cmd, args):
-    options, args = getopt.getopt(args, "hvf:", ['help', 'verbose', 'config='])
+    options, args = getopt.getopt(args, "hvQf:",
+               ['help', 'quiet', 'verbose', 'config='])
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantClientDirectory=1,
@@ -1537,8 +1548,8 @@ EXAMPLES:
 
 def clientDecode(cmd, args):
     """[Entry point] Decode a message."""
-    options, args = getopt.getopt(args, "hvf:o:Fi:",
-          ['help', 'verbose', 'config=',
+    options, args = getopt.getopt(args, "hvQf:o:Fi:",
+          ['help', 'verbose', 'quiet', 'config=',
            'output=', 'force', 'input=', 'passphrase-fd=',])
 
     outputFile = '-'
@@ -1643,8 +1654,8 @@ EXAMPLES:
 """.strip()
 
 def generateSURB(cmd, args):
-    options, args = getopt.getopt(args, "hvf:D:t:H:P:o:bn:",
-          ['help', 'verbose', 'config=', 'download-directory=',
+    options, args = getopt.getopt(args, "hvQf:D:t:H:P:o:bn:",
+          ['help', 'verbose', 'quiet', 'config=', 'download-directory=',
            'to=', 'hops=', 'path=', 'lifetime=', 'passphrase-fd=',
            'output=', 'binary', 'count=', 'identity='])
 
@@ -1718,8 +1729,8 @@ EXAMPLES:
 """.strip()
 
 def inspectSURBs(cmd, args):
-    options, args = getopt.getopt(args, "hvf:",
-             ["help", "verbose", "config=", ])
+    options, args = getopt.getopt(args, "hvQf:",
+             ["help", "verbose", "quiet", "config=", ])
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
@@ -1767,8 +1778,8 @@ DOCDOC
 """.strip()
 
 def flushQueue(cmd, args):
-    options, args = getopt.getopt(args, "hvf:n:",
-             ["help", "verbose", "config=", "count="])
+    options, args = getopt.getopt(args, "hvQf:n:",
+             ["help", "verbose", "quiet", "config=", "count="])
     count=None
     for o,v in options:
         if o in ('-n','--count'):
@@ -1812,8 +1823,8 @@ DOCDODC
 """.strip()
 
 def cleanQueue(cmd, args):
-    options, args = getopt.getopt(args, "hvf:d:",
-             ["help", "verbose", "config=", "days=",])
+    options, args = getopt.getopt(args, "hvQf:d:",
+             ["help", "verbose", "quiet", "config=", "days=",])
     days = 60
     for o,v in options:
         if o in ('-d','--days'):
@@ -1855,8 +1866,8 @@ EXAMPLES:
 """.strip()
 
 def listQueue(cmd, args):
-    options, args = getopt.getopt(args, "hvf:D:",
-                                  ["help", "verbose", "config=",
+    options, args = getopt.getopt(args, "hvQf:D:",
+                                  ["help", "verbose", "quiet", "config=",
                                    'download-directory=',])
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
