@@ -1,7 +1,7 @@
 Hacking Mixminion
 
 Requirements:
-	Python 2.2 (see PORTING NOTES below)
+	Python 2.0-2.2  (see PORTING NOTES below)
 	OpenSSL 0.9.7 (you'll need to download a snapshot)
 	Working /dev/urandom (see PORTING NOTES below)
 
@@ -49,16 +49,11 @@ DESIGN PRINCIPALS:
        ------------------
 
 
-
 PORTING NOTES:
     - If you need to run on a system without /dev/urandom, you'll need
       to write an acceptable fallback for mixminion.Crypto.trng() to
       use.  
-    - We could backport to Python 2.1 with a minimum of pain by
-      replacing uses of // with divmod.  We could backport to 2.0 
-      (with bigger headaches) by excising nested scopes.
-
-      I refuse to backport to 1.5 or 1.6.
+    - I've already backported to 2.0.  I refuse to backport to 1.5 or 1.6.
 
 CAVEATS:
     - If I haven't got a test for it in tests.py, assume it doesn't work.

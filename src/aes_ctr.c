@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.2 2002/05/31 12:39:18 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.3 2002/06/02 06:11:16 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because 
@@ -35,8 +35,8 @@ typedef unsigned char u8;
 
 #if 0  /* On my Athlon, bswap_32 is actually slower.  Surprisingly,
 	 the code in glib/gtypes.h _is_ faster; but shaves only 1%
-         off encryption.  We seem to have reached the point of diminishing
-         returns here.*/
+         off encryption.  We seem to be near the point of diminishing
+         returns here. */
 #ifdef MM_L_ENDIAN
 #ifdef MM_HAVE_BYTESWAP_H
 #include <byteswap.h>
@@ -59,7 +59,6 @@ typedef unsigned char u8;
 #define GET_U32(ptr)   GET_U32_cp(((u8*)(ptr)))
 #define SET_U32(ptr,i) SET_U32_cp(((u8*)(ptr)), i)
 #endif
-
 
 static inline void
 mm_incr(u32 const* ctr32)
@@ -114,4 +113,3 @@ mm_aes_counter128(const char *in, char *out, unsigned int len, AES_KEY *key,
   c-basic-offset:8
   End:
 */
-

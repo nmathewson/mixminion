@@ -1,18 +1,45 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.5 2002/05/31 12:47:58 nickm Exp $
+# $Id: test.py,v 1.6 2002/06/02 06:11:16 nickm Exp $
 
-import unittest
+"""mixminion.tests
+
+   Unit tests for all Mixminion functionality.
+
+   Usage:
+   >>> import mixminion.tests
+   >>> mixminion.tests.testAll()
+
+   """
+
+import os
+from mixminion.Common import MixError
+
+try:
+    import unittest
+except ImportError:
+    import mixminion._unittest as unittest
 
 def hexread(s):
+    assert (len(s) % 2) == 0
     r = []
     hexvals = "0123456789ABCDEF"
-    for i in range(len(s) // 2):
+    for i in range(len(s) / 2):
         v1 = hexvals.index(s[i*2])
         v2 = hexvals.index(s[i*2+1])
         c = (v1 << 4) + v2
         assert 0 <= c < 256
         r.append(chr(c))
     return "".join(r)
+
+def try_unlink(fname):
+    try:
+        os.unlink(fname)
+    except OSError:
+        pass
+
+def try_unlink_db(fname):
+    for suffix in ("", ".bak", ".dat", ".dir"):
+        try_unlink(fname+suffix)
 
 #----------------------------------------------------------------------
 import mixminion._minionlib as _ml
@@ -127,7 +154,6 @@ class MinionlibCryptoTests(unittest.TestCase):
 
     def test_rsa(self):
         p = _ml.rsa_generate(1024, 65535)
-        def sslerr(*args): self.failUnlessRaises(_ml.SSLError, *args)
 
         #For all of SIGN, CHECK_SIG, ENCRYPT, DECRYPT...
         for pub1 in (0,1):
@@ -214,6 +240,8 @@ class CryptoTests(unittest.TestCase):
         # Check pk_get_modulus sanity
         self.failUnless((1L<<511) < pk_get_modulus(k512) < (1L<<513))
         self.failUnless((1L<<1023) < pk_get_modulus(k1024) < (1L<<1024))
+        self.assertEquals(pk_get_modulus(k512),
+                        pk_get_modulus(pk_from_modulus(pk_get_modulus(k512))))
 
         # Make sure that public keys can be made from moduli, and used to
         # encrypt and decrypt.
@@ -299,8 +327,8 @@ class CryptoTests(unittest.TestCase):
                           PRNG.getBytes(34764)))
 
 #----------------------------------------------------------------------
-import mixminion.Formats
-from mixminion.Formats import *
+import mixminion.Packet
+from mixminion.Packet import *
 
 class FormatTests(unittest.TestCase):
     def test_subheader(self):
@@ -310,11 +338,13 @@ class FormatTests(unittest.TestCase):
         
         expected = "\003\000abcdeabcdeabcdef"+\
                    "ABCDEFGHIJABCDEFGHIJ\000\005\000\001Hello"
+        # test packing
         self.assertEquals(s.pack(), expected)
         self.failUnless(not s.isExtended())
         self.assertEquals(s.getNExtraBlocks(), 0)
         self.assertEquals(s.getExtraBlocks(), [])
 
+        # test unpacking,
         s = parseSubheader(s.pack())
         self.assertEquals(s.major, 3)
         self.assertEquals(s.minor, 0)
@@ -337,8 +367,9 @@ class FormatTests(unittest.TestCase):
 
         self.assertEquals(len(ts_eliot), 186)
 
+        # test extended subeaders
         expected = "\003\011abcdeabcdeabcdefABCDEFGHIJABCDEFGHIJ\000\272\000\076Who is the third who walks always beside you"
-        self.assertEquals(len(expected), mixminion.Formats.MAX_SUBHEADER_LEN)
+        self.assertEquals(len(expected), mixminion.Packet.MAX_SUBHEADER_LEN)
         self.assertEquals(s.pack(), expected)
 
         extra = s.getExtraBlocks()
@@ -348,6 +379,7 @@ class FormatTests(unittest.TestCase):
                           "road / There is always another one walk")
         self.assertEquals(extra[1], "ing beside you"+(114*'\000'))
 
+        # test parsing extended subheaders
         s = parseSubheader(expected)
         self.assertEquals(s.major, 3)
         self.assertEquals(s.minor, 9)
@@ -363,8 +395,12 @@ class FormatTests(unittest.TestCase):
         self.assertEquals(s.pack(), expected)
         self.assertEquals(s.getExtraBlocks(), extra)
 
+        # Underlong subheaders must fail
         self.failUnlessRaises(ParseError,
                               parseSubheader, "a"*(41))
+        # overlong subheaders must fail
+        self.failUnlessRaises(ParseError,
+                              parseSubheader, "a"*(99))
 
     def test_headers(self):
         header = ("abcdefghi"*(256))[:2048]
@@ -375,6 +411,8 @@ class FormatTests(unittest.TestCase):
         self.failUnless(h[1:] == header[128:])
         self.failUnless(h[1:4] == header[128:128*4])
         self.failUnless(h[15] == header[-128:])
+        self.failUnless(h[15] == h[-1])
+        self.failUnless(h[14:] == h[-2:])
 
     def test_message(self):
         # 9 is relatively prime to all pwrs of 2.
@@ -435,17 +473,14 @@ class HashLogTests(unittest.TestCase):
         try:
             self.hashlogTestImpl(fname)
         finally:
-            try:
-                os.unlink(fname)
-            except:
-                pass
+            try_unlink_db(fname)
         
     def hashlogTestImpl(self,fname):
-        h = HashLog(fname, "Xyzzy")
+        h = [HashLog(fname, "Xyzzy")]
         
-        notseen = lambda hash: self.assert_(not h.seenHash(hash))
-        seen = lambda hash: self.assert_(h.seenHash(hash))
-        log = lambda hash: h.logHash(hash)
+        notseen = lambda hash,self=self,h=h: self.assert_(not h[0].seenHash(hash))
+        seen = lambda hash,self=self,h=h: self.assert_(h[0].seenHash(hash))
+        log = lambda hash,h=h: h[0].logHash(hash)
         
         notseen("a")
         notseen("a*20")
@@ -475,8 +510,8 @@ class HashLogTests(unittest.TestCase):
         log("abcdef"*4)
         seen("abcdef"*4)
         
-        h.close()
-        h = HashLog(fname, "Xyzzy")
+        h[0].close()
+        h[0] = HashLog(fname, "Xyzzy")
         seen("a")
         seen("b")
         seen("\277"*20)
@@ -490,12 +525,11 @@ class HashLogTests(unittest.TestCase):
         log("ddddd")
         seen("ddddd")
         
-        h.close()
-        h = HashLog(fname, "Xyzzy")
+        h[0].close()
+        h[0] = HashLog(fname, "Xyzzy")
         seen("ddddd")
 
-        h.close()
-
+        h[0].close()
 
 #----------------------------------------------------------------------
 import mixminion.BuildMessage
@@ -515,9 +549,10 @@ class _BMTSupport:
 
 BMTSupport = _BMTSupport()
 
+from mixminion.ServerInfo import ServerInfo
+
 class BuildMessageTests(unittest.TestCase):
     def setUp(self):
-        from mixminion.ServerInfo import ServerInfo
         self.pk1 = BMTSupport.pk1
         self.pk2 = BMTSupport.pk2
         self.pk3 = BMTSupport.pk3
@@ -544,7 +579,7 @@ class BuildMessageTests(unittest.TestCase):
         head = bhead([self.server1, self.server2],
                      ["9"*16, "1"*16], 99, "Hi mom", AESCounterPRNG()) 
 
-        ipv4 = mixminion.Formats.IPV4Info
+        ipv4 = mixminion.Packet.IPV4Info
         self.do_header_test(head,
                             (self.pk1, self.pk2),
                             ["9"*16, "1"*16],
@@ -560,26 +595,39 @@ class BuildMessageTests(unittest.TestCase):
                       99, "Hi mom", AESCounterPRNG())
         pks = (self.pk1,self.pk2,self.pk3)
         rtypes = (FWD_TYPE, FWD_TYPE, 99)
-        rinfo = (mixminion.Formats.IPV4Info("127.0.0.2", 3, "Z"*20).pack(),
-                 mixminion.Formats.IPV4Info("127.0.0.3", 5, "Q"*20).pack(),
+        rinfo = (mixminion.Packet.IPV4Info("127.0.0.2", 3, "Z"*20).pack(),
+                 mixminion.Packet.IPV4Info("127.0.0.3", 5, "Q"*20).pack(),
                  "Hi mom")
         self.do_header_test(head, pks, secrets, rtypes, rinfo)
 
     def do_header_test(self, head, pks, secrets, rtypes, rinfo):
+        """Unwraps and checks the layers of a single header.
+                    head: the header to check
+                    pks: sequence of public keys for hops in the path
+                    secrets: sequence of master secrets for the subheaders
+                    rtypes: sequenece of expected routing types
+                    rinfo: sequenece of expected routing info's.
+
+              If secrets is None, takes secrets from the headers without
+                checking.
+
+              Returns a list of the secrets encountered.
+              If rinfo is None, also returns a list of the routinginfo objects.
+            """
         retsecrets = []
         retinfo = []
         if secrets == None:
             secrets = [ None ] * len(pks)
-        self.assertEquals(len(head), mixminion.Formats.HEADER_LEN)
+        self.assertEquals(len(head), mixminion.Packet.HEADER_LEN)
         for pk, secret, rt, ri in zip(pks, secrets,rtypes,rinfo):
-            subh = mixminion.Formats.parseSubheader(pk_decrypt(head[:128], pk))
+            subh = mixminion.Packet.parseSubheader(pk_decrypt(head[:128], pk))
             if secret:
                 self.assertEquals(subh.secret, secret)
             else:
                 secret = subh.secret
                 retsecrets.append(secret)
-            self.assertEquals(subh.major, mixminion.Formats.MAJOR_NO)
-            self.assertEquals(subh.minor, mixminion.Formats.MINOR_NO)
+            self.assertEquals(subh.major, mixminion.Packet.MAJOR_NO)
+            self.assertEquals(subh.minor, mixminion.Packet.MINOR_NO)
             
             self.assertEquals(subh.digest, sha1(head[128:]))
             self.assertEquals(subh.routingtype, rt)
@@ -595,7 +643,7 @@ class BuildMessageTests(unittest.TestCase):
                 size = 128
                 n = 0
             else:
-                self.assert_(len(ri) > mixminion.Formats.MAX_ROUTING_INFO_LEN)
+                self.assert_(len(ri) > mixminion.Packet.MAX_ROUTING_INFO_LEN)
                 n = subh.getNExtraBlocks()
                 size = (1+n)*128
                 more = ctr_crypt(head[128:128+128*n], key)
@@ -615,7 +663,7 @@ class BuildMessageTests(unittest.TestCase):
 
     def test_extended_routinginfo(self):
         bhead = mixminion.BuildMessage._buildHeader
-        bhead_impl = mixminion.BuildMessage._buildHeader_impl
+
         secrets = ["9"*16 ]
         longStr = "Foo"*50
         head = bhead([self.server1 ], secrets, 99, longStr, AESCounterPRNG())
@@ -625,22 +673,34 @@ class BuildMessageTests(unittest.TestCase):
 
         self.do_header_test(head, pks, secrets, rtypes, rinfo)
 
+        # Now try a header with extended **intermediate** routing info.
+        # Since this never happens in the wild, we fake it.
+        longStr2 = longStr * 2
+
+        def getLongRoutingInfo(longStr2=longStr2):
+            return LocalInfo("fred",longStr2)
+
+        server4 = ServerInfo("127.0.0.1", 1, pk_get_modulus(self.pk1), "X"*20)
+        server4.getRoutingInfo = getLongRoutingInfo
+
         secrets.append("1"*16)
-        longStr2 = longStr*2
-
-        head = bhead_impl([self.server1,self.server2], secrets,
-                          [ (99,longStr2) , (99,longStr) ], AESCounterPRNG())
-
-        pks = (self.pk1,self.pk2)
-        rtypes = (99,99)
-        rinfo = (longStr2,longStr)
+        head = bhead([self.server2, server4], secrets, 99, longStr,
+                     AESCounterPRNG())
+        pks = (self.pk2,self.pk1)
+        rtypes = (FWD_TYPE,99)
+        rinfo = ("fred\000"+longStr2,longStr)
         self.do_header_test(head, pks, secrets, rtypes, rinfo)
+
+        # Now we make sure that overlong routing info fails.
+        self.failUnlessRaises(MixError, bhead,
+                              [self.server2, server4], secrets, 99, "Z"*2048,
+                              AESCounterPRNG())
 
     def test_constructmessage(self):
         consMsg = mixminion.BuildMessage._constructMessage
         
-        h1 = "abcdefgh"*(2048//8)
-        h2 = "aBcDeFgH"*(2048//8)
+        h1 = "abcdefgh"*(2048/8)
+        h2 = "aBcDeFgH"*(2048/8)
 
         ######
         ### non-reply case
@@ -656,8 +716,8 @@ class BuildMessageTests(unittest.TestCase):
         
         message = consMsg(secrets1, secrets2, h1, h2, pld)
 
-        self.assertEquals(len(message), mixminion.Formats.MESSAGE_LEN)
-        msg = mixminion.Formats.parseMessage(message)
+        self.assertEquals(len(message), mixminion.Packet.MESSAGE_LEN)
+        msg = mixminion.Packet.parseMessage(message)
         head1, head2, payload = msg.header1, msg.header2, msg.payload
         self.assert_(h1 == head1)
 
@@ -680,8 +740,8 @@ class BuildMessageTests(unittest.TestCase):
         ######
         ### Reply case
         message = consMsg(secrets1, None, h1, h2, pld)
-        self.assertEquals(len(message), mixminion.Formats.MESSAGE_LEN)
-        msg = mixminion.Formats.parseMessage(message)
+        self.assertEquals(len(message), mixminion.Packet.MESSAGE_LEN)
+        msg = mixminion.Packet.parseMessage(message)
         head1, head2, payload = msg.header1, msg.header2, msg.payload
         self.assert_(h1 == head1)
 
@@ -698,9 +758,18 @@ class BuildMessageTests(unittest.TestCase):
         self.assert_(payload == pld)
 
     def do_message_test(self, msg,
-                        header_info_1, #XXXX doc
+                        header_info_1,
                         header_info_2,
                         payload):
+        """Decrypts the layers of a message one by one, checking them for
+           correctness.
+                      msg: the message to examine
+                      header_info_1: a tuple of (pks,secrets,rtypes,rinfo)
+                            as used by do_header_test for the first header.
+                      header_info_2: a tuple of (pks,secrets,rtypes,rinfo)
+                            as used by do_header_test for the second header.
+                      payload: The beginning of the expected decrypted payload.
+           """
         # Check header 1, and get secrets
         sec = self.do_header_test(msg[:2048], *header_info_1)
         h2 = msg[2048:4096]
@@ -717,7 +786,7 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
 
-        # XXXX Need to do something about size encoding.
+        # ???? Need to do something about size encoding.
         self.assertEquals(payload, p[:len(payload)])
 
         
@@ -759,7 +828,7 @@ class BuildMessageTests(unittest.TestCase):
         brm = mixminion.BuildMessage.buildReplyMessage
 
         ## Stateful reply blocks.
-        (rb, node1), secrets = \
+        reply, secrets = \
              brb([ self.server3, self.server1, self.server2,
                    self.server1, self.server3 ],
                  SMTP_TYPE,
@@ -770,11 +839,11 @@ class BuildMessageTests(unittest.TestCase):
                  self.server1.getRoutingInfo().pack(),
                  self.server3.getRoutingInfo().pack())
 
-        self.assert_(node1 is self.server3)
+        self.assert_(reply.addr == self.server3)
                 
         m = brm("Information?",
                 [self.server3, self.server1],
-                (rb,node1))
+                reply)
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
@@ -789,12 +858,12 @@ class BuildMessageTests(unittest.TestCase):
                              "Information?")
                                    
         ## Stateless replies
-        rb,node1 = bsrb([ self.server3, self.server1, self.server2,
-                          self.server1, self.server3 ],
-                        "fred", "Galaxy Far Away.", 1)
+        reply = bsrb([ self.server3, self.server1, self.server2,
+                       self.server1, self.server3 ],
+                     "fred", "Galaxy Far Away.", 0)
 
-        sec,(loc,) = self.do_header_test(rb, pks_1, None,
-                            (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,SMTP_TYPE),
+        sec,(loc,) = self.do_header_test(reply.header, pks_1, None,
+                            (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,LOCAL_TYPE),
                             infos+(None,))
         s = "fred\x00RTRN"
         self.assert_(loc.startswith(s))
@@ -803,10 +872,10 @@ class BuildMessageTests(unittest.TestCase):
         self.assert_(sec == [ prng.getBytes(16) for i in range(5)])
 
         ## Stateless reply, no user key (trusted server)
-        rb,node1 = bsrb([ self.server3, self.server1, self.server2,
-                          self.server1, self.server3 ],
-                        "fred" )
-        sec,(loc,) = self.do_header_test(rb, pks_1, None,
+        reply = bsrb([ self.server3, self.server1, self.server2,
+                       self.server1, self.server3 ],
+                     "fred", None)
+        sec,(loc,) = self.do_header_test(reply.header, pks_1, None,
                             (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,LOCAL_TYPE),
                                          infos+(None,))
         self.assert_(loc.startswith(s))
@@ -815,15 +884,14 @@ class BuildMessageTests(unittest.TestCase):
         self.assert_(sec == [ prng.getBytes(16) for i in range(5)])
             
 #----------------------------------------------------------------------
-# Having tested BuildMessage without using ServerProcess, we can now use
-# BuildMessage to see whether ServerProcess is doing the right thing.
+# Having tested BuildMessage without using PacketHandler, we can now use
+# BuildMessage to see whether PacketHandler is doing the right thing.
 #
 # (of course, we still need to build failing messages by hand)
 
-class ServerProcessTests(unittest.TestCase):
+class PacketHandlerTests(unittest.TestCase):
     def setUp(self):
-        from mixminion.ServerProcess import ServerProcess
-        from mixminion.ServerInfo import ServerInfo
+        from mixminion.PacketHandler import PacketHandler
         from tempfile import mktemp
         self.pk1 = BMTSupport.pk1
         self.pk2 = BMTSupport.pk2
@@ -836,20 +904,27 @@ class ServerProcessTests(unittest.TestCase):
         self.server1 = ServerInfo("127.0.0.1", 1, n_1, "X"*20)
         self.server2 = ServerInfo("127.0.0.2", 3, n_2, "Z"*20)
         self.server3 = ServerInfo("127.0.0.3", 5, n_3, "Q"*20)
-        self.sp1 = ServerProcess(self.pk1, h, None, None)
-        self.sp2 = ServerProcess(self.pk2, h, None, None)
-        self.sp3 = ServerProcess(self.pk3, h, None, None)
+        self.sp1 = PacketHandler(self.pk1, h)
+        self.sp2 = PacketHandler(self.pk2, h)
+        self.sp3 = PacketHandler(self.pk3, h)
+        self.sp2_3 = PacketHandler((self.pk2,self.pk3), h)
 
     def tearDown(self):
-        import os
-        try:
-            os.unlink(self.tmpfile)
-        except:
-            pass
+        self.hlog.close()
+        try_unlink_db(self.tmpfile)
 
-    def do_test_chain(self, m, sps, routingtypes, routinginfo, payload):
+    def do_test_chain(self, m, sps, routingtypes, routinginfo, payload,
+                      appkey=None):
+        """Routes a message through a series of servers, making sure that
+           each one decrypts it properly and routes it correctly to the
+           next.
+                    m: the message to test
+                    sps: sequence of PacketHandler objects for m's path
+                    routingtypes: sequence of expected routingtype
+                    routinginfo: sequence of expected routinginfo
+                    payload: beginning of expected final payload."""
         for sp, rt, ri in zip(sps,routingtypes,routinginfo):
-            res = sp._processMessage(m)
+            res = sp.processMessage(m)
             self.assertEquals(len(res), 2)
             if rt in (FWD_TYPE, SWAP_FWD_TYPE):
                 self.assertEquals(res[0], "QUEUE")
@@ -860,7 +935,8 @@ class ServerProcessTests(unittest.TestCase):
                 self.assertEquals(res[0], "EXIT")
                 self.assertEquals(res[1][0], rt)
                 self.assertEquals(res[1][1], ri)
-                # XXXX TEST application key
+                if appkey:
+                    self.assertEquals(appkey, res[1][2])
                 self.assert_(res[1][3].startswith(payload))
                 break
 
@@ -880,15 +956,20 @@ class ServerProcessTests(unittest.TestCase):
                            p)
 
         # A one-hop/one-hop message.
-        m = bfm(p, SMTP_TYPE, "nobody@invalid",
-                [self.server1], [self.server3])
-
+        m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
+                
         self.do_test_chain(m,
                            [self.sp1,self.sp3],
                            [FWD_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"],
                            p)
+
+        # Try servers with multiple keys
+        m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])
+        self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_TYPE, SMTP_TYPE],
+                           [self.server3.getRoutingInfo().pack(),
+                            "nobody@invalid"], p)
 
         # A 3/3 message with a long exit header.
         for i in (100,300):
@@ -910,63 +991,118 @@ class ServerProcessTests(unittest.TestCase):
                                 longemail],
                                p)
 
-
     def test_rejected(self):
         bfm = mixminion.BuildMessage.buildForwardMessage
         brm = mixminion.BuildMessage.buildReplyMessage
         brb = mixminion.BuildMessage.buildReplyBlock
-        from mixminion.ServerProcess import ContentError
+        from mixminion.PacketHandler import ContentError
 
         # A long intermediate header needs to fail.
-        from mixminion.ServerInfo import ServerInfo
         server1X = ServerInfo("127.0.0.1", 1, pk_get_modulus(self.pk1), "X"*20)
         class _packable:
             def pack(self): return "x"*200
-        server1X.getRoutingInfo = lambda : _packable()
+        server1X.getRoutingInfo = lambda _packable=_packable : _packable()
         
         m = bfm("Z", LOCAL_TYPE, "hello\000bye",
                 [self.server2, server1X, self.server3],
                 [server1X, self.server2, self.server3])
-        self.failUnlessRaises(ContentError, self.sp2._processMessage, m)
+        self.failUnlessRaises(ContentError, self.sp2.processMessage, m)
         
         # Duplicate messages need to fail.
         m = bfm("Z", SMTP_TYPE, "nobody@invalid",
                 [self.server1, self.server2], [self.server3])
-        self.sp1._processMessage(m)
-        self.failUnlessRaises(ContentError, self.sp1._processMessage, m)
+        self.sp1.processMessage(m)
+        self.failUnlessRaises(ContentError, self.sp1.processMessage, m)
 
         # Duplicate reply blocks need to fail
-        (r,n),s = brb([self.server3], SMTP_TYPE, "fred@invalid")
-        m = brm("Y", [self.server2], (r,n))
-        m2 = brm("Y", [self.server1], (r,n))
-        q, (a,m) = self.sp2._processMessage(m)
-        self.sp3._processMessage(m)
-        q, (a,m2) = self.sp1._processMessage(m2)
-        self.failUnlessRaises(ContentError, self.sp3._processMessage, m2)
+        reply,s = brb([self.server3], SMTP_TYPE, "fred@invalid")
+        m = brm("Y", [self.server2], reply)
+        m2 = brm("Y", [self.server1], reply)
+        q, (a,m) = self.sp2.processMessage(m)
+        self.sp3.processMessage(m)
+        q, (a,m2) = self.sp1.processMessage(m2)
+        self.failUnlessRaises(ContentError, self.sp3.processMessage, m2)
 
         # Even duplicate secrets need to go.
         prng = AESCounterPRNG(" "*16)
-        (r1,n),s = brb([self.server1], SMTP_TYPE, "fred@invalid",prng)
+        reply1,s = brb([self.server1], SMTP_TYPE, "fred@invalid",prng)
         prng = AESCounterPRNG(" "*16)
-        (r2,n),s = brb([self.server2], LOCAL_TYPE, "foo",prng)
-        m = brm("Y", [self.server3], (r1,n))
-        m2 = brm("Y", [self.server3], (r2,n))
-        q, (a,m) = self.sp3._processMessage(m)
-        self.sp1._processMessage(m)
-        q, (a,m2) = self.sp3._processMessage(m2)
-        self.failUnlessRaises(ContentError, self.sp2._processMessage, m2)
+        reply2,s = brb([self.server2], LOCAL_TYPE, "foo",prng)
+        m = brm("Y", [self.server3], reply1)
+        m2 = brm("Y", [self.server3], reply2)
+        q, (a,m) = self.sp3.processMessage(m)
+        self.sp1.processMessage(m)
+        q, (a,m2) = self.sp3.processMessage(m2)
+        self.failUnlessRaises(ContentError, self.sp2.processMessage, m2)
 
         # Drop gets dropped.
         m = bfm("Z", DROP_TYPE, "", [self.server2], [self.server2])
-        q, (a,m) = self.sp2._processMessage(m)
-        res = self.sp2._processMessage(m)
+        q, (a,m) = self.sp2.processMessage(m)
+        res = self.sp2.processMessage(m)
         self.assertEquals(res,None)
 
-        # XXXX Bogus types
-        # XXXX Non-parsing information
-        # XXXX Bad Major or Minor
-        # XXXX Bad digest
-        # XXXX Bad payload
+        # Wrong server.
+        m = bfm("Z", DROP_TYPE, "", [self.server1], [self.server2])
+        self.failUnlessRaises(SSLError, self.sp2.processMessage, m)
+        self.failUnlessRaises(SSLError, self.sp2_3.processMessage, m)
+
+        # Plain junk in header
+        m_x = ("XY"*64)+m[128:]
+        self.failUnlessRaises(SSLError, self.sp1.processMessage, m_x)
+
+        # Bad message length
+        m_x = m+"Z"
+        self.failUnlessRaises(ParseError, self.sp1.processMessage, m_x)
+
+        # Bad internal type
+        m_x = bfm("Z", 50, "", [self.server1], [self.server2])
+        q, (a,m_x) = self.sp1.processMessage(m_x)
+        self.failUnlessRaises(ContentError, self.sp2.processMessage, m_x)
+
+        # Subhead we can't parse
+        m_x = pk_encrypt("foo", self.pk1)+m[128:]
+        self.failUnlessRaises(ParseError, self.sp1.processMessage, m_x)
+
+        # Bad IPV4 info
+        subh_real = pk_decrypt(m[:128], self.pk1)
+        subh = parseSubheader(subh_real)
+        subh.setRoutingInfo(subh.routinginfo + "X")
+        m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
+        self.failUnlessRaises(ParseError, self.sp1.processMessage, m_x)
+
+        # Subhead that claims to be impossibly long: FWD case
+        subh = parseSubheader(subh_real)
+        subh.setRoutingInfo("X"*100)
+        m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
+        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+        
+        # Subhead that claims to be impossibly long: exit case
+        subh = parseSubheader(subh_real)
+        subh.routingtype = LOCAL_TYPE
+        subh.setRoutingInfo("X"*10000)
+        m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
+        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+
+        # Bad Major or Minor
+        subh = parseSubheader(subh_real)
+        subh.major = 255
+        m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
+        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+        
+        # Bad digest
+        subh = parseSubheader(subh_real)
+        subh.digest = " "*20
+        m_x = pk_encrypt(subh.pack(), self.pk1)+m[128:]
+        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+
+        # Corrupt payload
+        m = bfm("Z", LOCAL_TYPE, "Z", [self.server1, self.server2],
+                [self.server3])
+        m_x = m[:-30] + " "*30
+        assert len(m_x) == len(m)
+        q, (a, m_x) = self.sp1.processMessage(m_x)
+        q, (a, m_x) = self.sp2.processMessage(m_x)
+        self.failUnlessRaises(SSLError, self.sp3.processMessage, m_x)
 
 #----------------------------------------------------------------------
 
@@ -979,7 +1115,7 @@ def testSuite():
     suite.addTest(tc(FormatTests))
     suite.addTest(tc(HashLogTests))
     suite.addTest(tc(BuildMessageTests))
-    suite.addTest(tc(ServerProcessTests))
+    suite.addTest(tc(PacketHandlerTests))
     return suite
 
 def testAll():

@@ -1,22 +1,23 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Formats.py,v 1.4 2002/05/31 12:47:58 nickm Exp $
-"""mixminion.Formats
+# $Id: Packet.py,v 1.1 2002/06/02 06:11:16 nickm Exp $
+"""mixminion.Packet
 
-   Functions, classes, and constants to parse and unparse Mixminion messages
-   and related structures."""
+   Functions, classes, and constants to parse and unparse Mixminion
+   messages and related structures."""
 
 __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseMessage', 'parseHeader', 'parseSubheader',
-            'getTotalBlocksForRoutingInfoLen',
-            'IPV4Info', 'SMTPInfo', 'LocalInfo',
-            'parseIPV4Info', 'parseSMTPInfo', 'parseLocalInfo',
-            'ENC_SUBHEADER_LEN', 'HEADER_LEN',
-            'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO',
+            'getTotalBlocksForRoutingInfoLen', 'ReplyBlock',
+            'IPV4Info', 'SMTPInfo', 'LocalInfo', 'parseIPV4Info',
+            'parseSMTPInfo', 'parseLocalInfo', 'ENC_SUBHEADER_LEN',
+            'HEADER_LEN', 'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO',
             'SECRET_LEN']
 
-import types, struct, unittest
+import types, struct
 import mixminion.Common
 
+# Major and minor number for the understood packet format.
+# ???? The spec needs to specify this.
 MAJOR_NO, MINOR_NO = 0,1
 
 # Length of a Mixminion message
@@ -35,13 +36,12 @@ MAX_ROUTING_INFO_LEN = MAX_SUBHEADER_LEN - MIN_SUBHEADER_LEN
 
 # Length of a subheader, once RSA-encoded.
 ENC_SUBHEADER_LEN = 128
-
 # Length of a digest
 DIGEST_LEN = 20
 # Length of a secret key
 SECRET_LEN = 16
 
-# Most info that fits in a single ERI block
+# Most info that fits in a single extened subheader
 ROUTING_INFO_PER_EXTENDED_SUBHEADER = ENC_SUBHEADER_LEN
 
 class ParseError(mixminion.Common.MixError):
@@ -94,6 +94,7 @@ class Header:
         """header[i] -> str
 
            Returns the i'th encoded subheader of this header, for i in 0..15"""
+        if i < 0: i = 16+i
         return self.contents[i*ENC_SUBHEADER_LEN:
                              (i+1)*ENC_SUBHEADER_LEN]
 
@@ -103,10 +104,16 @@ class Header:
            Returns a slice of the i-j'th subheaders of this header."""
         if j > 16: j = 16
         if i < 0: i=16+i
-        if j < 0: j=16-j   
+        if j < 0: j=16+j
         return self.contents[i*ENC_SUBHEADER_LEN:
                              j*ENC_SUBHEADER_LEN]
 
+    def __len__(self):
+        return 16
+
+# A subheader begins with: a major byte, a minor byte, SECRET_LEN secret
+# bytes, DIGEST_LEN digest bytes, a routing_len short, and a routing_type
+# short.
 SH_UNPACK_PATTERN = "!BB%ds%dsHH" % (SECRET_LEN, DIGEST_LEN)
 
 def parseSubheader(s):
@@ -115,6 +122,8 @@ def parseSubheader(s):
        Converts a decoded Mixminion subheader into a Subheader object"""
     if len(s) < MIN_SUBHEADER_LEN:
         raise ParseError("Header too short")
+    if len(s) > MAX_SUBHEADER_LEN:
+        raise ParseError("Header too long")
 
     try:
         major, minor, secret, digest, rlen, rt = \
@@ -127,17 +136,25 @@ def parseSubheader(s):
     return Subheader(major,minor,secret,digest,rt,ri,rlen)
 
 def getTotalBlocksForRoutingInfoLen(bytes):
+    """Returns the number of subheraders that will be needed for a hop
+       whose routinginfo is (bytes) long."""
     if bytes <= MAX_ROUTING_INFO_LEN:
         return 1
     else:
         extraBytes = bytes - MAX_ROUTING_INFO_LEN
-        return 2 + (extraBytes // ROUTING_INFO_PER_EXTENDED_SUBHEADER)
+        return 2 + divmod(extraBytes,ROUTING_INFO_PER_EXTENDED_SUBHEADER)[0]
     
 class Subheader:
     """Represents a decoded Mixminion header
 
        Fields: major, minor, secret, digest, routinglen, routinginfo,
-               routingtype."""
+               routingtype.
+
+       A Subheader can exist in a half-initialized state where routing
+       info has been read from the first header, but not from the
+       extened headers.  If this is so, routinglen will be > len(routinginfo).
+       """
+    
     def __init__(self, major, minor, secret, digest, routingtype,
                  routinginfo, routinglen=None):
         self.major = major
@@ -216,10 +233,20 @@ class Subheader:
                 result.append(content)
             return result
 
-IPV4_PAT = "!4sH%ds" % DIGEST_LEN
+
+#FFFF We don't have an interchange format for these yet, so there's no way
+#FFFF to parse or unparse 'em.
+class ReplyBlock:
+    """A mixminion reply block, including the address of the first hop
+       on the path, and a ServerInfo for the server."""
+    def __init__(self, header, addr):
+        self.header = header
+        self.addr = addr
 
 def _packIP(s):
-    "xxxx"
+    """Helper method: converts a dotted-decimal IPv4 address into a
+       four-byte encoding.  Raises ParseError if the input is not a
+       dotted quad of 0..255"""
     addr = s.split(".")
     if len(addr) != 4:
         raise ParseError("Malformed IP address")
@@ -232,17 +259,19 @@ def _packIP(s):
     return struct.pack("!BBBB", *addr)
 
 def _unpackIP(s):
-    "XXXX"
+    """Helper method: convers a four-byte IPv4 address into a dotted quad."""
     if len(s) != 4: raise ParseError("Malformed IP")
-    try:
-        return ".".join(map(str, struct.unpack("!BBBB", s)))
-    except struct.error:
-        raise ParseError("Misformatted IP address")
+    return ".".join(map(str, struct.unpack("!BBBB", s)))
+
+# An IPV4 address (Used by SWAP_FWD and FWD) is packed as: four bytes
+# of IP address, a short for the portnum, and DIGEST_LEN bytes of keyid.
+IPV4_PAT = "!4sH%ds" % DIGEST_LEN
     
 def parseIPV4Info(s):
     """parseIP4VInfo(s) -> IPV4Info
 
-       Converts routing info for an IPV4 address into an IPV4Info object."""
+       Converts routing info for an IPV4 address into an IPV4Info object,
+       suitable for use by FWD or SWAP_FWD modules."""
     if len(s) != 4+2+DIGEST_LEN:
         raise ParseError("IPV4 information with wrong length")
     try:
@@ -253,8 +282,12 @@ def parseIPV4Info(s):
     return IPV4Info(ip, port, keyinfo)
 
 class IPV4Info:
-    "XXXX"
+    """An IPV4Info object represents the routinginfo for a FWD or SWAP_FWD hop.
+
+       Fields: ip (a dotted quad), port (an int from 0..65535), and keyinfo
+       (a digest)."""
     def __init__(self, ip, port, keyinfo):
+        assert 0<=port<=65535
         self.ip = ip
         self.port = port
         self.keyinfo = keyinfo
@@ -264,7 +297,7 @@ class IPV4Info:
         return struct.pack(IPV4_PAT, _packIP(self.ip), self.port, self.keyinfo)
 
 def parseSMTPInfo(s):
-    "XXXX"
+    """Converts the encoding of an SMTP routinginfo into an SMTPInfo object."""
     lst = s.split("\000",1)
     if len(lst) == 1:
         return SMTPInfo(s,None)
@@ -272,7 +305,9 @@ def parseSMTPInfo(s):
         return SMTPInfo(lst[0], lst[1])
 
 class SMTPInfo:
-    "XXXX"
+    """Represents the routinginfo for an SMTP hop.
+
+       Fields: email (an email address), tag (an arbitrary tag, optional)."""
     def __init__(self, email, tag):
         self.email = email
         self.tag = tag
@@ -284,7 +319,8 @@ class SMTPInfo:
             return self.email
         
 def parseLocalInfo(s):
-    "XXXX"
+    """Converts the encoding of an LOCAL routinginfo into an LocalInfo
+       object."""
     lst = s.split("\000",1)
     if len(lst) == 1:
         return LocalInfo(s,None)
@@ -292,7 +328,9 @@ def parseLocalInfo(s):
         return LocalInfo(lst[0], lst[1])
     
 class LocalInfo:
-    "XXXX"
+    """Represents the routinginfo for a LOCAL hop.
+
+       Fields: user (a user identifier), tag (an arbitrary tag, optional)."""
     def __init__(self, user, tag):
         self.user = user
         assert user.find('\000') == -1

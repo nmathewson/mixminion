@@ -1,20 +1,26 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.3 2002/05/31 12:47:58 nickm Exp $
+# $Id: ServerInfo.py,v 1.4 2002/06/02 06:11:16 nickm Exp $
 
-"XXXX"
+"""mixminion.ServerInfo
+
+   Data structures to represent a server's information, and functions to
+   martial and unmarshal it.
+
+   ???? Since we don't have an interchange format yet, we only have
+   an object with the minimal info."""
 
 __all__ = [ 'ServerInfo' ]
 
 from mixminion.Modules import SWAP_FWD_TYPE, FWD_TYPE
-from mixminion.Formats import IPV4Info
+from mixminion.Packet import IPV4Info
 
 #
 # Stub class till we have the real thing
 #
 class ServerInfo:
-    "XXXX"
+    """Represents a Mixminion server, and the information needed to send
+       messages to it."""
     def __init__(self, addr, port, modulus, keyid):
-        "XXXX"
         self.addr = addr
         self.port = port
         self.modulus = modulus
@@ -26,5 +32,6 @@ class ServerInfo:
     def getKeyID(self): return self.keyid
     
     def getRoutingInfo(self, swap=0):
+        """Returns a mixminion.Packet.IPV4Info object for routing messages
+           to this server."""
         return IPV4Info(self.addr, self.port, self.keyid)
-    

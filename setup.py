@@ -1,10 +1,15 @@
 #!/usr/bin/python
-
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.2 2002/05/31 12:47:58 nickm Exp $
+# $Id: setup.py,v 1.3 2002/06/02 06:11:16 nickm Exp $
+import sys
 
-import os, struct
-from distutils.core import setup, Extension
+# Check the version.  We need to make sure version_info exists before we
+# compare to it: it was only added as of Python version 1.6.
+if not hasattr(sys, 'version_info') or sys.version_info < (2, 0, 0):
+    print "Sorry, but I require Python 2.0 or higher."
+    sys.exit(0)
+
+import os, struct, shutil
 
 VERSION= '0.1'
 
@@ -13,11 +18,19 @@ VERSION= '0.1'
 SSL_DIR="contrib/openssl"
 
 MACROS=[]
+MODULES=[]
+
+#======================================================================
+# Install unittest if python doesn't provide it. (This is a 2.0 issue)
+try:
+    import unittest
+except:
+    shutil.copy("contrib/unittest.py", "lib/mixminion/_unittest.py")
 
 #======================================================================
 # Detect endian-ness
 
-#XXXX this breaks cross-compilation
+#XXXX This breaks cross-compilation, but might be good enough for now.
 num = struct.pack("@I", 0x01020304) 
 big_endian = (num== "\x01\x02\x03\x04")
 little_endian = (num=="\x04\x03\x02\x01")
@@ -32,9 +45,13 @@ elif little_endian:
     if os.path.exists("/usr/include/byteswap.h"):
         MACROS.append( ("MM_HAVE_BYTESWAP_H", 1) )
 elif other_endian:
-    print "Feh! Host is neither little-endian or big-endian"
+    print "Wild!  Your machine seems to be middle-endian, and yet you've"
+    print "somehow made it run Python.  Despite your perversity, I admire"
+    print "your neve, and will try to soldier on."
+    MACROS.append( ("MM_O_ENDIAN", 1)  )
 
 #======================================================================
+from distutils.core import setup, Extension
 
 extmodule = Extension("mixminion._minionlib",
                       ["src/crypt.c", "src/aes_ctr.c", "src/main.c" ],

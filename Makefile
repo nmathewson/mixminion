@@ -9,6 +9,7 @@ do_build:
 clean:
 	$(PYTHON) setup.py clean
 	rm -rf build
+	rm -f lib/mixminion/_unittest.py
 	find . -name '*~' -print0 |xargs -0 rm -f
 
 test: do_build

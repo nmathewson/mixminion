@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.3 2002/05/31 12:39:18 nickm Exp $ */
+/* $Id: crypt.c,v 1.4 2002/06/02 06:11:16 nickm Exp $ */
 #include <Python.h>
 
 #include <openssl/bn.h>
@@ -9,17 +9,25 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include <_minionlib.h>
+#include <assert.h>
 
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)
 #define KEY_IS_PRIVATE(rsa) ((rsa)->p)
 
 PyObject *mm_SSLError = NULL;
 
+/* Helper function: raise an SSLError with appropriate text from the
+ * underlying SSL exception.  
+ *
+ * Requires that mm_SSLError is initialized and ERR_load_*_strings
+ * have been called.
+ */
 static void 
 SSL_ERR() 
 {
 	int err = ERR_get_error();
 	const char *str = ERR_reason_error_string(err);
+	assert(mm_SSLError);
 	if (str)
 		PyErr_SetString(mm_SSLError, str);
 	else
@@ -41,19 +49,21 @@ mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "s#:sha1", kwlist,
 					 &cp, &len))
-		return NULL;
-	SHA1_Init(&ctx);
-	SHA1_Update(&ctx,cp,len); 
-	output = PyString_FromStringAndSize(NULL, SHA_DIGEST_LENGTH);
-	if (!output) {
+		return NULL;	
+	if (!(output = PyString_FromStringAndSize(NULL, SHA_DIGEST_LENGTH))) {
 		PyErr_NoMemory();
 		return NULL;
 	}
+	
+	SHA1_Init(&ctx);
+	SHA1_Update(&ctx,cp,len); 
 	SHA1_Final(PyString_AS_STRING(output),&ctx);
 	memset(&ctx,0,sizeof(ctx));
-
+	
 	return output;
 }
+
+static char aes_descriptor[] = "AES key objects descriptor";
 
 /* Destructor of PyCObject
  */
@@ -65,8 +75,7 @@ aes_destruct(void *obj, void *desc)
 	free(obj);
 }
 
-static char aes_descriptor[] = "AES key objects descriptor";
-
+/* Converter fn for "O&" argument conversion with AES keys. */
 static int
 aes_arg_convert(PyObject *obj, void *adr)
 {
@@ -78,6 +87,9 @@ aes_arg_convert(PyObject *obj, void *adr)
 		return 0;
 	}
 }
+
+#define WRAP_AES(aes) (PyCObject_FromVoidPtrAndDesc( (void*) (aes),\
+		       (void*) aes_descriptor, aes_destruct))
 
 const char mm_aes_key__doc__[] = 
     "aes_key(str) -> key\n\n"
@@ -101,15 +113,17 @@ mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
 		TYPE_ERR("aes_key() requires a 128-bit (16 byte) string");
 		return NULL;
 	}
-	aes_key = malloc(sizeof(AES_KEY));
-	if (!aes_key) { PyErr_NoMemory(); goto err; }
+	
+	if (!(aes_key = malloc(sizeof(AES_KEY)))) {
+		PyErr_NoMemory(); goto err; 
+	}
 	if (AES_set_encrypt_key(key, keylen*8, aes_key)) {
 		SSL_ERR();
 		goto err;
 	}
-	result = PyCObject_FromVoidPtrAndDesc( (void*) aes_key,
-				(void*) aes_descriptor, aes_destruct );
-	if (!result) { PyErr_NoMemory(); goto err; }
+	if (!(result = WRAP_AES(aes_key))) { 
+		PyErr_NoMemory(); goto err; 
+	}
 	return result;
 
  err:
@@ -126,7 +140,7 @@ const char mm_aes_ctr128_crypt__doc__[] =
   "Encrypts a string in counter mode.  If idx is nonzero, the counter begins\n"
   "at idx.  If prng is nonzero, ignores string and just produces a stream of\n"
   "length prng.\n\n"
-  "BUG: only the 32 least significant bits of idx are used.\n\n"
+  "WART: only the 32 least significant bits of idx are used.\n\n"
   "Performance notes:  PRNG mode is much faster (36% @ 32K) than generating\n"
   "a string of NULs in Python and encrypting it.  Encryption, on the other\n"
   "hand, is only slightly faster (15% @ 32K) than XORing the prng output\n"
@@ -155,12 +169,11 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	if (prng) { 
 		inputlen = prng;
-		input = malloc(prng);
-		if (!input) { PyErr_NoMemory(); return NULL; }
+		if (!(input = malloc(prng))) { PyErr_NoMemory(); return NULL; }
 		memset(input, 0, inputlen);
 	} 
-	output = PyString_FromStringAndSize(NULL, inputlen);
-	if (!output) {
+	
+	if (!(output = PyString_FromStringAndSize(NULL, inputlen))) {
 		PyErr_NoMemory(); 
 		if (prng) free(input);
 		return NULL;
@@ -196,8 +209,11 @@ mm_strxor(PyObject *self, PyObject *args, PyObject *kwdict)
 		return NULL;
 	}
 
-	output = PyString_FromStringAndSize(NULL,s1len);
-	if (! output) { PyErr_NoMemory(); return NULL; }
+	
+	if (!(output = PyString_FromStringAndSize(NULL,s1len))) { 
+		PyErr_NoMemory(); 
+		return NULL; 
+	}
 
 	outp = PyString_AS_STRING(output);
 	while (s1len--) {
@@ -231,6 +247,8 @@ mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
 	return Py_None;
 }
 
+static char rsa_descriptor[] = "RSA objects descriptor";
+
 /* Destructor for PyCObject
  */
 static void
@@ -240,8 +258,7 @@ rsa_destruct(void *obj, void *desc)
 	RSA_free( (RSA*) obj);
 }
 
-static char rsa_descriptor[] = "RSA objects descriptor";
-
+/* Converter fn for "O&" argument conversion with RSA keys. */
 static int
 rsa_arg_convert(PyObject *obj, void *adr) 
 {
@@ -253,7 +270,6 @@ rsa_arg_convert(PyObject *obj, void *adr)
 		return 0;
 	}
 }
-
 
 #define WRAP_RSA(rsa) (PyCObject_FromVoidPtrAndDesc( (void*) (rsa),\
 		       (void*) rsa_descriptor, rsa_destruct))
@@ -333,7 +349,7 @@ mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict)
 					 kwlist,
 					 &bits, &e))
 		return NULL;
-	
+
 	rsa = RSA_generate_key(bits, e, NULL, NULL);
 	if (rsa == NULL) {
 		SSL_ERR();
@@ -425,52 +441,54 @@ mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	return WRAP_RSA(rsa);
 }
 
+/**
+ * Converts a BIGNUM into a newly allocated PyLongObject.  
+ **/
 static PyObject*
 bn2pylong(const BIGNUM *bn) 
 {
-	int len, len2;
-	unsigned char *buf;
 	PyObject *output;
 
-	len = BN_num_bytes(bn);
-	buf = malloc(len);
-	if (!buf) { PyErr_NoMemory(); return NULL; }
-        len2 = BN_bn2bin(bn, buf);
-	assert(len == len2);
-
-	/* read big-endian. */
-	output = _PyLong_FromByteArray(buf, len, 0, 0);
-
-	free(buf);
-	return output;
+	/**
+	 * We could get better performance with _PyLong_FromByteArray,
+	 * but that wasn't introduced until Python 2.2.  We go with
+	 * only a single implementation here, since this isn't in the
+	 * critical path.  See CVS version 1.3 of this file for such
+	 * an implementation.
+	 **/
+	char *hex = BN_bn2hex(bn);
+	output = PyLong_FromString(hex, NULL, 16); 
+	OPENSSL_free(hex);
+	return output; /* pass along errors */
 }
 
-/*
- * It's hard to actually get Python to tell you the order-of-magnitude
- * of a long.  Instead, we give an overflow error if you're over 2**4096.
- */
-#define MAX_LONG_BYTES 4096/8
-
+/**
+ * Converts a PyLongObject into a freshly allocated BIGNUM.
+ **/
 static BIGNUM*
 pylong2bn(PyObject *pylong)
 {
+	PyObject *str;
+	char *buf;
+	BIGNUM *result = NULL;
 	int r;
-	unsigned char *buf;
-	BIGNUM *result;
-
-	buf = malloc(MAX_LONG_BYTES);
-	if (!buf) { PyErr_NoMemory(); return NULL; }
-
-	r = _PyLong_AsByteArray((PyLongObject*)pylong, 
-				buf, MAX_LONG_BYTES, 0, 0);
-	if (r<0) {
-		free(buf);
-		return NULL;
-	}
-	result = BN_bin2bn(buf,MAX_LONG_BYTES,NULL);
-	if (result == NULL) { free(buf); PyErr_NoMemory(); return NULL; }
+	assert(PyLong_Check(pylong));
+	assert(pylong && pylong->ob_type 
+	       && pylong->ob_type->tp_as_number
+	       && pylong->ob_type->tp_as_number->nb_hex);
 	
-	free(buf);
+	if (!(str = pylong->ob_type->tp_as_number->nb_hex(pylong)))
+		return NULL;
+	
+	buf = PyString_AsString(str);
+	if (!buf || buf[0]!='0' || buf[1]!='x') {
+		Py_DECREF(str); return NULL;
+	}
+	r = BN_hex2bn(&result, &buf[2]);
+	if (r<0 || result == NULL) {
+		Py_DECREF(str); return NULL;
+	}
+	Py_DECREF(str);
 	return result;
 }
 
@@ -493,11 +511,12 @@ mm_rsa_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	
 	if (!rsa->n) { TYPE_ERR("Key has no modulus"); return NULL;}
 	if (!rsa->e) { TYPE_ERR("Key has no e"); return NULL; }
-	n = bn2pylong(rsa->n);
-	if (n == NULL) { PyErr_NoMemory(); return NULL; }
-	e = bn2pylong(rsa->e);
-	if (e == NULL) { PyErr_NoMemory(); Py_DECREF(n); return NULL; }
-
+	if (!(n = bn2pylong(rsa->n))) { 
+		PyErr_NoMemory(); return NULL; 
+	}
+	if (!(e = bn2pylong(rsa->e))) { 
+		PyErr_NoMemory(); Py_DECREF(n); return NULL; 
+	}
 	output = Py_BuildValue("OO", n, e);
 	Py_DECREF(n);
 	Py_DECREF(e);
@@ -523,12 +542,11 @@ mm_rsa_make_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 		return NULL;
 	
 	rsa = RSA_new();
-	if (!rsa) { PyErr_NoMemory(); return NULL; }
-
-	rsa->n = pylong2bn(n);
-	if (!rsa->n) { RSA_free(rsa); return NULL; }
-	rsa->e = pylong2bn(e);
-	if (!rsa->e) { RSA_free(rsa); BN_free(rsa->n); return NULL; }
+	if (!(rsa = RSA_new())) { PyErr_NoMemory(); return NULL; }
+	if (!(rsa->n = pylong2bn(n))) { RSA_free(rsa); return NULL; }
+	if (!(rsa->e = pylong2bn(e))) { 
+		RSA_free(rsa); BN_free(rsa->n); return NULL; 
+	}
 
 	output = WRAP_RSA(rsa);
 	
@@ -537,7 +555,7 @@ mm_rsa_make_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
 const char mm_rsa_get_modulus_bytes__doc__[]=
    "rsa_get_modulus_bytes(rsa) -> int\n\n"
-   "Returns the numbe of *bytes* (not bits) in an RSA modulus.\n";
+   "Returns the number of *bytes* (not bits) in an RSA modulus.\n";
 
 PyObject *
 mm_rsa_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwdict) 
@@ -579,8 +597,10 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 		TYPE_ERR("String too long to pad.");
 		return NULL;
 	}
-	output = PyString_FromStringAndSize(NULL,keylen);
-	if (!output) { PyErr_NoMemory(); return NULL; }
+	
+	if (!(output = PyString_FromStringAndSize(NULL,keylen))) { 
+		PyErr_NoMemory(); return NULL; 
+	}
 	
 	r = RSA_padding_add_PKCS1_OAEP(PyString_AS_STRING(output), keylen,
 				       input, inputlen,
@@ -628,8 +648,10 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 		return NULL;
 	}
 	
-	output = PyString_FromStringAndSize(NULL,keylen);
-	if (!output) { PyErr_NoMemory(); return NULL; }
+	
+	if (!(output = PyString_FromStringAndSize(NULL,keylen))) { 
+		PyErr_NoMemory(); return NULL; 
+	}
 	
 	r = RSA_padding_check_PKCS1_OAEP(PyString_AS_STRING(output), keylen,
 					 input+1, inputlen-1, keylen,

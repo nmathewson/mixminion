@@ -1,8 +1,7 @@
 
 NEEDS TO BE WRITTEN
 
-- Queue for incoming messages
-- Queue for outgoing messages
+- Generic queues
 - Manager process
 - Configuration code
 - Logging/debugging code
@@ -17,8 +16,8 @@ NEEDS TO BE WRITTEN
 - Downloading from directory servers
 - Key rotation
 - Reply block storage and format.
-
-WRITTEN, BUT UNTESTED
-
-- ServerProcess.py
+- Reading messages sent to reply blocks
+- Secure delete
+- Make sure library is threadsafe.
+	- How threadsafe is openssl?
 

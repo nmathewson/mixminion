@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.5 2002/05/31 12:47:58 nickm Exp $
+# $Id: Crypto.py,v 1.6 2002/06/02 06:11:16 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -11,7 +11,8 @@
 import sys
 import mixminion._minionlib as _ml
 
-__all__ = [ 'init_crypto', 'sha1',  'ctr_crypt', 'prng', 'strxor',
+__all__ = [ 'SSLError',
+            'init_crypto', 'sha1',  'ctr_crypt', 'prng', 'strxor',
             'lioness_encrypt', 'lioness_decrypt', 'trng', 'pk_encrypt',
             'pk_decrypt', 'pk_generate', 'openssl_seed',
             'pk_get_modulus', 'pk_from_modulus',
@@ -20,6 +21,8 @@ __all__ = [ 'init_crypto', 'sha1',  'ctr_crypt', 'prng', 'strxor',
             'HEADER_SECRET_MODE', 'PRNG_MODE', 'RANDOM_JUNK_MODE',
             'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
             'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
+
+SSLError = _ml.SSLError
 
 AES_KEY_LEN = 128/8
 DIGEST_LEN = 160/8
@@ -60,13 +63,13 @@ def ctr_crypt(s, key, idx=0):
 
        Given a string s and a 16-byte key key, computes the AES counter-mode
        encryption of s using k.  The counter begins at idx."""
-    if type(key) == str:
+    if type(key) == type(""):
         key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,s,idx)
 
 def prng(key,count,idx=0):
     """Returns the bytestream 0x00000000...., encrypted in counter mode."""
-    if type(key) == str:
+    if type(key) == type(""):
         key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,"",idx,count)
 
@@ -78,19 +81,19 @@ def lioness_encrypt(s,key):
 
     assert len(key) == 4
     key1,key2,key3,key4 = key
-    assert len(key1)==len(key3)==20
-    assert len(key2)==len(key4)==20
-    assert len(s) > 20
+    assert len(key1)==len(key3)==DIGEST_LEN
+    assert len(key2)==len(key4)==DIGEST_LEN
+    assert len(s) > DIGEST_LEN
 
-    left = s[:20]
-    right = s[20:]
+    left = s[:DIGEST_LEN]
+    right = s[DIGEST_LEN:]
     del s
     # Performance note: This business with sha1("".join([key,right,key]))
     # may look slow, but it contributes only a 6% to the hashing step,
     # which in turn contributes under 11% of the time for LIONESS.
-    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:16])
+    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:AES_KEY_LEN])
     left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
-    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:16])
+    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:AES_KEY_LEN])
     left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
     return left + right
 
@@ -102,17 +105,17 @@ def lioness_decrypt(s,key):
 
     assert len(key) == 4
     key1,key2,key3,key4 = key
-    assert len(key1)==len(key3)==20
-    assert len(key2)==len(key4)==20
-    assert len(s) > 20
+    assert len(key1)==len(key3)==DIGEST_LEN
+    assert len(key2)==len(key4)==DIGEST_LEN
+    assert len(s) > DIGEST_LEN
 
-    left = s[:20]
-    right = s[20:]
+    left = s[:DIGEST_LEN]
+    right = s[DIGEST_LEN:]
     del s
     left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
-    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:16])
+    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:AES_KEY_LEN])
     left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
-    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:16])
+    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:AES_KEY_LEN])
     return left + right
 
 def openssl_seed(count):
@@ -125,7 +128,7 @@ def trng(count):
     """trng(count) -> str
 
     Returns (count) bytes of true random data from a true source of
-    entropy (/dev/urandom)"""
+    entropy (/dev/urandom).  May read ahead and cache values."""
     return _theTrueRNG.getBytes(count)
 
 OAEP_PARAMETER = "He who would make his own liberty secure, "+\
@@ -228,6 +231,9 @@ def lioness_keys_from_payload(payload):
 #---------------------------------------------------------------------
 
 class RNG:
+    '''Base implementation class for random number generators.  Works
+       by requesting a bunch of bytes via self._prng, and doling them
+       out piecemeal via self.getBytes.'''
     def __init__(self, chunksize):
         self.bytes=""
         self.chunksize=chunksize
@@ -246,27 +252,32 @@ class RNG:
         assert 0
 
 class AESCounterPRNG(RNG):
+    '''Pseudorandom number generator that yields an AES counter-mode cipher
+       stram.'''
     def __init__(self, seed=None):
         RNG.__init__(self, 16*1024)
         self.counter = 0
         if seed == None:
-            seed = trng(16)
+            seed = trng(AES_KEY_LEN)
         self.key = aes_key(seed)
     def _prng(self, n):
         c = self.counter
         self.counter+=n
         return prng(self.key,n,c)
 
-def trng_uncached(n):
+def _trng_uncached(n):
+    '''Underlying access to our true entropy source.'''
     f = open('/dev/urandom')
     d = f.read(n)
     f.close()
     return d
 
 class _TrueRNG(RNG):
+    '''Random number generator that yields pieces of entropy from
+       our true rng.'''
     def __init__(self,n):
         RNG.__init__(self,n)
     def _prng(self,n):
-        return trng_uncached(n)
+        return _trng_uncached(n)
 
-_theTrueRNG = _TrueRNG(128)
+_theTrueRNG = _TrueRNG(1024)

@@ -1,10 +1,16 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.2 2002/05/31 12:47:58 nickm Exp $
+# $Id: HashLog.py,v 1.3 2002/06/02 06:11:16 nickm Exp $
+
+"""mixminion.HashLog
+
+   Persistant memory for the hashed secrets we've seen."""
 
 import anydbm
 from mixminion.Common import MixFatalError
 
 __all__ = [ 'HashLog' ]
+
+# FFFF Mechanism to force a different default db module.
 
 class HashLog:
     """A HashLog is a file containing a list of message digests that we've
@@ -29,6 +35,7 @@ class HashLog:
            Creates a new HashLog to store data in 'filename' for the key
            'keyid'."""
         self.log = anydbm.open(filename, 'c')
+        #FFFF Warn if we're using dumbdbm
         try:
             if self.log["KEYID"] != keyid:
                 raise MixFatalError("Log KEYID does not match current KEYID")
@@ -55,10 +62,13 @@ class HashLog:
         """sync()
 
            Flushes changes to this log to the filesystem."""
-        self.log.sync()
+        if hasattr(self.log, "sync"):
+            self.log.sync()
         
     def close(self):
         """close()
 
            Closes this log."""
+        self.sync()
         self.log.close()
+    
