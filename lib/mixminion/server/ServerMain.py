@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.61 2003/05/28 08:41:04 nickm Exp $
+# $Id: ServerMain.py,v 1.62 2003/05/29 02:01:34 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -448,7 +448,8 @@ class ProcessingThread(threading.Thread):
 STOPPING = 0 # Set to one if we get SIGTERM
 def _sigTermHandler(signal_num, _):
     '''(Signal handler for SIGTERM)'''
-    signal.signal(signal_num, _sigTermHandler)
+    # Don't suppress subsequent signals!
+    # signal.signal(signal_num, _sigTermHandler)
     global STOPPING
     STOPPING = 1
 
@@ -478,22 +479,31 @@ class _Scheduler:
     def __init__(self):
         """Create a new _Scheduler"""
         self.scheduledEvents = []
+        self.schedLock = threading.RLock()
 
     def firstEventTime(self):
         """Return the time at which the earliest-scheduled event is
            supposed to occur.  Returns -1 if no events.
         """
-        if self.scheduledEvents:
-            return self.scheduledEvents[0][0]
-        else:
-            return -1
-
+        self.schedLock.acquire()
+        try:
+            if self.scheduledEvents:
+                return self.scheduledEvents[0][0]
+            else:
+                return -1
+        finally:
+            self.schedLock.release()
+            
     def scheduleOnce(self, when, name, cb):
         """Schedule a callback function, 'cb', to be invoked at time 'when.'
         """
         assert type(name) is StringType
         assert type(when) in (IntType, LongType, FloatType)
-        insort(self.scheduledEvents, (when, name, cb))
+        try:
+            self.schedLock.acquire()
+            insort(self.scheduledEvents, (when, name, cb))
+        finally:
+            self.schedLock.release()
 
     def scheduleRecurring(self, first, interval, name, cb):
         """Schedule a callback function 'cb' to be invoked at time 'first,'
@@ -502,21 +512,23 @@ class _Scheduler:
         assert type(name) is StringType
         assert type(first) in (IntType, LongType, FloatType)
         assert type(interval) in (IntType, LongType, FloatType)
-        next = lambda t=time.time,i=interval: t()+i
-        insort(self.scheduledEvents, (first, name,
-                                      _RecurringEvent(name, cb, self, next)))
+        def cbWrapper(cb=cb, interval=interval):
+            cb()
+            return time.time()+interval
+        self.scheduleRecurringComplex(first,name,cbWrapper)
 
-    def scheduleRecurringComplex(self, first, name, cb, nextFn):
+    def scheduleRecurringComplex(self, first, name, cb):
         """Schedule a callback function 'cb' to be invoked at time 'first,'
            and thereafter at times returned by 'nextFn'.
 
            (nextFn is called immediately after the callback is invoked,
            every time it is invoked, and should return a time at which.)
+
+           DOCDOC
         """
         assert type(name) is StringType
         assert type(first) in (IntType, LongType, FloatType)
-        insort(self.scheduledEvents, (first, name,
-                                      _RecurringEvent(name, cb, self, nextFn)))
+        self.scheduleOnce(first, name, _RecurringEvent(name, cb, self))
 
     def processEvents(self, now=None):
         """Run all events that are scheduled to occur before 'now'.
@@ -533,24 +545,35 @@ class _Scheduler:
                    scheduler.processEvents()
         """
         if now is None: now = time.time()
-        se = self.scheduledEvents
-        cbs = []
-        while se and se[0][0] <= now:
-            cbs.append(se[0][2])
-            del se[0]
+        self.schedLock.acquire()
+        try:
+            se = self.scheduledEvents
+            cbs = []
+            while se and se[0][0] <= now:
+                cbs.append(se[0][2])
+                del se[0]
+        finally:
+            self.schedLock.release()
         for cb in cbs:
             cb()
 
 class _RecurringEvent:
     """helper for _Scheduler. Calls a callback, then reschedules it."""
-    def __init__(self, name, cb, scheduler, nextFn):
+    def __init__(self, name, cb, scheduler):
         self.name = name
         self.cb = cb
         self.scheduler = scheduler
-        self.nextFn = nextFn
+
     def __call__(self):
-        self.cb()
-        self.scheduler.scheduleOnce(self.nextFn(), self.name, self)
+        nextTime = self.cb()
+        if nextTime is None:
+            LOG.warn("Not rescheduling %s", self.name)
+            return
+        elif nextTime < time.time():
+            raise MixFatalError("Tried to schedule event %s in the past! (%s)",
+                                self.name, formatTime(nextTime,1))
+
+        self.scheduler.scheduleOnce(nextTime, self.name, self)
 
 class MixminionServer(_Scheduler):
     """Wraps and drives all the queues, and the async net server.  Handles
@@ -603,7 +626,6 @@ class MixminionServer(_Scheduler):
 
         # The pid file.
         self.pidFile = os.path.join(homeDir, "pid")
-
 
         # Try to read the keyring.  If we have a pre-0.0.4 version of
         # mixminion, we might have some bad server descriptors lying
@@ -682,40 +704,40 @@ class MixminionServer(_Scheduler):
         self.processingThread.start()
         self.moduleManager.startThreading()
 
-    def updateKeys(self):
+    def updateKeys(self, lock=1):
         """DOCDOC"""
         # We don't dare to block here -- we could block the main thread for 
         # as long as it takes to generate several new RSA keys, which would
         # stomp responsiveness on slow computers.
         # ???? Could there be a more elegant approach to this?
-        if not self.keyring.lock(0):
+        if lock and not self.keyring.lock(0):
             LOG.warn("generateKeys in progress:"
                      " updateKeys delaying for 2 minutes")
             # This will cause getNextKeyRotation to return 2 minutes later
             # than now.
-            self.keyring.nextUpdate = time.time() + 120
-            return
+            return time.time() + 120
 
         try:
             self.keyring.updateKeys(self.packetHandler, self.mmtpServer)
+            return self.keyring.getNextKeyRotation()
         finally:
-            self.keyring.unlock()
+            if lock: self.keyring.unlock()
 
     def generateKeys(self):
         """DOCDOC"""
+        
         def c(self=self):
             try:
                 self.keyring.lock()
                 self.keyring.createKeysAsNeeded()
-            finally:
-                self.keyring.unlock()
-            self.updateKeys()
-            try:
-                self.keyring.lock()
+                self.updateKeys(lock=0)
                 if self.config['DirectoryServers'].get('Publish'):
                     self.keyring.publishKeys()
+                self.scheduleOnce(self.keyring.getNextKeyRotation(),
+                                  self.generateKeys)
             finally:
                 self.keyring.unlock()
+
         self.processingThread.addJob(c)
         
     def run(self):
@@ -734,25 +756,28 @@ class MixminionServer(_Scheduler):
         if EventStats.log.getNextRotation():
             self.scheduleRecurring(now+300, 300, "ES_SAVE",
                                    lambda: EventStats.log.save)
+            def _rotateStats():
+                EventStats.log.rotate()
+                return EventStats.log.getNextRotation()
             self.scheduleRecurringComplex(EventStats.log.getNextRotation(),
-                                        "ES_ROTATE",
-                                        lambda: EventStats.log.rotate,
-                                        lambda: EventStats.log.getNextRotation)
+                                          "ES_ROTATE",
+                                          _rotateStats)
+
+        def _tryTimeout(self=self):
+            self.mmtpServer.tryTimeout()
+            return self.mmtpServer.getNextTimeoutTime()
 
         self.scheduleRecurringComplex(self.mmtpServer.getNextTimeoutTime(now),
                                       "TIMEOUT",
-                                      self.mmtpServer.tryTimeout,
-                                      self.mmtpServer.getNextTimeoutTime)
+                                      _tryTimeout)
 
         self.scheduleRecurringComplex(self.keyring.getNextKeyRotation(),
                                       "KEY_ROTATE",
-                                      self.updateKeys,
-                                      self.keyring.getNextKeyRotation)
+                                      self.updateKeys)
 
-        self.scheduleRecurringComplex(self.keyring.getNextKeygen(),
-                                      "KEY_GEN",
-                                      self.generateKeys,
-                                      self.keyring.getNextKeygen)
+        self.scheduleOnce(self.keyring.getNextKeygen(),
+                          "KEY_GEN",
+                          self.generateKeys)
 
         nextMix = self.mixPool.getNextMixTime(now)
         LOG.debug("First mix at %s", formatTime(nextMix,1))
@@ -777,10 +802,10 @@ class MixminionServer(_Scheduler):
                 self.mmtpServer.process(2)
                 # Check for signals
                 if STOPPING:
-                    LOG.info("Caught sigterm; shutting down.")
+                    LOG.info("Caught SIGTERM; shutting down.")
                     return
                 elif GOT_HUP:
-                    LOG.info("Caught sighup")
+                    LOG.info("Caught SIGHUP")
                     self.doReset()
                     GOT_HUP = 0
                 # Make sure that our worker threads are still running.
@@ -1123,6 +1148,44 @@ def runUpgrade(cmd, args):
     writeFile(os.path.join(homeDir, 'version'),
               SERVER_HOMEDIR_VERSION, 0644)
 
+
+#----------------------------------------------------------------------
+_DELKEYS_USAGE = """\
+Usage: mixminion server-DELKEYS [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than
+                                /etc/mixminiond.conf
+""".strip()
+
+def runDELKEYS(cmd, args):
+    """Remove all keys server descriptors for old versions of this
+       server.  If any are found, nuke the keysets, """
+
+    config = configFromServerArgs(cmd, args, usage=_DELKEYS_USAGE)
+    assert config
+
+    mixminion.Common.configureShredCommand(config)
+    mixminion.Crypto.init_crypto(config)
+
+    checkHomedirVersion(config)
+
+    homeDir = config['Server']['Homedir']
+    keyDir = os.path.join(homeDir, 'keys')
+    hashDir = os.path.join(homeDir, 'work', 'hashlogs')
+    keysets = []
+    if not os.path.exists(keyDir):
+        print >>sys.stderr, "No server keys to delete"
+    else:
+        deleted = 0
+        for fn in os.listdir(keyDir):
+            if fn.startswith("key_"):
+                name = fn[4:]
+                ks = mixminion.server.ServerKeys.ServerKeyset(
+                    keyDir, name, hashDir)
+                ks.delete()
+                deleted += 1
+        print "%s keys deleted"%deleted
 
 #----------------------------------------------------------------------
 _PRINT_STATS_USAGE = """\

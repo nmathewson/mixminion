@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.22 2003/05/28 19:12:14 nickm Exp $
+# $Id: ServerList.py,v 1.23 2003/05/29 02:01:34 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -35,8 +35,8 @@ from mixminion.Config import ConfigError
 from mixminion.ServerInfo import ServerDirectory, ServerInfo, \
      _getDirectoryDigestImpl
 
-ACCEPTABLE_CLIENT_VERSIONS = "0.0.3"
-ACCEPTABLE_SERVER_VERSIONS = "0.0.3"
+ACCEPTABLE_CLIENT_VERSIONS = "0.0.4alpha3"
+ACCEPTABLE_SERVER_VERSIONS = "0.0.4alpha3"
 
 for vl in (ACCEPTABLE_CLIENT_VERSIONS.split(),
            ACCEPTABLE_SERVER_VERSIONS.split()):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.30 2003/05/28 17:26:53 nickm Exp $
+# $Id: ServerKeys.py,v 1.31 2003/05/29 02:01:34 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -128,8 +128,10 @@ class ServerKeyring:
             t1, t2 = keyset.getLiveness()
             self.keySets.append( (t1, t2, keyset) )
                 
-            LOG.debug("Found key %s (valid from %s to %s)",
+            LOG.trace("Found key %s (valid from %s to %s)",
                       dirname, formatDate(t1), formatDate(t2))
+
+        LOG.debug("Found %s keys.", len(self.keySets)
 
         # Now, sort the key intervals by starting time.
         self.keySets.sort()
@@ -199,7 +201,7 @@ class ServerKeyring:
         else:
             keySets = [ ks for ks in keySets if not ks.isPublished() ]
             if not keySets:
-                LOG.debug("publishKeys: no unpublished keys found")
+                LOG.trace("publishKeys: no unpublished keys found")
                 return
             LOG.info("Publishing %s keys to directory server...",len(keySets))
 
@@ -249,12 +251,13 @@ class ServerKeyring:
         else:
             lastExpiry = now
 
-        timeToCover = lastExpiry + PREPUBLICATION_INTERVAL - now
+        needToCoverUntil = now+PUBLICATION_LATENCY+PREPUBLICATION_INTERVAL
+        timeToCover = needToCoverUntil-lastExpiry
         
         lifetime = self.config['Server']['PublicKeyLifetime'].getSeconds()
-        nKeys = ceilDiv(timeToCover, lifetime)
+        nKeys = int(ceilDiv(timeToCover, lifetime))
 
-        LOG.debug("Creating %s keys", nKeys)
+        LOG.info("Creating %s keys", nKeys)
         self.createKeys(num=nKeys)
 
     def createKeys(self, num=1, startAt=None):
@@ -323,7 +326,7 @@ class ServerKeyring:
         # PREPUBLICATION_INTERVAL seconds after that, and we assume that
         # a key takes up to PUBLICATION_LATENCY seconds to make it into the
         # directory.
-        nextKeygen = lastExpiry - PUBLICATION_LATENCY
+        nextKeygen = lastExpiry - PUBLICATION_LATENCY - PREPUBLICATION_INTERVAL
 
         LOG.info("Last expiry at %s; next keygen at %s",
                  formatTime(lastExpiry,1), formatTime(nextKeygen, 1))
@@ -429,32 +432,41 @@ class ServerKeyring:
         self.nextUpdate = None
         self.getNextKeyRotation(keys)
 
-    def getNextKeyRotation(self, keys=None):
+    def getNextKeyRotation(self, curKeys=None):
         """DOCDOC"""
         if self.nextUpdate is None:
-            if keys is None:
+            if curKeys is None:
                 if self.currentKeys is None:
-                    keys = self.getServerKeysets()
+                    curKeys = self.getServerKeysets()
                 else:
-                    keys = self.currentKeys
-            addKeyEvents = []
-            rmKeyEvents = []
-            for k in keys:
+                    curKeys = self.currentKeys
+            events = []
+            curNames = {}
+            #DOCDOC
+            for k in curKeys:
                 va, vu = k.getLiveness()
-                rmKeyEvents.append(vu+self.keyOverlap)
-                addKeyEvents.append(vu)
-            add = min(addKeyEvents); rm = min(rmKeyEvents)
+                events.append((vu+self.keyOverlap, "RM"))
+                curNames[k.keyname] = 1
+            for va, vu, k in self.keySets:
+                if curNames.has_key(k.keyname): continue
+                events.append((va, "ADD"))
 
-            if add < rm:
-                LOG.info("Next key event: new key becomes valid at %s",
-                         formatTime(add,1))
-                self.nextUpdate = add
-            else:
+            events.sort()
+            if not events:
+                LOG.info("No future key rotation events.")
+                self.nextUpdate = sys.maxint
+                return self.nextUpdate
+
+            self.nextUpdate, eventType = events[0]
+            if eventType == "RM":
                 LOG.info("Next key event: old key is removed at %s",
-                         formatTime(rm,1))
-                self.nextUpdate = rm
+                         formatTime(self.nextUpdate,1))
+            else:
+                assert eventType == "ADD"
+                LOG.info("Next key event: new key becomes valid at %s",
+                         formatTime(self.nextUpdate,1))
 
-        return self.nextUpdate
+        return self.nextUpdate 
 
     def getAddress(self):
         """Return out current ip/port/keyid tuple"""

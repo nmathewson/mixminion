@@ -13,7 +13,7 @@ For a list of good beginner projects, check out HACKING.
 NEEDS TO BE WRITTEN:
 
 For 0.0.4:
-        . UI
+        o UI
                 o The error on '-P foo' should be 'path too short',
                   and not mention legs. (neruaL)
                 o Better concept of too-short paths.
@@ -26,16 +26,16 @@ For 0.0.4:
                 o Change behavior on binary messages; don't dump 'em
                   to terminals.
                 o Client queues should have max-packets-to-send option.
-                . DELKEYS should work. (neruaL)
-                        - Test
-        . Internal statistics
+                o DELKEYS should work. (neruaL)
+                        o Test
+        o Internal statistics
         	o Event log module
                 o Create and use event log
                 o Event log configurability
                 o server-stats command
                 o Test event log
                 o Document log and events
-                - Test use of event log
+                o Test use of event log
         o Security:
                 o Support multiple SURB keys
                         o Better keyrings: implement
@@ -112,15 +112,16 @@ For 0.0.4:
                         o Tests
                 o Ability to generate new serverdesc with old keys.
                         o Implement
-                        o Test backend, midend
+                        o Test backend
+                        - Test midend
                         o Automate
-                        - Test
+                        o Test
                 . Ability to notice discrepancies between SD and
                   server configuration.
                         o Implement
 .5                      *- Test backend, midend
                         o Integrate with frontend
-                        - Test
+                        o Test
                 . Online key rotation
                         o Function to determine time for next rotation event.
                         o Ability to add PK to packethandler
@@ -156,10 +157,20 @@ For 0.0.4:
           the boat?
         o Add an 'upgrade to new server format' command.
 4       - Finish all documentation, resolve all XXXX004s
-3       - Try out all functionality by hand
+3       . Try out all functionality by hand
+                o Start a server
+                o Get stats 
+                o generate directory w/ blacklisted server
+                o Rotate stats
+                o Failed delivery w/ retry
+                o (need delkeys command!)
+                - Does rotation happen?
+                - Make sure rotation gets recalculated after keygen.
+
 
 Deferred from 0.0.4:
         . Good user error reporting strategy; use UIError uniformly.
+        - Clients should be able to see and refer to 
         - Separate error/other log files. ????
         - Notice when out of disk space, die more cleanly
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
