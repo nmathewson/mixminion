@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.90 2004/03/06 00:04:37 nickm Exp $
+# $Id: setup.py,v 1.91 2004/03/06 06:39:44 nickm Exp $
 import sys
 
 #
@@ -351,10 +351,10 @@ try:
 except:
     print 'ERROR importing mixminion package.'
     raise
-    """)
+""")
     if 'py2exe' in sys.argv:
         f.write("""\
-if 1 == 0:
+if 1==0:
     # These import statements need to be here so that py2exe knows to
     # include all of the mixminion libraries.  Main.py imports libraries
     # conditionally with __import__ --- but that confuses py2exe.
@@ -368,7 +368,7 @@ if 1 == 0:
     # We need to be sure that it gets included, or else we'll get stuck
     # using the dumbdbm module.
     import bsddb, dbhash
-    """)
+""")
     if name == 'mixminiond':
         f.write("\nmixminion.Main.main(sys.argv, 1)\n")
     else:
@@ -507,6 +507,13 @@ extmodule = Extension(
     libraries=LIBRARIES,
     define_macros=MACROS)
 
+
+if 'py2exe' in sys.argv:
+    # Py2EXE wants numberic versions for Windows
+    VERSION = "." .join(map(str,VERSION_INFO))
+    # XXXX WRONG!!!! 
+    sys.path.append("./build/lib.win32-2.3")
+
 setup(name='Mixminion',
       version=VERSION,
       license="LGPL",
@@ -519,7 +526,20 @@ setup(name='Mixminion',
       packages=['mixminion', 'mixminion.server', 'mixminion.directory'],
       scripts=SCRIPTS,
       ext_modules=[extmodule],
-      cmdclass={'run': runMMCommand})
+      cmdclass={'run': runMMCommand},
+
+
+      # for Py2EXE
+      console=SCRIPTS,
+      data_files=[("",["README","TODO","LICENSE","HISTORY",
+                      "etc/mixminiond.conf"])],
+      zipfile=r'lib\shared.zip',
+      options={'py2exe':
+                { 'compressed':1,
+                  'excludes': ['mixminion._textwrap','mixminion._unittest',
+                               'mixminion._zlibutil','coverage'] }
+              },
+)
 
 try:
     for s in SCRIPTS:
