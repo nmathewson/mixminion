@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.14 2003/05/28 17:26:53 nickm Exp $
+# $Id: DirMain.py,v 1.15 2003/05/29 05:32:11 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -114,6 +114,18 @@ def cmd_generate(args):
     config = d.getConfig()
 
     badServers = config['Directory'].get('BadServer', [])
+    badServerFiles = config['Directory'].get('BadServerFile', [])
+    for fn in badServerFiles:
+        if not os.path.exists(fn):
+            print "No such file %r; skipping" %fn
+            continue
+        f = open(fn, 'r')
+        for ln in f.readlines():
+            ln = ln.strip()
+            if ln and ln[0] != '#':
+                badServers.append(ln)
+        f.close()
+
     location = config['Publishing']['Location']
     print "(Bad servers==%r)"%badServers
 
