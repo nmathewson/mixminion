@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.18 2002/10/21 02:31:02 nickm Exp $
+# $Id: Queue.py,v 1.19 2002/11/11 16:32:41 nickm Exp $
 
 """mixminion.Queue
 
@@ -200,7 +200,10 @@ class Queue:
            Returns 1 if a clean is already in progress; otherwise
            returns 0.
         """
+	# XXXX Race-prone if multiple processes sometimes try to clean
+	# XXXX the same queue.
         now = time.time()
+
         cleanFile = os.path.join(self.dir,".cleaning")
         try:
             s = os.stat(cleanFile)
