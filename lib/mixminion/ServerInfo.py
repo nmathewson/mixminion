@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.68 2003/12/08 07:13:58 nickm Exp $
+# $Id: ServerInfo.py,v 1.69 2003/12/12 22:56:16 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -462,14 +462,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def isValidFrom(self, startAt, endAt):
         """Return true iff this ServerInfo is valid at all time from 'startAt'
            to 'endAt'."""
-        assert startAt < endAt
+        assert startAt <= endAt
         return (self['Server']['Valid-After'] <= startAt and
                 endAt <= self['Server']['Valid-Until'])
 
     def isValidAtPartOf(self, startAt, endAt):
         """Return true iff this ServerInfo is valid at some time between
            'startAt' and 'endAt'."""
-        assert startAt < endAt
+        assert startAt <= endAt
         va = self['Server']['Valid-After']
         vu = self['Server']['Valid-Until']
         return ((startAt <= va and va <= endAt) or
