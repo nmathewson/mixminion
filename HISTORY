@@ -1,10 +1,14 @@
-$Id: HISTORY,v 1.9 2003/12/21 19:07:19 nickm Exp $
+$Id: HISTORY,v 1.10 2003/12/23 22:58:28 nickm Exp $
 ----------------------------------------------------------------------
 This file lists changes for earlier versions of Mixminion.  For changes
 in the latest version, see the README file.
 ----------------------------------------------------------------------
 NEW IN VERSION 0.0.6.2:
-   - 
+   - Fixed a bug that prevented the client from ever deleting messages
+     from its queue.
+
+   - Have clients handle dropped connections to servers correctly, by 
+     retrying only the packets that were not delivered.   
 
 NEW IN VERSION 0.0.6.1:
    - Several documentation fixes.
