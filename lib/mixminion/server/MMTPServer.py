@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.72 2004/01/22 05:42:07 nickm Exp $
+# $Id: MMTPServer.py,v 1.73 2004/01/27 05:56:21 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -23,6 +23,7 @@ import errno
 import socket
 import select
 import re
+import threading
 import time
 from types import StringType
 
@@ -423,12 +424,15 @@ class MMTPAsyncServer(AsyncServer):
     # dnsCache: An instance of mixminion.server.DNSFarm.DNSCache.
     # msgQueue: An instance of MessageQueue to receive notification from DNS
     #     DNS threads.  See _queueSendablePackets for more information.
+    # _lock: protects only serverContext.
 
     def __init__(self, config, servercontext):
         AsyncServer.__init__(self)
-        
+
         self.serverContext = servercontext
         self.clientContext = _ml.TLSContext_new()
+        self._lock = threading.Lock()
+
         # FFFF Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs
 
@@ -477,7 +481,9 @@ class MMTPAsyncServer(AsyncServer):
     def setServerContext(self, servercontext):
         """Change the TLS context used for newly received connections.
            Used to rotate keys."""
+        self._lock.acquire()
         self.serverContext = servercontext
+        self._lock.release()
 
     def getNextTimeoutTime(self, now=None):
         """Return the time at which we next purge connections, if we have
@@ -490,7 +496,11 @@ class MMTPAsyncServer(AsyncServer):
         """helper method.  Creates and registers a new server connection when
            the listener socket gets a hit."""
         # FFFF Check whether incoming IP is allowed!
-        tls = self.serverContext.sock(sock, serverMode=1)
+        self._lock.acquire()
+        try:
+            tls = self.serverContext.sock(sock, serverMode=1)
+        finally:
+            self._lock.release()
         sock.setblocking(0)
         con = MMTPServerConnection(sock, tls, self.onPacketReceived)
         self.register(con)
