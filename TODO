@@ -61,7 +61,7 @@ TCP latency, and me.)
                                 o Implement
                                 o Notice self-routing properly
                                 o Test
-        . Infrastructure -- high level
+        o Infrastructure -- high level
                 o Separate directory downloading, directory caching, path
                   parsing, and path generation into a new module.
                 o Separate SURB logging, keystores, and client queues into
@@ -80,17 +80,7 @@ TCP latency, and me.)
                         o Write the code
                         o Hand-test multi-packet and single-packet fwd
                           messages and replies.
-                - Have callers of Packet/BuildMessage/DeliveryPacket
-                  decide whether to look for a tag in the RI field.
-                D Make processing thread and module thread general
-                  cases of a thread pool abstraction.?
-        - Fragmentation logic fixes
-                - Deliver non-FRAGMENT fragment messages
-                - Don't allow 'FRAGMENT' exit type if no exit modules are
-                  supported.
-                - Catch wild mismatches between Max-Packets on FRAGMENT 
-                  and Max-Size on SMTP/MBOX/etc.
-        - UI improvements:
+        . UI improvements:
                 . Add some convenient way to list arbitrary server features.
                         o Refactor Config to have a richer idea of types
                         o Add 'features' to Config.
@@ -112,9 +102,26 @@ TCP latency, and me.)
                   message is confusing.
                 o Better error message when opening db with unsupported
                   database type.
-                . List servers by nickname, not by IP.
-                - Make TRACE mode less verbose, or make DEBUG mode more useful.
+                . List servers by nickname, not by IP (partial solution for
+                  clients only, but make expandable to servers once they
+                  download directories.)
+                - Make TRACE mode less verbose, or make DEBUG mode more
+                useful.
+        - Fragmentation logic fixes
+                o Make the fragment path selection not suck.
+                o Send logic for client
+                - Deliver non-FRAGMENT fragment messages
+                - Don't allow 'FRAGMENT' exit type if no exit modules are
+                  supported.
+                - Catch wild mismatches between Max-Packets on FRAGMENT
+                  and Max-Size on SMTP/MBOX/etc.
         - Full windows support
+                . Finish port
+                        o Some kind of substitute for /dev/urandom.
+                        . Build process
+                        . Signal code may need to change.
+                        . Process mgt code may need to change.
+                        . Resolve as-yet-unsuspected platform dependencies
                 - Address everything on Itamar's non-blocking
                   incompatibility list.
                 - Installer
@@ -126,7 +133,8 @@ TCP latency, and me.)
                         o Don't use Key-Digest; mark it for removal in 0.0.7.
                         - Make sure Maximum-Size and Allow-From are obeyed
                           for all types
-                - Support SURB secret exchange format.
+                X Support SURB secret exchange format
+                - Specify SURB keyring format; support loading new format.
         - Security
                - Make sure clients always shuffle packets before delivery.
         - Specification
@@ -142,21 +150,24 @@ TCP latency, and me.)
                 - Tests for ServerInbox and Directory.py
                 - Tests for checkConsistency
                 - What happens when Overlap > Lifetime?
-Reach for 0.0.6:
+
+
+For 0.0.7: [Incomplete list: right now, mostly contains 0.0.6 stuff.]
         - Infrastructure -- high level
                 - Servers need to download and use directories
+                - Have callers of Packet/BuildMessage/DeliveryPacket
+                  decide whether to look for a tag in the RI field.
+                - Make processing thread and module thread general
+                  cases of a thread pool abstraction.?
         - UI improvements
                 - RFC822 interface and maildir-style exit module to help
                   integrators.
         - MMTP
                 - Make MMTP bursty
-        . Large reply messages and efwd messages
-                o Make the fragment path selection not suck.
-                o Send logic for client
+                - There's no need to ever store MMTP keys to disk; we should
+                  also rotate them more often.
+        - Large reply messages and efwd messages
                 - Fragment-pool logic for client
-        - Dynamic IP support
-                - Servers redirect to latest IP if old IP is down.  (Dynamic
-                  IP support, after a fashion.)
         - Manual pages
                 - Re-do man page to be generated from common source
                   on all platforms (George.)
@@ -173,18 +184,12 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
 anonymous, usable, secure, and portable.  Nymservers aren't in, so
 not yet ready to replace type I.]
 
-        - Full statistics
-                - Full statistics (ask Len what the list is.)
         - Dummies and pinging
         - Key management
                 - Document "DELKEYS"
                 - Password-protected private identity keys
                 - Password-protected private link/packet keys
                 - Password-protected dirserver keys
-        - ClientAPI correctness
-                - Port ClientAPI from C API document.
-                - Move other functionality into ClientSupport module.
-                - ClientMain should only have CLI functionality.
         - Security
                 - Add ability to mark nodes as having same
                   administrative domain.
@@ -195,14 +200,11 @@ not yet ready to replace type I.]
                 - Add jurisdictions to pathgen?
                 - Make createPrivateDirs gripe about group-writable parent
                   dirs
-                - There's no need to ever store MMTP keys to disk; we should
-                  also rotate them more often.
         - Modules and module support
-                - Use ESMTP as available
+                - Use STARTTLS as available
                 - Move boilerplate into outside files.  Add some generic
                   'Boilerplate' functionality.
                 - Real SMTP module
-                        - Abuse prevention of some undetermined kind.
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
         - End-to-end issues
@@ -217,7 +219,8 @@ not yet ready to replace type I.]
                 . Freak out properly on missing/unpublishable IP.
                 . Full validation function for client
                 . Full validation function for server
-                - Support for non-clique topologies
+                - Support for non-clique topologies (cliques with a few
+                  missing links would be sufficient.)
         - Client support
                 - Support for sending multiple copies of a packet?
                 - Automatically remove old messages from client queue.
@@ -237,13 +240,6 @@ not yet ready to replace type I.]
                         o Handle weirdness with directory permissions
                         o flock
                         - Installing to relative path
-                . "Somebody" should do a native Windows port
-                        . Build process
-                        o Any C porting as necessary
-                        . Signal code may need to change.
-                        . Process mgt code may need to change.
-                        o Some kind of substitute for /dev/urandom.
-                        . Resolve as-yet-unsuspected platform dependencies
                 . An init.d script.
         - Testing
                 - Test on other (non-redhat, non-linux) systems
@@ -257,7 +253,8 @@ not yet ready to replace type I.]
                 - Repeatable CLI tests.
                         - For client
                         - For server
-        - Support for multiple directories, no automated agreement.
+        - Support for multiple directories, no automated agreement. [But do
+          automated agreement if it's specified!]
                 - Configurable dirserver fingerprints and URLs.
         - Full documentation
                 - Complete docs for all code, with comments and examples.
@@ -287,23 +284,29 @@ not yet ready to replace type I.]
         - Disable heinously insecure operating modes.
 
 Other features for "1.0" (no research required):
+        - Full statistics
+                - Full statistics (ask Len what the list is.)
         - Better CLIs
                 - Add a --status-fd option similar to GPG's so that
                   we can be more easily embedded.
+        - ClientAPI correctness
+                - Port ClientAPI from C API document.
+                - Move other functionality into ClientSupport module.
+                - ClientMain should only have CLI functionality.
         - Heavy-duty performance/DoS testing
         - Modules and module support
                 - MBOX
                         - Full config validation
                         - Full boilerplate text
                 - Tell ModuleManager about async code (as soon as needed)
-        - Refactoring/cleanup
-                - Put 'address' someplace more reasonable.
+        o Refactoring/cleanup
+                o Put 'address' someplace more reasonable.
         - Configurability
                 - Put pid and lock and key and queues in different
                   places; coalesce pid and lock.
                 - Make all filenames in server config relative to
                   server home, if not absolute.
-                - Make zlib bomb prevention configurable.
+                X Make zlib bomb prevention configurable.
                 - Separate error/other log files.
                 - Make SURB logging configurable.
                 - Add 'ALLOW' lines to blacklist.
@@ -317,6 +320,7 @@ Other features for "1.0" (no research required):
         - Port to Twisted, if reasonable (see HACKING)
         - Send/receive large messages without having to suck them all
           into RAM at once.
+                - Fragment and unfragment large messages on disk.
         - MMTP / async
                - Tests for all cases:
                         - Packet to server with bogus IP
@@ -348,7 +352,9 @@ Features for "1.0" (some research/specification required):
         - UI issues
                 - Notice when out of disk space, die more cleanly.
                   (support max-disk-usage).
-        - Fragment and unfragment large messages on disk.
+        - Dynamic IP support
+                - Servers redirect to latest IP if old IP is down.  (Dynamic
+                  IP support, after a fashion.)
         - Client support: other
                 - Send message to user with known public key
                 - Real PKI for end-to-end encryption
@@ -357,6 +363,7 @@ Features for "1.0" (some research/specification required):
         - IPv6 support (must solve non-clique problem)
         - Generate link padding (if it helps)
         - Notice active attacks and block IPs dynamically.
+        - Abuse prevention of some undetermined kind.
 
 
 WHEN WE GET THE CHANCE:
