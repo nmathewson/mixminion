@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.32 2003/02/13 06:30:22 nickm Exp $
+# $Id: Packet.py,v 1.33 2003/02/13 10:56:40 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -39,7 +39,7 @@ if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
 
 # Major and minor number for the understood packet format.
-MAJOR_NO, MINOR_NO = 0,1  #XXXX003 Bump minor_no for 0.0.3
+MAJOR_NO, MINOR_NO = 0,2
 
 # Length of a Mixminion message
 MESSAGE_LEN = 1 << 15
@@ -440,8 +440,8 @@ def parseReplyBlocks(s):
        Raise ParseError on failure.
     """
     blocks = []
-    #DOCDOC
     while 1:
+        # Skip over any whitespace before or after the reply blocks.
         while s and s[0] in ' \t\r\n':
             s = s[1:]
         if not s:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.55 2003/02/13 07:39:25 nickm Exp $
+# $Id: ClientMain.py,v 1.56 2003/02/13 10:56:40 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -37,10 +37,8 @@ from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
-MIXMINION_DIRECTORY_URL = "http://www.mixminion.net/directory/latest.gz"
+MIXMINION_DIRECTORY_URL = "http://www.mixminion.net/directory/directory.gz"
 MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
-
-#DOCDOC Replace raise MixError with raise UIError as appropriate
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
@@ -80,12 +78,15 @@ class ClientDirectory:
     #    list of (ServerInfo, source) tuples.
     # allServers: Same as byCapability[None]
     # __scanning: Flag to prevent recursive invocation of self.rescan().
+    # clientVersions: String of allowable client versions as retrieved
+    #    from most recent directory.
     ## Layout:
-    # DIR/cache: A cPickled tuple of ("ClientKeystore-0",
-    #         lastModified, lastDownload, serverlist, digestMap)
+    # DIR/cache: A cPickled tuple of ("ClientKeystore-0.1",
+    #         lastModified, lastDownload, clientVersions, serverlist,
+    #         digestMap)
     # DIR/dir.gz *or* DIR/dir: A (possibly gzipped) directory file.
     # DIR/imported/: A directory of server descriptors.
-    MAGIC = "ClientKeystore-0"
+    MAGIC = "ClientKeystore-0.1"
 
     # The amount of time to require a path to be valid, by default.
     DEFAULT_REQUIRED_LIFETIME = 3600
@@ -138,8 +139,9 @@ class ClientDirectory:
         try:
             infile = urllib.FancyURLopener().open(url)
         except IOError, e:
-            #FFFF003 suggest "-D no"
-            raise UIError("Couldn't connect to directory server: %s"%e)
+            raise UIError(
+                ("Couldn't connect to directory server: %s.\n"
+                 "Try '-D no' to run without downloading a directory.")%e)
         # Open a temporary output file.
         if url.endswith(".gz"):
             fname = os.path.join(self.dir, "dir_new.gz")
@@ -191,6 +193,7 @@ class ClientDirectory:
         """Regenerate the cache based on files on the disk."""
         self.lastModified = self.lastDownload = -1
         self.serverList = []
+        self.clientVersions = None
         if force:
             self.digestMap = {}
 
@@ -211,8 +214,11 @@ class ClientDirectory:
             for s in directory.getServers():
                 self.serverList.append((s, 'D'))
                 self.digestMap[s.getDigest()] = 'D'
-            break
 
+            self.clientVersions = (
+                directory['Recommended-Software'].get("MixminionClient"))
+            break
+        
         # Now check the server in DIR/servers.
         serverDir = os.path.join(self.dir, "imported")
         createPrivateDir(serverDir)
@@ -243,10 +249,11 @@ class ClientDirectory:
         try:
             f = open(os.path.join(self.dir, "cache"), 'rb')
             cached = cPickle.load(f)
-            magic, self.lastModified, self.lastDownload, self.serverList, \
-                   self.digestMap = cached
             f.close()
+            magic = cached[0]
             if magic == self.MAGIC:
+                _, self.lastModified, self.lastDownload, self.clientVersions, \
+                   self.serverList, self.digestMap = cached
                 self.__rebuildTables()
                 return
             else:
@@ -268,7 +275,8 @@ class ClientDirectory:
             pass
         f = open(fname, 'wb')
         cPickle.dump((self.MAGIC,
-                      self.lastModified, self.lastDownload, self.serverList,
+                      self.lastModified, self.lastDownload,
+                      self.clientVersions, self.serverList,
                       self.digestMap),
                      f, 1)
         f.close()
@@ -631,6 +639,40 @@ class ClientDirectory:
 
         return startServers + midServers + endServers
 
+    def checkClientVersion(self):
+        """Check the current client's version against the stated version in
+           the most recently downloaded directory; print a warning if this
+           version isn't listed as recommended.
+           """
+        if not self.clientVersions:
+            return
+        allowed = self.clientVersions.split()
+        current = mixminion.__version__
+        if current in allowed:
+            # This version is recommended.
+            return
+        current_t = mixminion.version_info
+        more_recent_exists = 0
+        most_recent = current_t
+        for a in allowed:
+            try:
+                t = mixminion.parse_version_string(a)
+            except:
+                LOG.warn("Couldn't parse recommended version %s", a)
+                continue
+            try:
+                if mixminion.cmp_versions(current_t, t) < 0:
+                    more_recent_exists = 1
+                    most_recent = a
+            except ValueError:
+                pass
+        if more_recent_exists:
+            LOG.warn("This software may be obsolete; "
+                      "You should consider upgrading.")
+        else:
+            LOG.warn("This software is newer than any version "
+                     "on the recommended list.")
+            
 def resolvePath(directory, address, enterPath, exitPath,
                 nHops, nSwap, startAt=None, endAt=None, halfPath=0):
     """Compute a two-leg validated path from options as entered on
@@ -984,8 +1026,8 @@ class ClientKeyring:
         else:
             f = sys.stderr
         while 1:
-            p1 = getpass.getpass(s1)
-            p2 = getpass.getpass(s2)
+            p1 = self._getPassword(s1)
+            p2 = self._getPassword(s2)
             if p1 == p2:
                 return p1
             f.write("Passwords do not match.\n")
@@ -1013,11 +1055,14 @@ def installDefaultConfig(fname):
 #UserDir: ~/.mixminion
 
 [Security]
-##DOCDOC
-PathLength: 4
+## Default length of forward message paths.
+#PathLength: 4
+## Address to use by default when generating reply blocks
 #SURBAddress: <your address here>
-#SURBPathLength: 3 DOCDOC
-#SURBLifetime: 7 days DOCDOC
+## Default length of paths for reply blocks
+#SURBPathLength: 3
+## Deault reply block lifetime
+#SURBLifetime: 7 days
 
 [Network]
 ConnectionTimeout: 20 seconds
@@ -1029,7 +1074,8 @@ class SURBLog:
     """A SURBLog manipulates a database on disk to remember which SURBs we've
        used, so we don't reuse them accidentally.
        """
-    #XXXX003 testme
+    # XXXX004 write unit tests
+    
     #FFFF Using this feature should be optional.
 
     ##Fields
@@ -1051,9 +1097,38 @@ class SURBLog:
             lastCleaned = int(self.log['LAST_CLEANED'])
         except (KeyError, ValueError):
             lastCleaned = 0
-        
+
+        forceClean = 1
         if lastCleaned < time.time()-24*60*60 or forceClean:
             self.clean()
+
+    def findUnusedSURB(self, surbList, verbose=0,now=None):
+        """Given a list of ReplyBlock objects, find the first that is neither
+           expired, about to expire, or used in the past.  Return None if
+           no such reply block exists."""
+        if now is None:
+            now = time.time()
+        for surb in surbList:
+            expiry = surb.timestamp
+            timeLeft = expiry - now
+            if self.isSURBUsed(surb):
+                if verbose:
+                    LOG.warn("Skipping used reply block")
+                continue
+            elif timeLeft < 60:
+                if verbose:
+                    LOG.warn("Skipping expired reply (expired at %s)",
+                             formatTime(expiry, 1))
+                continue
+            elif timeLeft < 3*60*60:
+                if verbose:
+                    LOG.warn("Skipping soon-to-expire reply block "
+                             "(%s hrs, %s min left)",
+                             floorDiv(timeLeft, 60), int(timeLeft % 60))
+                continue
+
+            return surb
+        return None
 
     def close(self):
         """Release resources associated with the surblog."""
@@ -1108,7 +1183,7 @@ class ClientPool:
     #                 packet was inserted into the pool.
     #           )
     
-    # XXXX003 testme
+    # XXXX004 write unit tests
 
     def __init__(self, directory, prng=None):
         """Create a new ClientPool object, storing packets in 'directory'
@@ -1246,8 +1321,7 @@ class MixminionClient:
                pool it and exit.
             forceNoPool -- if true, do not pool the message even if delivery
                fails."""
-
-        #XXXX003 testme
+        #XXXX004 write unit tests
         message, firstHop = \
                  self.generateReplyMessage(payload, servers, surbList)
 
@@ -1266,7 +1340,7 @@ class MixminionClient:
             expiryTime -- if provided, a time at which the replyBlock must
                still be valid, and after which it should not be used.
         """
-        #XXXX003 testme
+        #XXXX004 write unit tests
         key = self.keys.getSURBKey(create=1)
         exitType, exitInfo, _ = address.getRouting()
 
@@ -1284,8 +1358,7 @@ class MixminionClient:
               messages)
             servers1,servers2 -- lists of ServerInfo.
             """
-
-        #XXXX003 testme
+        #XXXX004 write unit tests
         routingType, routingInfo, _ = address.getRouting()
         LOG.info("Generating payload...")
         msg = mixminion.BuildMessage.buildForwardMessage(
@@ -1305,34 +1378,22 @@ class MixminionClient:
                the path.  We use the first one that is neither expired nor
                used, and mark it used.
             """
-        #XXXX003 testme
+        #XXXX004 write unit tests
         if now is None:
             now = time.time()
         clientLock()
         surbLog = self.openSURBLog()
         try:
-            for surb in surbList:
-                expiry = surb.timestamp
-                timeLeft = expiry - now
-                if surbLog.isSURBUsed(surb):
-                    LOG.warn("Skipping used reply block")
-                    continue
-                elif timeLeft < 60:
-                    LOG.warn("Skipping expired reply (expired at %s)",
-                             formatTime(expiry, 1))
-                    continue
-                elif timeLeft < 3*60*30:
-                    LOG.warn("Reply block will expire in %s hours, %s minutes",
-                             floorDiv(timeLeft, 60), int(timeLeft % 60))
-                    continue
-            
-                LOG.info("Generating payload...")
-                msg = mixminion.BuildMessage.buildReplyMessage(
-                    payload, servers, surb, self.prng)
+            surb = surbLog.findUnusedSURB(surbList, verbose=1, now=now)
+            if surb is None:
+                raise UIError("No usable reply blocks found; all were used or expired.")
 
-                surbLog.markSURBUsed(surb)
-                return msg, servers[0]
-            raise UIError("No usable SURBs found; all were used or expired.")
+            LOG.info("Generating packet...")
+            msg = mixminion.BuildMessage.buildReplyMessage(
+                payload, servers, surb, self.prng)
+
+            surbLog.markSURBUsed(surb)
+            return msg, servers[0]
         finally:
             surbLog.close()
             clientUnlock()
@@ -1356,7 +1417,7 @@ class MixminionClient:
            If warnIfLost is true, log a warning if we fail to deliver
            the message, and we don't pool it.
            """
-        #XXXX003 testme
+        #XXXX004 write unit tests
         LOG.info("Connecting...")
         timeout = self.config['Network'].get('ConnectionTimeout')
         if timeout:
@@ -1395,7 +1456,8 @@ class MixminionClient:
     def flushPool(self):
         """Try to send end all messages in the queue to their destinations.
         """
-        #XXXX003 testme
+        #XXXX004 write unit tests
+
         LOG.info("Flushing message pool")
         # XXXX This is inefficient in space!
         clientLock()
@@ -1433,7 +1495,7 @@ class MixminionClient:
         """Insert all the messages in msgList into the pool, to be sent
            to the server identified by the IPV4Info object 'routing'.
         """
-        #XXXX003 testme
+        #XXXX004 write unit tests
         LOG.trace("Pooling messages")
         handles = []
         try:
@@ -1456,7 +1518,7 @@ class MixminionClient:
            Raise ParseError on malformatted messages.  Unless 'force' is
            true, do not uncompress possible zlib bombs. 
         """
-        #XXXX003 testme
+        #XXXX004 write unit tests
         results = []
         idx = 0
         while idx < len(s):
@@ -1786,6 +1848,9 @@ class CLIArgumentParser:
                 finally:
                     clientUnlock()
 
+        if self.wantClientDirectory or self.wantDownload:
+            self.directory.checkClientVersion()
+
     def parsePath(self):
         """Parse the path specified on the command line and generate a
            new list of servers to be retrieved by getForwardPath or
@@ -1982,6 +2047,17 @@ def runClient(cmd, args):
     path1, path2 = parser.getForwardPath()
     address = parser.address
 
+    if parser.usingSURBList and inFile in ('-', None):
+        # We check to make sure that we have a valid SURB before reading
+        # from stdin.
+        surblog = client.openSURBLog()
+        try:
+            s = surblog.findUnusedSURB(parser.path2)
+            if s is None:
+                raise UIError("No unused, unexpired reply blocks found.")
+        finally:
+            surblog.close()
+        
     # XXXX Clean up this ugly control structure.
     if address and inFile is None and address.getRouting()[0] == DROP_TYPE:
         payload = None
@@ -2179,7 +2255,7 @@ def clientDecode(cmd, args):
     if outputFile == '-':
         out = sys.stdout
     else:
-        # ????003 Should we sometimes open this in text mode?
+        # ???? Should we sometimes open this in text mode?
         out = open(outputFile, 'wb')
 
     if inputFile == '-':
@@ -2271,13 +2347,13 @@ def generateSURB(cmd, args):
                                    wantDownload=1, wantReplyPath=1)
     except UsageError, e:
         e.dump()
-        print _GENERATE_SURB_USAGE % cmd
+        print _GENERATE_SURB_USAGE % { 'cmd' : cmd }
         sys.exit(0)
 
     if args:
         print >>sys.stderr, "ERROR: Unexpected arguments"
-        print _GENERATE_SURB_USAGE % cmd
-        sys.exit(1)
+        print _GENERATE_SURB_USAGE % { 'cmd' : cmd }
+        sys.exit(0)
 
     parser.init()
         
@@ -2376,7 +2452,7 @@ def flushPool(cmd, args):
                                    wantClient=1)
     except UsageError, e:
         e.dump()
-        print _FLUSH_POOL_USAGE % cmd
+        print _FLUSH_POOL_USAGE % { 'cmd' : cmd }
         sys.exit(1)
 
     parser.init()

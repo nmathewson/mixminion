@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.12 2003/02/09 22:30:58 nickm Exp $
+# $Id: ServerList.py,v 1.13 2003/02/13 10:56:40 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -18,13 +18,26 @@ __all__ = [ 'ServerList' ]
 import os
 import time
 
+import mixminion
+
 from mixminion.Crypto import pk_encode_public_key, pk_same_public_key
-from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
+from mixminion.Common import IntervalSet, LOG, MixError, UIError, \
+     createPrivateDir, \
      formatBase64, formatDate, formatFnameTime, formatTime, openUnique, \
      previousMidnight, readPossiblyGzippedFile, stringContains
 from mixminion.Config import ConfigError
 from mixminion.ServerInfo import ServerDirectory, ServerInfo, \
      _getDirectoryDigestImpl
+
+ACCEPTABLE_CLIENT_VERSIONS = "0.0.3rc1"
+ACCEPTABLE_SERVER_VERSIONS = "0.0.3rc1"
+
+for vl in (ACCEPTABLE_CLIENT_VERSIONS.split(),
+           ACCEPTABLE_SERVER_VERSIONS.split()):
+    for v in vl:
+        mixminion.parse_version_string(v)
+del v
+del vl
 
 class ServerList:
     """A ServerList holds a set of server descriptors for use in generating
@@ -97,11 +110,11 @@ class ServerList:
         nickname = server.getNickname()
         lcnickname = nickname.lower()
         if knownOnly and not self.serversByNickname.has_key(lcnickname):
-            raise MixError("Unknown server %s: use import-new."%nickname)
+            raise UIError("Unknown server %s: use import-new."%nickname)
 
         # Is the server already invalid?
         if server.isExpiredAt(time.time()):
-            raise MixError("Descriptor has already expired")
+            raise UIError("Descriptor has already expired")
 
         # Is there already a server with the same nickname?
         if self.serversByNickname.has_key(lcnickname):
@@ -110,16 +123,16 @@ class ServerList:
             oldIdentity = oldServer.getIdentity()
             newIdentity = server.getIdentity()
             if not pk_same_public_key(newIdentity, oldIdentity):
-                raise MixError("Identity key has changed for %r" % nickname)
+                raise UIError("Identity key has changed for %r" % nickname)
             # Okay -- make sure we don't have this same descriptor.
             for fn in self.serversByNickname[lcnickname]:
                 oldServer = self.servers[fn]
                 if oldServer['Server']['Digest'] == server['Server']['Digest']:
-                    raise MixError("Server descriptor already inserted.")
+                    raise UIError("Server descriptor already inserted.")
             # Okay -- make sure that this server isn't superseded.
             if server.isSupersededBy(
              [ self.servers[fn] for fn in self.serversByNickname[lcnickname]]):
-                raise MixError("Server descriptor is superseded")
+                raise UIError("Server descriptor is superseded")
 
         newFile = nickname+"-"+formatFnameTime()
         f, newFile = openUnique(os.path.join(self.serverDir, newFile))
@@ -186,11 +199,15 @@ class ServerList:
         DirectoryIdentity: %s
         DirectoryDigest:
         DirectorySignature:
+        [Recommended-Software]
+        MixminionClient: %s
+        MixminionServer: %s
         """ % (formatTime(publicationTime),
                formatDate(startAt),
                formatDate(endAt),
-               formatBase64(pk_encode_public_key(identityKey)))
-        # XXXX004 add 'Recommended-software: Mixminion 0.0.3"
+               formatBase64(pk_encode_public_key(identityKey)),
+               ACCEPTABLE_CLIENT_VERSIONS,
+               ACCEPTABLE_SERVER_VERSIONS)
 
         directory = header+"".join(contents)
         directory = _getDirectoryDigestImpl(directory, identityKey)

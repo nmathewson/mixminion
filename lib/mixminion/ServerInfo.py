@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.37 2003/01/17 06:18:06 nickm Exp $
+# $Id: ServerInfo.py,v 1.38 2003/02/13 10:56:40 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -330,6 +330,9 @@ class ServerDirectory:
     def __getitem__(self, item):
         return self.header[item]
 
+    def get(self, item, default=None):
+        return self.header.get(item, default)
+
 class _DirectoryHeader(mixminion.Config._ConfigFile):
     """Internal object: used to parse, validate, and store fields in a
        directory's header sections.
@@ -351,7 +354,10 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
                  "DirectoryIdentity": ("REQUIRE", C._parsePublicKey, None),
                  "DirectoryDigest": ("REQUIRE", C._parseBase64, None),
                  "DirectorySignature": ("REQUIRE", C._parseBase64, None),
-                      }
+                      },
+        'Recommended-Software': {"__SECTION__": ("ALLOW", None, None),
+                "MixminionClient": ("ALLOW", None, None),
+                "MixminionServer": ("ALLOW", None, None), } 
         }
     def __init__(self, contents, expectedDigest):
         """Parse a directory header out of a provided string; validate it

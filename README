@@ -1,9 +1,9 @@
-$Id: README,v 1.28 2003/01/09 06:56:54 nickm Exp $
-Below are the release notes from Mixminion 0.0.2.1.  You have a more recent
-version from CVS; these may not be completely accurate any more.
-
+$Id: README,v 1.29 2003/02/13 10:56:39 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.2.1.
+This is Mixminion version 0.0.3rc1.
+
+ WARNING!  Mixminion 0.0.3 breaks backward compatibility with version 0.0.2.
+ Versions older than 0.0.3 are no longer supported; you should upgrade now.
 
 CONTENTS:
         I.    Overview
@@ -41,6 +41,48 @@ to trace your message through the system.
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
+NEW IN VERSION 0.0.3rc1:
+
+   CLIENT:   
+      - Single-use reply blocks (SURBs) are fully supported and available.
+      - You can use client-side pooling holds messages until you're ready to 
+        send them.  Pooling also prevents you from losing messages when the
+        first hop in your path is down.
+      - You can now decode binary messages or reply messages from the command
+        line.
+      - We now time out faster when servers are down.
+      - Many error messages are far friendlier.
+      - It's now safe to run multiple instances of the client at once.
+   BUILD:
+      - It's easier to build with different OpenSSL installations.
+   SERVERS:
+      - Servers now have a lightly multithreaded design to prevent extreme
+        stalling under heavy loads.  Now the network should remain fairly
+        responsive under far more traffic than before.
+      - When a message delivery fails, the retry schedule is more reasonable.
+        By default, a server will retry an undeliverable message every 
+        30 minutes for a day, then every 7 hours for 5 days.
+      - All modules that use SMTP now set a "X-Anonymous: yes" header.
+   CONFORMANCE:
+      - We now implement MMTP correctly; before, we didn't accept junk
+        packets; handle protocol negotiation right; or do support key
+        renegotiation.
+      - DROP packets have random payloads.
+      - A nasty bug in our implementation of counter mode is fixed.  On
+        the bright side, big-endian and little-endian hosts should now,
+
+        finally, be compatible.  On the minus side, we lose backward
+        compatibility.
+      - Server descriptors and directories now follow a more forward-
+        compatible format: we can add sections and entries in the future
+        with less risk of breaking existing clients.
+
+NEW IN VERSION 0.0.2.2:
+   - Fixed a bug that crashed your server when another server's KeyID was
+     incorrect.
+   - Add minimal handlers for TERM and HUP signals.
+   - Add a disclaimer to main usage message.
+
 NEW IN VERSION 0.0.2.1:
    - BUGFIX: A nasty bug is fixed that could, under just the right
      circumstances, send the server into an infinite loop and fill up your
@@ -76,31 +118,28 @@ NEW IN VERSION 0.0.1:
    - You can send anonymous email via these servers.
 
 STILL NOT IN THIS VERSION:
-   - There is no client interface for sending replies or generating reply
-     blocks (the code is written but not exposed).
    - We could use some man pages.
    - IP-based restrictions don't work.
    - No automatic key generation or server publication.
    - No support for distributed directories.
-   - MMTP does not exactly follow the specification yet.
    - Other stuff too numerous to mention; see TODO.
 
-III. HOW TO UPGRADE FROM MIXMINION 0.0.1
+III. HOW TO UPGRADE FROM MIXMINION 0.0.2
 ========================================
 
-Just follow the installation instructions below. :)
+Just follow the installation instructions below.
 
-Be aware that the client command line has changed significantly since version
-0.0.1, and there are important new options in the server configuration file.
+If you're running a server, you may want to configure the new 'Retry' options
+in your mixminiond.conf file; see ./etc/mixmioniond.conf for examples.
 
 IV. HOW TO INSTALL MIXMINION
 ============================
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.2.1.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.3rc1.tar.gz>
 
-  % cd Mixminion-0.0.2.1
+  % cd Mixminion-0.0.3rc1
   % make download-openssl
   % make build-openssl
   % make
@@ -120,7 +159,7 @@ The verbose version.
      If you don't have Python >=v2.0, go install it.  You can find source and
      binary distributions at http://www.python.org/.
 
-  2) If you have OpenSSL version 0.9.7beta3 or later, go to step 4.
+  2) If you have OpenSSL version 0.9.7beta3 or later, go to step 5.
      Otherwise, continue.
 
   3) Run "make download-openssl".
@@ -129,8 +168,21 @@ The verbose version.
      correctly on your system.  Go read contrib/openssl/INSTALL, and make
      OpenSSL build.
 
-  5) Run "make".  If you get any errors, please report them to
-     <nickm@freehaven.net>.
+  5) Run "make".  If you don't get any error messages, go to step 6.
+
+     If you have OpenSSL 0.9.7 installed, but the build script doesn't find
+     it, you can force it to look in a particular location (say, "/home/ssl")
+     with:
+            make OPENSSL_PREFIX=/home/ssl
+     This will make the scripts look for headers in $OPENSSL_PREFIX/include
+     and libraries in $OPENSSL_PREFIX/lib.
+
+     If the scripts *still* can't find OpenSSL 0.9.7, you can override the
+     compile and link options directly, like this:
+            make OPENSSL_CFLAGS='-I/home/ssl/include' \
+                 OPENSSL_LDFLAGS='-L/home/ssl/libraries -lssl097 -lcrypto097'
+
+     If you get any other errors, please report them to <nickm@freehaven.net>.
 
   6) Run "make test" to run Mixminion's unit tests.  If you get any errors,
      please report them to <nickm@freehaven.net>.
@@ -220,7 +272,101 @@ To send a dummy message, specify "drop" instead of an email address, as in:
       mixminion send -t drop -P '*,Foo'
       mixminion send -t drop -H 8
 
+[NEW IN 0.0.3] To pool a message for later transmission, run "mixminion pool"
+instead of "mixminion send":
 
+      mixminion pool -t <address> -i <file> -P <path>
+
+      To see all the packets waiting in the pool:
+      
+      mixminion inspect-pool
+
+      To attempt to deliver all messages waiting in the pool:
+
+      mixminion flush
+
+      (POOL NOTE: By default, when "mixminion send" fails to deliver a
+      message, it leaves that message in the pool to be reattempted later.
+      To suppress this behavior, use the "--no-pool" option:
+            mixminion send --no-pool -t <address> -i <file> -P <path>
+      Also, as a final sidenote, "mixminion send --pool" is a synonym for
+      "mixminion pool".)
+
+[NEW IN 0.0.3] To decode a message you have received, type:
+
+      mixminion decode -i <input-file> -o <output-file>.
+
+      Or, to send output to stdout:
+
+      mixminion decode -i <input-file>
+
+      (When you receive a message with non-printing characters via email, it
+      will be encoded in base64 before delivery.  When you receive a reply,
+      its contents will be encrypted.  The "mixminion decode" command
+      extracts the original text from either kind of message as best it can.)
+
+[NEW IN 0.0.3] To generate a reply block, type:
+
+      mixminion generate-surb -t <target-address>
+
+      To send the reply block to a file, instead of to stdout:
+
+      mixminion generate-surb -t <target-address> -o <filename>
+
+      If you specify a "SURBAddress" field in ~/.mixminionrc, you may
+      omit the target address:
+
+      mixminion generate-surb 
+
+      Also, you can control path selection in the same way as with 
+      sending messages:
+
+      mixminion generate-surb -H 3        (a 3-hop path)
+      mixminion generate-surb -P '*,Foo'  (end with server foo)
+      mixminion generate-surb -P 'Bar,*'  (start with server bar)
+
+      You can use the '-n' option to generate many reply blocks at once:
+      
+      mixminion generate-surb -n 100      (generate 100 reply blocks)
+
+      To save space, you can specify binary (as opposed to text) encoding
+      for your reply blocks:
+
+      mixminion generate-surb -b -o <filename>
+
+      By default, the client will choose servers to make sure that your
+      reply blocks will still function for 7 days.  To choose a different
+      lifetime:
+         mixminion generate-surb --lifetime=1           (1 day)
+      Note that if you choose an overlong lifetime, there may not be enough
+      servers whose keys will be valid for the entire period.
+
+[NEW IN 0.0.3] Once you have a reply block for a user, you can send reply
+messages by typing:
+
+      mixminion send -R <reply-block-filename> -i <input-filename>
+
+      The other options to 'send' and 'pool' still apply; the reply block
+      takes the place of the destination address: 
+         mixminion send -R <reply-block>          (Read from stdin)
+         mixminion send -R <reply-block> -D yes   (Reload directory)
+         mixminion send -R <reply-block> -H 4     (Use 4 hops before reply.)
+         mixminion send -R <reply-block> -P 'Z,*' (Start with server "Z".)
+         mixminion pool -R <reply-block>          (Pool the message.)
+
+      IMPORTANT: Mixminion reply blocks can only be used once!  (Thus,
+      SURB="Single Use Reply Block".)  The program will remember which
+      reply blocks it has used in the past, but if you give a single reply
+      block to 2 users, it will only work for one of them, once.
+
+      As a convenience, if you have a file containing many reply blocks,
+      you can use it with '-R': the client will choose the first reply 
+      block from the file which has not expired, and which you have not
+      yet used.
+
+      To inspect the reply blocks in a file, you can run:
+         mixminion inspect-surbs <filename>
+ 
 If you need to use a proxy server to use the web you can specify it using the
 http_proxy environment variable:
 

@@ -108,7 +108,7 @@ For 0.0.3:
                   approach that may be good enough.)
                 o Perhaps 'make install' should nuke dead files. (Queue.py)
                 o Support people who _do_ have OpenSSL 0.9.7 installed.
-        . Client
+        o Client
                 o Faster (adjustable?) timeout on client connect
                   failure.
                         o Implement client timeout (sigalrm?)
@@ -116,7 +116,7 @@ For 0.0.3:
                         o Unit tests
                 o Refactor the heck out of argument parsing.
                 o Add "don't use me for anonymity" boilerplate.
-                . Client support for reply blocks.
+                o Client support for reply blocks.
                         o Recheck spec on external reply block format
                         o Implement external reply block format
                         o Test external reply block format
@@ -126,18 +126,18 @@ For 0.0.3:
                         o Remember used reply blocks
                         o Examine reply block
                         o Use first reply block in a file.
-                        - Refactor and document
-                . Read Base64-encoded messages and zbomb messages.
+                        o Refactor and document
+                o Read Base64-encoded messages and zbomb messages.
                         o Implement backend
                         o Test backend
                         o Implement frontend
                         o Test frontend
                         o Refactor until clean
-                        - Document
-                . Client-side pooling.
+                        o Document
+                o Client-side pooling.
                 	o Design
                         o Implement
-                        - Test
+                        o Test
                 o Make client code multiprocess-safe: locking on
                   cache (if needed!); locking on pool.
                         o Move lock functionality into Common.
@@ -149,31 +149,33 @@ For 0.0.3:
                 o Make path parsing accept space around the commas and colon.
                 o Make paths print more cleanly.
                 o Better command breakdown for pulling directories.
-        - Break backward compatibility :P
-                - Fix aes_ctr128 and bump packet version and write
+        o Break backward compatibility :P
+                o Directories include an "allowable version" section.
+                        o Make client check 'Recommended-Software' against
+                          current version.
+                o Fix aes_ctr128 and bump packet version and write
                   unit tests for counter mode.
-                - Increment packet minor number; make client check
-                  packet minor number.
-                - Add fields to serverinfo, server directory.
         o Bugs
                 o mixminion generate-surb > x should work
-        . Release
+        o Release candidate 1
                 o Note all places that need documentation comments or
                   additional testing.
                 o Check all usage messages
                 o Triage XXXX's
-                . Resolve XXXX003's
-                - Bump version numbers
-                - Update README
-                        - What's new?
-                        - Document how to use new features
-                        - Installation insns for weird OpenSSL situations
-                        - Note that we break backward compatibility
+                o Resolve XXXX003's
+                o Bump version numbers
+                o Update README
+                        o What's new?
+                        o Document how to use new features
+                        o Installation insns for weird OpenSSL situations
+                        o Note that we break backward compatibility
+        - Release
+                - Come up with way to deal with servers as they
+                  upgrade.
+                - Go over CVS commit logs for all contents of 'what's
+                  new?'
 
 Originally scheduled for 0.0.3, but delayed:
-        - Directories include an "allowable version" section.
-                - Make client check 'Recommended-Software' against
-                  current version.
         - UI
                 . Good user error reporting strategy.
                 - Beautify list-servers output.

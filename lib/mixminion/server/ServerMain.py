@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.39 2003/02/13 07:03:50 nickm Exp $
+# $Id: ServerMain.py,v 1.40 2003/02/13 10:56:40 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -699,7 +699,9 @@ def readConfigFile(configFile):
 def runServer(cmd, args):
     config = configFromServerArgs(cmd, args)
     try:
-        #DOCDOC
+        # Configure the log, but delay disabling stderr until the last
+        # possible minute; we want to keep echoing to the terminal until
+        # the main loop starts.
         mixminion.Common.LOG.configure(config, keepStderr=1)
         LOG.debug("Configuring server")
     except:

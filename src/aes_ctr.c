@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.12 2003/02/12 01:23:24 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.13 2003/02/13 10:56:40 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because
@@ -31,13 +31,10 @@ typedef unsigned char u8;
 #undef GET_U32
 #undef SET_U32
 
-#if 0
-/* Reinstate this code when we do the big backward-compatibility lossage. */
 #ifdef MM_B_ENDIAN
 #define GET_U32(ptr) (*(u32*)(ptr))
 #define SET_U32(ptr,i) (*(u32*)(ptr)) = i
 #define INCR_U32(ptr, i) i = ++(*(u32*)(ptr))
-#endif
 #endif
 
 /* An earlier version used bswap_32 where available to try to get the
@@ -46,30 +43,6 @@ typedef unsigned char u8;
    the code in glib/gtypes.h _is_ faster; but shaves only 1%
    off encryption.  We seem to be near the point of diminishing
    returns here. */
-
-/*
- * This code is incorrect; the correct version appears below.  Sadly,
- * Mixminion 0.0.1 through 0.0.2.2 shipped with this junk, so if we
- * change it, we'll make packets nobody can read.  With 0.0.3, we'll
- * bump the packet version and do the right thing.
- * XXXX003
- */ 
-#ifndef GET_U32
-#define GET_U32_cp(ptr) (  (u32)ptr[0] ^         \
-                         (((u32)ptr[1]) << 8) ^  \
-                         (((u32)ptr[2]) << 16) ^ \
-                         (((u32)ptr[3]) << 24))
-#define SET_U32_cp(ptr, i) { ptr[0] = (i)     & 0xff; \
-                             ptr[1] = (i>>8)  & 0xff; \
-                             ptr[2] = (i>>16) & 0xff; \
-                             ptr[3] = (i>>24) & 0xff; }
-#define GET_U32(ptr)   GET_U32_cp(((u8*)(ptr)))
-#define SET_U32(ptr,i) SET_U32_cp(((u8*)(ptr)), i)
-#define INCR_U32(ptr, i) { i = GET_U32(ptr)+1; SET_U32(ptr,i); }
-#endif
-
-
-#if 0
 #ifndef GET_U32
 #define GET_U32_cp(ptr) (  (u32)ptr[3] ^         \
                          (((u32)ptr[2]) << 8) ^  \
@@ -82,7 +55,6 @@ typedef unsigned char u8;
 #define GET_U32(ptr)   GET_U32_cp(((u8*)(ptr)))
 #define SET_U32(ptr,i) SET_U32_cp(((u8*)(ptr)), i)
 #define INCR_U32(ptr, i) { i = GET_U32(ptr)+1; SET_U32(ptr,i); }
-#endif
 #endif
 
 static inline void
