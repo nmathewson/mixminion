@@ -1,5 +1,5 @@
-/* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.31 2003/10/02 21:46:23 nickm Exp $ */
+/* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
+/* $Id: crypt.c,v 1.32 2003/10/09 03:56:30 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS

@@ -1,4 +1,4 @@
-Mixminion is copyright Nick Mathewson, 2002.  Currently, it is licensed under
+Mixminion is copyright Nick Mathewson, 2002-2003.  Currently, it is licensed under
 the Lesser GNU General Public License.  This is not yet a final decision;
 under future versions, it is very possible that I'll relicense the server
 components under the GPL.  It is remotely possible, but quite unlikely, that

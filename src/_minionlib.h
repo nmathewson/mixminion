@@ -1,5 +1,5 @@
-/* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.19 2003/10/02 21:46:23 nickm Exp $ */
+/* Copyright (c) 2002,2003 Nick Mathewson.  See LICENSE for licensing information */
+/* $Id: _minionlib.h,v 1.20 2003/10/09 03:56:30 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
