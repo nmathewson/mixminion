@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.83 2004/03/07 21:27:27 nickm Exp $
+# $Id: MMTPServer.py,v 1.84 2004/03/23 00:09:24 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -168,8 +168,8 @@ class SelectAsyncServer:
     def setBandwidth(self, n, maxBucket=None):
         """Set bandwidth limitations for this server
               n -- maximum bytes-per-second to use, on average.
-              maxBucket -- maximum bytes to send in a single burst.  Defaults
-                 to n*5.
+              maxBucket -- maximum bytes to send in a single burst.
+                 Defaults to n*5.
 
            Setting n to None removes bandwidth limiting."""
         if n is None:
@@ -532,7 +532,8 @@ class MMTPAsyncServer(AsyncServer):
         self.maxClientConnections = config['Outgoing/MMTP'].get(
             'MaxConnections', 16)
         maxbw = config['Server'].get('MaxBandwidth', None)
-        self.setBandwidth(maxbw)
+        maxbwspike = config['Server'].get('MaxBandwidthSpike', None)
+        self.setBandwidth(maxbw, maxbwspike)
 
         # Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs
