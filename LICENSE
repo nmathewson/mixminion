@@ -1,15 +1,18 @@
-Mixminion is copyright Nick Mathewson, 2002-2003.  Currently, it is licensed under
-the Lesser GNU General Public License.  This is not yet a final decision;
-under future versions, it is very possible that I'll relicense the server
-components under the GPL.  It is remotely possible, but quite unlikely, that
-I'll relicense the client components under an X11-style license.
+Mixminion is copyright Nick Mathewson, 2002-2004.  
+
+Currently, it is licensed under the Lesser GNU General Public License.  This
+is not yet a final decision; under future versions, it is very possible that
+I'll relicense the server components under the GPL.  It is remotely possible,
+but quite unlikely, that I'll relicense the client components under an
+X11-style license.
 
 Note: Because of the advertising clause of its license, OpenSSL is not
-compatible with the GPL.  Thus, we license Mixminion under an amended LGPL:
-we explicitly authorize you to treat OpenSSL as a "System Library" for the
+compatible with the GPL.  Thus, we license Mixminion under an amended LGPL: we
+explicitly authorize you to treat OpenSSL as a "System Library" for the
 purposes of GPL/LGPL compliance.  You may also use Mixminion under an
-unamended LGPL; however, if you do so, you may not be able to link it with
-OpenSSL.
+unamended LGPL; however, if you do so, and later exercise your rights under
+section 3 (to license Mixminion under the GPL), you may not be able to link it
+with OpenSSL.
 
 Future versions of Mixminion may be able to run with NSS or GnuTLS instead of
 OpenSSL, thus making this amendment unnecessary.  Patches are welcome.
