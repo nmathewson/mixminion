@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.29 2003/01/09 17:44:00 nickm Exp $
+# $Id: ServerMain.py,v 1.30 2003/01/09 18:54:01 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -46,14 +46,16 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
         mixminion.server.ServerQueue.Queue.__init__(self, location, create=1)
         self.packetHandler = packetHandler
         self.mixPool = None
+        self.moduleManager = None
         self._queue = Queue.Queue()
         for h in self.getAllMessages():
             assert h is not None
             self._queue.put(h)
 
-    def connectQueues(self, mixPool):
+    def connectQueues(self, mixPool, manager):
         """Sets the target mix queue"""
         self.mixPool = mixPool
+        self.moduleManager = manager #XXXX003 refactor.
 
     def queueMessage(self, msg):
         """Add a message for delivery"""
@@ -75,6 +77,13 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
                 LOG.debug("Padding message %s dropped",
                           formatBase64(message[:8]))
                 self.removeMessage(handle)
+            elif res[0] == 'EXIT':
+                # XXXX Ugly, refactor
+                rt, ri, app_key, tag, payload = res[1]
+                res = self.moduleManager.decodeMessage(payload, tag, rt, ri)
+                LOG.debug("Processed message %s; inserting into pool",
+                          formatBase64(message[:8]))
+                self.mixPool.queueObject(('EXIT', res))
             else:
                 LOG.debug("Processed message %s; inserting into pool",
                           formatBase64(message[:8]))
@@ -164,10 +173,11 @@ class MixPool:
         for h in handles:
             tp, info = self.queue.getObject(h)
             if tp == 'EXIT':
-                rt, ri, app_key, tag, payload = info
+                (exitType, address, tag), payload = info
                 LOG.debug("  (sending message %s to exit modules)",
                           formatBase64(payload[:8]))
-                self.moduleManager.queueMessage(payload, tag, rt, ri)
+                self.moduleManager.queueDecodedMessage((exitType,address,tag),
+                                                       payload)
             else:
                 assert tp == 'QUEUE'
                 ipv4, msg = info
@@ -394,7 +404,8 @@ class MixminionServer:
                        self.outgoingQueue.count())
 
         LOG.debug("Connecting queues")
-        self.incomingQueue.connectQueues(mixPool=self.mixPool)
+        self.incomingQueue.connectQueues(mixPool=self.mixPool,
+                                         manager=self.moduleManager)
         self.mixPool.connectQueues(outgoing=self.outgoingQueue,
                                    manager=self.moduleManager)
         self.outgoingQueue.connectQueues(server=self.mmtpServer)

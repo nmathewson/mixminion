@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.22 2003/01/09 06:28:58 nickm Exp $
+# $Id: Modules.py,v 1.23 2003/01/09 18:54:01 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -372,6 +372,12 @@ class ModuleManager:
         # XXXX003 remove the more complex logic here into the PacketHandler
         # XXXX003 code.
         # FFFF Support non-exit messages.
+        (exitType, address, tag), message = \
+                   self.decodeMessage(message, tag, exitType, address)
+        self.queueDecodedMessage((exitType, address, tag), message)
+
+    def queueDecodedMessage(self, (exitType, address, tag), message):
+        #DOCDOC
         mod = self.typeToModule.get(exitType, None)
         if mod is None:
             LOG.error("Unable to handle message with unknown type %s",
@@ -380,23 +386,25 @@ class ModuleManager:
         queue = self.queues[mod.getName()]
         LOG.debug("Delivering message %r (type %04x) via module %s",
                        message[:8], exitType, mod.getName())
+
+        queue.queueDeliveryMessage((exitType, address, tag), message)
+
+    def decodeMessage(self, message, tag, exitType, address):
         payload = None
         try:
             payload = mixminion.BuildMessage.decodePayload(message, tag)
         except CompressedDataTooLong:
             contents = mixminion.Packet.parsePayload(message).getContents()
-            queue.queueDeliveryMessage((exitType, address, 'long'), contents)
-            return
+            return (exitType, address, 'long'), contents
         except MixError:
-            queue.queueDeliveryMessage((exitType, address, 'err'), message)
-            return
+            return (exitType, address, 'err'), message
 
         if payload is None:
-            # enrypted message
-            queue.queueDeliveryMessage((exitType, address, tag), message)
+            # encrypted message
+            return (exitType, address, tag), message
         else:
             # forward message
-            queue.queueDeliveryMessage((exitType, address, None), payload)
+            return (exitType, address, None), payload
 
     #DOCDOC
     def shutdown(self):
