@@ -1,4 +1,4 @@
-$Id: README,v 1.32 2003/02/14 16:43:45 nickm Exp $
+$Id: README,v 1.33 2003/02/14 17:51:24 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3rc1.
 
@@ -423,6 +423,14 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
    {This step will be more automated in later versions.}
 
+To shut down a server:
+    mixminion stop-server [-f configfile]
+
+To make a server reload its configuration:
+    mixminion reload-server [-f configfile]
+
+    (Right now, this just closes and re-opens the log files.)
+   
 VII. HOW TO REPORT BUGS AND SUGGEST NEW FEATURES
 ================================================
 
