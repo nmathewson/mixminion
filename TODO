@@ -158,11 +158,11 @@ TCP latency, and me.)
                 D Tests for ServerInbox and Directory.py
                 D Tests for checkConsistency
                 o What happens when Overlap > Lifetime? (Test manually.)
-        . Cleanup for release
-                . Resolve all XXXX006 and DOCDOC items
+        o Cleanup for release
+                o Resolve all XXXX006 and DOCDOC items
                 o Resolve all pending bugzilla bugs
-                . Resolve all pending mail bugs
-                - Make README accurate again
+                o Resolve all pending mail bugs
+                o Make README accurate again
 
 For 0.0.7: [Incomplete list: right now, mostly contains 0.0.6 stuff.]
         - Specification
