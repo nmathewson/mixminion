@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.5 2002/10/30 02:19:39 nickm Exp $
+# $Id: ClientMain.py,v 1.6 2002/11/21 16:55:48 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -29,9 +29,9 @@ import os
 import getopt
 import sys
 import time
-import bisect
 
-from mixminion.Common import getLog, floorDiv, createPrivateDir, MixError
+from mixminion.Common import getLog, floorDiv, createPrivateDir, MixError, \
+     MixFatalError
 import mixminion.Crypto
 import mixminion.BuildMessage
 import mixminion.MMTPClient
@@ -41,6 +41,9 @@ from mixminion.Config import ClientConfig
 
 class DirectoryCache:
     """Holds a set of directories and serverinfo objects persistently.
+
+       XXXX THIS CLASS IS NOT USED YET.  It's a bad design choice, since
+             the first version of the directory code will mostly obsolete it.
 
        FFFF This should actually cache the nickname and liveness information 
        FFFF rather than parsing and reparsing it each time.  Of course, we'll
@@ -81,7 +84,7 @@ class DirectoryCache:
 	    if info['Server']['Valid-Until'] < now:
 		getLog().info("Removing expired descriptor for %s",
 			      nickname)
-		os.unlink(os.path.join(dirname, fn))
+		os.unlink(os.path.join(self.dirname, fn))
 		continue
 	    self.allServers.append(info)
 	    if self.servers.has_key(nickname):
@@ -106,7 +109,7 @@ class DirectoryCache:
 	else:
 	    try:
 		serverList = self.servers[nickname]
-	    except KeyError, e:
+	    except KeyError, _:
 		raise MixError("Nothing known about server %s"%nickname)
 	for info in serverList:
 	    #XXXX fail on DNE
@@ -232,7 +235,7 @@ class MixminionClient:
 	createPrivateDir(userdir)
 	createPrivateDir(os.path.join(userdir, 'surbs'))
 
-	# Get directory cache
+	# Get directory cache FFFF (not used yet!)
 	self.dirCache = DirectoryCache(os.path.join(userdir, 
 						    'directory', 'servers'))
 	self.dirCache.load()
@@ -260,7 +263,7 @@ class MixminionClient:
 	    getLog().warn("I only know about %s servers; That's not enough to use distinct servers on your path.", len(servers))
 	    result = []
 	    while len(result) < length:
-		result.extend(prng.shuffle(servers))
+		result.extend(self.prng.shuffle(servers))
 	    return result[:length]
 	else:
 	    return self.prng.shuffle(servers, length)
@@ -280,7 +283,7 @@ class MixminionClient:
 	    
 	return serverList
 
-    def sendForwardMessage(self, routingType, routingInfo, payload, 
+    def sendForwardMessage(self, address, payload, 
 			   serverList=None):
 	message, firstHop = self.generateForwardMessage(address,
 							payload,
@@ -299,7 +302,7 @@ class MixminionClient:
 				   time.time(), time.time()+24*60*60,
 				   serverList)
 	    
-	firstPathlen = floorDiv(len(serverList), 2)
+	firstPathLen = floorDiv(len(serverList), 2)
 	servers1,servers2 = serverList[:firstPathLen],serverList[firstPathLen:]
 	
 	routingType, routingInfo, lastHop = address.getRouting()
@@ -331,13 +334,13 @@ class MixminionClient:
 	    # XXXX Out of sync with spec.
 	    raise MixFatalError("Not implemented")
 
-	handle = Crypto.getBytes(16)
+	handle = mixminion.Crypto.getBytes(16)
 	rt, ri, lastHop = address.getRouting("RTRN"+handle)
 	if lastHop is not None:
 	    path.append(lastHop)
-	block, secrets = mixminion.BuildMesssage.buildReplyBlock(path, rt, ri,
-								 endAt,
-								 self.prng)
+	block, secrets = mixminion.BuildMessage.buildReplyBlock(path, rt, ri,
+                                                                endAt,
+                                                                self.prng)
 
 	# XXXX Store secrets and expiry time
 	return block
@@ -421,7 +424,6 @@ def runClient(cmd, args):
 	sys.exit(1)
     config = readConfigFile(os.path.expanduser(configFile))
 
-    getLog().setMinSeverity("INFO")
     mixminion.Crypto.init_crypto(config)
     if len(args) < 2:
 	print >> sys.stderr, "I need at least 2 servers"

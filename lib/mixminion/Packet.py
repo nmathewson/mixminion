@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.13 2002/10/16 23:12:12 nickm Exp $
+# $Id: Packet.py,v 1.14 2002/11/21 16:55:49 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -287,7 +287,10 @@ SINGLETON_UNPACK_PATTERN = "!H%ds" % (DIGEST_LEN)
 # a 20-byte message ID, and 4 bytes of message size.
 FRAGMENT_UNPACK_PATTERN = "!H%ds%dsL" % (DIGEST_LEN, FRAGMENT_MESSAGEID_LEN)
 
-class SingletonPayload:
+class _Payload:
+    pass
+
+class SingletonPayload(_Payload):
     """Represents the payload for a standalone mixminion message.
        Fields:  size, hash, data.  (Note that data is padded.)"""
     def __init__(self, size, hash, data):
@@ -314,7 +317,7 @@ class SingletonPayload:
 	header = struct.pack(SINGLETON_UNPACK_PATTERN, self.size, self.hash)
 	return "%s%s" % (header, self.data)
 
-class FragmentPayload:
+class FragmentPayload(_Payload):
     """Represents the fields of a decoded fragment payload."""
     def __init__(self, index, hash, msgID, msgLen, data):
 	self.index = index

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.14 2002/10/21 02:30:14 nickm Exp $
+# $Id: Modules.py,v 1.15 2002/11/21 16:55:49 nickm Exp $
 
 """mixminion.Modules
 
@@ -348,7 +348,7 @@ class MBoxModule(DeliveryModule):
             self.nickname = socket.gethostname()
         self.addr = config['Server'].get('IP', "<Unknown host>")
 
-        f = open(self.addressfile)
+        f = open(self.addressFile)
         addresses = f.read()
         f.close()
 
@@ -459,7 +459,7 @@ def _decodeAndEscapeMessage(payload, tag, text=0):
     """
     try:
 	message = mixminion.BuildMessage.decodePayload(payload, tag)
-    except MixError, e:
+    except MixError, _:
 	return None
 
     if message is None:

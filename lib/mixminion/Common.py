@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.23 2002/10/30 02:19:39 nickm Exp $
+# $Id: Common.py,v 1.24 2002/11/21 16:55:49 nickm Exp $
 
 """mixminion.Common
 
@@ -214,7 +214,7 @@ class _FileLogHandler:
 	    if not os.path.exists(parent):
 		createPrivateDir(parent)
 	    self.file = open(self.fname, 'a')
-	except OSError, e:
+	except OSError, _:
 	    self.file = None
 	    raise MixError("Unable to open log file %r"%self.fname)
     def close(self):

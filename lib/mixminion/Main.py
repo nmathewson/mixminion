@@ -28,7 +28,6 @@ def correctPath(myself):
        wind up somewhere appropriate on pythonpath.  This isn't good enough,
        however: we want to run even when sysadmins don't understand distutils.)
        """
-    import os
 
     orig_cmd = myself
     # First, resolve all links.

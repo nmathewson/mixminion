@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.17 2002/10/30 02:40:13 nickm Exp $
+# $Id: ServerInfo.py,v 1.18 2002/11/21 16:55:49 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -239,6 +239,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     serverKeys.mmtpKey = mmtpKey
     serverKeys.save()
 
+    # XXXX unused
     allowIncoming = config['Incoming/MMTP'].get('Enabled', 0)
 
     nickname = config['Server']['Nickname']
@@ -421,9 +422,9 @@ def _guessLocalIP():
     ip_set = {}
     try:
 	ip_set[ socket.gethostbyname(socket.gethostname()) ] = 1
-    except socket.error, host_error:
+    except socket.error, _:
 	try:
-	    ip_by_host = socket.gethostbyname(socket.getfqdn())
+	    ip_set[ socket.gethostbyname(socket.getfqdn()) ] = 1
 	except socket.error, _:
 	    pass
 

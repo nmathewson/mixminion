@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.18 2002/10/30 02:19:39 nickm Exp $
+# $Id: Config.py,v 1.19 2002/11/21 16:55:49 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -147,7 +147,7 @@ def _parseIP(ip):
     if not _ip_re.match(i):
 	raise ConfigError("Invalid IP %r" % i)
     try:
-        f = socket.inet_aton(i)
+        socket.inet_aton(i)
     except socket.error, _:
         raise ConfigError("Invalid IP %r" % i)
 

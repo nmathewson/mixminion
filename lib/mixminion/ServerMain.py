@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.11 2002/10/30 02:19:39 nickm Exp $
+# $Id: ServerMain.py,v 1.12 2002/11/21 16:55:49 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -128,7 +128,7 @@ class ServerKeyring:
     def getIdentityKey(self):
 	"""Return this server's identity key.  Generate one if it doesn't 
 	   exist."""
-	password = None # FFFF
+	password = None # FFFF unused
 	fn = os.path.join(self.keyDir, "identity.key")
 	bits = self.config['Server']['IdentityKeyBits']
 	if os.path.exists(fn):
@@ -163,9 +163,9 @@ class ServerKeyring:
 	
 	firstKey, lastKey = self.keyRange
 
-	for i in xrange(num):
+	for _ in xrange(num):
 	    if firstKey == sys.maxint:
-		keynum = firstkey = lastkey = 1
+		keynum = firstKey = lastKey = 1
 	    elif firstKey > 1:
 		firstKey -= 1
 		keynum = firstKey
@@ -479,7 +479,7 @@ class MixminionServer:
 def usageAndExit(cmd):
     executable = sys.argv[0]
     # XXXX show versioning info
-    print >>sys.stderr, "Usage: %s [-h] [-f configfile]" % cmd
+    print >>sys.stderr, "Usage: %s %s [-h] [-f configfile]" % (executable, cmd)
     sys.exit(0)
 
 def configFromServerArgs(cmd, args):

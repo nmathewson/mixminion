@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.35 2002/10/30 02:25:19 nickm Exp $
+# $Id: test.py,v 1.36 2002/11/21 16:55:49 nickm Exp $
 
 """mixminion.tests
 
@@ -17,7 +17,6 @@ import os
 import sys
 import threading
 import time
-import types
 import re
 import base64
 import stat
@@ -241,7 +240,6 @@ class MinionlibCryptoTests(unittest.TestCase):
         _ml.openssl_seed("")
 
     def test_oaep(self):
-        import mixminion.Crypto as Crypto
         _add = Crypto._add_oaep_padding
         _check = Crypto._check_oaep_padding
         for add,check in ((_ml.add_oaep_padding, _ml.check_oaep_padding),
