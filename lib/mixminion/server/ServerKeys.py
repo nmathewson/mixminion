@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.36 2003/05/30 19:22:29 nickm Exp $
+# $Id: ServerKeys.py,v 1.37 2003/05/31 12:59:12 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -736,8 +736,8 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         warn.errors -= 2 # We can't do anything about this!
 
     if info_s['Software'] != 'Mixminion %s'%mixminion.__version__:
-        warn("Published version (%s) does not match current version (%s)",
-             info_s['Software'], 'Mixminion %s'%mixminion.__version__)
+        warn("Mismatched software versions: running %s; %s published."
+             'Mixminion %s'%mixminion.__version__, info_s['Software'])
 
     info_im = info['Incoming/MMTP']
     config_im = config['Incoming/MMTP']
@@ -748,11 +748,11 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
     info_ip = info['Incoming/MMTP']['IP']
     if config_im['IP'] == '0.0.0.0':
         guessed = _guessLocalIP()
-        if guessed != config_im['IP']:
-            warn("Guessed IP (%s) does not match published IP (%s)",
+        if guessed != info_ip:
+            warn("Mismatched IPs: Guessed IP (%s); %s published.",
                  guessed, info_ip)
     elif config_im['IP'] != info_ip:
-        warn("Configured IP (%s) does not match published IP (%s)",
+        warn("Mismatched IPs: %s configured; %s published.",
              config_im['IP'], info_ip)
 
     if config_im['Enabled'] and not info_im.get('Version'):
