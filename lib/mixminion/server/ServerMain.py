@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.108 2003/12/08 06:37:15 nickm Exp $
+# $Id: ServerMain.py,v 1.109 2003/12/14 01:29:25 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -80,9 +80,11 @@ SERVER_HOMEDIR_VERSION = "1001"
 
 def getHomedirVersion(config):
     """Return the version of the server's homedir.  If no version is found,
-       the version must be '1000'. """
+       the version must be '1000'.  If no directory structure is found,
+       returns None."""
     homeDir = config.getBaseDir()
     versionFile = os.path.join(homeDir, "version")
+    workDir = os.path.join(homeDir, "work")
     if not os.path.exists(homeDir):
         return None
     else:
@@ -90,8 +92,15 @@ def getHomedirVersion(config):
             dirVersion = readFile(versionFile).strip()
         except (OSError, IOError), e:
             if e.errno == errno.ENOENT:
-                # The file doesn't exist; the version must be '1000'.
-                dirVersion = "1000"
+                if os.path.exists(workDir):
+                    # The file doesn't exist, but the 'work' subdirectory does:
+                    # the version must be '1000'.
+                    dirVersion = "1000"
+                else:
+                    # The version file doesn't exist, and neither does the 
+                    # 'work' subdirectory: There is no preexisting 
+                    # installation.
+                    dirVersion = None
             elif e.errno == errno.EACCES:
                 raise UIError("You don't have permission to read %s"%
                               versionFile)

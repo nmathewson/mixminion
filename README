@@ -1,4 +1,4 @@
-$Id: README,v 1.67 2003/12/13 19:06:32 nickm Exp $
+$Id: README,v 1.68 2003/12/14 01:29:24 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.6rc2, from the Mixminion CVS repository.
 
@@ -37,6 +37,14 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION ????:
+   - Several documentation fixes.
+
+   - Starting a server for the first time will no longer give a spurious
+     message about an out-of-date installation.
+
+   - We now accept as uniform several more recent versions of zlib.
 
 NEW IN VERSION 0.0.6rc2:
    - Fixed a couple of bugs that would prevent Mixminion from running on

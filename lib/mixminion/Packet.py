@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.68 2003/11/28 04:14:04 nickm Exp $
+# $Id: Packet.py,v 1.69 2003/12/14 01:29:25 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -999,7 +999,9 @@ def _validateZlib():
         raise MixFatalError("Zlib version %s is not supported"%ver)
 
     _ZLIB_LIBRARY_OK = 0.5
-    if ver in ("1.1.2", "1.1.3", "1.1.4"):
+    if ver in ("1.1.2", "1.1.3", "1.1.4", "1.2.0", "1.2.0.1", "1.2.0.2",
+               "1.2.0.3", "1.2.0.4", "1.2.0.5", "1.2.0.6", "1.2.0.7", 
+               "1.2.0.8", "1.2.1"):
         _ZLIB_LIBRARY_OK = 1
         return
 
