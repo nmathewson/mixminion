@@ -1,5 +1,5 @@
 /* Copyright 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.4 2002/07/01 18:03:05 nickm Exp $ */
+/* $Id: main.c,v 1.5 2002/07/05 23:34:33 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -29,8 +29,11 @@ static struct PyMethodDef _mixcryptlib_functions[] = {
 	ENTRY(check_oaep_padding),
 	ENTRY(rsa_generate),
 	ENTRY(rsa_decode_key),
+	ENTRY(rsa_PEM_read_key),
 	ENTRY(rsa_make_public_key),
-	
+	ENTRY(generate_dh_parameters),
+	ENTRY(generate_cert),
+
 	ENTRY(TLSContext_new),
 	{ NULL, NULL }
 };
@@ -85,6 +88,8 @@ init_minionlib(void)
 	/* crypt */
 	ERR_load_ERR_strings();
  	ERR_load_RSA_strings();
+
+	OpenSSL_add_all_algorithms();
 
 	if (exc(d, &mm_CryptoError, "mixminion._minionlib.CryptoError", 
 		"CryptoError", mm_CryptoError__doc__))

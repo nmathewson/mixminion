@@ -1,19 +1,44 @@
 Legend:
 	- Not done
+	* For next checkin
 	. Partially done
 	o Done
 
 NEEDS TO BE WRITTEN
 
 FOR 0.1: (The rough edges release)
-	- Make crypt.c read/write stuff in PEM?
+	o Make crypt.c read/write stuff in PEM?
+		o (Private keys will be enough)
+		* Test private key read/write in PEM.
 	- Local delivery module
 	- Manager process
-	- Configuration code
-	- Logging/debugging/warning code
+	. Configuration code
+		* Design config interface.
+		. Write extended .ini parser
+		. Write validation code
+		- Write unit tests
+		- Write base64/multiline code
+		- Design =configuration= file format.
+	*. Logging/debugging/warning code
+		* Use consistently
+		* Add minseverity
+		* Suppress for testing
+		* Make configurable
+		- Test
+		- Add reset support on sighup
+		- Add close support at exit
 	o Coding style guide
 	- MMTP		
-		- Generate X509/RSA/DH files as needed
+		*. Generate DH
+			o C function
+			* Py wrapper
+			* Tests
+			* Invoke as appropriate
+		*. Generate X509/RSA as appropriate
+			o C function
+			* Py wrapper
+			* Tests
+			* Invoke as appropriate
 		. Check Key IDs
 		- Renegotiate connections
 		- Timeouts

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.5 2002/07/01 18:03:05 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.6 2002/07/05 23:34:33 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -57,11 +57,12 @@ FUNC_DOC(mm_add_oaep_padding);
 FUNC_DOC(mm_check_oaep_padding);
 FUNC_DOC(mm_rsa_generate);
 FUNC_DOC(mm_rsa_crypt);
-FUNC_DOC(mm_rsa_encode_key);
 FUNC_DOC(mm_rsa_decode_key);
-FUNC_DOC(mm_rsa_get_modulus_bytes);
+FUNC_DOC(mm_rsa_PEM_read_key);
 FUNC_DOC(mm_rsa_get_public_key);
 FUNC_DOC(mm_rsa_make_public_key);
+FUNC_DOC(mm_generate_dh_parameters);
+FUNC_DOC(mm_generate_cert);
 extern PyObject *mm_CryptoError;
 extern char mm_CryptoError__doc__[];
 

@@ -2,8 +2,11 @@ Hacking Mixminion
 
 Requirements:
 	Python 2.0-2.2  (see PORTING NOTES below)
-	OpenSSL 0.9.7 (you'll need to download a snapshot. Also see PORTING.)
-	Working /dev/urandom (see PORTING NOTES below)
+
+	OpenSSL 0.9.7 (You'll need to download a beta. As of 5 July 2002,
+           that's http//www.openssl.org/source/openssl-0.9.7-beta2.tar.gz)
+
+	A working /dev/urandom (see PORTING NOTES below)
 
 Setting up:
 	Get python 2.2.  There are RPMs around.
@@ -66,9 +69,10 @@ PORTABILITY NOTES:
            yet support server-side DHE.  Bugzilla says that
            server-side DHE is targetted for 3.5.  Perhaps then we can
            port, but I wouldn't hold my breath.
-         - gnutls/libgcrypt: These is the GNU offerings; the relevant 
+         - gnutls/libgcrypt: These are the GNU offerings; the relevant
            portions of each are licensed under the LGPL.  They don't
-           support OAEP, but that's easy enough to re-do in Python.
+           support OAEP, but we've already got an implementation of that
+           in Python.
 
       So for now, it's OpenSSL.  I'll accept any patches that make us 
       run under gnutls/libgcrypt as well, but I think in the long term

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.6 2002/07/01 18:03:05 nickm Exp $ */
+/* $Id: crypt.c,v 1.7 2002/07/05 23:34:33 nickm Exp $ */
 #include <Python.h>
 
 #include <openssl/bn.h>
@@ -8,6 +8,8 @@
 #include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#include <openssl/pem.h>
+#include <openssl/evp.h>
 #include <_minionlib.h>
 #include <assert.h>
 
@@ -437,6 +439,128 @@ mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	return mm_RSA_new(rsa);
 }
 
+const char mm_RSA_PEM_write_key__doc__[]=
+  "rsa.PEM_write_key(file, public, [password])\n\n"
+  "Writes an RSA key to a file in PEM format with PKCS#8 encryption.\n" 
+  "If public is true, writes only the public key, and ignores the password.\n"
+  "Otherwise, writes the full private key, optionally encrypted by a\n"
+  "password.\n";
+
+PyObject *
+mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+	static char* kwlist[] = { "file", "public", "password", NULL };
+	PyObject *pyfile;
+	int public, passwordlen=0;
+	char *password=NULL;
+
+	RSA *rsa = NULL;
+	EVP_PKEY *pkey = NULL;
+	FILE *file;
+	
+	assert(mm_RSA_Check(self));
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "O!i|s#:PEM_write_key",
+					 kwlist, &PyFile_Type, &pyfile,
+					 &public,
+					 &password, &passwordlen))
+		return NULL;
+	if (!(file = PyFile_AsFile(pyfile))) {
+		TYPE_ERR("Invalid file object"); 
+		return NULL;
+	}
+
+	if (public) {
+		rsa = ((mm_RSA*)self)->rsa;
+		if (!PEM_write_RSAPublicKey(file, rsa))
+			goto error;
+	} else {
+		if (!(rsa = RSAPrivateKey_dup(((mm_RSA*)self)->rsa)))
+			goto error;
+		if (!(pkey = EVP_PKEY_new()))
+			goto error;
+		if (!EVP_PKEY_assign_RSA(pkey,rsa))
+			goto error;
+		rsa = NULL;
+
+		if (password) {
+			printf("Got here 1\n");
+			if (!PEM_write_PKCS8PrivateKey(file, pkey,
+						       EVP_des_ede3_cbc(),
+						       NULL, 0,
+						       NULL, password))
+				goto error;
+		} else {
+			printf("Got here 2\n");
+			if (!PEM_write_PKCS8PrivateKey(file, pkey,
+						       NULL, 
+						       NULL, 0,
+						       NULL, NULL))
+				goto error;
+		}
+		printf("got here 3\n");
+	}
+	Py_INCREF(Py_None);
+	return Py_None;
+
+ error:
+	if (rsa && !public)
+		RSA_free(rsa);
+	if (pkey)
+		EVP_PKEY_free(pkey);
+
+	mm_SSL_ERR(1);
+	return NULL;
+}
+
+const char mm_rsa_PEM_read_key__doc__[]=
+  "rsa_PEM_read_key(file, public, [password]) -> rsa\n\n"
+  "Writes an RSA key to a file in PEM format with PKCS#8 encryption.\n" 
+  "If public is true, reads only the public key, and ignores the password.\n"
+  "Otherwise, writes the full private key, optionally encrypted by a\n"
+  "password.\n";
+
+PyObject *
+mm_rsa_PEM_read_key(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+	static char *kwlist[] = { "file", "public", "password", NULL };
+	PyObject *pyfile;
+	int public, passwordlen=0;
+	char *password=NULL;
+
+	RSA *rsa;
+	FILE *file;
+	
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
+					 "O!i|s#:rsa_PEM_read_key",
+					 kwlist, &PyFile_Type, &pyfile,
+					 &public,
+					 &password, &passwordlen))
+		return NULL;
+	if (!(file = PyFile_AsFile(pyfile))) {
+		TYPE_ERR("Invalid file object"); 
+		return NULL;
+	}
+	if (!passwordlen)
+		password = "";
+
+	if (public) {
+		rsa = PEM_read_RSAPublicKey(file, NULL, NULL, NULL);
+	} else {
+		rsa = PEM_read_RSAPrivateKey(file, NULL,
+					     NULL, password);
+	}
+	if (!rsa) {
+		mm_SSL_ERR(1);
+		return NULL;
+	}
+
+	return mm_RSA_new(rsa);
+}
+
+
+
+
+
 /**
  * Converts a BIGNUM into a newly allocated PyLongObject.  
  **/
@@ -555,14 +679,14 @@ const char mm_RSA_get_modulus_bytes__doc__[]=
    "Returns the number of *bytes* (not bits) in an RSA modulus.\n";
 
 static PyObject *
-mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwargs) 
 {
 	static char *kwlist[] = { NULL };
 	RSA *rsa;
 
 	assert(mm_RSA_Check(self));
 	rsa = ((mm_RSA*)self)->rsa;
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
 					 ":get_modulus_bytes", kwlist))
 		return NULL;
 	
@@ -574,6 +698,7 @@ static PyMethodDef mm_RSA_methods[] = {
 	METHOD(mm_RSA, encode_key),
 	METHOD(mm_RSA, get_modulus_bytes),
 	METHOD(mm_RSA, get_public_key),
+	METHOD(mm_RSA, PEM_write_key),
 	{ NULL, NULL }
 };
  
@@ -610,7 +735,7 @@ const char mm_add_oaep_padding__doc__[]=
    "be used, in bytes;  Param is the security parameter string.\n";
 
 PyObject *
-mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	static char *kwlist[] = { "s", "param", "keylen", NULL };
 
@@ -620,7 +745,7 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	PyObject *output;
 	
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
 					 "s#s#i:add_oaep_padding", kwlist,
 			      &input,&inputlen,&param,&paramlen,&keylen))
 		return NULL;
@@ -656,7 +781,7 @@ const char mm_check_oaep_padding__doc__[]=
    "If the padding is in tact, the original string is returned.\n";
 
 PyObject *
-mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs) 
 {
 	static char *kwlist[] = { "s", "param", "keylen", NULL };
 
@@ -666,7 +791,7 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	PyObject *output;
 	
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
 					 "s#s#i:check_oaep_padding", kwlist,
 				  &input,&inputlen,&param,&paramlen,&keylen))
 		return NULL;
@@ -692,6 +817,148 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwdict)
 	if(_PyString_Resize(&output, r)) return NULL;
 
 	return output;
+}
+
+static void
+gen_dh_callback(int p, int n, void *arg) 
+{
+	if (p == 0) fputs(".", stderr);
+	if (p == 1) fputs("+", stderr);
+	if (p == 2) fputs("*", stderr);
+	if (p == 3) fputs("\n", stderr);
+}
+
+const char mm_generate_dh_parameters__doc__[] = 
+   "generate_dh_parameters(filename, [bits, [verbose]])\n\n"
+   "XXXX";
+
+PyObject *
+mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+	static char *kwlist[] = { "filename", "verbose", NULL };
+	char *filename;
+	int bits=512, verbose=0;
+	
+	BIO *out = NULL;
+	DH *dh = NULL;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
+					 "s|i:generate_dh_parameters", 
+					 kwlist,
+					 &filename, &verbose))
+		return NULL;
+	
+	if (!(out = BIO_new_file(filename, "w")))
+		goto error;
+	if (!(dh = DH_generate_parameters(bits, 2, 
+					  verbose?gen_dh_callback:NULL, 
+					  NULL)))
+		goto error;
+	if (!PEM_write_bio_DHparams(out, dh))
+		goto error;
+	BIO_free(out);
+	DH_free(dh);
+	Py_INCREF(Py_None);
+	return Py_None;
+
+ error:
+	if (out)
+		BIO_free(out);
+	if (dh)
+		DH_free(dh);
+	mm_SSL_ERR(0);
+	return NULL;
+}
+
+const char mm_generate_cert__doc__[] = 
+   "generate_cert(filename, rsa, days, cn)\n\n"
+   "XXXX";
+
+PyObject *
+mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+	static char *kwlist[] = { "filename", "rsa", "days", "cn", NULL };
+	char *filename, *cn;
+	PyObject *_rsa;
+	int days;
+	
+	RSA *rsa = NULL;
+	EVP_PKEY *pkey = NULL;
+	BIO *out = NULL;
+	X509 *x509 = NULL;
+	X509_NAME *name = NULL;
+	int nid;
+	PyObject *retval;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO!is:PEM_write_key",
+					 kwlist, &filename,
+					 &mm_RSA_Type, &_rsa, &days, &cn))
+		return NULL;
+
+	if (!(rsa = RSAPrivateKey_dup(((mm_RSA*)_rsa)->rsa)))
+		goto error;
+	if (!(pkey = EVP_PKEY_new()))
+		goto error;
+	if (!(EVP_PKEY_assign_RSA(pkey, rsa)))
+		goto error;
+	rsa = NULL;
+
+	if (!(x509 = X509_new()))
+		goto error;
+	if (!(X509_set_version(x509, 2)))
+		goto error;
+	if (!(ASN1_INTEGER_set(X509_get_serialNumber(x509),0L)))
+		goto error;
+	if (!(name = X509_NAME_new()))
+		goto error;
+	
+#define SET_PART(part, val)                                     \
+	if ((nid = OBJ_txt2nid(part)) == NID_undef) goto error; \
+        if (!X509_NAME_add_entry_by_NID(name, nid, MBSTRING_ASC,\
+                                        val, -1, -1, 0)) goto error;
+       
+	SET_PART("countryName", "US");
+	SET_PART("organizationName", "Mixminion network");
+	SET_PART("commonName", cn);
+
+	if (!(X509_set_issuer_name(x509, name)))
+		goto error;
+	if (!X509_gmtime_adj(X509_get_notBefore(x509),0)) 
+		goto error;
+	/* XXXX */
+	if (!X509_gmtime_adj(X509_get_notAfter(x509), 60L*60L*24L*days)) 
+		goto error;
+	if (!(X509_set_pubkey(x509, pkey)))
+		goto error;
+	if (!(X509_sign(x509, pkey, EVP_md5())))
+		goto error;
+
+	if (!(out = BIO_new_file(filename, "w")))
+		goto error;
+	if (!(PEM_write_bio_X509(out, x509)))
+		goto error;
+
+	retval = Py_None;
+	Py_INCREF(Py_None);
+	goto done;
+
+error:
+	P(error);
+	retval = NULL;
+	mm_SSL_ERR(1);
+ done:
+	if (out)
+		BIO_free(out);
+	if (name)
+		X509_NAME_free(name);
+	if (x509)
+		X509_free(x509);
+	if (rsa)
+		RSA_free(rsa);
+	if (pkey)
+		EVP_PKEY_free(pkey);
+
+	return retval;
 }
 
 /*

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.3 2002/07/01 18:03:05 nickm Exp $ */
+/* $Id: tls.c,v 1.4 2002/07/05 23:34:33 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -85,13 +85,11 @@ typedef struct mm_TLSSock {
 #define mm_TLSSock_Check(v) ((v)->ob_type == &mm_TLSSock_Type)
 
 /* XXXX Code to make new cert */
-/* XXXX Code to make new dhparam */
-/* XXXX IO for certs, dhparams. */
 
 const char mm_TLSContext_new__doc__[] = 
-   "TLSContext([certfile, [pkfile, [dhfile] ] ] )\n\n"
+   "TLSContext([certfile, [rsa, [dhfile] ] ] )\n\n"
    "Allocates a new TLSContext object.  The files, if provided, are used\n"
-   "contain the PEM-encoded X509 public keys, private key file, and DH\n"
+   "contain the PEM-encoded X509 public keys, private key, and DH\n"
    "parameters for this context.\n\n"
    "BUG:In the future, certs, pks, and dh parameters will be first-class.\n\n"
    "LIMITATION: We don\'t expose any more features than Mixminion needs.\n";
@@ -100,16 +98,22 @@ PyObject*
 mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs) 
 {
 	static char *kwlist[] = { "certfile", "pkfile", "dhfile", NULL };
-	char *certfile = NULL, *pkfile=NULL, *dhfile=NULL;
+	char *certfile = NULL, *dhfile=NULL;
+	mm_RSA *rsa = NULL;
+
 	SSL_METHOD *method;
 	SSL_CTX *ctx;
 	DH *dh;
 	mm_TLSContext *result;
 	BIO *bio;
+	RSA *_rsa = NULL;
+	EVP_PKEY *pkey = NULL; /* Leaked? ???? */
 	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sss:TLSContext_new", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sO!s:TLSContext_new", 
 					 kwlist,
-					 &certfile, &pkfile, &dhfile))
+					 &certfile, 
+					 &mm_RSA_Type, &rsa,
+					 &dhfile))
 		return NULL;
 
 	method = TLSv1_method();
@@ -117,7 +121,6 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 	if (!(ctx = SSL_CTX_new(method))) {
 		mm_SSL_ERR(0); return NULL;
 	}
-
 	if (!SSL_CTX_set_cipher_list(ctx, TLS1_TXT_DHE_RSA_WITH_AES_128_SHA)){
 		SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 	}
@@ -125,9 +128,18 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 	    !SSL_CTX_use_certificate_file(ctx,certfile,SSL_FILETYPE_PEM)) {
 		SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 	}
-	if (pkfile && 
-	    !(SSL_CTX_use_PrivateKey_file(ctx,pkfile,SSL_FILETYPE_PEM))) {
-		SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
+	if (rsa) {
+		if (!(_rsa = RSAPrivateKey_dup(rsa->rsa)) || 
+		    !(pkey = EVP_PKEY_new()) ||
+		    !EVP_PKEY_assign_RSA(pkey, _rsa)) {
+			if (!pkey && _rsa) RSA_free(_rsa);
+			if (pkey) EVP_PKEY_free(pkey);
+			SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
+		}
+		if (!(SSL_CTX_use_PrivateKey(ctx, pkey))) {
+			EVP_PKEY_free(pkey);
+			SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
+		}
 	} 
 
 	if (dhfile) {
@@ -487,7 +499,7 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 		mm_SSL_ERR(0); return NULL; /* ???? */
 	}
 	pkey = X509_get_pubkey(cert);
-	/* ???? */
+	/* ???? free? leak? */
 	if (!(rsa = EVP_PKEY_get1_RSA(pkey))) 
 		return NULL; /* XXXX */
 	

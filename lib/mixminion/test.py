@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.9 2002/07/01 18:03:05 nickm Exp $
+# $Id: test.py,v 1.10 2002/07/05 23:34:32 nickm Exp $
 
 """mixminion.tests
 
@@ -176,7 +176,7 @@ class MinionlibCryptoTests(unittest.TestCase):
     def test_rsa(self):
         p = _ml.rsa_generate(1024, 65535)
 
-        #For all of SIGN, CHECK_SIG, ENCRYPT, DECRYPT...
+        #for all of SIGN, CHECK_SIG, ENCRYPT, DECRYPT...
         for pub1 in (0,1):
             for enc1 in (0,1):
                 msg = "Now is the time for all anonymous parties"
@@ -1287,7 +1287,8 @@ def _getTLSContext(isServer):
         for f in (d+"server.cert",d+"server.pk",d+"dh"):
             assert os.path.exists(f)
         #XXXX Generate these if they don't exist; look in a saner place.
-        return _ml.TLSContext_new(d+"server.cert",d+"server.pk",d+"dh")
+	pk = _ml.rsa_PEM_read_key(open(d+"server.pk", 'r'), 0)
+        return _ml.TLSContext_new(d+"server.cert",pk,d+"dh")
     else:
         return _ml.TLSContext_new()
 
@@ -1394,11 +1395,29 @@ def testSuite():
     # XXXX This test won't work for anybody but me until I get DH/keygen
     # XXXX working happily. -NM
     if os.path.exists("/home/nickm/src/ssl_sandbox/dh"):
+	print "Including mmtp tests XXXX"
         suite.addTest(tc(MMTPTests))
+    else:
+	print "excluding mmtp tests XXXX"
     return suite
 
 def testAll():
     unittest.TextTestRunner().run(testSuite())
 
 if __name__ == '__main__':
+    init_crypto()
+
+    d = "/home/nickm/src/ssl_sandbox/"
+
+##      print "dh"
+##      _ml.generate_dh_parameters(d+"dh", 0)
+##      print "rsa"
+##      pk = _ml.rsa_generate(1024, 65535)
+##      pk.PEM_write_key(open(d+"server.pk", 'w'),0)
+##      print "cert"
+##      _ml.generate_cert(d+"server.cert", pk, 365, "foobar")
+##      print "go!"
+    
+##      print "-----------"
+
     testAll()
