@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.1 2003/05/25 21:57:05 nickm Exp $
+# $Id: ServerInbox.py,v 1.2 2003/05/25 23:11:43 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -9,10 +9,12 @@
 
 __all__ = [ 'ServerInbox' ]
 
-from mixminion.Common import LOG, MixErrror, MixFatalError, UIError, \
-     readPickled, writePickled, 
+import os
 
-from mixminion.directory.Directory import getIDFingerprint
+from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
+     readPickled, writePickled
+
+from mixminion.directory.Directory import getIDFingerprint, MismatchedID
 from mixminion.directory.ServerList import _writeServer, _readServer
 
 class ServerInbox:
@@ -39,7 +41,7 @@ class ServerInbox:
 
         try:
             known = self.idCache.containsServer(nickname)
-        except mixminion.directory.Directory.MismatchedID:
+        except MismatchedID:
             LOG.warn("Rejected server with mismatched identity from %s",
                      source)
             self.updateQueue.queueRejectedServer(text,server)
@@ -64,7 +66,7 @@ class ServerInbox:
                 serverList.importServerInfo(text,server=server,
                                             knownOnly=knownOnly)
                 accepted.append(fname)
-            except (MixError, config), e:
+            except MixError, e:
                 LOG.warn("ServerList refused to include server %s: %s",
                          fname, e)
                 reject.append((fname,server,text,fp))
@@ -178,7 +180,7 @@ class IncomingQueue:
             path = os.path.join(self.incomingDir,fname)
             try:
                 text, server = _readServer(path)
-            except (ConfigError, MixError),e:
+            except MixError, e:
                 os.unlink(path)
                 LOG.warn("Removed a bad server descriptor %s from incoming dir: %s",
                          fname, e)

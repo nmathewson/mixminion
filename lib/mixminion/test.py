@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.106 2003/05/23 07:54:11 nickm Exp $
+# $Id: test.py,v 1.107 2003/05/25 23:11:43 nickm Exp $
 
 """mixminion.tests
 
@@ -52,7 +52,9 @@ import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 import mixminion.server.ServerMain
 import mixminion.directory.ServerList
+import mixminion.directory.ServerInbox
 import mixminion.directory.DirMain
+import mixminion.directory.Directory
 from mixminion.Common import *
 from mixminion.Common import Log, _FileLogHandler, _ConsoleLogHandler
 from mixminion.Config import _ConfigFile, ConfigError, _parseInt
