@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.12 2003/07/13 03:45:34 nickm Exp $
+# $Id: Directory.py,v 1.13 2003/07/30 22:38:03 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -152,7 +152,7 @@ class Directory:
 class DirectoryConfig(C._ConfigFile):
     """Configuration file for a directory server."""
     _restrictFormat = 0
-    _restrictKeys = 1
+    _restrictKeys = _restrictSections = 1
     _syntax = {
         'Host' : C.ClientConfig._syntax['Host'],
         "Directory-Store" : {

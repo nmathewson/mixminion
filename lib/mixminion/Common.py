@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.102 2003/07/15 15:30:56 nickm Exp $
+# $Id: Common.py,v 1.103 2003/07/30 22:38:03 nickm Exp $
 
 """mixminion.Common
 
@@ -825,7 +825,7 @@ class Log:
             self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
             logfile = config['Server'].get('LogFile')
             if logfile is None:
-                homedir = config['Server']['Homedir']
+                homedir = config['Server'].get('Homedir')
                 if homedir:
                     logfile = os.path.join(homedir, "log")
             self.addHandler(_ConsoleLogHandler(sys.stderr))

@@ -71,6 +71,8 @@ For 0.0.5:
                          o Implement
                          o Test
                 o Generate random-length paths.
+                - Give a reasonable error when client is passed
+                  server configuration.
                 - Audit exceptions: which should be UIError?
                 - 'Iffy mode' messages are confusing.
                 - SSL's "Unexpected error: wrong version number"

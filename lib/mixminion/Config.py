@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.52 2003/07/07 16:49:24 nickm Exp $
+# $Id: Config.py,v 1.53 2003/07/30 22:38:03 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -549,6 +549,8 @@ class _ConfigFile:
     _syntax = None
     _restrictFormat = 0
     _restrictKeys = 1
+    #DOCDOC
+    _restrictSections = 1
 
     def __init__(self, filename=None, string=None, assumeValid=0):
         """Create a new _ConfigFile.  If <filename> is set, read from
@@ -607,8 +609,12 @@ class _ConfigFile:
             secConfig = self._syntax.get(secName)
 
             if not secConfig:
-                LOG.warn("Skipping unrecognized section %s", secName)
-                continue
+                if self._restrictSections:
+                    raise ConfigError("Skipping unrecognized section %s"
+                                      %secName)
+                else:
+                    LOG.warn("Skipping unrecognized section %s", secName)
+                    continue
 
             # Set entries from the section, searching for bad entries
             # as we go.
@@ -741,6 +747,7 @@ class _ConfigFile:
 
 class ClientConfig(_ConfigFile):
     _restrictFormat = 0
+    _restrictKeys = _restrictSections = 1
     _syntax = {
         'Host' : { '__SECTION__' : ('ALLOW', None, None),
                    'ShredCommand': ('ALLOW', _parseCommand, None),
@@ -765,6 +772,8 @@ class ClientConfig(_ConfigFile):
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
+
+    #XXXX005 Make  prevalidate check to make sure there's no 'Server' section.
 
     def validate(self, lines, contents):
         _validateHostSection(self['Host'])

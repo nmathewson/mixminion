@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.51 2003/07/13 03:45:34 nickm Exp $
+# $Id: ServerInfo.py,v 1.52 2003/07/30 22:38:03 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -47,7 +47,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     """A ServerInfo object holds a parsed server descriptor."""
     _restrictFormat = 1
-    _restrictKeys = 0
+    _restrictKeys = _restrictSections = 0
     _syntax = {
         "Server" : { "__SECTION__": ("REQUIRE", None, None),
                      "Descriptor-Version": ("REQUIRE", None, None),
@@ -387,7 +387,7 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
     # expectedDigest: the 20-byte digest we expect to find in this
     #    directory's header.
     _restrictFormat = 1
-    _restrictKeys = 0
+    _restrictKeys = _restrictSections = 0
     _syntax = {
         'Directory': { "__SECTION__": ("REQUIRE", None, None),
                        "Version": ("REQUIRE", None, None),
