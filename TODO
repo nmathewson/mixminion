@@ -59,7 +59,7 @@ For 0.0.7:
                         . Limit number of bytes transmitted/read per second
                                 o Implement per-connnection cap functionality.
                                 o Set and adjust caps.
-                                - Configuration to enable caps
+                                o Configuration to enable caps
                                 - Test
                         - Limit number of packets sent over single client
                           connection.

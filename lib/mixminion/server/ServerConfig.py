@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.50 2004/02/06 23:14:28 nickm Exp $
+# $Id: ServerConfig.py,v 1.51 2004/02/07 06:56:45 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -99,6 +99,10 @@ class ServerConfig(mixminion.Config._ConfigFile):
         mc = self['Outgoing/MMTP'].get('MaxConnections')
         if mc is not None and mc < 1:
             raise ConfigError("MaxConnections must be at least 1.")
+        bw = self['Outgoing/MMTP'].get('MaxBandwidth')
+        if bw is not None and bw < 4096:
+            #XXXX007 this is completely arbitrary. :P
+            raise ConfigError("MaxBandwidth must be at least 4KB.")
 
         self.validateRetrySchedule("Outgoing/MMTP")
 
@@ -159,8 +163,8 @@ class ServerConfig(mixminion.Config._ConfigFile):
             ("Server", ['LogLevel', 'LogStats', 'StatsInterval',
                         'PublicKeyOverlap', 'Mode', 'MixAlgorithm',
                         'MixInterval', 'MixPoolRate', 'MixPoolMinSize',
-                        'Timeout',]),
-            ("Outgoing/MMTP", ['Retry']),
+                        'Timeout','MaxBandwidth']),
+            ("Outgoing/MMTP", ['Retry','MaxConnections']),
             ("Delivery/SMTP",
              ['Enabled', 'Retry', 'SMTPServer', 'ReturnAddress', 'FromTag',
               'SubjectLine', 'MaximumSize']),
@@ -345,6 +349,7 @@ SERVER_SYNTAX =  {
                      'MixPoolRate' : ('ALLOW', "fraction", "60%"),
                      'MixPoolMinSize' : ('ALLOW', "int", "5"),
 		     'Timeout' : ('ALLOW', "interval", "5 min"),
+                     'MaxBandwidth' : ('ALLOW', "size", None),
                      },
         'DirectoryServers' : { # '__SECTION__' : ('REQUIRE', None, None),
                                'ServerURL' : ('ALLOW*', None, None),
@@ -366,10 +371,10 @@ SERVER_SYNTAX =  {
 			 },
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', "boolean", "no"),
                             'Retry' : ('ALLOW', "intervalList",
-                                 "every 1 hour for 1 day, 7 hours for 5 days"),
-                            'MaxConnections' : ('ALLOW', 'int', '16'),
-                          'Allow' : ('ALLOW*', "addressSet_allow", None),
-                          'Deny' : ('ALLOW*', "addressSet_deny", None) },
+                              "every 1 hour for 1 day, 7 hours for 5 days"),
+                           'MaxConnections' : ('ALLOW', 'int', '16'),
+                           'Allow' : ('ALLOW*', "addressSet_allow", None),
+                           'Deny' : ('ALLOW*', "addressSet_deny", None) },
         # FFFF Missing: Queue-Size / Queue config options
         # FFFF         listen timeout??
         }
