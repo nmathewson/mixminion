@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.7 2002/08/21 19:09:48 nickm Exp $
+# $Id: Modules.py,v 1.8 2002/08/25 03:48:48 nickm Exp $
 
 """mixminion.Modules
 
@@ -85,7 +85,7 @@ class DeliveryModule:
 	   via this module.  The default implementation returns a 
 	   SimpleModuleDeliveryQueue,  which (though adequate) doesn't 
 	   batch messages intended for the same destination."""
-        return _SimpleModuleDeliveryQueue(self, queueDir)
+        return SimpleModuleDeliveryQueue(self, queueDir)
 
     def processMessage(self, message, exitType, exitInfo):
 	"""Given a message with a given exitType and exitInfo, try to deliver
@@ -96,7 +96,7 @@ class DeliveryModule:
 	    DELIVER_FAIL_NORETRY (if the message shouldn't be tried later)."""
         raise NotImplementedError("processMessage")
 
-class _ImmediateDeliveryQueue:
+class ImmediateDeliveryQueue:
     """Helper class usable as delivery queue for modules that don't
        actually want a queue.  Such modules should have very speedy
        processMessage() methods, and should never have deliery fail."""
@@ -120,7 +120,7 @@ class _ImmediateDeliveryQueue:
 	# We do nothing here; we already delivered the messages
 	pass
 
-class _SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
+class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
     def __init__(self, module, directory):
@@ -291,7 +291,7 @@ class DropModule(DeliveryModule):
     def getExitTypes(self):
         return [ DROP_TYPE ]
     def createDeliveryQueue(self, directory):
-	return _ImmediateDeliveryQueue(self)
+	return ImmediateDeliveryQueue(self)
     def processMessage(self, message, exitType, exitInfo):
         getLog().debug("Dropping padding message")
         return DELIVER_OK

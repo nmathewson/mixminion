@@ -28,6 +28,7 @@ FOR 0.0.1: (The first alpha)
                   try sending some messages through.
 	- Better log messages at all points throughout system.
 	*- CLI for server
+		o Common CLI code.
 		*. Run server
 		*- Generate future key/publish to dirserver
 	- CLI client
@@ -41,8 +42,9 @@ FOR 0.0.1: (The first alpha)
 		- Example config
 		- Warn about unimplemented allow/deny
 		- Warn about all unimplemented features
-	- Build
-		- Ability to pull and build ssl.
+	. Build
+		- Ability to pull ssl.
+		o Ability to build ssl.
 		- Marginal 'make install'
 	- Integration testing
 		*- Fake delivery module for MBOX-less testing of core

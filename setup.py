@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.6 2002/08/12 18:12:24 nickm Exp $
+# $Id: setup.py,v 1.7 2002/08/25 03:48:47 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -18,13 +18,13 @@ USE_OPENSSL=1
 if USE_OPENSSL:
     # For now, we assume that openssl-0.9.7 hasn't been released.  When this
     # changes, we can fix this rigamarole.
-    openssl_lib = os.environ.get("MM_OPENSSL_LIB", "./contrib/openssl")
     openssl_inc = os.environ.get("MM_OPENSSL_INCLUDE", 
-				 "./contrib/openssl/include")
-    LIB_DIRS=[openssl_lib]
+ 				 "./contrib/openssl/include")
     INCLUDE_DIRS=[openssl_inc]
-    LIBRARIES=['ssl','crypto']
     STATIC_LIBS=['./contrib/openssl/libssl.a', './contrib/openssl/libcrypto.a']
+##      openssl_lib = os.environ.get("MM_OPENSSL_LIB", "./contrib/openssl")
+##      LIB_DIRS=[openssl_lib]
+##      LIBRARIES=['ssl','crypto']
 
 MACROS=[]
 MODULES=[]

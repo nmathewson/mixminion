@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.21 2002/08/21 19:09:48 nickm Exp $
+# $Id: test.py,v 1.22 2002/08/25 03:48:48 nickm Exp $
 
 """mixminion.tests
 
@@ -23,89 +23,13 @@ import binascii
 import stat
 import cPickle
 
+from mixminion.testSupport import mix_mktemp
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, getLog
 
 try:
     import unittest
 except ImportError:
     import mixminion._unittest as unittest
-
-# Test for acceptable permissions and uid on directory?
-_MM_TESTING_TEMPDIR_PARANOIA = 1
-# Holds 
-_MM_TESTING_TEMPDIR = None
-_MM_TESTING_TEMPDIR_COUNTER = 0
-_MM_TESTING_TEMPDIR_REMOVE_ON_EXIT = 1
-def mix_mktemp(extra=""):
-    '''mktemp wrapper. puts all files under a securely mktemped
-       directory.'''
-    global _MM_TESTING_TEMPDIR
-    global _MM_TESTING_TEMPDIR_COUNTER
-    if _MM_TESTING_TEMPDIR is None:
-	import tempfile
-	temp = tempfile.mktemp()
-	paranoia = _MM_TESTING_TEMPDIR_PARANOIA
-	if paranoia and os.path.exists(temp):
-	    print "I think somebody's trying to exploit mktemp."
-	    sys.exit(1)
-	try:
-	    os.mkdir(temp, 0700)
-	except OSError, e:
-	    print "Something's up with mktemp: %s" % e
-	    sys.exit(1)
-	if not os.path.exists(temp):
-	    print "Couldn't create temp dir %r" %temp
-	    sys.exit(1)
-	st = os.stat(temp)
-	if paranoia:
-	    if st[stat.ST_MODE] & 077:
-		print "Couldn't make temp dir %r with secure permissions" %temp
-		sys.exit(1)
-	    if st[stat.ST_UID] != os.getuid():
-		print "The wrong user owns temp dir %r"%temp
-		sys.exit(1)
-	    parent = temp
-	    while 1:
-		p = os.path.split(parent)[0]
-		if parent == p:
-		    break
-		parent = p
-		st = os.stat(parent)
-		m = st[stat.ST_MODE]
-		if m & 02 and not (m & stat.S_ISVTX):
-		    print "Directory %s has fishy permissions %o" %(parent,m)
-		    sys.exit(1)
-		if st[stat.ST_UID] not in (0, os.getuid()):
-		    print "Directory %s has bad owner %s" % st[stat.UID]
-		    sys.exit(1)
-		    
-	_MM_TESTING_TEMPDIR = temp
-	if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:
-	    import atexit
-	    atexit.register(deltree, temp)
-    
-    _MM_TESTING_TEMPDIR_COUNTER += 1
-    return os.path.join(_MM_TESTING_TEMPDIR,
-			"tmp%05d%s" % (_MM_TESTING_TEMPDIR_COUNTER,extra))
-
-_WAIT_FOR_KIDS = 1
-def deltree(*dirs):
-    global _WAIT_FOR_KIDS
-    if _WAIT_FOR_KIDS:
-	print "Waiting for shred processes to finish."
-	waitForChildren()
-	_WAIT_FOR_KIDS = 0
-    for d in dirs:
-        if os.path.isdir(d):
-            for fn in os.listdir(d):
-		loc = os.path.join(d,fn)
-		if os.path.isdir(loc):
-		    deltree(loc)
-		else:
-		    os.unlink(loc)
-            os.rmdir(d)
-        elif os.path.exists(d):
-            os.unlink(d)
 
 def hexread(s):
     assert (len(s) % 2) == 0
@@ -1570,11 +1494,12 @@ from mixminion.Common import createPrivateDir, checkPrivateDir
 class FileParanoiaTests(unittest.TestCase):
     def testPrivateDirs(self):
 	noia = mix_mktemp("noia")
+	tempdir = mixminion.testSupport._MM_TESTING_TEMPDIR
 	try:
-	    checkPrivateDir(_MM_TESTING_TEMPDIR)
+	    checkPrivateDir(tempdir)
 	except MixFatalError, e:
 	    self.fail("Can't test directory paranoia, because something's\n"
-		      +" wrong with %s: %s"%(_MM_TESTING_TEMPDIR,str(e)))
+		      +" wrong with %s: %s"%(tempdir, str(e)))
 	
 	# Nonexistant directory.
 	self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
@@ -2311,7 +2236,7 @@ Foo: 99
 			     mixminion.Modules.DROP_TYPE,  "")
 	queue = manager.queues['TestModule']
 	self.failUnless(isinstance(queue, 
-			   mixminion.Modules._SimpleModuleDeliveryQueue))
+			   mixminion.Modules.SimpleModuleDeliveryQueue))
 	self.assertEquals(3, queue.count())
 	self.assertEquals(exampleMod.processedMessages, [])
 	try:
@@ -2391,7 +2316,9 @@ def testSuite():
     suite.addTest(tc(MMTPTests))
     return suite
 
-def testAll():
+def testAll(name, args):
+    init_crypto()
+
     # Suppress 'files-can't-be-securely-deleted message while testing'
     getLog().setMinSeverity("FATAL")
     mixminion.Common.secureDelete([],1)
@@ -2401,7 +2328,3 @@ def testAll():
     getLog().setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "WARN"))
 
     unittest.TextTestRunner(verbosity=1).run(testSuite())
-
-if __name__ == '__main__':
-    init_crypto()
-    testAll()

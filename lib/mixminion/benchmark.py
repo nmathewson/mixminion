@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.8 2002/08/19 15:33:56 nickm Exp $
+# $Id: benchmark.py,v 1.9 2002/08/25 03:48:48 nickm Exp $
 
 """mixminion.benchmark
 
@@ -12,7 +12,7 @@
    """
 
 from time import time
-from mixminion.test import mix_mktemp
+from mixminion.testSupport import mix_mktemp
 
 __pychecker__ = 'no-funcdoc no-reimport'
 __all__ = [ 'timeAll', 'testLeaks1', 'testLeaks2' ]
@@ -246,14 +246,18 @@ def hashlogTiming():
 
 def _hashlogTiming(fname, load):
     from mixminion.HashLog import HashLog
-    prng = AESCounterPRNG("a"*16)
 
+    prng = AESCounterPRNG("a"*16)
+    
+    print "Testing hash log (%s entries)"%load
+    if load > 20000:
+	print "This may take a few minutes..."
     h = HashLog(fname, "A")
     hashes = [ prng.getBytes(20) for _ in xrange(load) ]
 
     t = time()
-    for hash in hashes:
-        h.logHash(hash)
+    for n in xrange(len(hashes)):
+        h.logHash(hashes[n])
     t = time()-t
     print "Add entry (up to %s entries)" %load, timestr(t/float(load))
 
@@ -454,40 +458,34 @@ def fileOpsTiming():
     print "#================= File ops ====================="
     installSignalHandlers(child=1,hup=0,term=0)
     dname = mix_mktemp(".d")
-    try:
 
-        os.mkdir(dname)
-        for i in xrange(200):
-            f = open(os.path.join(dname, str(i)), 'wb')
-            f.write(s32K)
-            f.close()
-        lst = [os.path.join(dname,str(i)) for i in range(100) ]
-        t1 = time()
-        secureDelete(lst)
-        t = time()-t1
-        print "secureDelete (100x32)", timestr(t)
 
-        waitForChildren()
-        t = time()-t1
-        print "               (sync)", timestr(t) 
+    os.mkdir(dname)
+    for i in xrange(200):
+	f = open(os.path.join(dname, str(i)), 'wb')
+	f.write(s32K)
+	f.close()
+    lst = [os.path.join(dname,str(i)) for i in range(100) ]
+    t1 = time()
+    secureDelete(lst)
+    t = time()-t1
+    print "secureDelete (100x32)", timestr(t)
 
-        lst = [ os.path.join(dname,str(i)) for i in range(100,200) ]
-        t1 = time()
-        for file in lst:
-            secureDelete(file)
-        t = time()-t1
-        print "secureDelete (1)", timestr(t/100)
-        
-        waitForChildren()
-        t = time()-t1
-        print "          (sync)", timestr(t/100) 
+    waitForChildren()
+    t = time()-t1
+    print "               (sync)", timestr(t) 
 
-        os.rmdir(dname)
-    except:
-        for f in os.listdir(dname):
-            os.unlink(os.path.join(dname,f))
-        os.rmdir(dname)
-        raise
+    lst = [ os.path.join(dname,str(i)) for i in range(100,200) ]
+    t1 = time()
+    for file in lst:
+	secureDelete(file)
+    t = time()-t1
+    print "secureDelete (1)", timestr(t/100)
+
+    waitForChildren()
+    t = time()-t1
+    print "          (sync)", timestr(t/100) 
+
         
 #----------------------------------------------------------------------
 def testLeaks1():
@@ -548,16 +546,10 @@ def testLeaks2():
 
 #----------------------------------------------------------------------
 
-def timeAll():
+def timeAll(name, args):
     cryptoTiming()
     buildMessageTiming()
     hashlogTiming()
     fileOpsTiming()
     serverProcessTiming()
     timeEfficiency()
-
-if __name__ == '__main__':
-    timeAll()
-    #testLeaks1()
-    #testLeaks2()
-

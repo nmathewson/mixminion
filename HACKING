@@ -3,16 +3,17 @@ Hacking Mixminion
 Requirements:
 	Python 2.0-2.2  (see PORTING NOTES below)
 
-	OpenSSL 0.9.7 (You'll need to download a beta. As of 5 July 2002,
-           that's http//www.openssl.org/source/openssl-0.9.7-beta2.tar.gz)
+	OpenSSL 0.9.7 (You'll need to download a beta. As of 24 August 2002,
+           that's http//www.openssl.org/source/openssl-0.9.7-beta3.tar.gz)
 
 	A working /dev/urandom (see PORTING NOTES below)
 
 Setting up:
-	Get python 2.2.  There are RPMs around.
-	Get the source.
-	Unpack openssl 0.9.7 into minion/contrib/openssl.
-	cd minion/contrib/openssl; ./config; make
+	1) Get python 2.2.  You can download RPMS from www.python.org.
+	2) Get the mixminion source.
+	3) EITHER Unpack openssl 0.9.7 into minion/contrib/openssl
+	          cd minion/contrib/openssl; ./config; make
+           OR make download-openssl; make build-openssl
 
 Things to try:
 	make
@@ -80,7 +81,7 @@ PORTABILITY NOTES:
 
 PORTING TO NON-LINUX PLATFORMS:
     - If you need to run on a system without an acceptable /dev/*random, 
-      you'll nee to write an acceptable fallback for mixminion.Crypto.trng() 
+      you'll need to write an acceptable fallback for mixminion.Crypto.trng() 
       to use.  
     - We assume the existence of a /usr/bin/shred to securely delete
       files.  This is now configurable, but I'd like to know a few other
@@ -88,6 +89,6 @@ PORTING TO NON-LINUX PLATFORMS:
 
 CAVEATS:
     - If I haven't got a test for it in tests.py, assume it doesn't work.
-    - The code isn't threadsafe.  It will become so only when it must.
+    - The code isn't threadsafe.  It will become so only if it must.
 
 --Nick
