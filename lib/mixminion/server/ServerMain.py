@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.107 2003/12/08 02:22:56 nickm Exp $
+# $Id: ServerMain.py,v 1.108 2003/12/08 06:37:15 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -476,14 +476,15 @@ def _sigTermHandler(signal_num, _):
 
 GOT_HUP = 0 # Set to one if we get SIGHUP.
 def _sigHupHandler(signal_num, _):
-    '''(Signal handler for SIGTERM)'''
+    '''(Signal handler for SIGHUP)'''
     signal.signal(signal_num, _sigHupHandler)
     global GOT_HUP
     GOT_HUP = 1
 
 def installSignalHandlers():
     """Install signal handlers for sigterm and sighup."""
-    signal.signal(signal.SIGHUP, _sigHupHandler)
+    if hasattr(signal, 'SIGHUP'):
+        signal.signal(signal.SIGHUP, _sigHupHandler)
     signal.signal(signal.SIGTERM, _sigTermHandler)
 
 #----------------------------------------------------------------------
@@ -955,6 +956,8 @@ class MixminionServer(_Scheduler):
 #----------------------------------------------------------------------
 def daemonize():
     """Put the server into daemon mode with the standard trickery."""
+    if sys.platform == 'win32':
+        raise UIError("Daemon mode is not supported on win32.")
 
     # This logic is more-or-less verbatim from Stevens's _Advanced
     # Programming in the Unix Environment_:

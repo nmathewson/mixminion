@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.123 2003/12/08 02:22:56 nickm Exp $
+# $Id: Common.py,v 1.124 2003/12/08 06:37:15 nickm Exp $
 
 """mixminion.Common
 
@@ -1346,13 +1346,13 @@ def isSMTPMailbox(s):
 
 def waitForChildren(onceOnly=0, blocking=1):
     """Wait until all subprocesses have finished.  Useful for testing."""
+    if sys.platform == 'win32':
+        LOG.trace("Skipping waitForChildren")
+        return
     if blocking:
         options = 0
     else:
         options = os.WNOHANG
-    if sys.platform == 'win32':
-        LOG.warn("Skipping waitForChildren")
-        return
     while 1:
         try:
             # WWWW This won't work on Windows.  What to do?
