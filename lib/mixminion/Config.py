@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.22 2002/12/09 04:47:40 nickm Exp $
+# $Id: Config.py,v 1.23 2002/12/09 06:11:01 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -368,7 +368,6 @@ def _readConfigFile(contents, restrict=0):
         elif type == 'SEC':
             curSection = [ ]
             sections.append( (val, curSection) )
-	    lastKey = None
         elif type == 'ENT':
             key,val = val
             if curSection is None:

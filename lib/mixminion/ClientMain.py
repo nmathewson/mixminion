@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.11 2002/12/09 04:47:39 nickm Exp $
+# $Id: ClientMain.py,v 1.12 2002/12/09 06:11:01 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -133,10 +133,10 @@ class TrivialKeystore:
 		return ServerInfo(fname=name, assumeValid=0)
 	    except OSError, e:
 		raise MixError("Couldn't read descriptor %s: %s" %
-			       (s, e))
+			       (name, e))
 	    except ConfigError, e:
 		raise MixError("Couldn't parse descriptor %s: %s" %
-			       (s, e))	    
+			       (name, e))	    
 	else:
 	    return None
 

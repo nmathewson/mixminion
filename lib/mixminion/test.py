@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.43 2002/12/09 04:47:40 nickm Exp $
+# $Id: test.py,v 1.44 2002/12/09 06:11:01 nickm Exp $
 
 """mixminion.tests
 
@@ -3286,8 +3286,7 @@ IP: 10.0.0.1
 _FAKE_HOME = None
 def _getServerKeyring():
     global _FAKE_HOME
-    if _FAKE_HOME is None:
-	_FAKE_HOME = mix_mktemp()
+    _FAKE_HOME = mix_mktemp()
     cfg = SERVERCFG % { 'home' : _FAKE_HOME }
     try:
 	suspendLog()
@@ -3399,16 +3398,15 @@ _EXAMPLE_DESCRIPTORS_INP = [
     [ "Lisa",	  "3 days",  "10.0.0.11", (-10,-1,5),   () ],
 ]
 
-_EXAMPLE_DESCRIPTORS_TIME = 0
 def getExampleServerDescriptors():
     """Helper function: generate a list of list of ServerInfo objects based 
        on the values of _EXAMPLE_DESCRIPTORS_INP"""
     if _EXAMPLE_DESCRIPTORS:
  	return _EXAMPLE_DESCRIPTORS
-    global _EXAMPLE_DESCRIPTORS_TIME
+
     gen = mixminion.ServerInfo.generateServerDescriptorAndKeys
     tmpkeydir = mix_mktemp()
-    _EXAMPLE_DESCRIPTORS_TIME = now = time.time()
+    now = time.time()
 
     sys.stdout.flush()
     
@@ -3455,6 +3453,9 @@ def getExampleServerDescriptors():
     return _EXAMPLE_DESCRIPTORS
 
 import mixminion.ClientMain
+
+# variable to hold the latest instance of FakeBCC.
+BCC_INSTANCE = None
 
 class ClientMainTests(unittest.TestCase):
     def testTrivialKeystore(self):
@@ -3604,11 +3605,11 @@ class ClientMainTests(unittest.TestCase):
 	    # First, two forward messages that end with 'joe' and go via
 	    # SMTP
 	    payload = "Hey Joe, where you goin' with that gun in your hand?"
-	    m1 = client.generateForwardMessage(
+	    client.generateForwardMessage(
 		parseAddress("joe@cledonism.net"),
 		payload,
 		path1=["Lola", "Joe"], path2=["Alice", "Joe"])
-	    m2 = client.generateForwardMessage(
+            client.generateForwardMessage(
 		parseAddress("smtp:joe@cledonism.net"),
 		"Hey Joe, where you goin' with that gun in your hand?",
 		path1=["Lola", "Joe"], path2=["Alice", "Joe"])
@@ -3624,12 +3625,12 @@ class ClientMainTests(unittest.TestCase):
 	    
 	    # Now try an mbox message, with an explicit last hop.
 	    payload = "Hey, Lo', where you goin' with that pun in your hand?"
-	    m1 = client.generateForwardMessage(
+	    client.generateForwardMessage(
 		parseAddress("mbox:granola"),
 		payload,
 		path1=["Lola", "Joe"], path2=["Alice", "Lola"])
 	    # And an mbox message with a last hop implicit in the address
-	    m1 = client.generateForwardMessage(
+	    client.generateForwardMessage(
 		parseAddress("mbox:granola@Lola"),
 		payload,
 		path1=["Lola", "Joe"], path2=["Alice"])	    
