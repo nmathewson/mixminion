@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.36 2003/01/13 06:13:33 nickm Exp $
+# $Id: BuildMessage.py,v 1.37 2003/02/04 02:01:46 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -172,6 +172,8 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
        """
     if secretPRNG is None:
         secretPRNG = Crypto.getCommonPRNG()
+    if expiryTime is None:
+        expiryTime = min([s.getValidUntil() for s in path])
 
     LOG.debug("Building reply block for path %s",
                    [s.getNickname() for s in path])
