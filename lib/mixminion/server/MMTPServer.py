@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.37 2003/06/06 06:04:58 nickm Exp $
+# $Id: MMTPServer.py,v 1.38 2003/06/06 06:08:39 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -427,7 +427,7 @@ class SimpleTLSConnection(Connection):
             if not self.__failed:
                 self.__failed = 1
                 self.handleFail(1)
-            self.remove()                
+            self.remove()
 
     def handleRead(self):
         self.__handleAll()
@@ -462,7 +462,7 @@ class SimpleTLSConnection(Connection):
             if not self.__failed:
                 self.__failed = 1
                 self.handleFail(retriable=1)
-            self.remove()                
+            self.remove()
         except _ml.TLSError, e:
             if self.__state != self.__shutdownFn:
                 warn("Unexpected error: %s. Closing connection to %s.",
@@ -704,7 +704,7 @@ class MMTPClientConnection(SimpleTLSConnection):
     #   As described in the docstring for __init__ below.  We remove entries
     #   from the front of messageList/handleList as we begin sending them.
     # _curMessage, _curHandle: Correspond to the message and handle
-    #     that we are currently trying to deliver.    
+    #     that we are currently trying to deliver.
     # junk: A list of 32KB padding chunks that we're going to send.  We
     #   pregenerate these to avoid timing attacks.  They correspond to
     #   the 'JUNK' entries in messageList.

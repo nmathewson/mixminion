@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.10 2003/06/06 06:04:58 nickm Exp $
+# $Id: Directory.py,v 1.11 2003/06/06 06:08:39 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -156,7 +156,7 @@ class DirectoryConfig(C._ConfigFile):
     _syntax = {
         'Host' : C.ClientConfig._syntax['Host'],
         "Directory-Store" : {
-           "__SECTION__" : ("REQUIRE", None, None ), 
+           "__SECTION__" : ("REQUIRE", None, None ),
            "Homedir" : ('REQUIRE', C._parseFilename, None),
            "DirUser" : ('REQUIRE', None, None),
            "CGIUser" : ('REQUIRE', None, None),

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.30 2003/06/06 06:04:58 nickm Exp $
+# $Id: ServerList.py,v 1.31 2003/06/06 06:08:39 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -336,7 +336,7 @@ class ServerList:
                 assert foundDigests == includedDigests
 
             writeFile(os.path.join(self.baseDir, "directory"),
-                      directory, 
+                      directory,
                       mode=0644)
 
             f, _ = openUnique(os.path.join(self.dirArchiveDir,
@@ -486,4 +486,3 @@ def _readServer(contents):
 
     # May raise ConfigError, MixError
     return contents, ServerInfo(string=contents, assumeValid=0)
-

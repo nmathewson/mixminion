@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.40 2003/06/06 06:04:58 nickm Exp $
+# $Id: ServerKeys.py,v 1.41 2003/06/06 06:08:40 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -489,7 +489,7 @@ class ServerKeyring:
                 LOG.info("Next key event: new key becomes valid at %s",
                          formatTime(self.nextUpdate,1))
 
-        return self.nextUpdate 
+        return self.nextUpdate
 
     def getAddress(self):
         """Return out current ip/port/keyid tuple"""
@@ -1093,4 +1093,3 @@ def generateCertChain(filename, mmtpKey, identityKey, nickname,
     identityCertText = readFile(fname)
     os.unlink(fname)
     writeFile(filename, certText+identityCertText, 0600)
-

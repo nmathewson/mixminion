@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.21 2003/06/06 06:04:58 nickm Exp $
+# $Id: ServerQueue.py,v 1.22 2003/06/06 06:08:40 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -614,7 +614,7 @@ class DeliveryQueue(Queue):
             self._deliverMessages(messages)
         self._repOk()
 
-    # FFFF005 This interface is inefficient in space: we don't need to load 
+    # FFFF005 This interface is inefficient in space: we don't need to load
     # FFFF005 the messages to tell whether they need to be delivered.  We
     # FFFF005 should have _deliverMessages() take a list of handles, not of
     # FFFF005 messages.

@@ -1,4 +1,4 @@
-$Id: README,v 1.45 2003/06/02 20:51:51 nickm Exp $
+$Id: README,v 1.46 2003/06/06 06:08:39 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.4, Release Candidate 2.
 
@@ -70,7 +70,7 @@ NEW IN VERSION 0.0.4rc1:
         space for the increased key length.
 
    MMTP improvements:
-      - The certificate regime has changed so that key rotation is now 
+      - The certificate regime has changed so that key rotation is now
         possible: instead of authenticating servers based on their TLS
         keys, we authenticate based on their identity keys, which never
         change.
@@ -81,7 +81,7 @@ NEW IN VERSION 0.0.4rc1:
         to refuse messages when under high load.
 
    Other server improvements:
-      - Servers can (optionally) track the number of packets received, 
+      - Servers can (optionally) track the number of packets received,
         relayed successfully, dropped, and so on.
       - Servers can recognize and advertise whether they are configured
         'securely.'
@@ -578,7 +578,7 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
            "/home/mixminion/spool/keys/key_0001/ServerDesc".
 
-   This file is your current server descriptor. 
+   This file is your current server descriptor.
 
    Mixminion supports a global directory of server descriptors.  Until you
    are listed in that directory, clients can import your ServerDesc file

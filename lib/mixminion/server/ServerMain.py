@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.74 2003/06/06 06:04:58 nickm Exp $
+# $Id: ServerMain.py,v 1.75 2003/06/06 06:08:40 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1114,7 +1114,7 @@ def runUpgrade(cmd, args):
        old, remove all the old keys and server descriptors, clean out the
        queues, and mark the directory as up-to-date."""
 
-    config = configFromServerArgs(cmd, args, usage=_UPGRADE_USAGE)    
+    config = configFromServerArgs(cmd, args, usage=_UPGRADE_USAGE)
     assert config
 
     mixminion.Common.configureShredCommand(config)
@@ -1154,7 +1154,7 @@ def runUpgrade(cmd, args):
             _ = keyset.getServerDescriptor()
             keep += 1
         except mixminion.Config.ConfigError, e:
-            errors += 1            
+            errors += 1
             if str(e).startswith("Unrecognized descriptor version: 0.1"):
                 print "Removing old keyset %s"%keyset.keyname
                 keyset.delete()
@@ -1315,7 +1315,7 @@ def runRepublish(cmd, args):
        the server."""
     config = configFromServerArgs(cmd, args, usage=_REPUBLISH_USAGE)
 
-    checkHomedirVersion(config)    
+    checkHomedirVersion(config)
 
     LOG.setMinSeverity("INFO")
     mixminion.Crypto.init_crypto(config)

@@ -49,7 +49,7 @@ For 0.0.4:
                         o Document in --help and README
                 o Increase key length to 2048 bits
                         o Specify
-                        o Come up with an upgrade path? 
+                        o Come up with an upgrade path?
                           (Result: drop backward compatibility.)
                         o Bump up logs
                         o Implement: Packet
@@ -90,7 +90,7 @@ For 0.0.4:
                 X Test backend
                 o Test frontend
         o Bugfixes
-                o "Unexpectedly closed connection" sometimes means 
+                o "Unexpectedly closed connection" sometimes means
                   "server not there." Log accordingly.
                 o The retry scheduling logic is bogus.
                 o Attach debugging log calls to DeliveryQueue.
@@ -132,7 +132,7 @@ For 0.0.4:
                         o Publish as needed
                 o Rudimentary directory automation (with trivial pinging)
                         o CGI to receive server descriptors:
-                                o replace old ones if superceded, 
+                                o replace old ones if superceded,
                                   reject them if invalid,
                                   and queue them if unrecognized.
                                 o The actual CGI
@@ -154,7 +154,7 @@ For 0.0.4:
         o Add an 'upgrade to new server format' command.
         o Try out all functionality by hand
                 o Start a server
-                o Get stats 
+                o Get stats
                 o generate directory w/ blacklisted server
                 o Rotate stats
                 o Failed delivery w/ retry
@@ -299,7 +299,7 @@ not yet ready to replace type I.]
                 - What else?
         - Disable heinously insecure operating modes.
 
-Other features for "1.0" (no research required): 
+Other features for "1.0" (no research required):
         - Better CLIs
                 - Add a --status-fd option similar to GPG's so that
                   we can be more easily embedded.
@@ -383,7 +383,7 @@ WHEN WE GET THE CHANCE:
         - Consider dropping support for older Python versions?
 
 NEED TO BE TESTED
-- Signals      
+- Signals
 
 NEED TO BE DOCUMENTED
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.40 2003/06/05 18:41:40 nickm Exp $
+# $Id: benchmark.py,v 1.41 2003/06/06 06:08:39 nickm Exp $
 
 """mixminion.benchmark
 
@@ -478,7 +478,7 @@ def buildMessageTiming():
 
 #----------------------------------------------------------------------
 def serverQueueTiming():
-    print "#================= SERVER QUEUES ====================="    
+    print "#================= SERVER QUEUES ====================="
     Queue = mixminion.server.ServerQueue.Queue
     DeliveryQueue = mixminion.server.ServerQueue.DeliveryQueue
     d1 = mix_mktemp()
@@ -887,7 +887,7 @@ def testLeaks5_send2():
         #tls.verify_cert_and_get_identity_pk()
         #tls.get_peer_cert_pk()
         certcache.check(tls, keyid, ("127.0.0.1", TEST_PORT))
-        #print certcache.cache 
+        #print certcache.cache
         
         tls.shutdown()
         sock.close()

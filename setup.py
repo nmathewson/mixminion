@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.57 2003/05/30 07:36:28 nickm Exp $
+# $Id: setup.py,v 1.58 2003/06/06 06:08:39 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -14,7 +14,7 @@ if not hasattr(sys, 'version_info') or sys.version_info < (2, 0, 0):
 if sys.version_info[:3] == (2,1,0):
     print "Python 2.1.0 has known bugs that keep Mixminion from working."
     print "Maybe you should upgrade to 2.1.3 or some more recent version."
-    sys.exit(1)    
+    sys.exit(1)
 if sys.version_info[:3] == (2,1,1):
     print "Python 2.1.1 has known bugs that keep Mixminion from working."
     print "Maybe you should upgrade to 2.1.3 or some more recent version."

@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.8 2003/06/06 06:04:58 nickm Exp $
+# $Id: ServerInbox.py,v 1.9 2003/06/06 06:08:39 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -78,7 +78,7 @@ class ServerInbox:
             LOG.info("Received update for server %s from %s",
                      nickname, source)
             self.updateQueue.queueIncomingServer(text,server)
-            return 1 
+            return 1
 
     def _doAccept(self, serverList, q, incoming, reject, knownOnly):
         """Helper function: move servers from an IncomingQueue into
@@ -94,7 +94,7 @@ class ServerInbox:
                 known identity keys?
         """
         accepted = []
-        for fname, server, text, fp in incoming: 
+        for fname, server, text, fp in incoming:
             try:
                 serverList.importServerInfo(text,server=server,
                                             knownOnly=knownOnly)
@@ -184,7 +184,7 @@ class ServerInbox:
         sorted.sort()
         if not sorted:
             print >>f, "No incoming descriptors"
-            return    
+            return
         maxlen = max([len(n) for n in sorted])
         format = " %"+str(maxlen)+"s:%s [%s descriptors]"
         for lcnickname in sorted:

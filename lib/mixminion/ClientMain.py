@@ -1087,7 +1087,7 @@ def installDefaultConfig(fname):
     LOG.warn("No configuration file found. Installing default file in %s",
                   fname)
 
-    writeFile(os.path.expanduser(fname), 
+    writeFile(os.path.expanduser(fname),
               """\
 # This file contains your options for the mixminion client.
 [Host]

@@ -1,5 +1,5 @@
-$Id: HACKING,v 1.17 2003/05/28 04:12:16 nickm Exp $
-Hacking Mixminion 
+$Id: HACKING,v 1.18 2003/06/06 06:08:39 nickm Exp $
+Hacking Mixminion
 
 Requirements:
         Python >= 2.0 (see PORTING NOTES below)

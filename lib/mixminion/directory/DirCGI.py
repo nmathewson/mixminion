@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirCGI.py,v 1.6 2003/05/28 08:37:48 nickm Exp $
+# $Id: DirCGI.py,v 1.7 2003/06/06 06:08:39 nickm Exp $
 
 """mixminion.directory.DirCGI
 
@@ -54,5 +54,3 @@ def run():
         print "Status: 0\nMessage: %s"%e
     except ServerQueuedException, e:
         print "Status: 1\nMessage: %s"%e
-
-
