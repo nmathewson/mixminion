@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.21 2004/07/27 03:07:06 nickm Exp $
+# $Id: Filestore.py,v 1.22 2004/08/09 19:29:55 nickm Exp $
 
 """mixminion.Filestore
 
@@ -528,12 +528,45 @@ class MixedMetadataStore(BaseMetadataStore, StringMetadataStoreMixin,
 # ======================================================================
 # Database wrappers
 
+def _openDBHash(filename,flag,mode=0666):
+    """Open a Berkeley DB hash database.  Equivalent to dbhash.open, but when
+       possible, reaches into bsddb.db and uses the DB_RECOVER* flag(s) to
+       handle possible corruption from crashing without closing the database.
+    """
+    try:
+        import bsddb
+    except ImportError:
+        # Fallback to anydbm, which delegates to dbhash
+        return anydbm.open(filename, flag, mode)
+    # Adapted from bsddb.hashopen
+    flags = bsddb._checkFlag(flag)
+    flags |= getattr(bsddb.db, "DB_RECOVER", 0)
+    flags |= getattr(bsddb.db, "DB_RECOVER_FATAL", 0)
+    d = bsddb.db.DB()
+    d.set_flags(flags)
+    d.open(filename, bsddb.db.DB_HASH, flags, mode)
+    return bsddb._DBWithCursor(d)
+
 def openDB(filename, purpose):
-    """DOCDOC"""
+    """Replacement for anydbm.open.  Open a database stored in 'filename',
+       using the best available database implementation.  The string 'purpose'
+       is used to indicate which database has succeeded or failed in any
+       messages.
+
+       Changes from anydbm.open:
+         - Create parent directory if it doesn't exist.
+         - Bail with sane error messages if file is non-readable.
+         - Handle the error case where the database file is created but never
+           filled.
+         - Always create the database if it doesn't exist.
+         - Warn if using a dumbdbm database.
+         - Return a 2-tuple of the database object and a no-arguments callable
+           that flushes the database's contents to disk.
+    """
     parent = os.path.split(filename)[0]
     createPrivateDir(parent)
 
-    # If the file can't be read, bail.
+    # If the file exists, but can't be read, bail.
     try:
         st = os.stat(filename)
     except OSError, e:
@@ -545,13 +578,16 @@ def openDB(filename, purpose):
         LOG.warn("Half-created database %s found; cleaning up.", filename)
         tryUnlink(filename)
 
+    dbtype = whichdb.whichdb(filename)
     LOG.debug("Opening %s database at %s", purpose, filename)
     try:
-        db = anydbm.open(filename, 'c')
+        if dbtype != 'dbhash':
+            db = _openDBHash(filename, 'c', 0600)
+        else:
+            db = anydbm.open(filename, 'c', 0600)
     except anydbm.error, e:
         raise MixFatalError("Can't open %s database: %s"%(purpose,e))
     except ImportError:
-        dbtype = whichdb.whichdb(filename)
         raise MixFatalError("Unsupported type for %s database: %s"
                             %(purpose, dbtype))
 
