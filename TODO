@@ -15,14 +15,14 @@ NEEDS TO BE WRITTEN:
 For 0.0.8:
         o Better error messages on expired / not-yet-ready certificates,
           no matter how hard OpenSSL makes it.
-        . Dummies and pinging
+        o Dummies and pinging
                 o Refactor ClientDirectory to be more modular
                 o Retrying needs to be per-destination, not per-packet.
                         o Implement per-destination queue
                         o Tests for per-destination queue
                         o Make MMTP delivery use per-destination queue.
                         o Test upgrade path.
-                . Implement pinging
+                o Implement pinging
                         o Generate pings
                                 o Link padding
                                 o One-hop pings
@@ -31,8 +31,11 @@ For 0.0.8:
                         o Grovel over ping logs as needed
                         o Generate statistics from logs; remember stats
                           across invocations.
-                        - Tests for pinging
-                - Pretty-print stats
+                        o Tests for pinging
+                o Save stats to disk
+                - Make more ping parameters configurable.
+                - Performance/data examination: is disk usage too insanely high?
+                - Document.  Describe how to replace sqlite with pg or mysql.
         . Distributed directories
                o Spec changes
                        D Statistics go in format?
@@ -56,7 +59,12 @@ For 0.0.8:
                        o Validate multiple signatures
                        - Which sigs are valid?  Enough?
                        - Document how to change directory config
-                - Test everything
+                . Test everything
+                       . Test generating and parsing vote directory
+                       - Test computing result of vote
+                       - Test generating consensus directory
+                       - Test parsing consensus directory
+                       - Test actual directory code.
         . Bugs
                 o Make tests pass with bizarre umasks.  (Try 0077, 0000,
                   etc.)

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.212 2004/12/12 23:24:30 nickm Exp $
+# $Id: test.py,v 1.213 2004/12/13 06:01:58 nickm Exp $
 
 """mixminion.tests
 
@@ -165,6 +165,9 @@ _generated_rsa_keys = {}
 _generated_rsa_keys[(0,2048)] = mixminion.testSupport.TEST_KEYS_2048[0]
 _generated_rsa_keys[(1,2048)] = mixminion.testSupport.TEST_KEYS_2048[1]
 _generated_rsa_keys[(2,2048)] = mixminion.testSupport.TEST_KEYS_2048[2]
+_generated_rsa_keys[(3,2048)] = mixminion.testSupport.TEST_KEYS_2048[3]
+_generated_rsa_keys[(4,2048)] = mixminion.testSupport.TEST_KEYS_2048[4]
+_generated_rsa_keys[(5,2048)] = mixminion.testSupport.TEST_KEYS_2048[5]
 def getRSAKey(n,bits):
     """Return the n'th of an arbitrary number of cached 'bits'-bit RSA keys,
        generating them as necessary."""
@@ -186,9 +189,9 @@ def getRSAKey(n,bits):
 _pk_generate_orig = Crypto.pk_generate
 _pk_generate_idx = 0
 def _pk_generate_replacement(bits=1024,e=65537):
-    if bits == 1024:
+    if bits == 2048:
         global _pk_generate_idx
-        _pk_generate_idx = (_pk_generate_idx + 1) % 4
+        _pk_generate_idx = (_pk_generate_idx + 1) % 6
         return getRSAKey(_pk_generate_idx, bits)
     else:
         return getRSAKey(0, bits)
@@ -5071,7 +5074,8 @@ IP: 192.168.100.4
         info3 = key3.getServerDescriptor()
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver4")
 
-    def test_directory(self):
+    def testOldDirectory(self):
+        #XXXX008 split this into serverlist and serverdirectory tests.
         eq = self.assertEquals
         examples = getExampleServerDescriptors()
         ServerList = mixminion.directory.ServerList.ServerList
@@ -5226,6 +5230,31 @@ IP: 192.168.100.4
         eq(4, len(lst.servers))
         eq(2, len(os.listdir(archiveDir)))
 
+    def testNewDirectoryFormats(self):
+        DF = mixminion.directory.DirFormats
+        examples = getExampleServerDescriptors()
+        id0 = getRSAKey(1,2048)
+        id1 = getRSAKey(3,2048)
+        id2 = getRSAKey(5,2048)
+        keyid0 = mixminion.Crypto.pk_fingerprint(id0)
+        keyid1 = mixminion.Crypto.pk_fingerprint(id1)
+        keyid2 = mixminion.Crypto.pk_fingerprint(id2)
+        ub0 = "http://foo/"
+        ub1 = "http://foo.bar/"
+        ub2 = "http://foo.bar/baz/"
+        voters = [(keyid0,ub0), (keyid1,ub1), (keyid2,ub2)]
+
+        # Test generating a vote directory.
+        va = previousMidnight(time.time())
+        s1 = [ examples['Fred'][1], examples['Fred'][2], examples['Lola'][1],
+               examples['Joe'][0], examples['Alice'][0] ]
+        vd1 = {}
+        s_vote1 = DF.generateVoteDirectory(
+            id0, s1, [ "Fred", "Lola", "Joe" ],
+            voters, va, ["0.0.8", "0.0.8.1"], ["0.0.8.1"], validatedDigests=vd1)
+
+        # Test parsing it.
+        vote1 = mixminion.ServerInfo.SignedDirectory(string=s_vote1)
 
 #----------------------------------------------------------------------
 # EventStats
@@ -6490,7 +6519,7 @@ def getExampleServerDescriptors():
         # Generate a config file
         homedir = mix_mktemp()
         conf = EX_SERVER_CONF_TEMPLATE % locals()
-        identity = getRSAKey(serveridx%3,2048)
+        identity = getRSAKey(serveridx%6,2048)
         serveridx += 1
         for t in types:
             if t == MBOX_TYPE:
@@ -7839,8 +7868,8 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 0:
-        suite.addTest(tc(PingerTests))
+    if 1:
+        suite.addTest(tc(ServerInfoTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

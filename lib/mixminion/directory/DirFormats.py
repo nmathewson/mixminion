@@ -1,5 +1,5 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirFormats.py,v 1.2 2004/12/07 01:44:31 nickm Exp $
+# $Id: DirFormats.py,v 1.3 2004/12/13 06:01:59 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -10,19 +10,21 @@ import sys
 
 import mixminion
 import mixminion.ServerInfo
+
 from mixminion.Common import formatBase64, formatDate, floorDiv, LOG, \
-     previousMidnight
+     MixError, previousMidnight
+
 from mixminion.Config import ConfigError
 from mixminion.Crypto import pk_sign, sha1, pk_encode_public_key
 
-def generateDirectory(identity, status,
+def _generateDirectory(identity, status,
                       servers, goodServerNames,
                       voters, validAfter,
                       clientVersions, serverVersions):
 
     assert status in ("vote", "consensus")
-    va = formatDate(validAfter)
-    vu = formatDate(validAfter+24*60*60+5)
+    va = formatDate(previousMidnight(validAfter))
+    vu = formatDate(previousMidnight(validAfter)+24*60*60+5)
     rec = goodServerNames[:]
     rec.sort()
     rec = ", ".join(rec)
@@ -30,7 +32,8 @@ def generateDirectory(identity, status,
     voters.sort()
     for keyid, urlbase in voters:
         v.append("Voting-Server: %s %s\n"
-                 % (formatBase64(keyid), urlbase))
+                 % (keyid, urlbase))
+    servers = sortServerList(servers)
 
     cvers = ", ".join(sortVersionList(clientVersions))
     svers = ", ".join(sortVersionList(serverVersions))
@@ -48,6 +51,37 @@ def generateDirectory(identity, status,
     unsigned = "".join([dirInfo]+[s._originalContents for s in servers])
     signature = getDirectorySignature(unsigned, identity)
     return signature+unsigned
+
+def generateVoteDirectory(identity, servers, goodServerNames,
+                          voters, validAfter, clientVersions, serverVersions,
+                          validatedDigests=None):
+    valid = []
+    for server in servers:
+        try:
+            s = mixminion.ServerInfo.ServerInfo(
+                string=str(server), validatedDigests=validatedDigests,
+                _keepContents=1)
+        except ConfigError,e:
+            LOG.warn("Rejecting malformed serverinfo: %s",e)
+        else:
+            valid.append(s)
+
+    val = _generateDirectory(identity, 'vote', valid, goodServerNames,
+                             voters, validAfter,
+                             clientVersions, serverVersions)
+
+    try:
+        directory = mixminion.ServerInfo.SignedDirectory(
+            string=val, validatedDigests=validatedDigests)
+    except ConfigError,e:
+        raise MixError("Generated a vote directory that we cannot parse: %s"%e)
+
+    try:
+        checkVoteDirectory(voters, validAfter, directory)
+    except BadVote, e:
+        raise MixError("Generated unacceptable vote directory: %s"%e)
+
+    return val
 
 def generateConsensusDirectory(identity, voters, validAfter, directories,
                                validatedDigests=None):
@@ -165,14 +199,14 @@ def checkVoteDirectory(voters, validAfter, directory):
     sig = sigs[0]
 
     ident = sig['Signed-Directory']['Directory-Identity']
-    keyid = sha1(pk_encode_public_key(ident))
+    keyid = mixminion.Crypto.pk_fingerprint(ident)
 
     # Do we recognize the signing key?
     for k,_ in voters:
         if k == keyid:
             break
     else:
-        raise BadVote("Unkown identity key (%s)"%formatBase64(keyid))
+        raise BadVote("Unknown identity key (%s)"%keyid)
 
     # Is the signature valid?
     if not sig.checkSignature():
@@ -188,29 +222,27 @@ def checkVoteDirectory(voters, validAfter, directory):
         raise BadVote("Not marked as vote")
 
     # Do we agree about the voters?
-    dVoters = directory.dirInfo.voters[:]
-    dVoters.sort()
-    if dVoters != directory.dirInfo.voters:
-        raise BadVote("Votes not sorted")
+    if not _listIsSorted(directory.dirInfo.voters):
+        raise BadVote("Voters not sorted")
 
     vkeys = {}
-    for k,u in dVoters:
+    for k,u in directory.dirInfo.voters:
         vkeys[k]=u
     mykeys = {}
     for k,u in voters: mykeys[k]=u
 
-    for k,u in dVoters:
+    for k,u in directory.dirInfo.voters:
         try:
             if mykeys[k] != u:
                 raise BadVote("Mismatched URL for voter %s (%s vs %s)"%(
                     formatBase64(k), u, mykeys[k]))
         except KeyError:
-            raise BadVote("Unkown voter %s at %s"%(formatBase64(k),u))
+            raise BadVote("Unkown voter %s at %s"%(k,u))
     for k, u in voters:
         if not vkeys.has_key(k):
-            raise BadVote("Missing voter %s at %s"%(formatBase64(k),u))
+            raise BadVote("Missing voter %s at %s"%(k,u))
 
-    assert dVoters == voters
+    assert directory.dirInfo.voters == voters
 
     # Are the dates right?
     va = directory['Directory-Info']['Valid-After']
@@ -220,6 +252,14 @@ def checkVoteDirectory(voters, validAfter, directory):
     elif vu != previousMidnight(va+24*60*60+60):
         raise BadVote("Validity span is not 1 day long (ends at %s)"%
                       formatDate(vu))
+
+    # Is everything sorted right?
+    for vs in ['MixminionClient', 'MixminionServer']:
+        versions = directory['Recommended-Software'][vs]
+        if not versionListIsSorted(versions):
+            raise BadVote("%s:%s is not in correct sorted order"%(vs,versions))
+    if not serverListIsSorted(directory.getAllServers()):
+        raise BadVote("Server descriptors are not in correct sorted order")
 
 def getDirectorySignature(directory, pkey):
     digest = mixminion.ServerInfo._getMultisignedDirectoryDigest(directory)
@@ -231,25 +271,46 @@ def getDirectorySignature(directory, pkey):
             "Directory-Digest: %s\nDirectory-Signature: %s\n")%(
         encKey,encDigest,encSig)
 
-def sortVersionList(versionList):
-    """DOCDOC"""
-    lst = []
-    for v in versionList:
-        try:
-            t = mixminion.parse_version_string(v)
-            lst.append((t,v))
-        except ValueError:
-            lst.append(((sys.maxint,sys.maxint),v))
-    lst.sort()
-    return [ v for _,v in lst ]
+def _versionOrdering(v):
+    try:
+        return mixminion.parse_version_string(v)
+    except ValueError:
+        return (sys.maxint, sys.maxint)
+
+def _serverOrdering(s):
+    return ( s.getNickname().lower(), s['Server']['Valid-After'],
+             s.getDigest() )
 
 def sortServerList(servers):
-    lst = []
-    for s in servers:
-        lst.append( (s.getNickname().lower(), s['Server']['Valid-After'],
-                     s.getDigest(), s) )
-    lst.sort()
-    return [ s for _, _, _, s in lst ]
+    return _sortedBy(servers, _serverOrdering)
+
+def sortVersionList(versions):
+    return _sortedBy(versions, _versionOrdering)
+
+def serverListIsSorted(servers):
+    return _listIsSorted(servers, _serverOrdering)
+
+def versionListIsSorted(versions):
+    assert _listIsSorted([4,9,16])
+    assert not _listIsSorted([4,91,16])
+    assert _listIsSorted([16,9,4], lambda x:-x)
+    return _listIsSorted(versions, _versionOrdering)
+
+def _sortedBy(lst, keyFn):
+    lst2 = [ (keyFn(item), item) for item in lst ]
+    lst2.sort()
+    return [ item for _, item in lst2 ]
+
+def _listIsSorted(lst, keyFn=None):
+    if keyFn is None:
+        lst2 = lst[:]
+        lst2.sort()
+    else:
+        lst2 = _sortedBy(lst, keyFn)
+    for a,b in zip(lst,lst2):
+        if a is not b:
+            return 0
+    return 1
 
 def commonElements(lists, threshold):
     counts = {}

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.88 2004/12/12 22:28:39 nickm Exp $
+# $Id: ServerInfo.py,v 1.89 2004/12/13 06:01:58 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -760,8 +760,11 @@ class _DirectoryInfo(mixminion.Config._ConfigFile):
            "Valid-Until" : ("REQUIRE", "date", None),
            "Recommended-Servers" : ("REQUIRE", "list", None),
            "Voting-Server" : ("REQUIRE*", None, None) },
-        "Recommended-Software" :
-           _DirectoryHeader._syntax["Recommended-Software"] }
+        'Recommended-Software': {
+           "__SECTION__": ("ALLOW", None, None),
+           "MixminionClient": ("ALLOW", "list", None),
+           "MixminionServer": ("ALLOW", "list", None), },
+        }
 
     def __init__(self, string):
         self.sigStatus = None
@@ -774,6 +777,7 @@ class _DirectoryInfo(mixminion.Config._ConfigFile):
                     if k == 'Version' and v.strip() != self.VERSION:
                         raise ConfigError("Unrecognized descriptor version: %s"
                                           % v.strip())
+        return contents
 
     def validate(self, lines, contents):
         sec = self['Directory-Info']
@@ -787,8 +791,11 @@ class _DirectoryInfo(mixminion.Config._ConfigFile):
             lst = s.split(" ",1)
             if len(lst) != 2:
                 raise ConfigError("Missing URLBase or fingerprint in Voting-Server")
-            self.voters.append((mixminion.Config._parseBase64(lst[0]),
-                                lst[1].strip()))
+            digest = mixminion.Config._parseHex(lst[0]) # can raise ConfigError
+            if len(digest) != DIGEST_LEN:
+                raise ConfigError("Bad length for Voting-Server fingerprint",
+                                  len(lst[0]), len(digest))
+            self.voters.append((lst[0], lst[1].strip()))
 
 class _DirectorySignature(mixminion.Config._ConfigFile):
     """Internal object: used to parse, validate, and store fields in a
@@ -810,7 +817,7 @@ class _DirectorySignature(mixminion.Config._ConfigFile):
         mixminion.Config._ConfigFile.__init__(self, string=string)
 
     def validate(self, lines, contents):
-        sec = contents['Signed-Directory']
+        sec = self['Signed-Directory']
         idKeyBytes = sec['Directory-Identity'].get_modulus_bytes()
         if not (2048 <= idKeyBytes*8 <= 4096):
             raise ConfigError("Identity key length is out of range (%s bits)"
@@ -933,8 +940,8 @@ def _splitMultisignedDirectory(directory):
     sigs = []
 
     # Extract all signatures.
-    while directory.startswith("[Directory-Signature]\n"):
-        eos = directory.find("\n[Directory-Signature]\n", 1)
+    while directory.startswith("[Signed-Directory]\n"):
+        eos = directory.find("\n[Signed-Directory]\n", 1)
         if eos < 0:
             eos = directory.find("\n[Directory-Info]\n")
         if eos < 0:
