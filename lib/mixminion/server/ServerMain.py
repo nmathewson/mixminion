@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.34 2003/02/04 02:33:47 nickm Exp $
+# $Id: ServerMain.py,v 1.35 2003/02/05 06:45:51 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -304,10 +304,10 @@ class ProcessingThread(threading.Thread):
         def __call__(self):
             raise self
 
-    def __init__(self, incomingQueue):
+    def __init__(self):
         """Given a MessageQueue object, create a new processing thread."""
         threading.Thread.__init__(self)
-        self.mqueue = incomingQueue
+        self.mqueue = MessageQueue()
 
     def shutdown(self):
         LOG.info("Telling processing thread to shut down.")
@@ -441,7 +441,7 @@ class MixminionServer:
                        self.outgoingQueue.count())
 
         self.cleaningThread = CleaningThread()
-        self.processingThread = ProcessingThread(self.incomingQueue)
+        self.processingThread = ProcessingThread()
 
         LOG.debug("Connecting queues")
         self.incomingQueue.connectQueues(mixPool=self.mixPool,
