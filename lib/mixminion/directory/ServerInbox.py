@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.9 2003/06/06 06:08:39 nickm Exp $
+# $Id: ServerInbox.py,v 1.10 2003/07/11 03:06:57 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -73,7 +73,7 @@ class ServerInbox:
                      nickname, source)
             self.newQueue.queueIncomingServer(text,server)
             raise ServerQueuedException(
-                "Server queued pending manaul checking")
+                "Server queued pending manual checking")
         else:
             LOG.info("Received update for server %s from %s",
                      nickname, source)
