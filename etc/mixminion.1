@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.8 2004/04/23 21:49:42 nickm Exp $
+.\" $Id: mixminion.1,v 1.9 2004/04/27 06:10:02 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -297,6 +297,7 @@ Anonymous reply messages send to SURBs addressed to you.
 Single packets ("fragments") from large anonymous messages that span
 multiple packets.
 .El
+.Pp
 The software handles each type differently.  Binary messages are
 trivially decoded; anonymous replies are decrypted with your SURB
 key; and fragments are stored until enough fragments are available
@@ -372,6 +373,7 @@ standard output; you can override this with
 You may specify your address on the command line with the
 .Fl t Ar addr
 option, or in your configuration file (see
+.\" XXXX The Ns here may confuse some NetBSDs.  How to fix?
 .Xr mixminionrc 5 Ns
 ).
 .It Cm flush Op Ar server ...
@@ -471,7 +473,9 @@ This is the default action on Windows when no command is provided.
 .Ss Options
 Here we describe the options supported by
 .Nm mixminion ,
-along with a list of which commands support each one:
+along with a list of which commands (shown in
+.Brq braces Ns
+) support each one:
 .Bl -tag -width "Ds"
 .It Fl b | Fl \-binary
 .Brq generate-surb
@@ -510,10 +514,10 @@ before delivery.  This way, users can receive large messages, even
 if they don't have the software to reconstruct it.
 .Pp
 The
-.Fl \-deliver-fragments option overrides this behavior, and sends
-the fragments directly to the recipient.  This is useful if your
-message is large, and your recipient is running mixminion or a
-compatible client.
+.Fl \-deliver-fragments
+option overrides this behavior, and sends the fragments directly to
+the recipient.  This is useful if your message is large, and your
+recipient is running mixminion or a compatible client.
 .It Fl f Ar file | Fl \-config= Ns Ar file
 .Brq general
 Override the default location for your configuration file.  See
@@ -693,6 +697,7 @@ hexadecimal routing-type field.
 For developers: manually send a message with a given 2-byte,
 hexadecimal routing-type field and a given routing_data field.
 .El
+.Pp
 Note that not all servers support all exit types.  Currently,
 mixminion only detects whether your chosen exit server supports
 smtp, exit, and drop delivery.  You must use other means to detect
@@ -712,6 +717,7 @@ or
 .Ek
 options, or in your configuration file.  To specify a path for one
 of these options, provide a comma-separated list of:
+.\" XXXX This next part may also confuse NetBSD man.
 .Bl -tag -compact
 .It ~ Ns Ar number
 Insert approximately
@@ -722,7 +728,7 @@ Insert exactly
 .Ar number
 randomly chosen recommended servers.
 .It ?
-Insert a single randomly chosen recommended servers.
+Insert a single randomly chosen recommended server.
 .It Ar server_name
 Insert a single server by name.
 .It Ar file_name
@@ -750,6 +756,7 @@ recommended.
 For a forward path, you can specify a swap point by hand by
 replacing a single comma with a colon.  If you don't know what a
 swap point is, you probably don't want to do this.
+.\" XXXX For some reason, NetBSD may overbold thisnext line.
 .Ss Server Features
 When you use the
 .Fl F
@@ -872,6 +879,7 @@ A database of digests for SURBs which have been used already, to
 prevent repeat use.  Entries are removed from this database once the
 corresponding SURBs are expired.
 .El
+.Pp
 Note: the only one of these files you should ordinarily be modifying
 is
 .Pa .mixminionrc .
@@ -1065,5 +1073,6 @@ What command you were running.
 .It
 The complete error you got, including stack trace (if any).
 .El
+.Pp
 If your error occurred on a running server, please make a copy of your
 log--it might be helpful.
