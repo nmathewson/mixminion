@@ -8,43 +8,42 @@ SPEC	- Spec not finalized
 
 NEEDS TO BE WRITTEN
 
-FOR 0.1: (The rough edges release)
-SPEC	- Local delivery module
-	. Configuration code  (Stalled on server info spec)
-		* Design config interface.
-		. Write extended .ini parser
-		. Write validation code
-		- Write unit tests
-		- Write base64/multiline code
-		- Design =configuration= file format.
+FOR 0.0.1: (The rough edges release)
+	- Local delivery module
+	*. Configuration code
+		o Write extended .ini parser
+		o Write validation code
+		o Write unit tests
+		D Write base64/multiline code
+		o Design =configuration= file format.
+		o Design config interface.
+		o Implement config interface
+		*- Make all configurable stuff configurable
+			o Logs 
+			*- Entropy?
 	*. Logging/debugging/warning code 
-		* Make configurable (Stalled on configuration)
 		- Tests
-	- MMTP		
-		o Timeouts
-			o Ability to notice how long we've been waiting.
-SPEC			D (The rest must wait for session managment)
-		- Tests for all cases:
-			- Multiple senders
-			- Bad senders
-			- Bad recipients
-			- Hanging connections
-			- Hunt down leaks
-			- Bad KeyID
 	- CLI
 SPEC	* Server description blocks
 	- Main loop for server
 	- Clean shutdown for server
+
+	- MMTP		
+		. Tests for all cases:
+			- Multiple senders
+			- Bad senders
+			- Bad recipients
+			- Hunt down leaks
+			o Bad KeyID
 SPEC	- External reply block format
 SPEC	- End-to-end payload encryption, if we ever agree on a spec.
 SPEC		- Reading messages sent to reply blocks
 	- Versioning :)
 
-FOR 0.2: (The first hacker release)
+FOR 0.0.2: (The first hacker release)
 	- MMTP
-SPEC		- Renegotiate connections
-SPEC		- Session managment and resumption (security issues?)
 SPEC!!		- Timeout old connections
+		- Test new features
 	- Very clean build process
 	- RPMS
 	- Key management
@@ -52,13 +51,19 @@ SPEC!!		- Timeout old connections
 	- Final license
 	- Handle HUPs sensibly
 SPEC!!	- Key rotation
-
-FOR 0.3: (First non-guru release)
 SPEC	- Publishing to directory servers
 SPEC	- Downloading from directory servers
+	- Basic HOWTO and documentation
+
+FOR 0.0.3: (First non-guru release)
+	- MMTP
+SPEC		- Renegotiate connections
+SPEC		- Session managment and resumption (security issues?)
 SPEC!!	- Path selection
 SPEC!!	- SMTP module
 	- Good user documentation
+SPEC!!	- Link padding
+SPEC!!	- Dummy messages
 SPEC	- Directory services
 SPEC	- Automated key rotation, server management
 

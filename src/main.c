@@ -1,5 +1,5 @@
 /* Copyright 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.5 2002/07/05 23:34:33 nickm Exp $ */
+/* $Id: main.c,v 1.6 2002/07/25 15:52:57 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -102,6 +102,9 @@ init_minionlib(void)
 		return;
 	if (exc(d, &mm_TLSWantWrite, "mixminion._minionlib.TLSWantWrite", 
 		"TLSWantWrite", mm_TLSWantWrite__doc__))
+		return;
+	if (exc(d, &mm_TLSClosed, "mixminion._minionlib.TLSClosed", 
+		"TLSClosed", mm_TLSClosed__doc__))
 		return;
 
 	Py_INCREF(&mm_RSA_Type);

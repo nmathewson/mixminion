@@ -1,51 +1,218 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.2 2002/07/05 19:51:12 nickm Exp $
+# $Id: Config.py,v 1.3 2002/07/25 15:52:57 nickm Exp $
+
+"""Configuration file parsers for Mixminion client and server
+   configuration.
+
+   A configuration file consists of one or more Sections.  Each Section
+   has a header and optionally a list of Entries.  Each Entry has a key
+   and a value.
+
+   A section header is written as an open bracket, an identifier, and a
+   close bracket.  An entry is written as a key, followed optionally by
+   a colon or an equal sign, followed by a value.  Values may be split
+   across multiple lines as in RFC822.
+
+   Empty lines are permitted between entries, and between entries and
+   headers.  Comments are permitted on lines beginning with a '#'.
+
+   All identifiers are case-sensitive.
+
+   Example:
+
+   [Section1]
+
+   Key1 value1
+   Key2: Value2 value2 value2
+        value2 value2
+   Key3 = value3
+   # A comment
+   Key4=value4
+
+   [Section2]
+   Key5 value5
+      value5 value5 value5
+   """
+
+__all__ = [ 'getConfig', 'loadConfig' ]
 
 import re
 from cStringIO import StringIO
 
-from mixminion.Common import MixError
+import mixminion.Common
+from mixminion.Common import MixError, getLog
+import mixminion.Packet
 
+#----------------------------------------------------------------------
+_theConfiguration = None
+
+def loadConfig(fname=0,server=0):
+    """XXXX"""
+    global _theConfiguration
+    assert _theConfiguration is None
+
+    if server:
+        _theConfiguration = ServerConfig(fname)
+    else:
+        _theConfiguration = ClientConfig(fname)
+
+def getConfig():
+    """XXXX"""
+    return _theConfiguration
+#----------------------------------------------------------------------
+#XXXX
+_CONFIG_HOOKS = []
+def addHook(hook):
+    'xxxx'
+    _CONFIG_HOOKS.append(hook)
+    
+#----------------------------------------------------------------------
+
+# Regular expression to match a section headerr.
 _section_re = re.compile(r'\[([^\]]+)\]')
-_entry_re = re.compile(r'([^:= \t]+)[:= \t]\s*(.*)')
-_control_re = re.compile(r'-----(BEGIN|END) ([^-]+)-----')
+
+# Regular expression to match the first line of an entry
+_entry_re = re.compile(r'([^:= \t]+)(?:\s*[:=]|[ \t])\s*(.*)')
 
 class ConfigError(MixError):
+    """Thrown when an error is found in a configuration file."""
     pass
-    
+
+def _parseBoolean(boolean, validate=0):
+    s = boolean.strip().lower()
+    if s in ("1", "yes", "y", "true", "on"):
+        return 1
+    elif validate and s not in ("0", "no", "n", "false", "off"):
+        raise ConfigError("Invalid boolean %r" % (boolean))
+    else:
+        return 0
+
+def _parseSeverity(severity, validate=0):
+    s = boolean.strip().upper()
+    if validate and not mixminion.Common._SEVERITIES.has_key(s):
+        raise ConfigError("Invalid log level %r" % (severity))
+    return s
+
+def _parseServerMode(mode, validate=0):
+    s = mode.strip().lower()
+    if validate and mode not in ('relay', 'local'):
+        raise ConfigError("Server mode must be 'Relay' or 'Local'")
+    return s
+
+_interval_re = re.compile(r'''(\d+\.?\d*|\.\d+)\s+
+                              (second|minute|hour|day|week|month|year)s?''',
+                          re.X)
+_seconds_per_unit = {
+    'second': 1,
+    'minute': 60,
+    'hour':   60*60,
+    'day':    60*60*24,
+    'week':   60*60*24*7,
+    'month':  60*60*24*30,    # These aren't quite right, but we don't need
+    'year':   60*60*24*365,   # exactness.
+    }
+def _parseInterval(interval, validate=0):
+    inter = interval.strip().lower()
+    m = _interval_re.match(inter)
+    if not m:
+        raise ConfigError("Unrecognized interval %r" % inter)
+    num, unit = float(m.group(1)), m.group(2)
+    nsec = num * _seconds_per_unit[unit]
+    return num, unit, nsec
+
+def _parseInt(integer, validate=0):
+    i = integer.strip().lower()
+    try:
+        return int(i)
+    except ValueError, e:
+        raise ConfigError("Unrecongized integer %r" % (integer))
+
+def _parseIP(ip, validate=0):
+    i = ip.strip().lower()
+    if validate:
+        try:
+            f = mixminion.Packet._packIP(i)
+        except mixminion.Packet.ParseError, p:
+            raise ConfigError("Invalid IP %r" % i)
+
+    return i
+
+def _parseCommand(command, validate=0):
+    c = command.strip().lower().split()
+    if not c:
+        raise ConfigError("Invalid command %r" %command)
+    cmd, opts = c[0], c[1:]
+    if not os.path.exists(cmd) and not os.path.isabs(cmd):
+        for p in os.environ.get('PATH', "").split(os.pathsep):
+            p = os.path.expanduser(p)
+            c = os.path.join(p, cmd)
+            if os.path.exists(c):
+                cmd = c
+                break
+        else:
+            raise ConfigError("No match found for command %r" %cmd)
+    return cmd, opts
+
+def _parseDir(directory, validate=0):
+    d = directory.strip().lower()
+    if not os.path.exists(d):
+        getLog().warn("Trying to create directory %r"%d)
+        try:
+            os.mkdir(d, 0700)
+        except OSError:
+            raise ConfigError("Couldn't create directory %r"%directory)
+    elif not os.path.isdir(d):
+        raise ConfigError("File %r is not a directory"%directory)
+    return d
+
 def _parseLine(line):
+    """Helper function.  Given a line of a configuration file, return
+       a (TYPE, VALUE) pair, where TYPE is one of the following:
+
+         None: The line is empty or a comment.
+         'ERR': The line is incorrectly formatted. VALUE is an error message.
+         'SEC': The line is a section header. VALUE is the section's name.
+         'ENT': The line is the first line of an entry. VALUE is a (K,V) pair.
+         'MORE': The line is a continuation line of an entry. VALUE is the
+                 contents of the line.
+    """
+    
     if line == '':
         return None, None
-    if line.startswith('-----'):
-        m = _control_re.match(line)
-        if not m:
-            return m, "Bad control line"
-        return m.group(0), m.group(1)
 
     space = line[0] and line[0] in ' \t'
-    line = line.trim()
+    line = line.strip()
     if line == '' or line[0] == '#':
         return None, None
     elif line[0] == '[':
         m = _section_re.match(line)
         if not m:
             return "ERR", "Bad section declaration"
-        return m.group(1).trim()
+        return 'SEC', m.group(1).strip()
     elif space:
         return "MORE", line
     else:
         m = _entry_re.match(line)
         if not m:
             return "ERR", "Bad entry"
-        return "ENT", m.group(1), m.group(2)
+        return "ENT", (m.group(1), m.group(2))
 
-def _parseFile(self, file):
-    #XXXX What to do with control lines?
+def _parseFile(file):
+    """Helper function. Given an open file object for a configuration
+       file, parse it into sections.
+
+       Returns a list of (SECTION-NAME, SECTION) tuples, where each
+       SECTION is a list of (KEY, VALUE, LINENO) tuples.
+
+       Throws ConfigError if the file is malformatted.
+    """
     sections = []
     curSection = None
     lineno = 0
-    for line in f.readlines():
+    lastKey = None
+    for line in file.readlines():
         lineno += 1
+        x = _parseLine(line)
         type, val = _parseLine(line)
         if type == 'ERR':
             raise ConfigError("%s at line %s" % (val, lineno))
@@ -54,35 +221,63 @@ def _parseFile(self, file):
             sections.append( (val, curSection) )
         elif type == 'ENT':
             key,val = val
-            if not curSection:
+            if curSection is None:
                 raise ConfigError("Unknown section at line %s" %lineno)
             curSection.append( [key, val, lineno] )
             lastKey = key
         elif type == 'MORE':
             if not lastKey:
                 raise ConfigError("Unexpected indentation at line %s" %lineno)
-            curSection[-1][1] = "%s %s" % (curSection[-1][1], line)
+            curSection[-1][1] = "%s %s" % (curSection[-1][1], val)
     return sections
 
 def _formatEntry(key,val,w=79,ind=4):
+    """Helper function.  Given a key/value pair, returns a NL-terminated
+       entry for inclusion in a configuration file, such that no line is
+       avoidably longer than 'w' characters, and with continuation lines
+       indented by 'ind' spaces.
+    """
     ind = " "*ind
     if len(val)+len(key)+2 <= 79:
         return "%s: %s\n" % (key,val)
 
-    lines = [ "%s: " ]
+    lines = [ "%s: " %key ]
     #XXXX Bad implementation.
-    for v in " ".split(val):
-        if len(lines[-1])+" "+len(v) <= w:
+    for v in val.split(" "):
+        print v
+        if len(lines[-1])+1+len(v) <= w:
             lines[-1] = "%s %s" % (lines[-1],v)
         else:
             lines.append(ind+v)
-    lines.append("")
+    lines.append("") # so the last line ends with \n
     return "\n".join(lines)
     
 class _ConfigFile:
-    # Set in subclass: _syntax is map from sec->{key:
-    #                               ALLOW/REQUIRE/ALLOW*/REQUIRE*/IGNORE}
+    """Base class to parse, validate, and represent configuration files.
+    """
+    ##Fields:
+    #  fname: Name of the underlying file.  Used by .reload()
+    #  _sections: A map from secname->key->value.
+    #  _sectionEntries: A  map from secname->[ (key, value) ] inorder.
+    #  _sectionNames: An inorder list of secnames.
+    #  hooks: list of callback functions.
+    #
+    # Set by a subclass:
+    #     _syntax is map from sec->{key:
+    #                               (ALLOW/REQUIRE/ALLOW*/REQUIRE*,
+    #                                 parseFn,
+    #                                 default, ) }
+
+    # A key without a corresponding entry in _syntax gives an error.
+    # A section without a corresponding entry is ignored.
+    # ALLOW* and REQUIRE* permit multiple entries with for a given key:
+    #   these entries are read into a list.
+    # The magic key __SECTION__ describes whether a section is requried.
+
     def __init__(self, fname=None, string=None):
+        """Create a new _ConfigFile.  If fname is set, read from
+           fname.  If string is set, parse string."""
+        assert fname is None or string is None
         self.fname = fname
         if fname:
             self.reload()
@@ -96,26 +291,36 @@ class _ConfigFile:
             self.clear()
 
     def clear(self):
+        """Remove all sections from this _ConfigFile object."""
         self._sections = {}
         self._sectionEntries = {}
         self._sectionNames = []
         
     def reload(self):
+        """Reload this _ConfigFile object from disk.  If the object is no
+           longer present and correctly formatted, raise an error, but leave
+           the contents of this object unchanged."""
         if not self.fname:
             return
-        f = open(fname, 'r')
+        f = open(self.fname, 'r')
         try:
             self.__reload(f)
+            for hook in _CONFIG_HOOKS:
+                hook()
         finally:
             f.close()
 
     def __reload(self, file):
+        """As in .reload(), but takes an open file object."""
         sections = _parseFile(file)
-        
+
+        # These will become self.(_sections,_sectionEntries,_sectionNames)
+        # if we are successful.
         self_sections = {}
         self_sectionEntries = {}
         self_sectionNames = []
-        
+        sectionEntryLines = {}
+
         for secName, secEntries in  sections:
             self_sectionNames.append(secName)
 
@@ -124,65 +329,105 @@ class _ConfigFile:
             
             section = {}
             sectionEntries = []
+            entryLines = [] 
             self_sections[secName] = section
             self_sectionEntries[secName] = sectionEntries
+            sectionEntryLines[secName] = entryLines
 
             secConfig = self._syntax.get(secName, None)
 
             if not secConfig:
-                #XXXX FFFF
-                print "Skipping unrecognized section %s" % (secName)
+                getLog().warn("Skipping unrecognized section %s", secName)
                 continue
                 
             for k,v,line in secEntries:
-                sectionEntrties.add( (k,v) )
-                rule = secConfig.get(k, None)
+                sectionEntries.append( (k,v) )
+                entryLines.append(line)
+                rule, parseFn, default = secConfig.get(k, (None,None,None))
                 if not rule:
                     raise ConfigError("Unrecognized key %s on line %s" %
                                       (k, line))
+
+                if parseFn is not None:
+                    try:
+                        v = parseFn(v, validate=1)
+                    except ConfigError, e:
+                        e.args = ("%s at line %s" %(e.args[0],line))
+                        raise e
 
                 if rule in ('REQUIRE*','ALLOW*'):
                     if section.has_key(k):
                         section[k].append(v)
                     else:
                         section[k] = [v]
-                else: #rule in ('REQUIRE', 'ALLOW')
+                else:
+                    assert rule in ('REQUIRE', 'ALLOW')
                     if section.has_key(k):
                         raise ConfigError("Duplicate entry for %s at line %s"
                                           % (k, line))
                     else:
                         section[k] = v
 
-            for k, rule in secRules:
-                if k in ('REQUIRE', 'REQUIRE*') and not section.has_key(k):
+            for k, (rule, parseFn, default) in secConfig.items():
+                if k == '__SECTION__':
+                    continue
+                if rule in ('REQUIRE', 'REQUIRE*') and not section.has_key(k):
                     raise ConfigError("Missing entry %s from section %s"
                                       % (k, secName))
+                elif not section.has_key(k):
+                    if parseFn is None:
+                        section[k] = default
+                    elif default is None:
+                        section[k] = default
+                    elif rule == 'ALLOW':
+                        section[k] = parseFn(default)
+                    else:
+                        assert rule == 'ALLOW*'
+                        section[k] = map(parseFn,default)
 
-        for secName in self._syntax:
-            if (secName.get('__SECTION__', 'ALLOW') == 'REQUIRE'
+        for secName, secConfig in self._syntax.items():
+            secRule = secConfig.get('__SECTION__', ('ALLOW',None,None))
+            if (secRule[0] == 'REQUIRE'
                 and not self_sections.has_key(secName)):
                 raise ConfigError("Section [%s] not found." %secName)
+            elif not self_sections.has_key(secName):
+                self_sections[secName] = {}
+                self_sectionEntries[secName] = {}
 
-        for secName in self_sectionNames:
+        for s in self_sectionNames:
             for k,v in self_sectionEntries[s]:
                 assert v == self_sections[s][k] or v in self_sections[s][k]
 
-        self.validate(self_sections, self_sectionEntries)
+        self.validate(self_sections, self_sectionEntries, sectionEntryLines)
 
-        self.sections = self_sections
-        self.sectionEntries = self_sectionEntries
-        self.sectionName = self_sectionNames
+        self._sections = self_sections
+        self._sectionEntries = self_sectionEntries
+        self._sectionNames = self_sectionNames
 
-    def validate(sections, sectionEntries):
+    def validate(self, sections, sectionEntries, entryLines):
+        """Check additional semantic properties of a set of configuration
+           data before overwriting old data.  Subclasses should override."""
         pass
 
     def __getitem__(self, sec):
+        """self[section] -> dict
+
+           Return a map from keys to values for a given section.  If the
+           section was absent, return an empty map."""
         return self._sections[sec]
 
+    def has_section(self, sec):
+        'XXXX'
+        return self._sections.has_key(sec)
+
     def getSectionItems(self, sec):
+        """Return a list of ordered (key,value) tuples for a given section.
+           section was absent, return an empty map."""
         return self._sectionEntries[sec]
 
     def __str__(self):
+        """Returns a string configuration file equivalent to this configuration
+           file."""
         lines = []
         for s in self._sectionNames:
             lines.append("[%s]\n"%s)
@@ -192,22 +437,197 @@ class _ConfigFile:
             
         return "".join(lines)
 
-_serverDescriptorSyntax = {
-    'Server' : { 'Descriptor-Version' : 'REQUIRE',
-                 'IP' : 'REQUIRE',
-                 'Nickname' : 'ALLOW',
-                 'Identity' : 'REQUIRE',
-                 'Digest' : 'REQUIRE',
-                 'Signature' : 'REQUIRE',
-                 'Valid-After' : 'REQUIRE',
-                 'Valid-Until' : 'REQUIRE',
-                 'Contact' : 'ALLOW',
-                 'Comments' : 'ALLOW',
-                 'Packet-Key' : 'REQUIRE',  },
-    'Incoming/MMTP' : { 'MMTP-Decriptor-Version' : 'REQUIRE',
-                        'Port' :  'REQUIRE',
-                        'Key-Digest' : 'REQUIRE', },
-    'Modules/MMTP' : { 'MMTP-Descriptor-Version' : 'REQUIRE',
-                       'Allow' : 'ALLOW*',
-                       'Deny' : 'ALLOW*' }
-    }
+_interval_re = re.compile('(\d+\.?\d*|\.\d+)\s+(second|minute|hour)s?')
+def validateInterval(s):
+    m = _interval_re.match(s)
+    if not m:
+        return "ERR", "Invalid interval: %r" %s
+    
+    return "OK", (float(m.group(1)), m.group(2), )
+
+class ClientConfig(_ConfigFile):
+    _syntax = {
+        'Host' : { '__SECTION__' : ('REQUIRE', None, None),
+                   'ShredCommand': ('ALLOW', _parseCommand, None),
+                   'EntropySource': ('ALLOW', None, "/dev/urandom"),
+                   },
+        'DirectoryServers' :
+                   { '__SECTION__' : ('REQUIRE', None, None),
+                     'ServerURL' : ('ALLOW*', None, None),
+                     'MaxSkew' : ('ALLOW', _parseInterval, "10 minutes") },
+        'User' : { 'UserDir' : ('ALLOW', _parseDir, "~/.mixminion" ) },
+        'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
+                       'SURBAddress' : ('ALLOW', None, None),
+                       'SURBPathLength' : ('ALLOW', None, "8") },
+        }
+    def __init__(self, fname=None, string=None):
+        _ConfigFile.__init__(self, fname, string)
+
+    def validate(self, sections, entries, lines):
+        #XXXX Write this
+        pass
+
+    def getShredCommand(self):
+        return self['Host'].get('ShredCommand', None)
+
+    def getEntropySource(self):
+        return self['Host'].get('EntropySource', None)
+
+    def getDirectoryServerURLs(self):
+        return self['DirectoryServers'].get('ServerURL', [])
+
+    def getMaxSkew(self):
+        # returns seconds.
+        skew = self['DirectoryServers'].get('MaxSkew', "10 minutes")
+        _, _, nsec = _parseInterval(skew)
+        return nsec
+
+    def getUserDir(self):
+        return self['UserDir'].get('UserDir', '.minion')
+
+    def getPathLength(self):
+        return int(self['Security'].get('PathLength', '8'))
+
+    def getSURBPathLength(self):
+        return int(self['Security'].get('SURBPathLength', '8'))
+
+    def getSURBAddress(self):
+        return self['Security'].get('SURBAddress', None)
+
+class ServerConfig(_ConfigFile):
+    _syntax = {
+        'Host' : ClientConfig._syntax['Host'], 
+        'Server' : { '__SECTION__' : ('REQUIRE', None, None),
+                     'Homedir' : ('ALLOW', _parseDir, "/var/spool/minion"),
+                     'LogFile' : ('ALLOW', None, None),
+                     'LogLevel' : ('ALLOW', _parseSeverity, "WARN"),
+                     'EchoMessages' : ('ALLOW', _parseBoolean, "no"),
+                     'EncryptIdentityKey' : ('REQUIRE', _parseBoolean, "yes"),
+                     'PublicKeyLifetime' : ('REQUIRE', _parseInterval,
+                                            "30 days"),
+                     'EncryptPublicKey' : ('REQUIRE', _parseBoolean, "no"),
+                     'Mode' : ('REQUIRE', _parseServerMode, "local"),
+                     },
+        'DirectoryServers' : { 'ServerURL' : ('ALLOW*', None, None),
+                               'Publish' : ('ALLOW', _parseBoolean, "no"),
+                               'MaxSkew' : ('ALLOW', _parseInterval,
+                                            "10 minutes",) }, 
+        'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
+                            'IP' : ('ALLOW', _parseIP, None),
+                            'Port' : ('ALLOW', _parseInt, "48099"),
+                            'Allow' : ('ALLOW*', None, None),
+                            'Deny' : ('ALLOW*', None, None) },
+        'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
+                            'Allow' : ('ALLOW*', None, None),
+                            'Deny' : ('ALLOW', None, None) },
+        'Delivery/MBox' : { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
+                            'AddressFile' : ('REQUIRE', None, None),
+                            'Command' : ('ALLOW', _parseCommand, "sendmail") },
+        }
+    # Missing: Queue-Size / config options
+    #          timeout
+    def __init__(self, fname=None, string=None):
+        _ConfigFile.__init__(self, fname, string)
+
+    def validate(self, sections, entries, lines):
+        #XXXX write this.
+        pass
+    
+    def getShredCommand(self):
+        return self['Host'].get('ShredCommand', None)
+
+    def getEntropySource(self):
+        return self['Host'].get('EntropySource', None)
+
+    def getHomeDir(self):
+        return self['Server'].get('Homedir', "/var/spool/minion")
+        
+    def getLogLevel(self):
+        return _parseSeverity(self['Server'].get('LogLevel', "WARN"))
+
+    def getLogFile(self):
+        return self['Server'].get('LogFile', None)
+
+    def getEchoMessages(self):
+        return _parseBoolean(self['Server'].get('EchoMessages', "no"))
+
+    def getEncryptIdentityKey(self):
+        return _parseBoolean(self['Server'].get('EncryptIdentityKey', "yes"))
+
+    def getMode(self):
+        return _parseServerMode(self['Server'].get('Mode', "local"))
+    
+    def getPublicKeyLifetime(self):
+        _, _, nsec =_parseInterval(self['Server'].get('PublicKeyLifetime',
+                                                           '1 month'))
+        return nsec
+
+    def getEncryptPublicKey(self):
+        return _parseBoolean(self['Server'].get('EncryptPublicKey', "no"))
+
+    def getPublish(self):
+        return _parseBoolean(self['DirectoryServers'].get('Publish', "no"))
+
+    def getDirectoryServerURLs(self):
+        return self['DirectoryServers'].get('ServerURL', [])
+
+    def getMaxSkew(self):
+        # returns seconds.
+        skew = self['DirectoryServers'].get('MaxSkew', "10 minutes")
+        _, _, nsec = _parseInterval(skew)
+        return nsec
+
+    def getIncomingMMTPEnabled(self):
+        return _parseBoolean(self['Incoming/MMTP'].get('Enabled', 'no'))
+
+    def getIncomingMMTP_IP(self):
+        return _parseIP(self['Incoming/MMTP'].get('IP', None))
+
+    def getIncomingMMTP_Port(self):
+        return _parseInt(self['Incoming/MMTP'].get('Port', None))
+
+    def getIncomingMMTP_Rules(self):
+        #XXXX WRITE ME
+        pass
+
+    def getOutgoingMMTPEnabled(self):
+        return _parseBoolean(self['Outgoing/MMTP'].get('Enabled', 'no'))
+
+    def getOutgoingMMTPRules(self):
+        #XXXX WRITE ME
+        pass
+
+    def getMBoxEnabled(self):
+        #XXXX WRITE ME
+        pass
+
+    def getMBoxEnabled(self):
+        return _parseBoolean(self['Delivery/MBox'].get('Enabled', 'no'))
+
+    def getMBoxAddressFile(self):
+        return self['Delivery/MBox'].get('AddressFile', None)
+
+    def getMBoxCommand(self):
+        return self['Delivery/MBox'].get('Command', None)
+
+## _serverDescriptorSyntax = {
+##     'Server' : { 'Descriptor-Version' : 'REQUIRE',
+##                  'IP' : 'REQUIRE',
+##                  'Nickname' : 'ALLOW',
+##                  'Identity' : 'REQUIRE',
+##                  'Digest' : 'REQUIRE',
+##                  'Signature' : 'REQUIRE',
+##                  'Valid-After' : 'REQUIRE',
+##                  'Valid-Until' : 'REQUIRE',
+##                  'Contact' : 'ALLOW',
+##                  'Comments' : 'ALLOW',
+##                  'Packet-Key' : 'REQUIRE',  },
+##     'Incoming/MMTP' : { 'MMTP-Descriptor-Version' : 'REQUIRE',
+##                         'Port' :  'REQUIRE',
+##                         'Key-Digest' : 'REQUIRE', },
+##     'Modules/MMTP' : { 'MMTP-Descriptor-Version' : 'REQUIRE',
+##                        'Allow' : 'ALLOW*',
+##                        'Deny' : 'ALLOW*' }
+##     }
+
+

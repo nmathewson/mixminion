@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.4 2002/07/05 23:34:33 nickm Exp $ */
+/* $Id: tls.c,v 1.5 2002/07/25 15:52:57 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -19,6 +19,11 @@ char mm_TLSWantWrite__doc__[] =
   "mixminion._minionlib.TLSWantWrite\n\n"
 "Exception raised when a non-blocking TLS operation would block on writing.\n";
 PyObject *mm_TLSWantWrite = NULL;
+
+char mm_TLSClosed__doc__[] = 
+  "mixminion._minionlib.TLSClosed\n\n"
+"Exception raised when a connection is unexpectedly closed.\n";
+PyObject *mm_TLSClosed = NULL;
 
 /* Convenience macro to set a type error with a given string. */
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)
@@ -59,9 +64,8 @@ tls_error(SSL *ssl, int r, int zeroReturnIsError)
 		  PyErr_SetNone(mm_TLSWantWrite);
 		  return ERROR;
  	  case SSL_ERROR_SYSCALL:
-		  /* ???? We may want to act differently here; this is
-		   * ???? (almost?) always an unexpected close. 
-		   */
+		  PyErr_SetNone(mm_TLSClosed);
+		  return ERROR;
  	  default:
 		  mm_SSL_ERR(0);
 		  return ERROR;

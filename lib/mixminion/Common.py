@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.8 2002/07/09 04:07:14 nickm Exp $
+# $Id: Common.py,v 1.9 2002/07/25 15:52:57 nickm Exp $
 
 """mixminion.Common
 
@@ -53,12 +53,29 @@ def ceilDiv(a,b):
 #----------------------------------------------------------------------
 # Secure filesystem operations.
 #
-# FFFF This needs to be made portable.
-_SHRED_CMD = "/usr/bin/shred"
 
-if not os.path.exists(_SHRED_CMD):
-    warn("%s not found. Files will not be securely deleted.", _SHRED_CMD)
-    _SHRED_CMD = None
+_SHRED_CMD = "---"
+_SHRED_OPTS = None
+    
+def _shredConfigHook():
+    global _SHRED_CMD
+    global _SHRED_OPTS
+    import mixminion.Config as Config
+    conf = Config.getConfig()
+    cmd, opts = None, None
+    if conf is not None:
+        val = conf['Host'].get('ShredCommand', None)
+        if val is not None:
+            cmd, opts = val
+
+    if cmd is None:
+        if os.path.exists("/usr/bin/shred"):
+            cmd, opts = "/usr/bin/shred/", ["-uz"]
+        else:
+            getLog().warn("Files will not be securely deleted.")
+            cmd, opts = None, None
+
+    _SHRED_CMD, _SHRED_OPTS = cmd, opts
 
 def secureDelete(fnames, blocking=0):
     """Given a list of filenames, removes the contents of all of those
@@ -80,6 +97,14 @@ def secureDelete(fnames, blocking=0):
        XXXX The source to shred.c seems to imply that this is harmless, but
        XXXX let's try to avoid that, to be on the safe side. 
     """
+    if _SHRED_CMD == "---":
+        import mixminion.Config as Config
+        _shredConfigHook()
+        Config.addHook(_shredConfigHook)
+
+    if fnames == []:
+        return
+    
     if isinstance(fnames, StringType):
         fnames = [fnames]
     if blocking:
@@ -88,7 +113,7 @@ def secureDelete(fnames, blocking=0):
         mode = os.P_NOWAIT
 
     if _SHRED_CMD:
-        return os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, "-uz", *fnames)
+        return os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+fnames))
     else:
         for f in fnames:
             os.unlink(f)
@@ -114,6 +139,7 @@ class FileLogTarget:
     def reset(self):
         if self.file is not None:
             self.file.close()
+        # XXXX Fail sanely. :)
         self.file = open(self.fname, 'a')
     def close(self):
         self.file.close()
@@ -134,7 +160,8 @@ _SEVERITIES = { 'TRACE' : -2,
                 'INFO' : 0,
                 'WARN' : 1,
                 'ERROR': 2,
-                'FATAL' : 3 }
+                'FATAL' : 3,
+                'NEVER' : 100}
 
 class Log:
     def __init__(self, minSeverity):
@@ -143,9 +170,31 @@ class Log:
         onReset(self.reset)
         onTerminate(self.close)
 
+    def _configure(self):
+        import mixminion.Config as Config
+        config = Config.getConfig()
+        self.handlers = []
+        if config == None or not config.has_section('Server'):
+            self.setMinSeverity("WARN")
+            self.addHandler(ConsoleLogTarget(sys.stderr))
+        else:
+            self.setMinSeverity(config['Server']['LogLevel'])
+            if config['Server']['EchoMessages']:
+                self.addHandler(ConsoleLogTarget(sys.stderr))
+            logfile = config['Server']['LogFile']
+            if  logfile is not None:   
+                logfile = os.path.join(config['Server']['Homedir'], "log")
+            self.addHandler(FileLogTarget(logfile))
+            
     def setMinSeverity(self, minSeverity):
         self.severity = _SEVERITIES.get(minSeverity, 1)
 
+    def getMinSeverity(self):
+        for k,v in _SEVERITIES.items():
+            if v == self.severity:
+                return k
+        assert 0    
+        
     def addHandler(self, handler):
         self.handlers.append(handler)
 
@@ -184,13 +233,12 @@ def getLog():
     """Return the MixMinion log object."""
     global _theLog
     if _theLog is None:
-        # XXXX Configure the log for real
+        import mixminion.Config as Config
         _theLog = Log('DEBUG')
-        _theLog.addHandler(ConsoleLogTarget(sys.stderr))
+        _theLog._configure()
+        Config.addHook(_theLog._configure)
         
     return _theLog
-
-
 
 #----------------------------------------------------------------------
 # Signal handling
@@ -220,6 +268,8 @@ def waitForChildren():
             pid, status = os.waitpid(0, 0)
         except OSError, e:
             break
+        except e:
+            print e, repr(e), e.__class__
 
 def _sigChldHandler(signal_num, _):
     '''(Signal handler for SIGCHLD)'''

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.11 2002/07/09 04:07:14 nickm Exp $
+# $Id: test.py,v 1.12 2002/07/25 15:52:57 nickm Exp $
 
 """mixminion.tests
 
@@ -21,7 +21,7 @@ import atexit
 import tempfile
 import types
 
-from mixminion.Common import MixError, MixFatalError, getLog
+from mixminion.Common import MixError, MixFatalError, MixProtocolError, getLog
 
 try:
     import unittest
@@ -1229,17 +1229,20 @@ class QueueTests(unittest.TestCase):
         queue.removeAll()
 
     def testQueueOps(self):
-        #XXXX COMMENT ME
         queue1 = Queue(self.d2, create=1)
         queue2 = Queue(self.d3, create=1)
 
+        # Put 100 messages in queue1
         handles = [queue1.queueMessage("Sample message %s" % i) 
                    for i in range(100)]
         hdict = {}
         for i in range(100): hdict[handles[i]] = i
+        # Make sure that queue1 has all 100 elements
         self.assertEquals(queue1.count(), 100)
         self.assertEquals(len(handles), 100)
 
+        # Get the messages in random order, and make sure the contents
+        # of each one are correct
         foundHandles = queue1.pickRandom(100)
         self.assertEquals(len(foundHandles), 100)
         for h in foundHandles:
@@ -1250,38 +1253,46 @@ class QueueTests(unittest.TestCase):
 
         assert len(hdict) == len(handles) == 100
 
+        # Move the first 30 messages to queue2
         q2h = []
         for h in handles[:30]:
             nh = queue1.moveMessage(h, queue2)
             q2h.append(nh)
 
+        # Look at the messages in queue2, 15 then 30 at a time.
         from string import atoi
-        seen = {}
-        for h in queue2.pickRandom(30):
-            c = queue2.messageContents(h)
-            self.failUnless(c.startswith("Sample message "))
-            i = atoi(c[15:])
-            self.failIf(seen.has_key(i))
-            seen[i]=1
+        for group in queue2.pickRandom(15), queue2.pickRandom(30):
+            seen = {}
+            for h in group:
+                c = queue2.messageContents(h)
+                self.failUnless(c.startswith("Sample message "))
+                i = atoi(c[15:])
+                self.failIf(seen.has_key(i))
+                seen[i]=1
 
+        # Make sure that we got all 30 messages
         for i in range(30):
             self.failUnless(seen.has_key(i))
 
+        # Remove messages 30..59 from queue1.
         for h in handles[30:60]:
             queue1.removeMessage(h)
-
         self.assertEquals(40, queue1.count())
+        
+        # Make sure that smaller pickRandoms work.
         L1 = queue1.pickRandom(10)
         L2 = queue1.pickRandom(10)
         self.failUnless(len(L1) == 10)
         self.failUnless(len(L2) == 10)
         self.failUnless(L1 != L2)
 
+        # Test 'openMessage'
         f = queue1.openMessage(handles[60])
         s = f.read()
         f.close()
         self.assertEquals(s, "Sample message 60")
 
+        # test successful 'openNewMessage' 
         f, h = queue1.openNewMessage()
         f.write("z"*100)
         self.failUnlessRaises(IOError, queue1.messageContents, h)
@@ -1290,6 +1301,7 @@ class QueueTests(unittest.TestCase):
         self.assertEquals(queue1.messageContents(h), "z"*100)
         self.assertEquals(queue1.count(), 41)
 
+        # test aborted 'openNewMessage'
         f, h = queue1.openNewMessage()
         f.write("z"*100)
         queue1.abortMessage(f,h)
@@ -1297,9 +1309,9 @@ class QueueTests(unittest.TestCase):
         self.assertEquals(queue1.count(), 41)
         self.assert_(not os.path.exists(os.path.join(self.d2, "msg_"+h)))
 
+        # Scrub both queues.
         queue1.removeAll()
         queue2.removeAll()
-
         queue1.cleanQueue()    
         queue2.cleanQueue()
 
@@ -1309,6 +1321,7 @@ class QueueTests(unittest.TestCase):
 
 #----------------------------------------------------------------------
 # MMTP
+# XXXX Write more tests
 
 import mixminion.MMTPServer
 import mixminion.MMTPClient
@@ -1380,7 +1393,7 @@ class MMTPTests(unittest.TestCase):
                     self.server.process(0.1)
                     count = count + 1
 
-    def testBlockingTransmission(self):
+    def ___testBlockingTransmission(self):
         self.doTest(self._testBlockingTransmission)
 
     def testNonblockingTransmission(self):
@@ -1406,6 +1419,18 @@ class MMTPTests(unittest.TestCase):
             server.process(0.1)
 
         self.failUnless(messagesIn == messages)
+
+        # Now, with bad keyid.
+        t = threading.Thread(None,
+                             self.failUnlessRaises,
+                             args=(MixProtocolError,
+                                   mixminion.MMTPClient.sendMessages,
+                                   "127.0.0.1", TEST_PORT, "Z"*20, messages))
+        t.start()
+        while t.isAlive():
+            server.process(0.1)
+        t.join()
+        
 
     def _testNonblockingTransmission(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
@@ -1433,17 +1458,150 @@ class MMTPTests(unittest.TestCase):
 
         self.assertEquals(len(messagesIn), len(messages))
         self.failUnless(messagesIn == messages)
-        
+
+        # Again, with bad keyid.
+        clientcon = mixminion.MMTPServer.MMTPClientConnection(
+           _getTLSContext(0), "127.0.0.1", TEST_PORT, "Z"*20,
+           messages[:], None)
+        clientcon.register(async)
+        def clientThread(clientcon=clientcon, async=async):
+            while not clientcon.isShutdown():
+                async.process(2)
+            
+
+
+        severity = getLog().getMinSeverity()
+        getLog().setMinSeverity("ERROR") #suppress warning
+        try:
+            server.process(0.1)
+            t = threading.Thread(None, clientThread)
+
+            t.start()
+            while t.isAlive():
+                server.process(0.1)
+            t.join()
+        finally:
+            getLog().setMinSeverity(severity) #unsuppress
+                    
 #----------------------------------------------------------------------
+# Config files
+
+from mixminion.Config import _ConfigFile, ConfigError
+
+class TestConfigFile(_ConfigFile):
+    _syntax = { 'Sec1' : {'__SECTION__': ('REQUIRE', None, None),
+                          'Foo': ('REQUIRE', None, None),
+                          'Bar': ('ALLOW', None, None),
+                          'Baz': ('ALLOW', None, None),},
+                'Sec2' : {'Fob': ('ALLOW*', None, None),
+                          'Bap': ('REQUIRE', None, None),
+                          'Quz': ('REQUIRE*', None, None), }
+                }
+    def __init__(self, fname=None, string=None):
+        _ConfigFile.__init__(self,fname,string)
+
+class ConfigFileTests(unittest.TestCase):
+    def testValidFiles(self):
+        TCF = TestConfigFile
+        shorterString = """[Sec1]\nFoo a\n"""
+        f = TCF(string=shorterString)
+        self.assertEquals(f['Sec1']['Foo'], 'a')
+        f = TCF(string="""\n\n  [ Sec1 ]  \n  \n\nFoo a  \n""")
+        self.assertEquals(f['Sec1']['Foo'], 'a')
+        self.assertEquals(f['Sec2'], {})
+
+        longerString = """[Sec1]
+
+Foo=  abcde f
+
+Bar bar
+Baz:
+  baz
+  and more baz 
+  and more baz  
+[Sec2]
+
+# Comment
+Bap +
+Quz 99 99  
+
+
+Fob=1
+Quz : 88
+     88
+
+  """
+        
+        f = TCF(string=longerString)
+        self.assertEquals(f['Sec1']['Foo'], 'abcde f')
+        self.assertEquals(f['Sec1']['Bar'], 'bar')
+        self.assertEquals(f['Sec1']['Baz'], ' baz and more baz and more baz')
+        self.assertEquals(f['Sec2']['Bap'], '+')
+        self.assertEquals(f['Sec2']['Fob'], ['1'])
+        self.assertEquals(f['Sec2']['Quz'], ['99 99', '88 88'])
+        self.assertEquals(f.getSectionItems('Sec2'),
+                          [ ('Bap', '+'),
+                            ('Quz', '99 99'),
+                            ('Fob', '1'),
+                            ('Quz', '88 88') ])
+
+        self.assertEquals(str(f),
+           ("[Sec1]\nFoo: abcde f\nBar: bar\nBaz:  baz and more baz"+
+            " and more baz\n\n[Sec2]\nBap: +\nQuz: 99 99\nFob: 1\n"+
+            "Quz: 88 88\n\n"))
+        # Test file input
+        fn = tempfile.mktemp()
+        unlink_on_exit(fn)
+        
+        file = open(fn, 'w')
+        file.write(longerString)
+        file.close()
+        f = TCF(fname=fn)
+        self.assertEquals(f['Sec1']['Bar'], 'bar')
+        self.assertEquals(f['Sec2']['Quz'], ['99 99', '88 88'])
+
+        # Test failing reload
+        file = open(fn, 'w')
+        file.write("[Sec1]\nFoo=99\nBadEntry 3\n\n")
+        file.close()
+        self.failUnlessRaises(ConfigError, f.reload)
+        self.assertEquals(f['Sec1']['Foo'], 'abcde f')
+        self.assertEquals(f['Sec1']['Bar'], 'bar')
+        self.assertEquals(f['Sec2']['Quz'], ['99 99', '88 88'])
+        
+
+        # Test 'reload' operation
+        file = open(fn, 'w')
+        file.write(shorterString)
+        file.close()
+        f.reload()
+        self.assertEquals(f['Sec1']['Foo'], 'a')
+        self.assertEquals(f['Sec1'].get('Bar', None), None)
+        self.assertEquals(f['Sec2'], {})
+
+    def testBadFiles(self):
+        TCF = TestConfigFile
+        def fails(string, self=self):
+            self.failUnlessRaises(ConfigError, TestConfigFile, None, string)
+
+        fails("Foo = Bar\n")
+        fails("[Sec1]\n  Foo = Bar\n")
+        fails("[Sec1]\nFoo! Bar\n")
+
+        fails("[Sec1]\nFoob: Bar\n") # No such key
+        fails("[Sec1]\nFoo: Bar\nFoo: Bar\n") #  Duplicate key
+        fails("[Sec1]\nBaz: 3\n") # Missing key
+        fails("[Sec2]\nBap = 9\nQuz=6\n") # Missing section
+        fails("[Sec1]\nFoo 1\n[Sec2]\nBap = 9\n") # Missing require*
 
 def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
-    getLog().setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "WARN"))
     suite.addTest(tc(MinionlibCryptoTests))
     suite.addTest(tc(CryptoTests))
     suite.addTest(tc(FormatTests))
+    suite.addTest(tc(ConfigFileTests))
     suite.addTest(tc(HashLogTests))
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))
@@ -1452,6 +1610,10 @@ def testSuite():
     return suite
 
 def testAll():
+    # Disable TRACE and DEBUG log messages, unless somebody overrides from
+    # the environment.
+    getLog().setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "WARN"))
+
     unittest.TextTestRunner().run(testSuite())
 
 if __name__ == '__main__':

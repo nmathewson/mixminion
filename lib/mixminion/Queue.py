@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.5 2002/07/09 04:07:14 nickm Exp $
+# $Id: Queue.py,v 1.6 2002/07/25 15:52:57 nickm Exp $
 
 """mixminion.Queue
 
@@ -61,6 +61,9 @@ class Queue:
            'create' is true, creates the directory if necessary.  If 'scrub'
            is true, removes any incomplete or invalidated messages from the
            Queue."""
+
+        secureDelete([]) # Make sure secureDelete is configured. HACK!
+        
         self.rng = AESCounterPRNG()
         self.dir = location
 
@@ -233,12 +236,17 @@ class Queue:
         return base64.encodestring(junk).strip().replace("/","-")
 
 def _secureDelete_bg(files, cleanFile):
-    if os.fork() != 0:
-        return
+    pid = os.fork()
+    if pid != 0:
+        return pid
     # Now we're in the child process.
-    secureDelete(files, blocking=1)
+    try:
+        secureDelete(files, blocking=1)
+    except OSError, e:
+        # This is sometimes thrown when shred finishes before waitpid.
+        pass
     try:
         os.unlink(cleanFile)
-    except OSError:
+    except OSError, e:
         pass
     os._exit(0)

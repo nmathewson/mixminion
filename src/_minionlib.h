@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.6 2002/07/05 23:34:33 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.7 2002/07/25 15:52:57 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -76,6 +76,8 @@ extern PyObject *mm_TLSWantRead;
 extern char mm_TLSWantRead__doc__[];
 extern PyObject *mm_TLSWantWrite;
 extern char mm_TLSWantWrite__doc__[];
+extern PyObject *mm_TLSClosed;
+extern char mm_TLSClosed__doc__[];
 
 #endif
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.6 2002/07/09 04:07:14 nickm Exp $
+# $Id: MMTPServer.py,v 1.7 2002/07/25 15:52:57 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -357,6 +357,11 @@ class SimpleTLSConnection(Connection):
             self.__server.registerWriter(self)
         except _ml.TLSWantRead:
             self.__server.registerReader(self)
+        except _ml.TLSClosed:
+            warn("Unexpectedly closed connection")
+
+            self.__sock.close()
+            self.__server.unregister(self) 
         except _ml.TLSError:
             if self.__state != self.__shutdownFn:
                 warn("Unexpected error: closing connection.")

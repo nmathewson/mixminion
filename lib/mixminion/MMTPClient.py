@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.4 2002/07/09 04:07:14 nickm Exp $
+# $Id: MMTPClient.py,v 1.5 2002/07/25 15:52:57 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -76,7 +76,9 @@ class BlockingClientConnection:
 def sendMessages(targetIP, targetPort, targetKeyID, packetList):
     """Sends a list of messages to a server."""
     con = BlockingClientConnection(targetIP, targetPort, targetKeyID)
-    con.connect()
-    for p in packetList:
-        con.sendPacket(p)
-    con.shutdown()
+    try:
+        con.connect()
+        for p in packetList:
+            con.sendPacket(p)
+    finally:
+        con.shutdown()
