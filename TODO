@@ -143,7 +143,7 @@ For 0.0.3:
                         o Move lock functionality into Common.
                         o Locking on cache
                         o Locking on pool
-                        - Refactor locking; use only a single lock
+                        o Refactor locking; use only a single lock
                           for all client functionality.
         . Directories include an "allowable version" section.
         . UI
@@ -172,7 +172,7 @@ For 0.0.3:
 
 Originally scheduled for 0.0.3, but delayed:
         - UI
-                - Good user error reporting strategy.
+                . Good user error reporting strategy.
                 - Beautify list-servers output.
         - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
@@ -245,6 +245,8 @@ Required for "1.0":
         - Configurability
                 - Better, documented support for http proxies for
                   downloading directories.
+                - Make pooling configurable.
+                - Make SURB logging configurable.
                 - Reload configuration on SIGHUP
                 - Support for one-side-only MMTP configurations.
                 - Add 'ALLOW' lines to blacklist.

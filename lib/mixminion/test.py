@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.80 2003/02/06 20:20:03 nickm Exp $
+# $Id: test.py,v 1.81 2003/02/07 17:23:11 nickm Exp $
 
 """mixminion.tests
 
@@ -5302,6 +5302,7 @@ def testSuite():
 
 def testAll(name, args):
     init_crypto()
+    mixminion.ClientMain.configureClientLock(mix_mktemp())
 
     # Suppress 'files-can't-be-securely-deleted' message while testing
     LOG.setMinSeverity("FATAL")

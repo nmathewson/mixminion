@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.55 2003/02/06 20:20:03 nickm Exp $
+# $Id: Common.py,v 1.56 2003/02/07 17:23:11 nickm Exp $
 
 """mixminion.Common
 
@@ -871,6 +871,10 @@ class Lockfile:
 
     def acquire(self, contents="", blocking=0):
         "Raises IOError DOCDOC"
+        if self.count > 0:
+            self.count += 1
+            return
+
         assert self.fd is None
         self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, 0600)
         try:

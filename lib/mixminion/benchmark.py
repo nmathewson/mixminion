@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.29 2003/02/05 06:28:31 nickm Exp $
+# $Id: benchmark.py,v 1.30 2003/02/07 17:23:11 nickm Exp $
 
 """mixminion.benchmark
 
@@ -22,7 +22,7 @@ import mixminion._minionlib as _ml
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
      compressData, uncompressData, _encodePayload, decodePayload
 from mixminion.Common import secureDelete, installSIGCHLDHandler, \
-     waitForChildren, formatBase64
+     waitForChildren, formatBase64, Lockfile
 from mixminion.Crypto import *
 from mixminion.Crypto import OAEP_PARAMETER
 from mixminion.Crypto import _add_oaep_padding, _check_oaep_padding
@@ -610,6 +610,15 @@ def fileOpsTiming():
     dname = mix_mktemp(".d")
 
     os.mkdir(dname)
+
+    lockfile = Lockfile(os.path.join("dname"))
+    t1 = time()
+    for _ in xrange(2000):
+        lockfile.acquire(1)
+        lockfile.release()
+    t = time()-t1
+    print "Lockfile: lock+unlock", timestr(t/2000.)
+    
     for i in xrange(200):
         f = open(os.path.join(dname, str(i)), 'wb')
         f.write(s32K)
