@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.48 2003/06/06 06:04:57 nickm Exp $
+# $Id: ServerInfo.py,v 1.49 2003/06/09 00:03:37 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -461,7 +461,7 @@ def _cleanForDigest(s):
     s = _abnormal_line_ending_re.sub("\n", s)
     s = _trailing_whitespace_re.sub("", s)
     s = _leading_whitespace_re.sub("", s)
-    if s[-1] != "\n":
+    if not s.endswith("\n"):
         s += "\n"
     return s
 
