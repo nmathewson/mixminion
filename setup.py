@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.95 2004/03/09 04:30:18 nickm Exp $
+# $Id: setup.py,v 1.96 2004/03/23 00:06:12 nickm Exp $
 import sys
 
 #
@@ -507,9 +507,6 @@ extmodule = Extension(
     libraries=LIBRARIES,
     define_macros=MACROS)
 
-
-EXTRA = {}
-
 if 'py2exe' in sys.argv:
     # Py2EXE wants numberic versions for Windows
     VERSION = "." .join(map(str,VERSION_INFO))
@@ -524,9 +521,18 @@ if 'py2exe' in sys.argv:
                      'excludes': ['mixminion._textwrap','mixminion._unittest',
                                   'mixminion._zlibutil','coverage'] }
                  },
-        data_files : [("",["README","TODO","LICENSE","HISTORY",
-                           "etc/mixminiond.conf"])],
+        'data_files' : [("",["README","TODO","LICENSE","HISTORY",
+                             "etc/mixminiond.conf"])],
         }
+elif sys.platform != 'win32':
+    EXTRA = {
+        'data_files' : [("man/man1", ["etc/mixminion.1"]),
+                        ("man/man5", ["etc/mixminionrc.5",
+                                      "etc/mixminiond.conf.5"]),
+                        ("man/man8", ["etc/mixminiond.8"])]
+        }
+else:
+    EXTRA = {}
 
 setup(name='Mixminion',
       version=VERSION,
