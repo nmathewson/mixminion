@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.142 2004/12/20 04:16:21 nickm Exp $
+# $Id: ServerMain.py,v 1.143 2004/12/20 05:07:26 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -1122,8 +1122,8 @@ class MixminionServer(_Scheduler):
         self.moduleManager.cleanQueues(df)
         if self.pingLog:
             now = time.time()
-            self.pingLog.rotate(now-self.config['Pinging']['RetainData'],
-                                now-self.config['Pinging']['RetainResults'])
+            self.pingLog.rotate(now-self.config['Pinging']['RetainData'].getSeconds(),
+                                now-self.config['Pinging']['RetainResults'].getSeconds())
 
     def close(self):
         """Release all resources; close all files."""

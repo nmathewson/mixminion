@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.20 2004/12/20 04:16:21 nickm Exp $
+# $Id: Pinger.py,v 1.21 2004/12/20 05:07:26 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -985,8 +985,8 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
     def __init__(self, config):
         PingGenerator.__init__(self, config)
         _PingScheduler.__init__(self)
-        self._ping_interval = config['Pinging']['ServerPingPeriod']
-        self._period_length = self._calcPeriodLen(self._pingInterval)
+        self._ping_interval = config['Pinging']['ServerPingPeriod'].getSeconds()
+        self._period_length = self._calcPeriodLen(self._ping_interval)
 
     def scheduleAllPings(self, now=None):
         if now is None: now = int(time.time())
@@ -1031,8 +1031,8 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
     def __init__(self, config):
         PingGenerator.__init__(self, config)
         _PingScheduler.__init__(self)
-        self._dull_interval = self['Pinging']['DullChainPingPeriod'].getSeconds()
-        self._interesting_interval = self['Pinging']['ChainPingPeriod'].getSeconds()
+        self._dull_interval = config['Pinging']['DullChainPingPeriod'].getSeconds()
+        self._interesting_interval = config['Pinging']['ChainPingPeriod'].getSeconds()
         self._period_length = self._calcPeriodLen(
             max(self._interesting_interval,self._dull_interval))
 
