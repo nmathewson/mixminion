@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.14 2002/07/26 20:52:17 nickm Exp $
+# $Id: test.py,v 1.15 2002/07/28 22:42:33 nickm Exp $
 
 """mixminion.tests
 
@@ -20,6 +20,8 @@ import time
 import atexit
 import tempfile
 import types
+import re
+import binascii
 
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, getLog
 
@@ -45,7 +47,11 @@ def try_unlink(fnames):
         fnames = [fnames]
     for fname in fnames:
         try:
-            os.unlink(fname)
+            if os.path.isdir(fname):
+                try_unlink([os.path.join(fname,f) for f in os.listdir(fname)])
+                os.rmdir(fname)
+            else:
+                os.unlink(fname)
         except OSError:
             pass
 
@@ -1342,6 +1348,41 @@ class QueueTests(unittest.TestCase):
         queue2.cleanQueue()
 
 #----------------------------------------------------------------------
+# LOGGING
+class LogTests(unittest.TestCase):
+    def testLogging(self):
+        import cStringIO
+        from mixminion.Common import Log, FileLogTarget, ConsoleLogTarget
+        log = Log("INFO")
+        self.assertEquals(log.getMinSeverity(), "INFO")
+        log.log("WARN", "This message should not appear")
+        buf = cStringIO.StringIO()
+        log.addHandler(ConsoleLogTarget(buf))
+        log.trace("Foo")
+        self.assertEquals(buf.getvalue(), "")
+        log.log("WARN", "Hello%sworld", ", ")
+        self.failUnless(buf.getvalue().endswith(
+            "[WARN] Hello, world\n"))
+        self.failUnless(buf.getvalue().index('\n') == len(buf.getvalue())-1)
+        log.error("All your anonymity are belong to us")
+        self.failUnless(buf.getvalue().endswith(
+            "[ERROR] All your anonymity are belong to us\n"))
+        
+        t = tempfile.mktemp("log")
+        t1 = t+"1"
+        unlink_on_exit(t, t1)
+        log.addHandler(FileLogTarget(t))
+        log.info("Abc")
+        log.info("Def")
+        os.rename(t,t1)
+        log.info("Ghi")
+        log.reset()
+        log.info("Klm")
+        log.close()
+        self.assertEquals(open(t).read().count("\n") , 1)
+        self.assertEquals(open(t1).read().count("\n"), 3)
+        
+#----------------------------------------------------------------------
 # SIGHANDLERS
 # XXXX
 
@@ -1382,7 +1423,8 @@ def _getTLSContext(isServer):
 		print "done.]"
             pk = _ml.rsa_generate(1024, 65535)
             pk.PEM_write_key(open(pkfile, 'w'), 0)
-            _ml.generate_cert(certfile, pk, 365, "Testing certificate")
+            _ml.generate_cert(certfile, pk, "Testing certificate",
+                              time.time(), time.time()+365*24*60*60)
             unlink_on_exit(certfile, pkfile)
             
 	pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), 0)
@@ -1521,7 +1563,6 @@ class MMTPTests(unittest.TestCase):
 from mixminion.Config import _ConfigFile, ConfigError, _parseInt
 
 class TestConfigFile(_ConfigFile):
-    _restrictFormat = 0
     _syntax = { 'Sec1' : {'__SECTION__': ('REQUIRE', None, None),
                           'Foo': ('REQUIRE', None, None),
                           'Bar': ('ALLOW', None, "default"),
@@ -1538,7 +1579,8 @@ class TestConfigFile(_ConfigFile):
                           'IntAMD2': ('ALLOW*', _parseInt, ["5", "2"]),
                           'IntRS': ('REQUIRE', _parseInt, None) }
                 }
-    def __init__(self, fname=None, string=None):
+    def __init__(self, fname=None, string=None, restrict=0):
+        self._restrictFormat = restrict
         _ConfigFile.__init__(self,fname,string)
 
 class ConfigFileTests(unittest.TestCase):
@@ -1627,7 +1669,6 @@ IntRS=5
         self.assertEquals(f['Sec1']['Bar'], 'bar')
         self.assertEquals(f['Sec2']['Quz'], ['99 99', '88 88'])
         
-
         # Test 'reload' operation
         file = open(fn, 'w')
         file.write(shorterString)
@@ -1637,6 +1678,11 @@ IntRS=5
         self.assertEquals(f['Sec1']['Bar'], "default")
         self.assertEquals(f['Sec2'], {})
 
+        # Test restricted mode
+        s = "[Sec1]\nFoo: Bar\nBaz: Quux\n[Sec3]\nIntRS: 9\n"
+        f = TCF(string=s, restrict=1)
+        self.assertEquals(f['Sec1']['Foo'], "Bar")
+        self.assertEquals(f['Sec3']['IntRS'], 9)
 
     def testBadFiles(self):
         TCF = TestConfigFile
@@ -1654,6 +1700,15 @@ IntRS=5
         fails("[Sec1]\nFoo 1\n[Sec2]\nBap = 9\n") # Missing require*
         fails("[Sec1]\nFoo: Bar\n[Sec3]\nIntRS=Z\n") # Failed validation
 
+        # now test the restricted format
+        def fails(string, self=self):
+            self.failUnlessRaises(ConfigError, TestConfigFile, None, string, 1)
+        fails("[Sec1]\nFoo=Bar\n")
+        fails("[Sec1]\nFoo Bar\n")
+        fails("[Sec1]\n\nFoo: Bar\n")
+        fails("\n[Sec1]\nFoo: Bar\n")
+        fails("\n[Sec1]\nFoo: Bar\n\n")
+
     def testValidationFns(self):
         import mixminion.Config as C
 
@@ -1669,6 +1724,19 @@ IntRS=5
         self.assertEquals(C._parseInterval("2 houRS"), (2,"hour",7200))
         self.assertEquals(C._parseInt("99"), 99)
         self.assertEquals(C._parseIP("192.168.0.1"), "192.168.0.1")
+        pa = C._parseAddressSet_allow
+        self.assertEquals(pa("*"), ("0.0.0.0", "0.0.0.0", 48099, 48099))
+        self.assertEquals(pa("192.168.0.1/255.255.0.0"),
+                          ("192.168.0.1", "255.255.0.0", 48099, 48099))
+        self.assertEquals(pa("192.168.0.1 /  255.255.0.0  23-99"),
+                          ("192.168.0.1", "255.255.0.0", 23, 99))
+        self.assertEquals(pa("192.168.0.1 /  255.255.0.0  23"),
+                          ("192.168.0.1", "255.255.0.0", 23, 23))
+        self.assertEquals(pa("192.168.0.1"),
+                          ("192.168.0.1", "255.255.255.255", 48099, 48099))
+        self.assertEquals(pa("192.168.0.1",0),
+                          ("192.168.0.1", "255.255.255.255", 0, 65535))
+
         # XXXX Won't work on Windows.
         self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
         self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
@@ -1700,6 +1768,9 @@ IntRS=5
         fails(C._parseIP, "192.0.0")
         fails(C._parseIP, "192.0.0.0.0")
         fails(C._parseIP, "A.0.0.0")
+        fails(pa, "1/1")
+        fails(pa, "192.168.0.1 50-40")
+        fails(pa, "192.168.0.1 50-9999999")
 	fails(C._parseBase64, "Y")
 	fails(C._parseHex, "Z")
 	fails(C._parseHex, "A")
@@ -1728,7 +1799,138 @@ IntRS=5
         except ConfigError, e:
             # This is what we expect
             pass
-  
+
+
+#----------------------------------------------------------------------
+# Server descriptors
+SERVER_CONFIG = """
+[Server]
+EncryptIdentityKey: no
+PublicKeyLifetime: 10 days
+EncryptPublicKey: no
+Mode: relay
+Nickname: The Server
+Contact-Email: a@b.c
+Comments: This is a test of the emergency
+   broadcast system
+
+[Incoming/MMTP]
+Enabled = yes
+IP: 192.168.0.1
+Allow: 192.168.0.16 1-1024
+Deny: 192.168.0.16
+Allow: *
+
+[Outgoing/MMTP]
+Enabled = yes
+Allow: *
+
+[Delivery/MBOX]
+Enabled: yes
+"""
+
+SERVER_CONFIG_SHORT = """
+[Server]
+EncryptIdentityKey: no
+PublicKeyLifetime: 10 days
+EncryptPublicKey: no
+Mode: relay
+"""
+
+
+import mixminion.Config
+import mixminion.ServerInfo
+class ServerInfoTests(unittest.TestCase):
+    def testServerInfoGen(self):
+        d = tempfile.mktemp()
+        conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG)
+        identity = mixminion.Crypto.pk_generate(2048)
+        if not os.path.exists(d):
+            os.mkdir(d, 0700)
+        unlink_on_exit(d)
+        inf = mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
+                                                                   identity,
+                                                                   d,
+                                                                   "key1",
+                                                                   d)
+        info = mixminion.ServerInfo.ServerInfo(string=inf)
+        eq = self.assertEquals
+        eq(info['Server']['Descriptor-Version'], "1.0")
+        eq(info['Server']['IP'], "192.168.0.1")
+        eq(info['Server']['Nickname'], "The Server")
+        self.failUnless(0 <= time.time()-info['Server']['Published'] <= 120)
+        self.failUnless(0 <= time.time()-info['Server']['Valid-After']
+                          <= 24*60*60)
+        eq(info['Server']['Valid-Until']-info['Server']['Valid-After'],
+           10*24*60*60)
+        eq(info['Server']['Contact'], "a@b.c")
+        eq(info['Server']['Comments'],
+           "This is a test of the emergency broadcast system")
+        
+        eq(info['Incoming/MMTP']['Version'], "1.0")
+        eq(info['Incoming/MMTP']['Port'], 48099)
+        eq(info['Incoming/MMTP']['Protocols'], "1.0")
+        eq(info['Modules/MMTP']['Version'], "1.0")
+        eq(info['Modules/MMTP']['Protocols'], "1.0")
+        eq(info['Incoming/MMTP']['Allow'], [("192.168.0.16", "255.255.255.255",
+                                            1,1024),
+                                           ("0.0.0.0", "0.0.0.0",
+                                            48099, 48099)] )
+        eq(info['Incoming/MMTP']['Deny'], [("192.168.0.16", "255.255.255.255",
+                                            0,65535),
+                                           ])
+        eq(info['Modules/MBOX']['Version'], "1.0")
+
+        # Now make sure everything was saved properly
+        keydir = os.path.join(d, "key_key1")
+        eq(inf, open(os.path.join(keydir, "ServerDesc")).read())
+        keys = mixminion.ServerInfo.ServerKeys(d, "key1", d)
+        packetKey = mixminion.Crypto.pk_PEM_load(
+            os.path.join(keydir, "mix.key"))
+        eq(packetKey.get_public_key(),
+           info['Server']['Packet-Key'].get_public_key())
+        mmtpKey = mixminion.Crypto.pk_PEM_load(
+            os.path.join(keydir, "mmtp.key"))
+        eq(mixminion.Crypto.sha1(mmtpKey.encode_key(1)),
+           info['Incoming/MMTP']['Key-Digest'])
+
+        # Now check the digest and signature
+        identityPK = info['Server']['Identity']
+        pat = re.compile(r'^(Digest:|Signature:).*$', re.M)
+        x = sha1(pat.sub(r'\1', inf))
+
+        eq(info['Server']['Digest'], x)
+        eq(x, mixminion.Crypto.pk_check_signature(info['Server']['Signature'],
+                                                  identityPK))
+
+        # Now with a shorter configuration
+        conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG_SHORT)
+        inf2 = mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
+                                                                    identity,
+                                                                    d,
+                                                                    "key2",
+                                                                    d)
+        
+        # Now with a bad signature
+        sig2 = mixminion.Crypto.pk_sign(sha1("Hello"), identity)
+        sig2 = binascii.b2a_base64(sig2).replace("\n", "")
+        sigpat = re.compile('^Signature:.*$', re.M)
+        badSig = sigpat.sub("Signature: %s" % sig2, inf)
+        self.failUnlessRaises(ConfigError,
+                              mixminion.ServerInfo.ServerInfo,
+                              None, badSig)
+
+        # But make sure we don't check the sig on assumeValid
+        mixminion.ServerInfo.ServerInfo(None, badSig, assumeValid=1)
+
+        # Now with a bad digest
+        badDig = inf.replace("a@b.c", "---")
+        self.failUnlessRaises(ConfigError,
+                              mixminion.ServerInfo.ServerInfo,
+                              None, badSig)
+        
+        
+        
 def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
@@ -1736,7 +1938,9 @@ def testSuite():
     suite.addTest(tc(MinionlibCryptoTests))
     suite.addTest(tc(CryptoTests))
     suite.addTest(tc(FormatTests))
+    suite.addTest(tc(LogTests))
     suite.addTest(tc(ConfigFileTests))
+    suite.addTest(tc(ServerInfoTests))
     suite.addTest(tc(HashLogTests))
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))

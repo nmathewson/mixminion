@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.5 2002/07/26 20:52:17 nickm Exp $
+# $Id: Config.py,v 1.6 2002/07/28 22:42:33 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -32,6 +32,19 @@
    [Section2]
    Key5 value5
       value5 value5 value5
+
+   We also specify a 'restricted' format in which blank lines,
+   comments,  line continuations, and entry formats other than 'key: value'
+   are forbidden.  Example:
+
+   [Section1]
+   Key1: Value1
+   Key2: Value2
+   Key3: Value3
+   [Section2]
+   Key4: Value4
+
+   The restricted format is used for server descriptors.   
    """
 
 __all__ = [ 'getConfig', 'loadConfig', 'addHook' ]
@@ -84,7 +97,7 @@ def addHook(hook):
     # This isn't a method of _Config, since we want to be able to call
     # it before we read the configuration file.
     _CONFIG_HOOKS.append(hook)
-    
+
 #----------------------------------------------------------------------
 
 class ConfigError(MixError):
@@ -104,7 +117,7 @@ def _parseBoolean(boolean):
 
 def _parseSeverity(severity):
     """Validation function.  Converts a config value to a log severity.
-       Raises ConfigError on failure."""  
+       Raises ConfigError on failure."""
     s = severity.strip().upper()
     if not mixminion.Common._SEVERITIES.has_key(s):
         raise ConfigError("Invalid log level %r" % (severity))
@@ -112,7 +125,7 @@ def _parseSeverity(severity):
 
 def _parseServerMode(mode):
     """Validation function.  Converts a config value to a server mode
-       (one of 'relay' or 'local'). Raises ConfigError on failure."""  
+       (one of 'relay' or 'local'). Raises ConfigError on failure."""
     s = mode.strip().lower()
     if s not in ('relay', 'local'):
         raise ConfigError("Server mode must be 'Relay' or 'Local'")
@@ -131,14 +144,14 @@ _seconds_per_unit = {
     'day':    60*60*24,
     'week':   60*60*24*7,
     'mon':    60*60*24*30,
-    'month':  60*60*24*30,    # These last two aren't quite right, but we 
+    'month':  60*60*24*30,    # These last two aren't quite right, but we
     'year':   60*60*24*365,   # don't need exactness.
     }
 _abbrev_units = { 'sec' : 'second', 'min': 'minute', 'mon': 'month' }
 def _parseInterval(interval):
     """Validation function.  Converts a config value to an interval of time,
        in the format (number of units, name of unit, total number of seconds).
-       Raises ConfigError on failure."""  
+       Raises ConfigError on failure."""
     inter = interval.strip().lower()
     m = _interval_re.match(inter)
     if not m:
@@ -150,7 +163,7 @@ def _parseInterval(interval):
 
 def _parseInt(integer):
     """Validation function.  Converts a config value to an int.
-       Raises ConfigError on failure."""  
+       Raises ConfigError on failure."""
     i = integer.strip().lower()
     try:
         return int(i)
@@ -159,7 +172,7 @@ def _parseInt(integer):
 
 def _parseIP(ip):
     """Validation function.  Converts a config value to an IP address.
-       Raises ConfigError on failure."""  
+       Raises ConfigError on failure."""
     i = ip.strip().lower()
     try:
         f = mixminion.Packet._packIP(i)
@@ -168,9 +181,52 @@ def _parseIP(ip):
 
     return i
 
+_address_set_re = re.compile(r'''(\d+\.\d+\.\d+\.\d+|\*)
+                                 \s*
+                                 (?:/\s*(\d+\.\d+\.\d+\.\d+))?\s*
+                                 (?:(\d+)\s*
+                                           (?:-\s*(\d+))?
+                                        )?''',re.X)
+def _parseAddressSet_allow(s, allowMode=1):
+    """Validation function.  Converts an address set string of the form
+       IP/mask port-port into a tuple of (IP, Mask, Portmin, Portmax).
+       Raises ConfigError on failure."""
+    s = s.strip()
+    m = _address_set_re.match(s)
+    if not m:
+        raise ConfigError("Misformatted address rule %r", s)
+    ip, mask, port, porthi = m.groups()
+    if ip == '*':
+        if mask != None:
+            raise ConfigError("Misformatted address rule %r", s)
+        ip,mask = '0.0.0.0','0.0.0.0'
+    else:
+        ip = _parseIP(ip)
+    if mask:
+        mask = _parseIP(mask)
+    else:
+        mask = "255.255.255.255"
+    if port:
+        port = _parseInt(port)
+        if porthi:
+            porthi = _parseInt(porthi)
+        else:
+            porthi = port
+        if not 1 <= port <= porthi <= 65535:
+            raise ConfigError("Invalid port range %s-%s" %(port,porthi))
+    elif allowMode:
+        port = porthi = 48099
+    else:
+        port, porthi = 0, 65535
+
+    return (ip, mask, port, porthi)
+
+def _parseAddressSet_deny(s):
+    return _parseAddressSet_allow(s,0)
+
 def _parseCommand(command):
     """Validation function.  Converts a config value to a shell command of
-       the form (fname, optionslist). Raises ConfigError on failure."""  
+       the form (fname, optionslist). Raises ConfigError on failure."""
     c = command.strip().lower().split()
     if not c:
         raise ConfigError("Invalid command %r" %command)
@@ -187,13 +243,13 @@ def _parseCommand(command):
             c = os.path.join(p, cmd)
             if os.path.exists(c):
                 return c, opts
-            
+
         raise ConfigError("No match found for command %r" %cmd)
 
 _allChars = "".join(map(chr, range(256)))
 def _parseBase64(s,_hexmode=0):
     """Validation function.  Converts a base-64 encoded config value into
-       its original. Raises ConfigError on failure."""  
+       its original. Raises ConfigError on failure."""
     s = s.translate(_allChars, " \t\v\n")
     try:
 	if _hexmode:
@@ -205,7 +261,7 @@ def _parseBase64(s,_hexmode=0):
 
 def _parseHex(s):
     """Validation function.  Converts a hex-64 encoded config value into
-       its original. Raises ConfigError on failure."""  
+       its original. Raises ConfigError on failure."""
     return _parseBase64(s,1)
 
 def _parsePublicKey(s):
@@ -244,7 +300,7 @@ def _parseDate(s,_timeMode=0):
 	    (0 <= mm < 60)  and (0 <= ss <= 61)):
 	raise ConfigError("Invalid %s %r" % (("date","time")[_timeMode],s))
 
-    
+
     # we set the DST flag to zero so that subtracting time.timezone always
     # gives us gmt.
     return time.mktime((yyyy,MM,dd,hh,mm,ss,0,0,0))-time.timezone
@@ -272,7 +328,7 @@ def _readConfigLine(line, restrict=0):
          'MORE': The line is a continuation line of an entry. VALUE is the
                  contents of the line.
     """
-    
+
     if line == '':
         return None, None
 
@@ -298,9 +354,8 @@ def _readConfigLine(line, restrict=0):
 
 def _readConfigFile(contents, restrict=0):
     """Helper function. Given the string contents of a configuration
-
-       Returns a list of (SECTION-NAME, SECTION) tuples, where each
-       SECTION is a list of (KEY, VALUE, LINENO) tuples.
+       file, returns a list of (SECTION-NAME, SECTION) tuples, where
+       each SECTION is a list of (KEY, VALUE, LINENO) tuples.
 
        Throws ConfigError if the file is malformatted.
     """
@@ -308,7 +363,7 @@ def _readConfigFile(contents, restrict=0):
     curSection = None
     lineno = 0
     lastKey = None
-    
+
     fileLines = contents.split("\n")
     if fileLines[-1] == '':
 	del fileLines[-1]
@@ -358,7 +413,7 @@ def _formatEntry(key,val,w=79,ind=4):
             lines.append(ind+v)
     lines.append("") # so the last line ends with \n
     return "\n".join(lines)
-    
+
 class _ConfigFile:
     """Base class to parse, validate, and represent configuration files.
     """
@@ -368,14 +423,14 @@ class _ConfigFile:
     #  _sectionEntries: A  map from secname->[ (key, value) ] inorder.
     #  _sectionNames: An inorder list of secnames.
     #
-    # Set by a subclass:
+    # Fields to be set by a subclass:
     #     _syntax is map from sec->{key:
     #                               (ALLOW/REQUIRE/ALLOW*/REQUIRE*,
     #                                 parseFn,
     #                                 default, ) }
     #     _restrictFormat is 1/0: do we allow full RFC822ness, or do
     #         we insist on a tight data format?
-    
+
     ## Validation rules:
     # A key without a corresponding entry in _syntax gives an error.
     # A section without a corresponding entry is ignored.
@@ -388,12 +443,17 @@ class _ConfigFile:
     #   the entry's value will be set to default.  Otherwise, the value
     #   will be set to None.
 
-    def __init__(self, fname=None, string=None):
-        """Create a new _ConfigFile.  If fname is set, read from
-           fname.  If string is set, parse string. """
-        assert fname is None or string is None
-        self.fname = fname
-        if fname:
+    def __init__(self, filename=None, string=None, assumeValid=0):
+        """Create a new _ConfigFile.  If <filename> is set, read from
+           a corresponding file.  If <string> is set, parse its contents.
+
+           If <assumeValid> is true, skip all unnecessary validation
+           steps.  (Use this to load a file that's already been checked as
+           valid.)"""
+        assert filename is None or string is None
+        self.assumeValid = assumeValid
+        self.fname = filename
+        if filename:
             self.reload()
         elif string:
             cs = StringIO(string)
@@ -401,7 +461,7 @@ class _ConfigFile:
                 self.__reload(cs)
             finally:
                 cs.close()
-        else:    
+        else:
             self.clear()
 
     def clear(self):
@@ -409,7 +469,7 @@ class _ConfigFile:
         self._sections = {}
         self._sectionEntries = {}
         self._sectionNames = []
-        
+
     def reload(self):
         """Reload this _ConfigFile object from disk.  If the object is no
            longer present and correctly formatted, raise an error, but leave
@@ -441,10 +501,10 @@ class _ConfigFile:
 
             if self_sections.has_key(secName):
                 raise ConfigError("Duplicate section [%s]" %secName)
-            
+
             section = {}
             sectionEntries = []
-            entryLines = [] 
+            entryLines = []
             self_sections[secName] = section
             self_sectionEntries[secName] = sectionEntries
             sectionEntryLines[secName] = entryLines
@@ -508,7 +568,8 @@ class _ConfigFile:
                         assert rule == 'ALLOW*'
                         section[k] = map(parseFn,default)
 
-        # Check for missing required sections.
+        # Check for missing required sections, setting any missing
+        # allowed sections to {}.
         for secName, secConfig in self._syntax.items():
             secRule = secConfig.get('__SECTION__', ('ALLOW',None,None))
             if (secRule[0] == 'REQUIRE'
@@ -517,15 +578,18 @@ class _ConfigFile:
             elif not self_sections.has_key(secName):
                 self_sections[secName] = {}
                 self_sectionEntries[secName] = {}
-
-        # Make sure that sectionEntries is correct (sanity check)
-        for s in self_sectionNames:
-            for k,v in self_sectionEntries[s]:
-                assert v == self_sections[s][k] or v in self_sections[s][k]
-
-        # Call our validation hook.
-        self.validate(self_sections, self_sectionEntries, sectionEntryLines,
-		      fileContents)
+                
+        if not self.assumeValid:
+            # Make sure that sectionEntries is correct (sanity check)
+            #XXXX remove this
+            for s in self_sectionNames:
+                for k,v in self_sectionEntries[s]:
+                    assert (v==self_sections[s][k] or
+                            v in self_sections[s][k])
+                    
+            # Call our validation hook.
+            self.validate(self_sections, self_sectionEntries, 
+                          sectionEntryLines, fileContents)
 
         self._sections = self_sections
         self._sectionEntries = self_sectionEntries
@@ -562,13 +626,13 @@ class _ConfigFile:
             for k,v in self._sectionEntries[s]:
                 lines.append(_formatEntry(k,v))
             lines.append("\n")
-            
+
         return "".join(lines)
 
 class ClientConfig(_ConfigFile):
     _restrictFormat = 0
     _syntax = {
-        'Host' : { '__SECTION__' : ('REQUIRE', None, None),
+        'Host' : { '__SECTION__' : ('ALLOW', None, None),
                    'ShredCommand': ('ALLOW', _parseCommand, None),
                    'EntropySource': ('ALLOW', None, "/dev/urandom"),
                    },
@@ -591,7 +655,7 @@ class ClientConfig(_ConfigFile):
 class ServerConfig(_ConfigFile):
     _restrictFormat = 0
     _syntax = {
-        'Host' : ClientConfig._syntax['Host'], 
+        'Host' : ClientConfig._syntax['Host'],
         'Server' : { '__SECTION__' : ('REQUIRE', None, None),
                      'Homedir' : ('ALLOW', None, "/var/spool/minion"),
                      'LogFile' : ('ALLOW', None, None),
@@ -600,23 +664,28 @@ class ServerConfig(_ConfigFile):
                      'EncryptIdentityKey' : ('REQUIRE', _parseBoolean, "yes"),
                      'PublicKeyLifetime' : ('REQUIRE', _parseInterval,
                                             "30 days"),
+                     'PublicKeySloppiness': ('ALLOW', _parseInterval,
+                                             "5 minutes"),
                      'EncryptPublicKey' : ('REQUIRE', _parseBoolean, "no"),
                      'Mode' : ('REQUIRE', _parseServerMode, "local"),
+                     'Nickname': ('ALLOW', None, None),
+                     'Contact-Email': ('ALLOW', None, None),
+                     'Comments': ('ALLOW', None, None),
                      },
         'DirectoryServers' : { 'ServerURL' : ('ALLOW*', None, None),
                                'Publish' : ('ALLOW', _parseBoolean, "no"),
                                'MaxSkew' : ('ALLOW', _parseInterval,
-                                            "10 minutes",) }, 
+                                            "10 minutes",) },
         'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
 			    'IP' : ('ALLOW', _parseIP, None),
                             'Port' : ('ALLOW', _parseInt, "48099"),
-                            'Allow' : ('ALLOW*', None, None),
-                            'Deny' : ('ALLOW*', None, None) },
+                            'Allow' : ('ALLOW*', _parseAddressSet_allow, None),
+                            'Deny' : ('ALLOW*', _parseAddressSet_deny, None) },
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-                            'Allow' : ('ALLOW*', None, None),
-                            'Deny' : ('ALLOW', None, None) },
-        'Delivery/MBox' : { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
-                            'AddressFile' : ('REQUIRE', None, None),
+                            'Allow' : ('ALLOW*', _parseAddressSet_allow, None),
+                            'Deny' : ('ALLOW*', _parseAddressSet_deny, None) },
+        'Delivery/MBOX' : { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
+                            'AddressFile' : ('ALLOW', None, None),
                             'Command' : ('ALLOW', _parseCommand, "sendmail") },
         }
     # XXXX Missing: Queue-Size / Queue config options
@@ -628,3 +697,10 @@ class ServerConfig(_ConfigFile):
         #XXXX write this.
         pass
     
+##         if sections['Server']['PublicKeyLifeTime'][2] < 24*60*60:
+##             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
+##         elif sections['Server']['PublicKeyLifeTime'][2] % (24*60*60) > 30:
+##             getLog().warn("PublicKeyLifetime rounded to the nearest day")
+##             nDays = sections[60*60*24]
+
+

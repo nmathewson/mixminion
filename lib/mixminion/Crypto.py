@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.10 2002/07/26 20:52:17 nickm Exp $
+# $Id: Crypto.py,v 1.11 2002/07/28 22:42:33 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -29,7 +29,6 @@ __all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
 
 CryptoError = _ml.CryptoError
 generate_cert = _ml.generate_cert
-PEM_read_key = _ml.rsa_PEM_read_key
 
 # Number of bytes in an AES key.
 AES_KEY_LEN = 128 >> 3
@@ -188,6 +187,27 @@ def pk_decode_public_key(s):
     """Reads an ASN1 representation of a public key from external storage."""
     return _ml.rsa_decode_key(s,1)
 
+def pk_PEM_save(rsa, filename, password=None):
+    """Save a PEM-encoded private key to a file.  If <password> is provided,
+       encrypt the key using the password."""
+    f = open(filename, 'w')
+    if password:
+        rsa.PEM_write_key(f, 0, password)
+    else:
+        rsa.PEM_write_key(f, 0)
+    f.close()
+
+def pk_PEM_load(filename, password=None):
+    """Load a PEM-encoded private key from a file.  If <password> is provided,
+       decrypt the key using the password."""
+    f = open(filename, 'r')
+    if password:
+        rsa = _ml.rsa_PEM_read_key(f, 0, password)
+    else:
+        rsa = _ml.rsa_PEM_read_key(f, 0)
+    f.close()
+    return rsa
+    
 #----------------------------------------------------------------------
 # OAEP Functionality
 #

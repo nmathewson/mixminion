@@ -1,6 +1,8 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.8 2002/07/09 04:07:14 nickm Exp $ */
+/* $Id: crypt.c,v 1.9 2002/07/28 22:42:33 nickm Exp $ */
 #include <Python.h>
+
+#include <time.h>
 
 #include <openssl/bn.h>
 #include <openssl/rsa.h>
@@ -871,20 +873,25 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 const char mm_generate_cert__doc__[] = 
-   "generate_cert(filename, rsa, days, cn)\n\n"
-   "Generate a self-signed X509 certificate suitable for use by a Mixminion\n"
-   "server.  The certificate will be stored to <filename>, and use the\n"
-   "=private= key <rsa>.  It will be valid for the next <days> days.  The\n"
-   "certificate\'s commonName field will be set to <cn>.  All other fields\n"
-   "will be given reasonable defaults.\n";
+  "generate_cert(filename, rsa, cn, start_time, end_time)\n\n"
+  "Generate a self-signed X509 certificate suitable for use by a Mixminion\n"
+  "server.  The certificate will be stored to <filename>, and use the\n"
+  "=private= key <rsa>.  The certificate\'s commonName field will be set to\n"
+  "<cn>.  The key will be valid from <start_time> until <end_time>.\n"
+  "All other fields will be given reasonable defaults.\n";
 
 PyObject *
 mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-	static char *kwlist[] = { "filename", "rsa", "days", "cn", NULL };
+	static char *kwlist[] = { "filename", "rsa", "cn", 
+				  "start_time", "end_time", NULL };
 	char *filename, *cn;
 	PyObject *_rsa;
-	int days;
+	/* XXXX Python wants to write into longs.  C wants time_t.  We should
+	 * XXXX check somewhere to be sure that we can case long to time_t
+	 * XXXX without ill effects.
+	 */
+	long start_time, end_time;
 	
 	RSA *rsa = NULL;
 	EVP_PKEY *pkey = NULL;
@@ -893,10 +900,12 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 	X509_NAME *name = NULL;
 	int nid;
 	PyObject *retval;
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO!is:PEM_write_key",
+	time_t time;
+	
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO!sll:generate_cert",
 					 kwlist, &filename,
-					 &mm_RSA_Type, &_rsa, &days, &cn))
+					 &mm_RSA_Type, &_rsa, &cn, 
+					 &start_time, &end_time))
 		return NULL;
 
 	if (!(rsa = RSAPrivateKey_dup(((mm_RSA*)_rsa)->rsa)))
@@ -927,9 +936,12 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	if (!(X509_set_issuer_name(x509, name)))
 		goto error;
-	if (!X509_gmtime_adj(X509_get_notBefore(x509),0)) 
+
+	time = (time_t) start_time;
+	if (!X509_time_adj(X509_get_notBefore(x509),0,&time)) 
 		goto error;
-	if (!X509_gmtime_adj(X509_get_notAfter(x509), 60L*60L*24L*days)) 
+	time = (time_t) end_time;
+	if (!X509_time_adj(X509_get_notAfter(x509),0,&time))
 		goto error;
 	if (!(X509_set_pubkey(x509, pkey)))
 		goto error;

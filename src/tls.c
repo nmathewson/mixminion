@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.5 2002/07/25 15:52:57 nickm Exp $ */
+/* $Id: tls.c,v 1.6 2002/07/28 22:42:33 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -87,8 +87,6 @@ typedef struct mm_TLSSock {
 } mm_TLSSock;
 
 #define mm_TLSSock_Check(v) ((v)->ob_type == &mm_TLSSock_Type)
-
-/* XXXX Code to make new cert */
 
 const char mm_TLSContext_new__doc__[] = 
    "TLSContext([certfile, [rsa, [dhfile] ] ] )\n\n"
