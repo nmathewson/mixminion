@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.44 2003/02/13 10:56:39 nickm Exp $
+# $Id: setup.py,v 1.45 2003/02/13 17:22:58 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -100,8 +100,8 @@ if USE_OPENSSL:
         PREFIXES = ("/usr/local/ssl", "/usr/contrib/ssl", "/usr/lib/ssl",
                     "/usr/ssl", "/usr/pkg", "/usr/local", "/usr", "/")
         if os.environ.get("OPENSSL_PREFIX"):
-            prefixes = (os.environ["OPENSSL_PREFIX"],)
-        for prefix in prefixes:
+            PREFIXES = (os.environ["OPENSSL_PREFIX"],)
+        for prefix in PREFIXES:
             if found:
                 break
             print "Looking in %s ..."%prefix
