@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.58 2003/12/08 02:29:39 nickm Exp $
+# $Id: Makefile,v 1.59 2003/12/08 04:06:42 arma Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -224,7 +224,7 @@ unpack-openssl:
             fi;                                                             \
 	    echo "Digest on $(OPENSSL_FILE) is correct.";                   \
 	else                                                                \
-            echo "Did not found expected version of $(OPENSSL_FILE); not checking digest."; \
+            echo "Found unexpected version of $(OPENSSL_FILE); not checking digest."; \
 	fi;                                                                 \
 	TGZ=`ls openssl-*.tar.gz` ;                                         \
 	if [ "x$$TGZ" = "x" ]; then                                         \
