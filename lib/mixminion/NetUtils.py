@@ -133,7 +133,7 @@ def setGlobalTimeout(timeout,noalarm=0):
     assert timeout > 0
     if _SOCKETS_SUPPORT_TIMEOUT:
         _PREV_DEFAULT_TIMEOUT = socket.getdefaulttimeout()
-        socket.setdefaultimeout(timeout)
+        socket.setdefaulttimeout(timeout)
     elif not noalarm:
         setAlarmTimeout(timeout)
 
