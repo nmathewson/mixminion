@@ -1,11 +1,12 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.4 2003/01/09 06:28:58 nickm Exp $
+# $Id: HashLog.py,v 1.5 2003/01/09 17:43:20 nickm Exp $
 
 """mixminion.HashLog
 
    Persistant memory for the hashed secrets we've seen.  Used by
    PacketHandler to prevent replay attacks."""
 
+import binascii
 import os
 import anydbm, dumbdbm
 import threading
@@ -89,8 +90,12 @@ class HashLog:
             self.__lock.acquire()
             try:
                 if self.journal.get(hash,0):
+                    LOG.trace("Checking hash %s: seen recently",
+                              binascii.b2a_hex(hash))
                     return 1
                 _ = self.log[hash]
+                LOG.trace("Checking hash %s: seen a while ago",
+                          binascii.b2a_hex(hash))
                 return 1
             except KeyError:
                 return 0
@@ -100,8 +105,10 @@ class HashLog:
     def logHash(self, hash):
         """Insert 'hash' into the database."""
         assert len(hash) == DIGEST_LEN
+        LOG.trace("Logging hash %s", binascii.b2a_hex(hash))
         try:
             self.__lock.acquire()
+            # XXX max journal size?
             self.journal[hash] = 1
             os.write(self.journalFile, hash)
         finally:
@@ -109,6 +116,7 @@ class HashLog:
 
     def sync(self):
         """Flushes changes to this log to the filesystem."""
+        LOG.trace("Flushing hash log to disk")
         try:
             self.__lock.acquire()
             for hash in self.journal.keys():
