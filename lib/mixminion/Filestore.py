@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.15 2003/12/04 05:02:50 nickm Exp $
+# $Id: Filestore.py,v 1.16 2004/01/03 05:45:26 nickm Exp $
 
 """mixminion.Filestore
 
@@ -20,7 +20,6 @@ import dumbdbm
 import errno
 import os
 import stat
-import sys
 import threading
 import time
 import whichdb
@@ -212,9 +211,10 @@ class BaseStore:
            you're done writing, you must call finishMessage to
            commit your changes, or abortMessage to reject them."""
         while 1:
-            file, handle = getCommonPRNG().openNewFile(self.dir, "inp_", 1,
+            f, handle = getCommonPRNG().openNewFile(self.dir, "inp_", 1,
                                                        "msg_")
-            return file, handle
+            return f, handle
+        raise AssertionError # unreached; appease pychecker
 
     def finishMessage(self, f, handle, _ismeta=0):
         """Given a file and a corresponding handle, closes the file

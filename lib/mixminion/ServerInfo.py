@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.69 2003/12/12 22:56:16 nickm Exp $
+# $Id: ServerInfo.py,v 1.70 2004/01/03 05:45:26 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -68,7 +68,7 @@ def displayServer(s):
     elif s is None:
         return "unknown server"
     else:
-        assert 0
+        raise AssertionError # unreached
 
     return "%s at %s" % (nickname, addr)
 
@@ -391,7 +391,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """Return true iff this server is one we (that is, this
            version of Mixminion) can send packets to directly."""
         myInProtocols = self.getIncomingMMTPProtocols()
-        for out in mixminion.MMTPClient.BlockingClientConnection.PROTOCOL_VERSIONS:
+        for out in mixminion.MMTPClient.MMTPClientConnection.PROTOCOL_VERSIONS:
             if out in myInProtocols:
                 return 1
         return 0

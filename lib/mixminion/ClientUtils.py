@@ -152,6 +152,8 @@ def getNewPassword_term(prompt):
         f.write("Passphrases do not match.\n")
         f.flush()
 
+    raise AssertionError # unreached; appease pychecker
+
 #----------------------------------------------------------------------
 # Functions to save and load data do disk in password-encrypted files.
 #
@@ -193,8 +195,8 @@ def _readEncryptedFile(fname, password, magicList):
     key = sha1(salt+password+salt)[:AES_KEY_LEN]
     s = ctr_crypt(s, key)
     data = s[:-DIGEST_LEN]
-    hash = s[-DIGEST_LEN:]
-    if hash != sha1(data+salt+magic):
+    digest = s[-DIGEST_LEN:]
+    if digest != sha1(data+salt+magic):
         raise BadPassword()
 
     # We've decrypted it; now let's extract the data from the padding.
@@ -218,8 +220,8 @@ def _writeEncryptedFile(fname, password, magic, data):
     data = "".join([length,data,padding])
     salt = prng.getBytes(SALT_LEN)
     key = sha1(salt+password+salt)[:AES_KEY_LEN]
-    hash = sha1("".join([data,salt,magic]))
-    encrypted = ctr_crypt(data+hash, key)
+    digest = sha1("".join([data,salt,magic]))
+    encrypted = ctr_crypt(data+digest, key)
     contents = "".join([magic,"\x00",salt,encrypted])
     writeFile(fname, armorText(contents,
                                "TYPE III KEYRING", [("Version","0.1")]))
@@ -605,12 +607,12 @@ class SURBLog(mixminion.Filestore.DBBase):
             now = time.time() + 60*60
         allHashes = self.log.keys()
         removed = []
-        for hash in allHashes:
-            if self._decodeVal(self.log[hash]) < now:
-                removed.append(hash)
+        for h in allHashes:
+            if self._decodeVal(self.log[h]) < now:
+                removed.append(h)
         del allHashes
-        for hash in removed:
-            del self.log[hash]
+        for h in removed:
+            del self.log[h]
         self.log['LAST_CLEANED'] = str(int(now))
         self.sync()
 

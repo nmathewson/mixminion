@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.65 2003/12/08 02:22:56 nickm Exp $
+# $Id: BuildMessage.py,v 1.66 2004/01/03 05:45:26 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -688,7 +688,7 @@ def _getRandomTag(rng):
 
 def _checkPayload(payload):
     'Return true iff the hash on the given payload seems valid'
-    if ord(payload[0]) & 0x80:
+    if (ord(payload[0]) & 0x80):
         return payload[3:23] == Crypto.sha1(payload[23:])
     else:
         return payload[2:22] == Crypto.sha1(payload[22:])

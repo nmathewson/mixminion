@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.69 2003/12/14 01:29:25 nickm Exp $
+# $Id: Packet.py,v 1.70 2004/01/03 05:45:26 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -291,22 +291,22 @@ def parsePayload(payload):
     bit0 = ord(payload[0]) & 0x80
     if bit0:
         # We have a fragment
-        idxhi, idxlo, hash, msgID, msgLen = \
+        idxhi, idxlo, digest, msgID, msgLen = \
                struct.unpack(FRAGMENT_UNPACK_PATTERN,
                              payload[:FRAGMENT_PAYLOAD_OVERHEAD])
         idx = ((idxhi & 0x7f) << 16) + idxlo
         contents = payload[FRAGMENT_PAYLOAD_OVERHEAD:]
         if msgLen <= len(contents):
             raise ParseError("Payload has an invalid size field")
-        return FragmentPayload(idx,hash,msgID,msgLen,contents)
+        return FragmentPayload(idx,digest,msgID,msgLen,contents)
     else:
         # We have a singleton
-        size, hash = struct.unpack(SINGLETON_UNPACK_PATTERN,
+        size, digest = struct.unpack(SINGLETON_UNPACK_PATTERN,
                                    payload[:SINGLETON_PAYLOAD_OVERHEAD])
         contents = payload[SINGLETON_PAYLOAD_OVERHEAD:]
         if size > len(contents):
             raise ParseError("Payload has invalid size field")
-        return SingletonPayload(size,hash,contents)
+        return SingletonPayload(size,digest,contents)
 
 # A singleton payload starts with a 0 bit, 15 bits of size, and a 20-byte hash
 SINGLETON_UNPACK_PATTERN = "!H%ds" % (DIGEST_LEN)
@@ -321,9 +321,9 @@ class _Payload:
 class SingletonPayload(_Payload):
     """Represents the payload for a standalone mixminion message.
        Fields:  size, hash, data.  (Note that data is padded.)"""
-    def __init__(self, size, hash, data):
+    def __init__(self, size, digest, data):
         self.size = size
-        self.hash = hash
+        self.hash = digest
         self.data = data
 
     def computeHash(self):
@@ -364,9 +364,9 @@ class SingletonPayload(_Payload):
 class FragmentPayload(_Payload):
     """Represents the fields of a decoded fragment payload.
     """
-    def __init__(self, index, hash, msgID, msgLen, data):
+    def __init__(self, index, digest, msgID, msgLen, data):
         self.index = index
-        self.hash = hash
+        self.hash = digest
         self.msgID = msgID
         self.msgLen = msgLen
         self.data = data
@@ -530,7 +530,7 @@ class ReplyBlock:
 
     def format(self):
         from mixminion.ServerInfo import displayServer
-        hash = binascii.b2a_hex(sha1(self.pack()))
+        digest = binascii.b2a_hex(sha1(self.pack()))
         expiry = formatTime(self.timestamp)
         if self.routingType == SWAP_FWD_IPV4_TYPE:
             routing = parseIPV4Info(self.routingInfo)
@@ -540,7 +540,7 @@ class ReplyBlock:
             routing = None
         return """Reply block hash: %s
 Expires at: %s GMT
-First server is: %s""" % (hash, expiry, displayServer(routing))
+First server is: %s""" % (digest, expiry, displayServer(routing))
 
     def pack(self):
         """Returns the external representation of this reply block"""
@@ -902,6 +902,8 @@ def parseMessageAndHeaders(message):
         else:
             LOG.warn("Could not parse headers on message; not using them.")
             return message, headers
+
+    raise AssertionError # Unreached; appease pychecker
 
 #----------------------------------------------------------------------
 # COMPRESSION FOR PAYLOADS

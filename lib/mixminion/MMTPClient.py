@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.45 2003/12/08 02:22:56 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: MMTPClient.py,v 1.46 2004/01/03 05:45:26 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -13,207 +13,367 @@
    easy-to-verify reference implementation of the protocol.)
    """
 
-__all__ = [ "BlockingClientConnection", "sendPackets" ]
+__all__ = [ "MMTPClientConnection", "sendPackets", "DeliverableMessage" ]
 
 import socket
+import time
 import mixminion._minionlib as _ml
 import mixminion.NetUtils
 import mixminion.Packet
 import mixminion.ServerInfo
+import mixminion.TLSConnection
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Common import MixProtocolError, MixProtocolReject, \
      MixProtocolBadAuth, LOG, MixError, formatBase64, TimeoutError
 from mixminion.Packet import IPV4Info, MMTPHostInfo
 
-class BlockingClientConnection:
-    """A BlockingClientConnection represents a MMTP connection to a single
-       server.
-    """
-    ## Fields:
-    # targetIP -- the dotted-quad, IPv4 address of our server.
-    # targetPort -- the port on the server
-    # targetKeyID -- sha1 hash of the ASN1 encoding of the public key we
-    #   expect the server to use, or None if we don't care.
-    # context: a TLSContext object; used to create connections.
-    # serverName: The name of the server to display in log messages.
-    # sock: a TCP socket, open to the server.
-    # tls: a TLS socket, wrapping sock.
-    # protocol: The MMTP protocol version we're currently using, or None
-    #     if negotiation hasn't completed.
-    # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
-    #     in decreasing order of preference.
+
+def _noop(*k,**v): pass
+class EventStatsDummy:
+    def __getattr__(self,a):
+        return _noop
+EventStats = EventStatsDummy()
+EventStats.log = EventStats
+
+def useEventStats():
+    import mixminion.server.EventStats
+    global EventStats
+    EventStats = mixminion.server.EventStats
+
+class DeliverableMessage:
+    """Interface to be implemented by messages deliverable by MMTP"""
+    def __init__(self):
+        pass
+    def getContents(self):
+        raise NotImplementedError
+    def isJunk(self):
+        raise NotImplementedError
+    def succeeded(self):
+        raise NotImplementedError
+    def failed(self,retriable=0):
+        raise NotImplementedError
+
+class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
+    """A nonblocking MMTP connection sending packets and padding to a single
+       server."""
+    # Which MMTP versions do we understand?
     PROTOCOL_VERSIONS = ['0.3']
+    # If we've written WRITEAHEAD packets without receiving any acks, we wait
+    # for an ack before sending any more.
+    WRITEAHEAD = 6
+    # Length of a single transmission unit (control string, packet, checksum)
+    MESSAGE_LEN = 6 + (1<<15) + 20
+    # Length of a single acknowledgment (control string, digest)
+    ACK_LEN = 10+20
+
+    ## Fields:
+    # targetAddr, targetPort, targetKeyID: the address and keyid of the
+    #   server we're trying to connect to.
+    # certCache: an instance of PeerCertificateCache to use to check the
+    #   peer server's certificate
+    # packets: a list of DeliverableMessage objects that have not yet been
+    #   sent to the TLS connection, in the order they should be sent.
+    # pendingPackets: a list of DeliverableMessage objects that have been
+    #   sent to the TLS connection, but which have not yet been acknowledged.
+    # nPacketsSent: total number of packets sent across the TLS connection
+    # nPacketsAcked: total number of acks received from the TLS connection
+    # expectedAcks: list of acceptAck,rejectAck tuples for the packets
+    #   that we've sent but haven't gotten acks for.
+    # _isConnected: flag: true if the TLS connection been completed,
+    #   and no errors have been encountered.
+    # _isFailed: flag: has this connection encountered any errors?
+
+    ####
+    # External interface
+    ####
     def __init__(self, targetFamily, targetAddr, targetPort, targetKeyID,
-                 serverName=None):
-        """Open a new connection."""
-        self.targetFamily = targetFamily
+                 serverName=None, context=None, certCache=None):
+        """Initialize a new MMTPClientConnection."""
+        assert targetFamily in (mixminion.NetUtils.AF_INET,
+                                mixminion.NetUtils.AF_INET6)
+        if context is None:
+            context = _ml.TLSContext_new()
+        if serverName is None:
+            serverName = mixminion.ServerInfo.displayServer(
+                mixminion.Packet.IPV4Info(targetAddr, targetPort, targetKeyID))
+        if certCache is None:
+            certCache = PeerCertificateCache()
+
         self.targetAddr = targetAddr
         self.targetPort = targetPort
-        if targetKeyID != '\x00' *20:
+        sock = socket.socket(targetFamily, socket.SOCK_STREAM)
+        sock.setblocking(0)
+        try:
+            sock.connect((targetAddr, targetPort))
+        except socket.error, e:
+            # This will always raise an error, since we're nonblocking.  That's
+            # okay... but it had better be EINPROGRESS or the local equivalent.
+            if e[0] not in mixminion.NetUtils.IN_PROGRESS_ERRNOS:
+                raise e
+
+        tls = context.sock(sock)
+        mixminion.TLSConnection.TLSConnection.__init__(self, tls, sock, serverName)
+
+        if targetKeyID != '\x00' * 20:
             self.targetKeyID = targetKeyID
         else:
             self.targetKeyID = None
-        self.context = _ml.TLSContext_new()
-        self.tls = None
-        self.sock = None
-        self.certCache = PeerCertificateCache()
-        if serverName:
-            self.serverName = serverName
+        self.certCache = certCache
+
+        self.packets = []
+        self.pendingPackets = []
+        self.expectedAcks = []
+        self.nPacketsSent = self.nPacketsAcked = 0
+        self._isConnected = 0
+        self._isFailed = 0
+        self._isAlive = 1 #DOCDOC
+        EventStats.log.attemptedConnect()
+        LOG.debug("Openining client connection to %s",self.address)
+        self.beginConnecting()
+
+    def addPacket(self, deliverableMessage):
+        """Queue 'deliverableMessage' for transmission.  When it has been
+           acknowledged, deliverableMessage.succeeded will be called.  On
+           failure, deliverableMessage.failed will be called."""
+        assert hasattr(deliverableMessage, 'getContents')
+        self.packets.append(deliverableMessage)
+        # If we're connected, maybe start sending the packet we just added.
+        self._updateRWState()
+
+    ####
+    # Implementation
+    ####
+    def _startSendingNextPacket(self):
+        "Helper: begin transmitting the next available packet."
+        # There _is_ a next available packet, right?
+        assert self.packets and self._isConnected
+        pkt = self.packets[0]
+        del self.packets[0]
+
+        if pkt.isJunk():
+            control = "JUNK\r\n"
+            serverControl = "RECEIVED\r\n"
+            hashExtra = "JUNK"
+            serverHashExtra = "RECEIVED JUNK"
         else:
-            self.serverName = mixminion.ServerInfo.displayServer(
-                mixminion.Packet.IPV4Info(targetAddr, targetPort, targetKeyID))
+            control = "SEND\r\n"
+            serverControl = "RECEIVED\r\n"
+            hashExtra = "SEND"
+            serverHashExtra = "RECEIVED"
+            EventStats.log.attemptedRelay()
 
-    def connect(self, connectTimeout=None):
-        """Connect to the server, perform the TLS handshake, check the server
-           key, and negotiate a protocol version.  If connectTimeout is set,
-           wait no more than connectTimeout seconds for TCP handshake to
-           complete.
+        m = pkt.getContents()
+        if m == 'RENEGOTIATE':
+            # Renegotiate has been removed from the spec.
+            return
 
-           Raises TimeoutError on timeout, and MixProtocolError on all other
-           errors."""
-        try:
-            self._connect(connectTimeout)
-        except (socket.error, _ml.TLSError, _ml.TLSClosed,
-                _ml.TLSWantRead, _ml.TLSWantWrite), e:
-            self._raise(e, "connecting")
+        data = "".join([control, m, sha1(m+hashExtra)])
+        assert len(data) == self.MESSAGE_LEN
+        acceptedAck = serverControl + sha1(m+serverHashExtra)
+        rejectedAck = "REJECTED\r\n" + sha1(m+"REJECTED")
+        assert len(acceptedAck) == len(rejectedAck) == self.ACK_LEN
+        self.expectedAcks.append( (acceptedAck, rejectedAck) )
+        self.pendingPackets.append(pkt)
+        self.beginWriting(data)
+        self.nPacketsSent += 1
 
-    def _raise(self, err, action):
-        """Helper method: given an exception (err) and an action string (e.g.,
-           'connecting'), raises an appropriate MixProtocolError.
+    def _updateRWState(self):
+        """Helper: if we have any queued packets that haven't been sent yet,
+           and we aren't waiting for WRITEAHEAD acks, and we're connected,
+           start sending the pending packets.
         """
-        errstr = str(err)
-        if isinstance(err, socket.error):
-            tp = "Socket"
-            if mixminion.NetUtils.exceptionIsTimeout(err):
-                tp = "Timeout"
-        elif isinstance(err, _ml.TLSError):
-            tp = "TLS"
-            if errstr == 'wrong version number':
-                errstr = 'wrong version number (or failed handshake)'
-        elif isinstance(err, _ml.TLSClosed):
-            tp = "TLSClosed"
-        elif isinstance(err, _ml.TLSWantRead):
-            tp = "Unexpected TLSWantRead"
-        elif isinstance(err, _ml.TLSWantWrite):
-            tp = "Unexpected TLSWantWrite"
+        if not self._isConnected: return
+
+        while self.nPacketsSent < self.nPacketsAcked + self.WRITEAHEAD:
+            if not self.packets:
+                break
+            LOG.trace("Queueing new packet for %s",self.address)
+            self._startSendingNextPacket()
+
+        if self.nPacketsAcked == self.nPacketsSent:
+            LOG.debug("Successfully relayed all packets to %s",self.address)
+            self.allPacketsSent()
+            self._isConnected = 0
+            self._isAlive = 0
+            self.startShutdown()
+
+    def _failPendingPackets(self):
+        "Helper: tell all unacknowledged packets to fail."
+        self._isConnected = 0
+        self._isFailed = 1
+        self._isAlive = 0
+        pkts = self.pendingPackets + self.packets
+        self.pendingPackets = []
+        self.packets = []
+        for p in pkts:
+            if p.isJunk():
+                EventStats.log.failedRelay()
+            p.failed(1)
+
+    ####
+    # Implementation: hooks
+    ####
+    def onConnected(self):
+        LOG.debug("Completed MMTP client connection to %s",self.address)
+        # Is the certificate correct?
+        try:
+            self.certCache.check(self.tls, self.targetKeyID, self.address)
+        except MixProtocolBadAuth, e:
+            LOG.warn("Certificate error: %s. Shutting down connection.", e)
+            self._failPendingPackets()
+            self.startShutdown()
+            return
         else:
-            tp = str(type(err))
-        e = MixProtocolError("%s error while %s to %s: %s" %(
-                             tp, action, self.serverName, errstr))
-        e.base = err
-        raise e
+            LOG.debug("KeyID is valid from %s", self.address)
 
-    def _connect(self, connectTimeout=None):
-        """Helper method; implements _connect."""
-        # Connect to the server
-        self.sock = socket.socket(self.targetFamily, socket.SOCK_STREAM)
-        self.sock.setblocking(1)
-        LOG.debug("Connecting to %s", self.serverName)
+        EventStats.log.successfulConnect()
 
-        # Do the TLS handshaking
-        mixminion.NetUtils.connectWithTimeout(
-            self.sock, (self.targetAddr, self.targetPort), connectTimeout)
+        # The certificate is fine; start protocol negotiation.
+        self.beginWriting("MMTP %s\r\n" % ",".join(self.PROTOCOL_VERSIONS))
+        self.onWrite = self.onProtocolWritten
 
-        LOG.debug("Handshaking with %s:", self.serverName)
-        self.tls = self.context.sock(self.sock.fileno())
-        self.tls.connect()
-        LOG.debug("Connected.")
-        # Check the public key of the server to prevent man-in-the-middle
-        # attacks.
-        self.certCache.check(self.tls, self.targetKeyID, self.serverName)
+    def onProtocolWritten(self,n):
+        if self.outbuf:
+            # Not done writing outgoing data.
+            return
 
-        ####
-        # Protocol negotiation
-        # For now, we only support 1.0, but we call it 0.3 so we can
-        # change our mind between now and a release candidate, and so we
-        # can obsolete betas come release time.
-        LOG.debug("Negotiating MMTP protocol")
-        self.tls.write("MMTP %s\r\n" % ",".join(self.PROTOCOL_VERSIONS))
-        # This is ugly, but we have no choice if we want to read up to the
-        # first newline.
-        # we don't really want 100; we just want up to the newline.
-        inp = self.tls.read(100)
-        if inp in (0, None):
-            raise MixProtocolError("Connection closed during protocol negotiation.")
-        while "\n" not in inp and len(inp) < 100:
-            inp += self.tls.read(100)
+        LOG.debug("Sent MMTP protocol string to %s", self.address)
+        self.stopWriting()
+        self.beginReading()
+        self.onRead = self.onProtocolRead
+
+    def onProtocolRead(self):
+        # Pull the contents of the buffer up to the first CRLF
+        s = self.getInbufLine(4096,clear=1)
+        if s is None:
+            # We have <4096 bytes, and no CRLF yet
+            return
+        elif s == -1:
+            # We got 4096 bytes with no CRLF, or a CRLF with more data
+            # after it.
+            self._failPendingPackets()
+            self.startShutdown()
+            return
+
+        # Find which protocol the server chose.
         self.protocol = None
         for p in self.PROTOCOL_VERSIONS:
-            if inp == 'MMTP %s\r\n'%p:
+            if s == "MMTP %s\r\n"%p:
                 self.protocol = p
                 break
         if not self.protocol:
-            raise MixProtocolError("Protocol negotiation failed")
-        LOG.debug("MMTP protocol negotiated with %s: version %s",
-                  self.serverName, self.protocol)
+            LOG.warn("Protocol negotiation failed with %s", self.address)
+            self._failPendingPackets()
+            self.startShutdown()
+            return
 
-    def renegotiate(self):
-        """Re-do the TLS handshake to renegotiate a new connection key."""
-        try:
-            self.tls.renegotiate()
-            self.tls.do_handshake()
-        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
-            self._raise(e, "renegotiating connection")
+        LOG.debug("MMTP protocol negotaiated with %s: version %s",
+                  self.address, self.protocol)
 
-    def sendPacket(self, packet):
-        """Send a single 32K packet to the server."""
-        self._sendPacket(packet)
+        self.onRead = self.onDataRead
+        self.onWrite = self.onDataWritten
+        self.beginReading()
 
-    def sendJunkPacket(self, packet):
-        """Send a single 32K junk packet to the server."""
-        self._sendPacket(packet,
-                         control="JUNK\r\n", serverControl="RECEIVED\r\n",
-                         hashExtra="JUNK", serverHashExtra="RECEIVED JUNK")
+        self._isConnected = 1
+        # Now that we're connected, start sending packets.
+        self._updateRWState()
 
-    def _sendPacket(self, packet,
-                    control="SEND\r\n", serverControl="RECEIVED\r\n",
-                    hashExtra="SEND",serverHashExtra="RECEIVED"):
-        """Helper method: implements sendPacket and sendJunkPacket.
-              packet -- a 32K string to send
-              control -- a 6-character string ending with CRLF to
-                  indicate the type of packet we're sending.
-              serverControl -- a 10-character string ending with CRLF that
-                  we expect to receive if we've sent correctly.
-              hashExtra -- a string to append to the packet when computing
-                  the hash we send.
-              serverHashExtra -- the string we expect the server to append
-                  to the packet when computing the hash it sends in reply.
-           """
-        assert len(packet) == 1<<15
-        LOG.debug("Sending packet")
-        try:
-            ##
-            # We write: "SEND\r\n", 28KB of data, and sha1(packet|"SEND").
-            written = control+packet+sha1(packet+hashExtra)
-            self.tls.write(written)
-            LOG.debug("Packet sent; waiting for ACK")
+    def onDataRead(self):
+        # We got some data from the server: it'll be 0 or more acks.
+        if self.inbuflen < self.ACK_LEN:
+            # If we have no acks at all, do nothing.
+            return
 
-            # And we expect, "RECEIVED\r\n", and sha1(packet|"RECEIVED")
-            inp = self.tls.read(len(serverControl)+20)
-            if inp == "REJECTED\r\n"+sha1(packet+"REJECTED"):
-                raise MixProtocolReject()
-            elif inp != serverControl+sha1(packet+serverHashExtra):
-                LOG.warn("Received bad ACK from server")
-                raise MixProtocolError("Bad ACK received")
-            LOG.debug("ACK received; packet successfully delivered")
-        except (socket.error, _ml.TLSError, _ml.TLSClosed, _ml.TLSWantRead,
-                _ml.TLSWantWrite, _ml.TLSClosed), e:
-            self._raise(e, "sending packet")
+        while self.inbuflen >= self.ACK_LEN:
+            if not self.expectedAcks:
+                LOG.warn("Received acknowledgment from %s with no corresponding message", self.address)
+                self._failPendingPackets()
+                self.startShutdown()
+                return
+            ack = self.getInbuf(self.ACK_LEN, clear=1)
+            good, bad = self.expectedAcks[0]
+            del self.expectedAcks[0]
+            if ack == good:
+                LOG.debug("Packet delivered to %s",self.address)
+                self.nPacketsAcked += 1
+                if not self.pendingPackets[0].isJunk():
+                    EventStats.log.successfulRelay()
+                self.pendingPackets[0].succeeded()
+                del self.pendingPackets[0]
+            elif ack == bad:
+                LOG.warn("Packet rejected by %s", self.address)
+                self.nPacketsAcked += 1
+                if not self.pendingPackets[0].isJunk():
+                    EventStats.log.failedRelay()
+                self.pendingPackets[0].failed(1)
+                del self.pendingPackets[0]
+            else:
+                # The control string and digest are wrong for an accepted
+                # or rejected packet!
+                LOG.warn("Bad acknowledgement received from %s",self.address)
+                self._failPendingPackets()
+                self.startShutdown()
+                return
+        # Start sending more packets, if we were waiting for an ACK to do so.
+        self._updateRWState()
 
-    def shutdown(self):
-        """Close this connection."""
-        LOG.debug("Shutting down connection to %s", self.serverName)
-        try:
-            if self.tls is not None:
-                self.tls.shutdown()
-            if self.sock is not None:
-                self.sock.close()
-        except (socket.error, _ml.TLSError, _ml.TLSClosed, _ml.TLSWantRead,
-                _ml.TLSWantWrite, _ml.TLSClosed), e:
-            self._raise(e, "closing connection")
-        LOG.debug("Connection closed")
+    def onDataWritten(self,n):
+        # If we wrote some data, maybe we'll be ready to write more.
+        self._updateRWState()
+    def onTLSError(self):
+        # If we got an error, fail all our packets and don't accept any more.
+        if not self._isConnected:
+            EventStats.log.failedConnect()
+        self._isConnected = 0
+        self._failPendingPackets()
+    def onClosed(self): pass
+    def doneWriting(self): pass
+    def receivedShutdown(self):
+        LOG.warn("Received unexpected shutdown from %s", self.address)
+        self._failPendingPackets()
+    def shutdownFinished(self): pass
 
-def sendPackets(routing, packetList, connectTimeout=None, callback=None):
+    def allPacketsSent(self):
+        """Hook: called when we've received acks for all our pending packets"""
+        pass
+
+    def getAddr(self):
+        """Return a 3-tuple of address,port,keyid for this connection"""
+        return self.targetAddr, self.targetPort, self.targetKeyID
+
+    def isActive(self):
+        """Return true iff packets sent with this connection may be delivered.
+        """
+        return self._isAlive
+
+
+class DeliverableString(DeliverableMessage):
+    """Subclass of DeliverableMessage suitable for use by ClientMain and
+       sendPackets.  Sends str(s) for some object s; invokes a callback on
+       success."""
+    def __init__(self, s=None, isJunk=0, callback=None):
+        if isJunk:
+            self.s = getCommonPRNG().getBytes(1<<15)
+        else:
+            self.s = s
+        self.j = isJunk
+        self.cb = callback
+        self._failed = 0
+        self._succeeded = 0
+    def getContents(self):
+        return str(self.s)
+    def isJunk(self):
+        return self.j
+    def succeeded(self):
+        self.s = None
+        if self.cb is not None:
+            self.cb()
+        self._succeeded = 1
+    def failed(self,retriable):
+        self.s = None
+        self._failed = 1
+
+def sendPackets(routing, packetList, timeout=300, callback=None):
     """Sends a list of packets to a server.  Raise MixProtocolError on
        failure.
 
@@ -224,23 +384,13 @@ def sendPackets(routing, packetList, connectTimeout=None, callback=None):
        packetList -- a list of 32KB packets and control strings.  Control
            strings must be one of "JUNK" to send a 32KB padding chunk,
            or "RENEGOTIATE" to renegotiate the connection key.
-       connectTimeout -- None, or a number of seconds to wait for the
-           TCP handshake to finish before raising TimeoutError.
+       connectTimeout -- None, or a number of seconds to wait for data
+           on the connection before raising TimeoutError.
        callback -- None, or a function to call with a index into packetList
            after each successful packet delivery.
     """
-    # Generate junk before opening connection to avoid timing attacks
-    packets = []
-    for p in packetList:
-        if p == 'JUNK':
-            packets.append(("JUNK", getCommonPRNG().getBytes(1<<15)))
-        elif p == 'RENEGOTIATE':
-            packets.append(("RENEGOTIATE", None))
-        else:
-            packets.append(("PKT", p))
-
+    # Find out where we're connecting to.
     serverName = mixminion.ServerInfo.displayServer(routing)
-
     if isinstance(routing, IPV4Info):
         family, addr = socket.AF_INET, routing.ip
     else:
@@ -251,29 +401,70 @@ def sendPackets(routing, packetList, connectTimeout=None, callback=None):
             raise MixProtocolError("Couldn't resolve hostname %s: %s" % (
                                    routing.hostname, addr))
 
-    con = BlockingClientConnection(family,addr,routing.port,routing.keyinfo,
-                                   serverName=serverName)
+    # Create an MMTPClientConnection
     try:
-        con.connect(connectTimeout=connectTimeout)
-        for idx in xrange(len(packets)):
-            t,p = packets[idx]
-            if t == "JUNK":
-                con.sendJunkPacket(p)
-            elif t == "RENEGOTIATE":
-                con.renegotiate()
-            else:
-                con.sendPacket(str(p))
-            if callback is not None:
-                callback(idx)
-    finally:
-        con.shutdown()
+        con = MMTPClientConnection(
+            family, addr, routing.port, routing.keyinfo, serverName=serverName)
+    except socket.error, e:
+        raise MixProtocolError(str(e))
 
-def pingServer(routing, connectTimeout=5):
+    # Queue the items on the list.
+    deliverables = []
+    for idx in xrange(len(packetList)):
+        p = packetList[idx]
+        if p == 'JUNK':
+            pkt = DeliverableString(isJunk=1)
+        elif p == 'RENEGOTIATE':
+            continue #XXXX no longer supported.
+        else:
+            if callback is not None:
+                def cb(idx=idx,callback=callback): callback(idx)
+            else:
+                cb = None
+            pkt = DeliverableString(s=p,callback=cb)
+        deliverables.append(pkt)
+        con.addPacket(pkt)
+
+    # Use select to run the connection until it's done.
+    import select
+    fd = con.fileno()
+    wr,ww,open = con.getStatus()
+    while open:
+        if wr:
+            rfds = [fd]
+        else:
+            rfds = []
+        if ww:
+            wfds = [fd]
+        else:
+            wfds = []
+        if ww==2:
+            xfds = [fd]
+        else:
+            xfds = []
+
+        rfds,wfds,xfds=select.select(rfds,wfds,xfds,3)
+        now = time.time()
+        wr,ww,open=con.process(fd in rfds, fd in wfds)
+        if open:
+            con.tryTimeout(now-timeout)
+
+    # If anything wasn't delivered, raise MixProtocolError.
+    for d in deliverables:
+        if d._failed:
+            raise MixProtocolError("Error occurred while delivering packets to %s"%
+                                   serverName)
+
+    # If the connection failed, raise MixProtocolError.
+    if con._isFailed:
+        raise MixProtocolError("Error occurred on connection to %s"%serverName)
+
+def pingServer(routing, timeout=5):
     """Try to connect to a server and send a junk packet.
 
        May raise MixProtocolBadAuth, or other MixProtocolError if server
        isn't up."""
-    sendPackets(routing, ["JUNK"], connectTimeout=connectTimeout)
+    sendPackets(routing, ["JUNK"], connectTimeout=timeout)
 
 class PeerCertificateCache:
     """A PeerCertificateCache validates certificate chains from MMTP servers,

@@ -31,6 +31,8 @@ For 0.0.7: (tentative list of stuff deferred from 0.0.6)
         - UI improvements
                 - RFC822 interface and maildir-style exit module to help
                   integrators.
+        o MMTP
+                o Make MMTP bursty, at least on client side.
         - Large reply messages and efwd messages
                 - Fragment-pool logic for client
         - Manual pages
@@ -67,7 +69,7 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
                 - Make client-side pooling configurable and more
                   sophisticated.
                 - Make DH parameter length configurable at 1024 bits
-                  (or higher)?              
+                  (or higher)?
                 . Freak out properly on missing/unpublishable IP.
                 . Full validation function for client
                 . Full validation function for server
@@ -178,7 +180,6 @@ Other features for "1.0" (no research required):
           into RAM at once.
                 - Fragment and unfragment large messages on disk.
         - MMTP / async
-               - Make MMTP bursty, at least on client side.
                - Tests for all cases:
                         - Packet to server with bogus IP
                         - Junk

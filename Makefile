@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.61 2003/12/19 01:13:32 weasel Exp $
+# $Id: Makefile,v 1.62 2004/01/03 05:45:25 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -292,9 +292,11 @@ eolspace:
 		lib/mixminion/*.py lib/mixminion/*/*.py
 
 update-copyright:
-	touch -t 200301010000 jan1
+	touch -t 200401010000 jan1
 	find . -type f -newer jan1 | xargs perl -i.bak -pe \
-          's/Copyrigh[t] 2002 Nick Mathewson/Copyright 2002-2003 Nick Mathewson/;'
+          's/Copyrigh[t] 2002-2003 Nick Mathewson/Copyright 2002-2004 Nick Mathewson/;'
+	find . -type f -newer jan1 | xargs perl -i.bak -pe \
+          's/Copyrigh[t] 2003 Nick Mathewson/Copyright 2003-2004 Nick Mathewson/;'
 
 longlines:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \

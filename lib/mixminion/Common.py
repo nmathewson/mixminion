@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.125 2003/12/18 23:01:47 nickm Exp $
+# $Id: Common.py,v 1.126 2004/01/03 05:45:26 nickm Exp $
 
 """mixminion.Common
 
@@ -795,7 +795,7 @@ class _FileLogHandler:
         try:
             parent = os.path.split(self.fname)[0]
             if not os.path.exists(parent):
-                os.mkdirs(parent, 0700)
+                os.makedirs(parent, 0700)
             self.file = open(self.fname, 'a')
         except OSError, e:
             self.file = None

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.72 2003/12/08 02:22:56 nickm Exp $
+# $Id: Config.py,v 1.73 2004/01/03 05:45:26 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -221,11 +221,12 @@ def _unparseSize(size):
     names = ["b", "KB", "MB", "GB"]
     idx = 0
     while 1:
-        if (size & 1023) or names[idx] == "GB":
+        if (size & 1023)!=0 or names[idx] == "GB":
             return "%s %s"%(size,names[idx])
         else:
             idx += 1
             size >>= 10
+    raise AssertionError # unreached
 
 def _parseIP(ip):
     """Validation function.  Converts a config value to an IP address.

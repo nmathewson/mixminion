@@ -425,7 +425,7 @@ class ClientDirectory:
                         else:
                             d['status'] = "(not recommended)"
                     else:
-                        assert 0 # Unreached.
+                        raise AssertionError # Unreached.
                 else:
                     d[feature] = str(sd.getFeature(sec,ent))
 

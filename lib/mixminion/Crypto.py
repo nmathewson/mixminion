@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.59 2003/12/04 05:53:13 nickm Exp $
+# $Id: Crypto.py,v 1.60 2004/01/03 05:45:26 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -582,6 +582,8 @@ class RNG:
             if o < cutoff:
                 return o % max
 
+        raise AssertionError # unreached; appease pychecker
+
     def getNormal(self, m, s):
         """Return a random value with mean m and standard deviation s.
         """
@@ -726,22 +728,22 @@ def configure_trng(config):
     # Now find the first of our candidates that exists and is a character
     # device.
     randFile = None
-    for file in files:
-        if file is None:
+    for filename in files:
+        if filename is None:
             continue
 
-        verbose = (file == requestedFile)
-        if not os.path.exists(file):
+        verbose = (filename == requestedFile)
+        if not os.path.exists(filename):
             if verbose:
-                LOG.warn("No such file as %s", file)
+                LOG.warn("No such file as %s", filename)
         else:
-            st = os.stat(file)
+            st = os.stat(filename)
             if not (st[stat.ST_MODE] & stat.S_IFCHR):
                 if verbose:
                     LOG.error("Entropy source %s isn't a character device",
-                                   file)
+                                   filename)
             else:
-                randFile = file
+                randFile = filename
                 break
 
     if randFile is None and _TRNG_FILENAME is None:
@@ -755,7 +757,6 @@ def configure_trng(config):
         LOG.info("Setting entropy source to %r", randFile)
         _TRNG_FILENAME = randFile
         _theTrueRNG = _TrueRNG(1024)
-
 
 # Global TRN instance, for use by trng().
 _theTrueRNG = None

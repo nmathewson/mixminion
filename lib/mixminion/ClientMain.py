@@ -127,7 +127,7 @@ class ClientKeyring:
             if self.keyring.isDirty():
                 self.keyring.save()
 
-        assert 0 # Unreached.
+        raise AssertionError # Unreached.
 
     def getSURBKeys(self, password=None):
         """Return the keys for _all_ SURB identities as a list of
