@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.17 2004/01/03 07:35:23 nickm Exp $
+# $Id: Filestore.py,v 1.17.2.1 2004/04/25 00:25:46 nickm Exp $
 
 """mixminion.Filestore
 
@@ -41,12 +41,6 @@ class CorruptedFile(MixError):
 
 # ======================================================================
 # Filestores.
-
-# Mode to pass to open(2) for creating a new file, and dying if it already
-# exists.
-_NEW_FILE_FLAGS = os.O_WRONLY+os.O_CREAT+os.O_EXCL
-# On windows or (old-school) mac, binary != text.
-_NEW_FILE_FLAGS += getattr(os, 'O_BINARY', 0)
 
 # Any inp_* files older than INPUT_TIMEOUT seconds old are assumed to be
 # trash.
@@ -437,10 +431,13 @@ class BaseMetadataStore(BaseStore):
 
     def setMetadata(self, handle, object):
         """Change the metadata associated with a given handle."""
+        # On windows or (old-school) mac, binary != text.
+        O_BINARY = getattr(os, 'O_BINARY', 0)
+        flags = os.O_WRONLY|os.O_CREAT|os.O_TRUNC|O_BINARY
         try:
             self._lock.acquire()
             fname = os.path.join(self.dir, "inpm_"+handle)
-            f = os.fdopen(os.open(fname, _NEW_FILE_FLAGS, 0600), "wb")
+            f = os.fdopen(os.open(fname, flags, 0600), "wb")
             cPickle.dump(object, f, 1)
             self.finishMessage(f, handle, _ismeta=1)
             self._metadata_cache[handle] = object
