@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.3 2002/12/16 02:40:11 nickm Exp $
+# $Id: ServerKeys.py,v 1.4 2002/12/29 20:28:39 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -23,7 +23,6 @@ import mixminion.server.PacketHandler
 from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, signServerInfo
 from mixminion.Common import LOG, MixError, MixFatalError, createPrivateDir, \
      formatBase64, formatDate, formatTime, previousMidnight, secureDelete
-
 
 #----------------------------------------------------------------------
 class ServerKeyring:
@@ -183,7 +182,7 @@ class ServerKeyring:
 
     def createKeys(self, num=1, startAt=None):
         """Generate 'num' public keys for this server. If startAt is provided,
-           make the first key become valid at'startAt'.  Otherwise, make the
+           make the first key become valid at 'startAt'.  Otherwise, make the
            first key become valid right after the last key we currently have
            expires.  If we have no keys now, make the first key start now."""
         # FFFF Use this.
