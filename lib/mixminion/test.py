@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.125 2003/06/26 17:43:27 nickm Exp $
+# $Id: test.py,v 1.126 2003/06/28 03:34:00 arma Exp $
 
 """mixminion.tests
 
@@ -2935,9 +2935,9 @@ class FileParanoiaTests(unittest.TestCase):
         # File not owned by us. (???)
         if os.getuid() == 0:
             os.chmod(subdir_x, 0600)
-            os.chown(subdir_x, 1)
+            os.chown(subdir_x, 1, 1)
             self.failUnlessRaises(MixFatalError, checkPrivateFile, subdir_x)
-            os.chown(subdir_x, 0)
+            os.chown(subdir_x, 0, os.getgid())
         else:
             if os.path.exists("/etc/shadow"):
                 self.failUnlessRaises(MixFatalError, checkPrivateFile,
