@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.68 2003/07/10 20:01:30 nickm Exp $
+# $Id: setup.py,v 1.69 2003/07/10 23:12:02 nickm Exp $
 import sys
 
 #
@@ -123,6 +123,8 @@ it, you can grab and build a local copy for Mixminion only by running:
                make build         OPENSSL_SRC=~/src/openssl-0.9.7
       )
 ======================================================================"""
+
+#XXXX005 Use pkg-config when possible, if it exists.
 
 if USE_OPENSSL and sys.platform == 'win32':
     INCLUDE_DIRS = []
@@ -304,6 +306,22 @@ except:
 mixminion.Main.main(sys.argv)
 """)
 f.close()
+
+if sys.platform == 'win32':
+    f = open(SCRIPT_PATH+"i.py", 'wt')
+    f.write("import sys\n")
+    if pathextra:
+        f.write("sys.path[0:0] = [%r]\n"%pathextra)
+    f.write("""\
+    try:
+        import mixminion.Main
+    except:
+        print 'ERROR importing mixminion package.'
+        raise
+
+    mixminion.Main.main(sys.argv+['shell'])
+    """)
+    f.close()
 
 #======================================================================
 # Define a helper to let us run commands from the compiled code.

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.52 2003/06/26 17:43:27 nickm Exp $
+# $Id: Main.py,v 1.53 2003/07/10 23:12:03 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -136,6 +136,8 @@ _COMMANDS = {
     "server-stats" :   ( 'mixminion.server.ServerMain', 'printServerStats' ),
     "server-DELKEYS" : ( 'mixminion.server.ServerMain', 'runDELKEYS'),
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
+
+    "shell":           ( 'mixminion.Main',       'commandShell' ),
     
     # XXXX006 Obsolete commands.  Remove in 0.0.6
     "server" :         ( 'mixminion.Main', 'rejectCommand' ),
@@ -204,6 +206,42 @@ def printUsage():
     print "NOTE: This software is for testing only.  The user set is too small"
     print "      to be anonymous, and the code is too alpha to be reliable."
 
+def commandShell(cmd,args):
+    import mixminion
+    import shlex
+
+    if "--help" in args:
+        print "Syntax: mixminion shell [options]"
+        sys.exit(0)
+
+    print "Mixminion version %s" % mixminion.__version__
+    print "Type 'help' for information, and 'exit' to quit."
+
+    lexer = shlex.shlex()
+    lexer.whitespace = " \t"
+    lexer.wordchars = "".join(map(chr,range(41,127)))
+    while 1:
+        print
+        print "mixminion>",
+        words = []
+        while 1:
+            word = lexer.get_token()
+            if word not in ['\r','\n']:
+                words.append(word)
+            else:
+                break
+        if not words:
+            continue
+        command = words[0]
+        args = words[1:]
+        if command == 'exit':
+            sys.exit(0)
+        try:
+            #print "calling main with",[sys.argv[0]]+words
+            main([sys.argv[0]]+words)
+        except SystemExit:
+            pass
+
 def main(args):
     "Use <args> to fix path, pick a command and pass it arguments."
     # Specifically, args[0] is used to fix sys.path so we can import
@@ -213,7 +251,7 @@ def main(args):
     correctPath(args[0])
 
     # Check whether we have a recognized command.
-    if len(args) == 1 or not _COMMANDS.has_key(args[1]):
+    if len(args) == 1  or not _COMMANDS.has_key(args[1]):
         printUsage()
         sys.exit(1)
 
