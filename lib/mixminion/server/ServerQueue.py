@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.29 2003/07/24 18:01:29 nickm Exp $
+# $Id: ServerQueue.py,v 1.30 2003/08/14 19:37:25 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -316,10 +316,9 @@ class DeliveryQueue:
         assert self.retrySchedule is not None
         try:
             self._lock.acquire()
-            handle = self.store.queueObject(msg)
             ds = _DeliveryState(now,None,address)
             ds.setNextAttempt(self.retrySchedule, now)
-            self.store.setMetadata(handle, ds)
+            handle = self.store.queueObjectAndMetadata(msg, ds)
             LOG.trace("DeliveryQueue got message %s for %s",
                       handle, self.qname)
         finally:

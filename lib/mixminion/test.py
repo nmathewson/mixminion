@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.142 2003/08/08 21:40:40 nickm Exp $
+# $Id: test.py,v 1.143 2003/08/14 19:37:25 nickm Exp $
 
 """mixminion.tests
 
@@ -1648,7 +1648,9 @@ class BuildMessageTests(TestCase):
 
         for m in (p.getBytes(3000), p.getBytes(10000), "", "q", "blznerty"):
             for ov in 0, 42-20+16: # encrypted forward overhead
-                pld = BuildMessage._encodePayload(m,ov,p)
+                plds = BuildMessage.encodePayloads(m,ov,p)
+                assert len(plds) == 1
+                pld = plds[0]
                 self.assertEquals(28*1024, len(pld)+ov)
                 comp = compressData(m)
                 self.assertStartsWith(pld[22:], comp)
@@ -2284,7 +2286,7 @@ class BuildMessageTests(TestCase):
         # get such a payload is to compress 25K of zeroes.
         nils = "\x00"*(25*1024)
         overcompressed_payload = \
-             BuildMessage._encodePayload(nils, 0, AESCounterPRNG())
+             BuildMessage.encodePayloads(nils, 0, AESCounterPRNG())[0]
         self.failUnlessRaises(CompressedDataTooLong,
              BuildMessage.decodePayload, overcompressed_payload, "X"*20)
 
@@ -2721,7 +2723,8 @@ class QueueTests(TestCase):
         # Move the first 30 messages to queue2
         q2h = []
         for h in handles[:30]:
-            nh = queue1.moveMessage(h, queue2)
+            nh = queue2.queueMessage(queue1.messageContents(h))
+            queue1.removeMessage(h)
             q2h.append(nh)
 
         # Look at the messages in queue2, 15 then 30 at a time.
@@ -2792,15 +2795,14 @@ class QueueTests(TestCase):
         Store = mixminion.Filestore.StringMetadataStore
 
         queue = Store(d_d, create=1)
-        h1 = queue.queueMessage("abc")
-        queue.setMetadata(h1, [2,3])
+        h1 = queue.queueMessageAndMetadata("abc", [2,3])
         self.assertEquals(readPickled(os.path.join(d_d, "meta_"+h1)), [2,3])
         self.assertEquals(queue.getMetadata(h1), [2,3])
-        h2 = queue.queueMessage("def")
-        queue.setMetadata(h2, [5,6])
-        h3 = queue.queueMessage("ghi")
-        self.assertEquals(queue._metadata_cache, { h1 : [2,3], h2 : [5,6] })
-
+        h2 = queue.queueMessageAndMetadata("def", [5,6])
+        h3 = queue.queueMessageAndMetadata("ghi", None)
+        self.assertEquals(queue._metadata_cache, { h1 : [2,3], h2 : [5,6],
+                                                   h3 : None })
+        os.unlink(os.path.join(d_d, "meta_"+h3))
         queue = Store(d_d, create=0)
         self.assertEquals(queue.getMetadata(h2), [5,6])
         self.assertEquals(queue._metadata_cache, { h2 : [5,6] })

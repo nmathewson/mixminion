@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.51 2003/08/08 21:42:47 nickm Exp $
+# $Id: Crypto.py,v 1.52 2003/08/14 19:37:24 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -184,12 +184,16 @@ def bear_decrypt(s,(key1,key2)):
     return left + right
 
 def whiten(s):
-    """DOCDOC"""
+    """Return a whitened version of a string 's', using the whitening
+       algorithm from 'E2E-spec.txt'.
+
+       The functions 'unwhiten' inverts 'whiten', but if any portion of
+       whiten(s) is not known, no part of 's' can be recovered."""
     keys = Keyset("WHITEN").getLionessKeys("WHITEN")
     return lioness_encrypt(s, keys)
 
 def unwhiten(s):
-    """DOCDOC"""
+    """Given a whitened string, return the original string."""
     keys = Keyset("WHITEN").getLionessKeys("WHITEN")
     return lioness_decrypt(s, keys)
 

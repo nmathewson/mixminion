@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.52 2003/08/08 21:42:46 nickm Exp $
+# $Id: BuildMessage.py,v 1.53 2003/08/14 19:37:24 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -11,6 +11,7 @@ import sys
 import types
 
 import mixminion.Crypto as Crypto
+import mixminion.Fragments
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG, UIError
 import mixminion._minionlib
@@ -18,15 +19,78 @@ import mixminion._minionlib
 if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
 
-__all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
-           'buildReplyBlock', 'checkPathLength', 'decodePayload' ]
+__all__ = ['buildForwardMessage', 'buildEncryptedMessage',
+           'buildReplyMessage', 'buildReplyBlock', 'checkPathLength',
+           'encodePayloads', 'decodePayload' ]
+
+def encodePayloads(message, overhead, paddingPRNG):
+    """Given a message, compress it, fragment it into individual payloads,
+       and add extra fields (size, hash, etc) as appropriate.  Return a list
+       of strings, each of which is a message payload suitable for use in
+       build*Message.
+
+       payload: the initial payload
+              overhead: number of bytes to omit from each payload,
+                        given the type ofthe message encoding.
+                        (0 or ENC_FWD_OVERHEAD)
+              paddingPRNG: generator for padding.
+
+       Note: If multiple strings are returned, be sure to shuffle them
+       before transmitting them to the network.
+    """
+    assert overhead in (0, ENC_FWD_OVERHEAD)
+    if paddingPRNG is None:
+        paddingPRNG = Crypto.getCommonPRNG()
+    origLength = len(message)
+    payload = compressData(message)
+    length = len(payload)
+
+    if length > 1024 and length*20 <= origLength:
+        LOG.warn("Message is very compressible and will look like a zlib bomb")
+
+    paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
+
+    # If the compressed payload fits in 28K, we're set.
+    if paddingLen >= 0:
+        # We pad the payload, and construct a new SingletonPayload,
+        # including this payload's size and checksum.
+        payload += paddingPRNG.getBytes(paddingLen)
+        p = SingletonPayload(length, None, payload)
+        p.computeHash()
+        return [ p.pack() ]
+
+    # DOCDOC
+    messageid = getCommonPRNG().getBytes(20)
+    p = mixminion.Fragments.FragmentationParams(len(payload), overhead)
+    rawFragments = p.getFragments(payload)
+    fragments = []
+    for i in xrange(len(rawFragments)):
+        pyld = FragmentPayload(i, None, messageid, p.length, rawFragments[i])
+        pyld.computeHash()
+        fragments.append(pyld.pack())
+        rawFragments[i] = None
+    return fragments
 
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
                         paddingPRNG=None):
+    # Compress, pad, and checksum the payload.
+    if payload is not None and exitType != DROP_TYPE:
+        payloads = encodePayloads(payload, 0, paddingPRNG)
+        assert len(payloads) == 1
+        payload = payloads[0]
+        LOG.debug("Encoding forward message for %s-byte payload",len(payload))
+    else:
+        payload = (paddingPRNG or Crypto.getCommonPRNG()).getBytes(PAYLOAD_LEN)
+        LOG.debug("Generating DROP message with %s bytes", PAYLOAD_LEN)
+
+    return _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
+                                paddingPRNG)
+
+def _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
+                        paddingPRNG=None):
     """Construct a forward message.
-            payload: The payload to deliver.  Must compress to under 28K-22b.
-                  If it does not, MixError is raised.  If the payload is
-                  None, 28K of random data is sent.
+            payload: The payload to deliver.  Must be exactly 28K.  If the
+                  payload is None, 28K of random data is sent.
             exitType: The routing type for the final node. (2 bytes, >=0x100)
             exitInfo: The routing info for the final node, not including tag.
             path1: Sequence of ServerInfo objects for the first leg of the path
@@ -46,15 +110,8 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
     suppressTag = 0
     if exitType == DROP_TYPE:
         suppressTag = 1
-        payload = None
 
-    # Compress, pad, and checksum the payload.
-    if payload is not None:
-        payload = _encodePayload(payload, 0, paddingPRNG)
-        LOG.debug("Encoding forward message for %s-byte payload",len(payload))
-    else:
-        payload = paddingPRNG.getBytes(PAYLOAD_LEN)
-        LOG.debug("Generating DROP message with %s bytes", PAYLOAD_LEN)
+    assert len(payload) == PAYLOAD_LEN
 
     LOG.debug("  Using path %s:%s",
                    ",".join([s.getNickname() for s in path1]),
@@ -70,10 +127,17 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 
 def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
                                  key, paddingPRNG=None, secretRNG=None):
+    payloads = encodePayloads(payload, ENC_FWD_OVERHEAD, paddingPRNG)
+    assert len(payloads) == 1
+    return _buildEncryptedForwardMessage(payloads[0], exitType, exitInfo,
+                                         path1, path2, key, paddingPRNG,
+                                         secretRNG)
+
+def _buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
+                                 key, paddingPRNG=None, secretRNG=None):
     """Construct a forward message encrypted with the public key of a
        given user.
-            payload: The payload to deliver.  Must compress to under 28K-60b.
-                  If it does not, MixError is raised.
+            payload: The payload to deliver.  Must be 28K-42b long.
             exitType: The routing type for the final node. (2 bytes, >=0x100)
             exitInfo: The routing info for the final node, not including tag.
             path1: Sequence of ServerInfo objects for the first leg of the path
@@ -93,10 +157,9 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
                    [s.getNickname() for s in path2])
     LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
 
-    # Compress, pad, and checksum the payload.
     # (For encrypted-forward messages, we have overhead for OAEP padding
     #   and the session  key, but we save 20 bytes by spilling into the tag.)
-    payload = _encodePayload(payload, ENC_FWD_OVERHEAD, paddingPRNG)
+    assert len(payload) == PAYLOAD_LEN - ENC_FWD_OVERHEAD
 
     # Generate the session key, and prepend it to the payload.
     sessionKey = secretRNG.getBytes(SECRET_LEN)
@@ -131,8 +194,14 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
 
 def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
+    payloads = encodePayloads(payload, 0, paddingPRNG)
+    assert len(payloads) == 1
+    return _buildReplyMessage(payloads[0], path1, replyBlock, paddingPRNG)
+
+def _buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     """Build a message using a reply block.  'path1' is a sequence of
-       ServerInfo for the nodes on the first leg of the path.
+       ServerInfo for the nodes on the first leg of the path.  'payload'
+       must be exactly 28K long.
     """
     if paddingPRNG is None:
         paddingPRNG = Crypto.getCommonPRNG()
@@ -141,8 +210,7 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
                    len(payload))
     LOG.debug("  Using path %s/??",[s.getNickname() for s in path1])
 
-    # Compress, pad, and checksum the payload.
-    payload = _encodePayload(payload, 0, paddingPRNG)
+    assert len(payload) == PAYLOAD_LEN
 
     # Encrypt the payload so that it won't appear as plaintext to the
     #  crossover note.  (We use 'decrypt' so that the message recipient can
@@ -600,125 +668,6 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
 #----------------------------------------------------------------------
 # Payload-related helpers
 
-MAX_FRAGMENTS_PER_CHUNK = 32
-EXP_FACTOR = 1.33333333333
-
-def _encodePayloads(message, overhead, paddingPRNG):
-    """DOCDOC"""
-    assert overhead in (0, ENC_FWD_OVERHEAD)
-    origLength = len(message)
-    payload = compress(message)
-    length = len(payload)
-
-    if length > 1024 and length*20 <= origLength:
-        LOG.warn("Message is very compressible and will look like a zlib bomb")
-
-    paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
-
-    # If the compressed payload fits in 28K, we're set.
-    if paddingLen >= 0:
-        # We pad the payload, and construct a new SingletonPayload,
-        # including this payload's size and checksum.
-        payload += paddingPRNG.getBytes(paddingLen)
-        p = SingletonPayload(length, None, payload)
-        p.computeHash()
-        return [ p.pack() ]
-
-    # DOCDOC
-    payload = whiten(payload)
-    p = _FragmentationParams(len(payload), overhead)
-    
-    payload += paddingPRNG.getBytes(p.paddingLen)
-    assert len(payload) == p.paddedLen
-    chunks = []
-    for i in xrange(p.nChunks):
-        chunk[i] = payload[i*p.chunkSize:(i+1)*p.chunkSize]
-    del payload
-    messageid = getCommonPRNG().getBytes(20)
-    
-    idx = 0
-    fragments = []
-    for i in xrange(p.nChunks):
-        blocks = []
-        for j in xrange(p.k):
-            blocks[j] = chunks[i][j*p.fragCapacity:(j+1)*p.fragCapacity]
-        chunks[i] = None
-        for j in xrange(p.n):
-            frag = p.fec.encode(j, blocks)
-            pyld = FragmentPayload(idx, None, messageid, p.length, frag)
-            pyld.computeHash()
-            fragments.append(pyld.pack())
-            idx += 1
-    return fragments
-
-class _FragmentationParams:
-    """DOCDOC"""
-    ## Fields:
-    # k, n, length, fec, chunkSize, fragmentCapacity, dataFragments,
-    # totalFragments, paddingLen, paddedLen
-    def __init__(self, length, overhead):
-        assert overhead in (0, ENC_FWD_OVERHEAD)
-        self.length = length
-        self.fragCapacity = PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - overhead
-        # minimum number of payloads to hold msg, without fragmentation
-        # or padding.
-        minFragments = ceilDiv(length, self.fragCapacity)
-        # Number of data fragments per chunk.
-        self.k = 2
-        while k < minFragments and k < 16:
-            self.k *= 2
-        # Number of chunks.
-        self.nChunks = ceilDiv(minFragments, k)
-        # Data in  a single chunk
-        self.chunkSize = self.fragCapacity * self.k
-        # Length of data to fill chunks
-        self.paddedLen = self.nChunks * self.fragCapacity * self.k
-        # Length of padding needed to fill all chunks with data.
-        self.paddingLen = self.paddedLen - length
-        # Number of total fragments per chunk.
-        self.n = math.ceil(EXP_FACTOR * k)
-        # FEC object
-        self.fec = None
-
-    def getFEC(self):
-        if self.fec is None:
-            self.fec = _getFEC(self.k, self.n)
-        return self.fec
-
-    def getPosition(self, index):
-        """DOCDOC"""
-        chunk, pos = divmod(index, self.n)
-        return chunk, pos
-
-def _encodePayload(payload, overhead, paddingPRNG):
-    """Helper: compress a payload, pad it, and add extra fields (size and hash)
-              payload: the initial payload
-              overhead: number of bytes to omit from result
-                        (0 or ENC_FWD_OVERHEAD)
-              paddingPRNG: generator for padding.
-
-       BUG: This should eventually support K-of-N.
-    """
-    assert overhead in (0, ENC_FWD_OVERHEAD)
-
-    # Compress the data, and figure out how much padding we'll need.
-    origLength = len(payload)
-    payload = compressData(payload)
-    length = len(payload)
-
-    if length > 1024 and length*20 <= origLength:
-        LOG.warn("Message is very compressible and will look like a zlib bomb")
-
-    paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
-
-    # If the compressed payload doesn't fit in 28K, then we need to bail out.
-    if paddingLen < 0:
-        raise MixError("Payload too long for singleton message")
-
-    # Otherwise, we pad the payload, and construct a new SingletonPayload,
-    # including this payload's size and checksum.
-    payload += paddingPRNG.getBytes(paddingLen)
-    return SingletonPayload(length, Crypto.sha1(payload), payload).pack()
 
 def _getRandomTag(rng):
     "Helper: Return a 20-byte string with the MSB of byte 0 set to 0."
@@ -782,268 +731,3 @@ def _getRouting(path, exitType, exitInfo):
 
     return routing, sizes, totalSize
 
-# ======================================================================
-
-class MismatchedFragment(Exception):
-    pass
-
-class UnneededFragment(Exception):
-    pass
-
-class _FragmentMetadata:
-    def __init__(self, messageid, hash, idx, size, isChunk, chunkNum, overhead,
-                 insertedDate):
-        self.messageid = messageid
-        self.hash = hash
-        self.idx = idx
-        self.size = size
-        self.isChunk = isChunk
-        self.chunkNum = chunkNum
-        self.overhead = overhead
-        self.insertedDate = insertedDate
-
-    def __getstate__(self):
-        return ("V0", self.messageid, self.hash, self.idx, self.size,
-                self.isChunk, self.chunkNum, self.insertedDate)
-
-    def __setstate__(self, o):
-        if state[0] == 'V0':
-            (_, self.messageid, self.hash, self.idx, self.size,
-             self.isChunk, self.chunkNum, self.insertedDate) = state
-        else:
-            raise MixFatalError("Unrecognized fragment state")
-
-class MessageState:
-    def __init__(self, messageid, hash, length, overhead):
-        self.messageid = messageid
-        self.hash = hash
-        self.overhead = overhead
-        # chunkno -> handle,fragmentmeta
-        self.chunks = {} 
-        # chunkno -> idxwithinchunk -> (handle,fragmentmeta)
-        self.fragmentsByChunk = []
-        self.params = _FragmentationParams(length, overhead)
-        for i in xrange(self.params.nChunks):
-            self.fragmentsByChunk.append({})
-        # chunkset: ready chunk num -> 1
-        self.readyChunks = {}
-        
-    def isDone(self):
-        return len(self.chunks) == self.params.nChunks
-
-    def getChunkHandles(self):
-        return [ self.chunks[i][0] for i in xrange(self.params.nChunks) ]
-
-    def addChunk(self, h, fm):
-        # h is handle
-        # fm is fragmentmetadata
-        assert fm.isChunk
-        assert fm.messageid == self.messageid
-        if (fm.size != self.params.length or
-            fm.hash != self.hash or
-            fm.overhead != self.overhead or
-            self.chunks.has_key(fm.chunkNum)):
-            raise MismatchedFragment
-        
-        self.chunks[fm.chunkNum] = (h,fm)
-
-    def addFragment(self, h, fm):
-        # h is handle
-        # fm is fragmentmetadata
-        assert fm.messageid == self.messageid
-
-        if (fm.hash != self.hash or
-            fm.size != self.params.length or
-            fm.overhead != self.overhead):
-            raise MismatchedFragment
-        
-        chunkNum, pos = self.params.getPosition(idx)
-
-        if self.chunks.has_key(chunkNum):
-            raise UnneededFragment
-        
-        if self.fragmentsByChunk[chunkNum].has_key(pos):
-            raise MismatchedFragment
-
-        self.fragmentsByChunk[chunkNum][pos] = (h, fm)
-
-        if len(self.fragmentsByChunk(chunkNum)) >= self.params.k:
-            self.readyChunks[chunkNum] = 1
-
-    def hasReadyChunks(self):
-        return len(self.readyChunks) != 0
-
-    def getReadyChunks(self):
-        """DOCDOC"""
-        # return list of [ (chunkno, [(h, fm)...]) )
-        r = []
-        for chunkno in self.readyChunks.keys():
-            ch = self.fragmentsByChunk[chunkno].values()[:self.params.k]
-            r.append( (chunkno, ch) )
-        return r
-
-class _FragmentDB(mixminion.Filestore.DBBase):
-    def __init__(self, location):
-        mixminion.Filestore.DBBase.__init__(self, location, "fragment")
-    def markStatus(self, msgid, status, today):
-        assert status in ("COMPLETED", "REJECTED")
-        if now is None:
-            now = time.time()
-        self[msgid] = (status, today)
-    def getStatusAndTime(self, msgid):
-        return self.get(msgid, None)
-    def _encodeKey(self, k):
-        return binascii.b2a_hex(k)
-    def _encodeVal(self, v):
-        status, tm = v
-        return "%s-%s"%(
-            {"COMPLETED":"C", "REJECTED":"R"}[status], str(tm))
-    def _decodeVal(self, v):
-        status = {"C":"COMPLETED", "R":"REJECTED"}[v[0]]
-        tm = int(tm[2:])
-        return status, tm
-
-class FragmentPool:
-    """DOCDOC"""
-    ##
-    # messages : map from 
-    def __init__(self, dir):
-        self.store = mixminion.Filestore.StringMetadataStore(dir,create=1,
-                                                             scrub=1)
-        self.log = _FragmentDB(dir+"_db")
-        self.rescan()
-
-    def getState(self, fm):
-        try:
-            return self.states[fm.messageid]
-        except KeyError:
-            state = MessageState(messageid=fm.messageid,
-                                 hash=fm.hash,
-                                 length=fm.size,
-                                 overhead=fm.overhead)
-            self.states[fm.messageid] = state
-            return state
-        
-    def rescan(self):
-        self.store.loadAllMetadata()
-        meta = self.store._metadata_cache
-        self.states = states = {}
-        badMessageIDs = {}
-        unneededHandles = []
-        for h, fm in meta.items():
-            try:
-                mid = fm.messageid
-                if badMessageIDs.has_key(mid):
-                    continue
-                state = self.getState(fm)
-                if fm.isChunk:
-                    state.addChunk(h, fm)
-                else:
-                    state.addFragment(h, fm)
-            except MismatchedFragment:
-                badMessageIDs[mid] = 1
-            except UnneededFragment:
-                unneededHandles.append(h)
-
-        for h in unneededHandles:
-            fm = meta[h]
-            LOG.debug("Removing unneeded fragment %s from message ID %r",
-                      fm.idx, fm.messageid)
-            self.removeMessage(h)
-
-        self._abortMessageIDs(badMessageIDs, today)
-
-    def _abortMessageIDs(self, messageIDSet, today=None):
-        if today is None:
-            today = previousMidnight(time.time())
-        LOG.debug("Removing bogus messages by IDs: %s", messageIDSet.keys())
-        for mid in messageIDSet.keys():
-            self.markStatus(mid, "REJECTED", today)
-        for h, fm in self._metadata_cache.items():
-            if messageIDSet.has_key(fm.messageid):
-                self.removeMessage(h)
-
-    def _getPacketMetadata(self, fragmentPacket):
-        return  _FragmentMetadata(messageid=fragmentPacket.msgID,
-                                  idx=fragmentPacket.index,
-                                  hash=fragmentPacket.hash,
-                                  size=fragmentPacket.msgLen,
-                                  isChunk=0,
-                                  chunkNum=None,
-                                  overhead=fragmentPacket.getOverhead(),
-                                  insertedDate=previousMidnight(now))
-        
-    def addFragment(self, fragmentPacket, now=None):
-        if now is None:
-            now = time.time()
-        today = previousMidnight(now)
-
-        meta = self._getFragmentMetadata(fragmentPacket)
-        h = self.store.queueMessage(fragmentPacket.data)
-        self.store.setMetadata(h, meta)
-
-        state = self.getState(fm)
-        try:
-            state.addFragment(fragmentPacket)
-        except MismatchedFragment:
-            self._abortMessageIDs({ meta.id
-            self.removeMessage(h)
-            # XXXX remove other fragments, mark msgid as bad.
-        except UnneededFragment:
-            LOG.debug("Dropping unneeded fragment %s of message %r",
-                      fragmentPacket.idx, fragmentPacket.msgID)
-            self.removeMessage(h)
-
-    def getReadyMessage(self, msgid):
-        s = self.states.get(msgid)
-        if not s or not s.isDone():
-            return None
-
-        hs = s.getChunkHandles()
-        return "".join([self.state.getMessage(h) for h in hs])
-
-    def deleteMessage(self, msgid):
-        s = self.states.get(msgid)
-        if not s or not s.isDone():
-            return None
-
-        hs = s.getChunkHandles()
-        for h in hs:
-            self.store.removeMessage(h)
-
-    def getReadyMessages(self):
-        return [ msgid
-                 for msgid,state in self.states.items()
-                 if state.isDone() ]
-
-    def unchunkMessages(self):
-        for msgid, state in self.states.items():
-            if not state.hasReadyChunks():
-                continue
-            for chunkno, lst in state.getReadyChunks():
-                vs = []
-                minDate = min([fm.insertedDate for h,fm in lst])
-                for h,fm in lst:
-                    vs.append((state.getPos(fm.index)[1],
-                               self.store.getMessage(h)))
-                chunkText = self.store.params.getFEC().decode(vs)
-                fm2 = _FragmentMetadata(state.mesageid, state.hash,
-                                        state.idx, 1, chunkno, state.overhead,
-                                        minDate)
-                h2 = self.store.queueMessage(chunkText)
-                self.store.setMetadata(h2, fm2)
-                for h,fm in lst:
-                    self.store.removeMessage(h)
-            
-# ======================================================================
-
-_fectab = {}
-
-def _getFEC(k,n):
-    """DOCDOC: Note race condition """
-    try:
-        return _fectab[(k,n)]
-    except KeyError:
-        f = mixminion._minionlib.FEC_generate(k,n)
-        _fectab[(k,n)] = f
-        return f

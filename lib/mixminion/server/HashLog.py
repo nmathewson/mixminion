@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.22 2003/08/08 21:40:42 nickm Exp $
+# $Id: HashLog.py,v 1.23 2003/08/14 19:37:25 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -73,10 +73,10 @@ def deleteHashLog(filename):
     finally:
         _HASHLOG_DICT_LOCK.release()
 
-class HashLog(mixminion.Filestore.JournaledDBBase):
+class HashLog(mixminion.Filestore.BooleanJournaledDBBase):
     def __init__(self, filename, keyid):
-        mixminion.Filestore.JournaledDBBase.__init__(self,
-                 filename, "digest hash", 20, 0, "1")
+        mixminion.Filestore.BooleanJournaledDBBase.__init__(self,
+                 filename, "digest hash", 20)
 
         self.keyid = keyid
         try:
@@ -85,22 +85,6 @@ class HashLog(mixminion.Filestore.JournaledDBBase):
         except KeyError:
             self.log["KEYID"] = keyid
             self.log.sync()
-
-    def _encodeKey(self, k):
-        return binascii.b2a_hex(k)
-    def _encodeVal(self, v):
-        return "1"
-    def _decodeVal(self, v):
-        return 1
-
-    def _jEncodeKey(self, k):
-        return k
-    def _jDecodeKey(self, k):
-        return k
-    def _jEncodeVal(self, v):
-        return ""
-    def _jDecodeVal(self, v):
-        return 1
 
     def seenHash(self, hash):
         return self.has_key(hash)

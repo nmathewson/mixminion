@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.45 2003/07/13 03:45:34 nickm Exp $
+# $Id: benchmark.py,v 1.46 2003/08/14 19:37:24 nickm Exp $
 
 """mixminion.benchmark
 
@@ -24,7 +24,7 @@ import mixminion._minionlib as _ml
 import mixminion.server.ServerQueue
 
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
-     compressData, uncompressData, _encodePayload, decodePayload
+     compressData, uncompressData, encodePayloads, decodePayload
 from mixminion.Common import secureDelete, installSIGCHLDHandler, \
      waitForChildren, formatBase64, Lockfile
 from mixminion.Crypto import *
@@ -479,7 +479,8 @@ def buildMessageTiming():
 #----------------------------------------------------------------------
 def serverQueueTiming():
     print "#================= SERVER QUEUES ====================="
-    Queue = mixminion.server.ServerQueue.Queue
+    import mixminion.Filestore
+    Queue = mixminion.Filestore.MixedStore
     DeliveryQueue = mixminion.server.ServerQueue.DeliveryQueue
     d1 = mix_mktemp()
     q1 = Queue(d1, create=1)
@@ -568,19 +569,19 @@ def encodingTiming():
     print "#=============== END-TO-END ENCODING =================="
     shortP = "hello world"
     prng = AESCounterPRNG()
-    p = _encodePayload(shortP, 0, prng)
+    p = encodePayloads(shortP, 0, prng)[0]
     t = prng.getBytes(20)
     print "Decode short payload", timeit(
         lambda p=p,t=t: decodePayload(p, t), 1000)
 
     k20 = prng.getBytes(20*1024)
-    p = _encodePayload(k20, 0, prng)
+    p = encodePayloads(k20, 0, prng)[0]
     t = prng.getBytes(20)
     print "Decode 20K payload", timeit(
         lambda p=p,t=t: decodePayload(p, t), 1000)
 
     comp = "x"*(20*1024)
-    p = _encodePayload(comp, 0, prng)
+    p = encodePayloads(comp, 0, prng)[0]
     t = prng.getBytes(20)
     def decode(p=p,t=t):
         try:
@@ -1002,7 +1003,6 @@ def timeAll(name, args):
     if 0:
         testLeaks_FEC()
         return
-
     fecTiming()    
     cryptoTiming()
     rsaTiming()
