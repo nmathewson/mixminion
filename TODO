@@ -12,11 +12,11 @@ NEEDS TO BE WRITTEN
 
 For 0.0.3:
         - Client support for reply blocks.
-        - Better command breakdown for pulling directories.
+        o Better command breakdown for pulling directories.
         - Saner retry logic
         - Consider linewrap protection on server descriptors, if demand
           warrants.
-        - Uninstall support?
+        . Uninstall support?
         - Statistics of some kind
         - Good user error reporting strategy.
         - Faster (adjustable?) timeout on client connect failure.

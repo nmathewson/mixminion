@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.34 2003/01/07 19:16:26 nickm Exp $
+# $Id: setup.py,v 1.35 2003/01/08 03:58:31 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -22,7 +22,7 @@ import os, re, struct, shutil
 
 os.umask(022)
 
-VERSION= '0.0.3alpha'
+VERSION= '0.0.2.1'
 
 USE_OPENSSL=1
 
@@ -145,7 +145,7 @@ except ImportError:
     if os.path.exits("/etc/debian_version"):
         v = sys.version[:3]
         print "Debian may expect you to install python%s-dev"%v
-    elif os.path.exists("etc/redhat-release"):
+    elif os.path.exists("/etc/redhat-release"):
         print "Redhat may need to install python2-devel"
     else:
         print "You may be missing some 'python development' package for your"
