@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.36 2003/02/20 00:31:12 nickm Exp $
+# $Id: Packet.py,v 1.37 2003/02/20 02:20:33 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -702,7 +702,7 @@ def parseTextEncodedMessage(msg,force=0,idx=0):
         raise MixFatalError("unreached")
 
 class TextEncodedMessage:
-    """A TextEncodedMessage object holds a Type-III message as delivered
+    """A TextEncodedMessage object holds a Type III message as delivered
        over a text-based medium."""
     def __init__(self, contents, messageType, tag=None):
         """Create a new TextEncodedMessage given a set of contents, a
