@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.21 2002/10/13 01:34:44 nickm Exp $
+# $Id: Crypto.py,v 1.22 2002/10/14 03:03:42 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -12,7 +12,6 @@ import os
 import sys
 import stat
 import copy_reg
-import zlib
 from types import StringType
 
 import mixminion._minionlib as _ml

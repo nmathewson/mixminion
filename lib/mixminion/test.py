@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.29 2002/10/13 01:34:44 nickm Exp $
+# $Id: test.py,v 1.30 2002/10/14 03:03:42 nickm Exp $
 
 """mixminion.tests
 
@@ -202,7 +202,7 @@ class MinionlibCryptoTests(unittest.TestCase):
         _ml.openssl_seed("")
 
     def test_oaep(self):
-        import Crypto
+        import mixminion.Crypto as Crypto
         _add = Crypto._add_oaep_padding
         _check = Crypto._check_oaep_padding
         for add,check in ((_ml.add_oaep_padding, _ml.check_oaep_padding),
@@ -647,7 +647,7 @@ class PacketTests(unittest.TestCase):
 	contents = ("payload"*(4*1024))[:28*1024 - 22]
 	hash = "HASH"*5
 	singleton_payload_1 = "\x00\xff"+hash+contents
-	singleton_payload_2 = singleton_payload_1[:-42] #OAEP overhead
+	singleton_payload_2 = singleton_payload_1[:-38] #efwd overhead
 	p1 = parsePayload(singleton_payload_1)
 	p2 = parsePayload(singleton_payload_2)
 	self.failUnless(p1.isSingleton() and p2.isSingleton())
@@ -656,7 +656,7 @@ class PacketTests(unittest.TestCase):
 	self.assertEquals(p1.hash,hash)
 	self.assertEquals(p2.hash,hash)
 	self.assertEquals(p1.data,contents)
-	self.assertEquals(p2.data,contents[:-42])
+	self.assertEquals(p2.data,contents[:-38])
 	self.assertEquals(p1.getContents(), contents[:255])
 	self.assertEquals(p2.getContents(), contents[:255])
 	self.assertEquals(p1.pack(),singleton_payload_1)
@@ -665,7 +665,7 @@ class PacketTests(unittest.TestCase):
 	self.assertEquals(singleton_payload_1,
 			  SingletonPayload(255, hash, contents).pack())
 	self.assertEquals(singleton_payload_2,
-			  SingletonPayload(255, hash, contents[:-42]).pack())
+			  SingletonPayload(255, hash, contents[:-38]).pack())
 
 	# Impossible payload lengths
 	self.failUnlessRaises(ParseError,parsePayload,singleton_payload_1+"a")
@@ -680,7 +680,7 @@ class PacketTests(unittest.TestCase):
 	assert len(msgID) == 20
 	contents = contents[:28*1024 - 46]
 	frag_payload_1 = "\x80\x02"+hash+msgID+"\x00\x01\x00\x00"+contents
-	frag_payload_2 = frag_payload_1[:-42] # oaep overhead
+	frag_payload_2 = frag_payload_1[:-38] # efwd overhead
 	p1 = parsePayload(frag_payload_1)
 	p2 = parsePayload(frag_payload_2)
 	self.failUnless(not p1.isSingleton() and not p2.isSingleton())
@@ -693,14 +693,14 @@ class PacketTests(unittest.TestCase):
 	self.assertEquals(p1.msgLen,64*1024)
 	self.assertEquals(p2.msgLen,64*1024)
 	self.assertEquals(p1.data,contents)
-	self.assertEquals(p2.data,contents[:-42])
+	self.assertEquals(p2.data,contents[:-38])
 	self.assertEquals(p1.pack(),frag_payload_1)
 	self.assertEquals(p2.pack(),frag_payload_2)
 
 	self.assertEquals(frag_payload_1,
 		  FragmentPayload(2,hash,msgID,64*1024,contents).pack())
 	self.assertEquals(frag_payload_2,
-		  FragmentPayload(2,hash,msgID,64*1024,contents[:-42]).pack())
+		  FragmentPayload(2,hash,msgID,64*1024,contents[:-38]).pack())
 
 	# Impossible payload lengths
 	self.failUnlessRaises(ParseError,parsePayload,frag_payload_1+"a")
@@ -710,9 +710,9 @@ class PacketTests(unittest.TestCase):
 	# Impossible message sizes
 	min_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD3"+contents
 	bad_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents
-	min_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xA9"+contents[:-42]
-	bad_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xA8"+contents[:-42]
-	min_payload_3 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents[:-42]
+	min_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAD"+contents[:-38]
+	bad_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAC"+contents[:-38]
+	min_payload_3 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents[:-38]
 	parsePayload(min_payload_1)
 	parsePayload(min_payload_2)
 	parsePayload(min_payload_3)
@@ -793,7 +793,6 @@ class BMTSupport:
     pk1 = pk_generate()
     pk2 = pk_generate()
     pk3 = pk_generate()
-
     
 class FakeServerInfo:
     """Represents a Mixminion server, and the information needed to send
@@ -822,6 +821,51 @@ class BuildMessageTests(unittest.TestCase):
         self.server1 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
         self.server2 = FakeServerInfo("127.0.0.2", 3, self.pk2, "Z"*20)
         self.server3 = FakeServerInfo("127.0.0.3", 5, self.pk3, "Q"*20)
+
+    def test_compression(self):
+	p = AESCounterPRNG()
+	longMsg = p.getBytes(100)*2 + str(dir(mixminion.Crypto))
+                     
+	# Make sure compression is reversible.
+	for m in ("", "a", "\000", "xyzzy"*10, ("glossy glossolalia.."*2)[32],
+		  longMsg):
+	    c = BuildMessage.compressData(m)
+	    self.assertEquals(m, BuildMessage.uncompressData(c))
+	
+	self.failUnlessRaises(ParseError, BuildMessage.uncompressData, "3")
+
+	for _ in xrange(20):
+	    for _ in xrange(20):
+		m = p.getBytes(p.getInt(1000))
+		try:
+		    BuildMessage.uncompressData(m)
+		except ParseError, _:
+		    pass
+	#FFFF Find a decent test vector.
+
+    def test_payload_helpers(self):
+	"test helpers for payload encoding"
+	p = AESCounterPRNG()
+	for i in xrange(10):
+	    t = BuildMessage._getRandomTag(p)
+	    self.assertEquals(20, len(t))
+	    self.assertEquals(0, ord(t[0])&0x80)
+
+	b = p.getBytes(28*1024)
+	self.assert_(not BuildMessage._checkPayload(b))
+
+	for m in (p.getBytes(3000), p.getBytes(10000), "", "q", "blznerty"):
+	    for ov in 0, 42-20+16: # encrypted forward overhead
+		pld = BuildMessage._encodePayload(m,ov,p)
+		self.assertEquals(28*1024, len(pld)+ov)
+		comp = BuildMessage.compressData(m)
+		self.assert_(pld[22:].startswith(comp))
+		self.assertEquals(sha1(pld[22:]),pld[2:22])
+		self.assertEquals(len(comp), ord(pld[0])*256+ord(pld[1]))
+		self.assertEquals(0, ord(pld[0])&0x80)
+		self.assertEquals(m, BuildMessage._decodePayload(pld))
+
+	# XXXX Test failing cases
 
     def test_buildheader_1hop(self):
         bhead = BuildMessage._buildHeader
@@ -884,6 +928,7 @@ class BuildMessageTests(unittest.TestCase):
             subh = mixminion.Packet.parseSubheader(pk_decrypt(head[:128], pk))
             if secret:
                 self.assertEquals(subh.secret, secret)
+                retsecrets.append(secret)
             else:
                 secret = subh.secret
                 retsecrets.append(secret)
@@ -901,7 +946,7 @@ class BuildMessageTests(unittest.TestCase):
 	    else:
 		ext = 20
 		if ri:
-		    tag = ri[:20]
+		    tag = subh.routinginfo[:20]
             if not subh.isExtended():
                 if ri:
 		    self.assertEquals(subh.routinginfo[ext:], ri)
@@ -1079,6 +1124,7 @@ class BuildMessageTests(unittest.TestCase):
 
     def test_build_fwd_message(self):
         bfm = BuildMessage.buildForwardMessage
+        befm = BuildMessage.buildEncryptedForwardMessage
         payload = "Hello"
 
         m = bfm(payload, 500, "Goodbye",
@@ -1109,6 +1155,28 @@ class BuildMessageTests(unittest.TestCase):
                                ("Goodbye",) ),
                              "Hello")
 
+	# Encrypted forward message
+	rsa1, rsa2 = pk_generate(1024), pk_generate(2048)
+	for rsakey in rsa1,rsa2:
+	    m = befm(payload, 500, "Phello", 
+		     [self.server1, self.server2],
+		     [self.server3, self.server2],
+		     rsakey)
+	    def decoder(p,t,key=rsakey):
+		return BuildMessage.decodeEncryptedForwardPayload(p,t,key)
+
+	    self.do_message_test(m,
+				 ( (self.pk1, self.pk2), None,
+				   (FWD_TYPE, SWAP_FWD_TYPE),
+				   (self.server2.getRoutingInfo().pack(),
+				    self.server3.getRoutingInfo().pack()) ),
+				 ( (self.pk3, self.pk2), None,
+				   (FWD_TYPE, 500),
+				   (self.server2.getRoutingInfo().pack(),
+				    "Phello") ),
+				 payload,
+				 decoder=decoder)
+
     def test_buildreply(self):
         brb = BuildMessage.buildReplyBlock
         bsrb = BuildMessage.buildStatelessReplyBlock
@@ -1135,35 +1203,53 @@ class BuildMessageTests(unittest.TestCase):
                 [self.server3, self.server1],
                 reply)
 
-	#XXXX Explain this thing
 	def decoder(p,t,secrets=secrets):
-	    return BuildMessage.decodeReplyPayload(p,secrets[-1:])
+	    return BuildMessage.decodeReplyPayload(p,secrets)
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
                               (FWD_TYPE,SWAP_FWD_TYPE),
                               (self.server1.getRoutingInfo().pack(),
                                self.server3.getRoutingInfo().pack())),
-                             (pks_1, hsecrets, # stop after first pk???????XXXX
+                             (pks_1, hsecrets,
                               (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,SMTP_TYPE),
                               infos+("no-such-user@invalid",)),
                              "Information?",
 			     decoder=decoder)
-
         ## Stateless replies
         reply = bsrb([self.server3, self.server1, self.server2,
                       self.server1, self.server3], MBOX_TYPE,
-                     "fred", "Galaxy Far Away.", 0)
+                     "fred", "Galaxy Far Away", 0)
 
         sec,(loc,) = self.do_header_test(reply.header, pks_1, None,
                             (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
                             infos+(None,))
-	if 0: #XXXXX
-	    s = "fred\x00RTRN"
-	    self.assert_(loc.startswith(s)) 
-	    seed = ctr_crypt(loc[len(s):], "Galaxy Far Away.")
-	    prng = AESCounterPRNG(seed)
-	    self.assert_(sec == [ prng.getBytes(16) for _ in range(5) ])
+
+	self.assertEquals(loc[20:], "fred")
+
+	seed = loc[:20]
+	prng = AESCounterPRNG(sha1(seed+"Galaxy Far AwayGenerate")[:16])
+	sec.reverse()
+	self.assertEquals(sec, [ prng.getBytes(16) for _ in range(len(sec)) ])
+
+        m = brm("Information?  What's the world come to?",
+                [self.server3, self.server1],
+                reply)
+
+	def decoder2(p,t):
+	    return BuildMessage.decodeStatelessReplyPayload(p,t,
+							    "Galaxy Far Away")
+        self.do_message_test(m,
+                             ((self.pk3, self.pk1), None,
+                              (FWD_TYPE,SWAP_FWD_TYPE),
+                              (self.server1.getRoutingInfo().pack(),
+                               self.server3.getRoutingInfo().pack())),
+                             (pks_1, None,
+                              (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
+                              infos+("fred",)),
+                             "Information?  What's the world come to?",
+			     decoder=decoder2)
+	
 
 #----------------------------------------------------------------------
 # Having tested BuildMessage without using PacketHandler, we can now use
@@ -1221,7 +1307,7 @@ class PacketHandlerTests(unittest.TestCase):
 		if decoder is None:
 		    p = BuildMessage.decodeForwardPayload(p)
 		else:
-		    p = decoder(p, res[1][1])
+		    p = decoder(p, res[1][1][:20])
                 self.assert_(p.startswith(payload))
                 break
 
@@ -2627,6 +2713,10 @@ def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
+
+    if 0:
+	suite.addTest(tc(BuildMessageTests))
+	return suite
 
     suite.addTest(tc(ClientMainTests))
     suite.addTest(tc(ServerMainTests))

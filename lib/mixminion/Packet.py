@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.11 2002/10/13 01:34:44 nickm Exp $
+# $Id: Packet.py,v 1.12 2002/10/14 03:03:42 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -14,10 +14,8 @@ __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseReplyBlock', 'ENC_SUBHEADER_LEN', 'HEADER_LEN',
             'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO', 'SECRET_LEN', 'TAG_LEN',
 	    'SINGLETON_PAYLOAD_OVERHEAD', 'OAEP_OVERHEAD',
-	    'FRAGMENT_PAYLOAD_OVERHEAD',
-	    'compressData', 'uncompressData']
+	    'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD']
 
-import zlib
 import struct
 from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, floorDiv
@@ -243,13 +241,16 @@ class Subheader:
 FRAGMENT_MESSAGEID_LEN = 20
 MAX_N_FRAGMENTS = 0x7ffff
 
+#XXXX DOCDOC
 SINGLETON_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN
 FRAGMENT_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
 OAEP_OVERHEAD = 42
+#XXXX DOC DOC  and e2e note is off by 4.
+ENC_FWD_OVERHEAD = OAEP_OVERHEAD - TAG_LEN + SECRET_LEN
 
 def parsePayload(payload):
     "XXXX"
-    if len(payload) not in (PAYLOAD_LEN, PAYLOAD_LEN-OAEP_OVERHEAD):
+    if len(payload) not in (PAYLOAD_LEN, PAYLOAD_LEN-ENC_FWD_OVERHEAD):
 	raise ParseError("Payload has bad length")
     bit0 = ord(payload[0]) & 0x80
     if bit0:
@@ -298,7 +299,7 @@ class SingletonPayload:
 	assert 0 <= self.size <= len(self.data)
 	assert len(self.hash) == DIGEST_LEN
 	assert (PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - len(self.data)) in \
-	       (0, OAEP_OVERHEAD)
+	       (0, ENC_FWD_OVERHEAD)
 	header = struct.pack(SINGLETON_UNPACK_PATTERN, self.size, self.hash)
 	return "%s%s" % (header, self.data)
 
@@ -322,28 +323,11 @@ class FragmentPayload:
 	assert len(self.msgID) == FRAGMENT_MESSAGEID_LEN
 	assert len(self.data) < self.msgLen < 0x100000000L
 	assert (PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)) in \
-	       (0, OAEP_OVERHEAD)
+	       (0, ENC_FWD_OVERHEAD)
 	idx = self.index | 0x8000
 	header = struct.pack(FRAGMENT_UNPACK_PATTERN, idx, self.hash,
 			     self.msgID, self.msgLen)
 	return "%s%s" % (header, self.data)
-
-#----------------------------------------------------------------------
-# COMPRESSION FOR PAYLOADS
-
-# FFFF Check for zlib acceptability.  Check for correct parameters in zlib
-# FFFF module
-
-def compressData(payload):
-    "XXXX"
-    return zlib.compress(payload, 9)
-
-def uncompressData(payload):
-    "XXXX"
-    try:
-	return zlib.decompress(payload)
-    except zlib.error, _:
-	raise ParseError("Error in compressed data")
 
 #----------------------------------------------------------------------
 # REPLY BLOCKS
@@ -477,4 +461,3 @@ class MBOXInfo:
     def pack(self):
         """Return the external representation of this routing info."""
 	return self.tag + self.user
-

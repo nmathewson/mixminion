@@ -67,6 +67,18 @@ FOR 0.0.1: (The first alpha)
 	. MBox module
 		o Implement
 		- Test
+	. E2E functionality
+		o Build singleton messages of all kinds, with compression
+		o Decode singleton messages of all kinds
+		o Generic decoder
+		- ModuleManager changes
+		. Testing
+			o Test end-to-end build/decode
+			o Test compression
+			- Test helpers for failing cases
+			- Test exact output formats on build*Message
+			- Test failing cases for decode*Payload
+			- Test decode*Payload on canned input
 	o Rename versions to 0.1.
 	- Change output of dates to avoid potential GMT confusion.
 	o Marginally clean shutdown for server

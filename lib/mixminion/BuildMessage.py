@@ -1,20 +1,21 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.14 2002/10/13 01:34:44 nickm Exp $
+# $Id: BuildMessage.py,v 1.15 2002/10/14 03:03:42 nickm Exp $
 
 """mixminion.BuildMessage
 
    Code to construct messages and reply blocks."""
 
+import zlib
 import operator
 from mixminion.Packet import *
-from mixminion.Common import MixError
+from mixminion.Common import MixError, MixFatalError, getLog
 import mixminion.Crypto as Crypto
 import mixminion.Modules as Modules
 
 __all__ = [ 'Address', 
            'buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
            'buildStatelessReplyBlock', 'buildReplyBlock', 'decodePayload',
-	   'decodeForwardPayload', 'decodeEncryptedPayload', 
+	   'decodeForwardPayload', 'decodeEncryptedForwardPayload', 
 	   'decodeReplyPayload', 'decodeStatelessReplyPayload' ]
 
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2, 
@@ -44,21 +45,21 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
     if secretRNG is None: secretRNG = paddingPRNG
 
-    payload = _encodePayload(payload, OAEP_OVERHEAD, paddingPRNG)
+    payload = _encodePayload(payload, ENC_FWD_OVERHEAD, paddingPRNG)
 
     sessionKey = secretRNG.getBytes(SECRET_LEN)
-    payload = sessionKey+payLoad
+    payload = sessionKey+payload
     rsaDataLen = key.get_modulus_bytes()-OAEP_OVERHEAD
     rsaPart = payload[:rsaDataLen]
     lionessPart = payload[rsaDataLen:]
     # XXXX DOC
     while 1:
-	encrypted = mixminion.Crypto.pk_encrypt(rsaPart, key)
+	encrypted = Crypto.pk_encrypt(rsaPart, key)
 	if not (ord(encrypted[0]) & 0x80):
 	    break
     #XXXX doc mode 'End-to-end encrypt'
-    k = mixminion.Crypto.Keyset(sessionKey).getLionessKeys("End-to-end encrypt")
-    lionessPart = mixminion.Crypto.lioness_encrypt(lionessPart, k)
+    k = Crypto.Keyset(sessionKey).getLionessKeys("End-to-end encrypt")
+    lionessPart = Crypto.lioness_encrypt(lionessPart, k)
     payload = encrypted + lionessPart
     tag = payload[:TAG_LEN]
     payload = payload[TAG_LEN:]
@@ -180,7 +181,7 @@ def decodePayload(payload, tag, key=None, storedKeys=None, userKey=None):
 		pass
 
     if key is not None:
-	p = decodeEncryptedPayload(payload, tag, key)
+	p = decodeEncryptedForwardPayload(payload, tag, key)
 	if p is not None:
 	    return p
 	
@@ -190,7 +191,7 @@ def decodeForwardPayload(payload):
     "XXXX"
     return _decodePayload(payload)
 
-def decodeEncryptedPayload(payload, tag, key):
+def decodeEncryptedForwardPayload(payload, tag, key):
     "XXXX"
     msg = tag+payload
     try:
@@ -220,10 +221,7 @@ def decodeStatelessReplyPayload(payload, tag, userKey):
     prng = Crypto.AESCounterPRNG(seed)
     secrets = [ prng.getBytes(SECRET_LEN) for _ in xrange(17) ]
 			 
-    return decodeReplyBlock(payload, secrets, check=1)
-	
-	
-    
+    return decodeReplyPayload(payload, secrets, check=1)
 
 #----------------------------------------------------------------------
 def _buildMessage(payload, exitType, exitInfo,
@@ -421,11 +419,19 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
 
     return Message(header1, header2, payload).pack()
 
+#----------------------------------------------------------------------
+# Payload-related helpers
+
 def _encodePayload(payload, overhead, paddingPRNG):
-    """XXXX
+    """Helper: compress a payload, pad it, and add extra fields (size and hash)
+              payload: the initial payload
+	      overhead: number of bytes to omit from result
+	                (0 or ENC_FWD_OVERHEAD)
+              paddingPRNG: generator for padding.
+
+       BUG: This should eventually support K-of-N.
     """
-    # FFFF Do fragmentation here.
-    
+    assert overhead in (0, ENC_FWD_OVERHEAD)
     payload = compressData(payload)
 
     length = len(payload)
@@ -438,7 +444,7 @@ def _encodePayload(payload, overhead, paddingPRNG):
     return SingletonPayload(length, Crypto.sha1(payload), payload).pack()
 
 def _getRandomTag(rng):
-    "XXXX"
+    "Helper: Return a 20-byte string with the MSB of byte 0 set to 0."
     b = ord(rng.getBytes(1)) & 0x7f
     return chr(b) + rng.getBytes(TAG_LEN-1)
 
@@ -449,11 +455,63 @@ def _decodePayload(payload):
 
     if not payload.isSingleton():
 	raise MixError("Message fragments not yet supported")
-    #if payload.hash != Crypto.sha1(payload.data):
-    #    raise MixError("Hash doesn't match")
 
     return uncompressData(payload.getContents())
 
 def _checkPayload(payload):
+    'Return true iff the hash on the given payload seems valid'
     return payload[2:22] == Crypto.sha1(payload[22:])
 
+#----------------------------------------------------------------------
+# COMPRESSION FOR PAYLOADS
+
+_ZLIB_LIBRARY_OK = 0
+
+def compressData(payload):
+    """Given a string 'payload', compress it with zlib as specified in the
+       remailer spec."""
+    if not _ZLIB_LIBRARY_OK:
+	_validateZlib()
+    # Don't change any of these options; they're all mandated.  
+    zobj = zlib.compressobj(zlib.Z_BEST_COMPRESSION, zlib.DEFLATED,
+			    zlib.MAX_WBITS, zlib.DEF_MEM_LEVEL, 
+			    zlib.Z_DEFAULT_STRATEGY)
+    s1 = zobj.compress(payload)
+    s2 = zobj.flush()
+    return s1 + s2
+
+def uncompressData(payload):
+    """Uncompress a string 'payload'; raise ParseError if it is not valid
+       compressed data."""
+    try:
+	return zlib.decompress(payload)
+    except zlib.error, _:
+	raise ParseError("Error in compressed data")
+
+def _validateZlib():
+    """Internal function:  Make sure that zlib is a recognized version, and 
+       that it compresses things as expected.  (This check is important, 
+       because using a zlib version that compressed differently from zlib1.1.4
+       would make senders partitionable by payload compression.)
+    """
+    global _ZLIB_LIBRARY_OK
+    ver = getattr(zlib, "ZLIB_VERSION")
+    if ver and ver < "1.1.2":
+	raise MixFatalError("Zlib version %s is not supported"%ver)
+    if ver in ("1.1.2", "1.1.3", "1.1.4"):
+	_ZLIB_LIBRARY_OK = 1
+	return
+
+    getLog().warn("Unrecognized zlib version: %r. Spot-checking output", ver)
+    # This test is inadequate, but it _might_ catch future incompatible
+    # changes.
+    _ZLIB_LIBRARY_OK = 0.5
+    good = 'x\xda\xed\xc6A\x11\x00 \x08\x00\xb0l\xd4\xf0\x87\x02\xf6o'+\
+	   '`\x0e\xef\xb6\xd7r\xed\x88S=7\xcd\xcc\xcc\xcc\xcc\xcc\xcc'+\
+	   '\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xbe\xdd\x03q'+\
+	   '\x8d\n\x93'
+    if compressData("aZbAAcdefg"*1000) == good:
+	_ZLIB_LIBRARY_OK = 1
+    else:
+	_ZLIB_LIBRARY_OK = 0
+	raise MixFatalError("Zlib output not as exected.")
