@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.78 2003/09/05 21:59:49 nickm Exp $
+# $Id: setup.py,v 1.79 2003/10/13 17:25:06 nickm Exp $
 import sys
 
 #
@@ -115,12 +115,12 @@ it, you can grab and build a local copy for Mixminion only by running:
       make build-openssl
 
       (then)
-      make build
+      make
 
       (Or, if you have the OpenSSL source somewhere else, use OPENSSL_SRC
       as in:
                make build-openssl OPENSSL_SRC=~/src/openssl-0.9.7
-               make build         OPENSSL_SRC=~/src/openssl-0.9.7
+               make               OPENSSL_SRC=~/src/openssl-0.9.7
       )
 ======================================================================"""
 
@@ -159,9 +159,14 @@ elif USE_OPENSSL:
         STATIC_LIBS = []
         LIBRARY_DIRS = []
         LIBRARIES = [ 'ssl', 'crypto' ]
-    elif (os.path.exists(os.environ.get("OPENSSL_SRC", "./contrib/openssl"))
+    elif ((os.path.exists("./contrib/openssl") or
+           os.environ.get("OPENSSL_SRC"))
           and not os.environ.get("OPENSSL_PREFIX")):
         openssl_src = os.environ.get("OPENSSL_SRC", "./contrib/openssl")
+        openssl_src = os.path.expanduser(openssl_src)
+        if not os.path.exists(openssl_src):
+            print "$OPENSSL_SRC does not exist."
+            sys.exit(1)
         print "Using OpenSSL from", openssl_src
         openssl_inc = os.path.join(openssl_src, "include")
         INCLUDE_DIRS = [openssl_inc]
