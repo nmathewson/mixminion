@@ -165,7 +165,8 @@ To send a message _without_ reloading the directory, type:
 
 To reload the directory without sending a message, type:
 
-      mixminion send -D yes
+        mixminion send -D yes
+     OR mixminion update-servers
 
 To force a path of a given length, type:
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.35 2003/01/07 04:49:10 nickm Exp $
+# $Id: ClientMain.py,v 1.36 2003/01/07 05:04:55 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1172,3 +1172,29 @@ def listServers(cmd, args):
 
     for line in keystore.listServers():
         print line
+
+_UPDATE_SERVERS_USAGE = """\
+Usage: %s [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
+                             (You can also use MIXMINIONRC=FILE)
+""".strip()
+
+def updateServers(cmd, args):
+    options, args = getopt.getopt(args, "hf:", ['help', 'config='])
+    configFile = None
+    for o,v in options:
+        if o in ('-h', '--help'):
+            print _LIST_SERVERS_USAGE % cmd
+            sys.exit(1)
+        elif o in ('-f', '--config'):
+            configFile = v
+
+    config = readConfigFile(configFile)
+
+    userdir = os.path.expanduser(config['User']['UserDir'])
+    keystore = ClientKeystore(userdir)
+
+    keystore.updateDirectory(forceDownload=1)
+    print "Directory updated"

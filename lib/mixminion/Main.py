@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.22 2003/01/06 10:39:24 nickm Exp $
+# $Id: Main.py,v 1.23 2003/01/07 05:04:55 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -119,6 +119,7 @@ _COMMANDS = {
     "client" :         ( 'mixminion.ClientMain', 'runClient' ),
     "import-server" :  ( 'mixminion.ClientMain', 'importServer' ),
     "list-servers" :   ( 'mixminion.ClientMain', 'listServers' ),
+    "update-servers" : ( 'mixminion.ClientMain', 'updateServers' ),
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-keygen" :  ( 'mixminion.server.ServerMain', 'runKeygen'),
     "server-DELKEYS" : ( 'mixminion.server.ServerMain', 'removeKeys'),
@@ -133,6 +134,7 @@ _USAGE = (
   "       send           [Send an anonymous message]\n"+
   "       import-server  [Tell the client about a new server]\n"+
   "       list-servers   [Print a list of currently known servers]\n"+
+  "       update-servers [Download a fresh server directory]\n"+
   "                               (For Servers)\n"+
   "       server         [Begin running a Mixminon server]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
