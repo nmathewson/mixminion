@@ -404,6 +404,7 @@ class ClientDirectory:
         self.byCapability = { 'mbox': [],
                               'smtp': [],
                               'relay': [],
+                              'frag': [],
                               None: self.allServers }
         self.goodServerNicknames = {}
 
