@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirCGI.py,v 1.5 2003/05/28 07:42:22 nickm Exp $
+# $Id: DirCGI.py,v 1.6 2003/05/28 08:37:48 nickm Exp $
 
 """mixminion.directory.DirCGI
 
@@ -14,6 +14,8 @@ import cgi
 import os
 import sys
 from mixminion.directory.Directory import Directory
+from mixminion.directory.ServerInbox import ServerQueuedException
+from mixminion.Common import UIError
 
 try:
     import cgitb
@@ -44,7 +46,13 @@ def run():
     address = "<%s:%s>" % (os.environ.get("REMOTE_ADDR"),
                            os.environ.get("REMOTE_PORT"))
 
-    inbox.receiveServer(desc, address)
+    try:
+	os.umask(022)
+        inbox.receiveServer(desc, address)
+        print "Status: 1\nMessage: Accepted."
+    except UIError, e:
+        print "Status: 0\nMessage: %s"%e
+    except ServerQueuedException, e:
+        print "Status: 1\nMessage: %s"%e
 
 
-    

@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.7 2003/05/28 06:37:37 nickm Exp $
+# $Id: Directory.py,v 1.8 2003/05/28 08:37:48 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -75,7 +75,7 @@ class Directory:
 
     def getIDCache(self):
         if not self.cache:
-            self.cache = IDCache(self.cacheFile)
+            self.cache = IDCache(self.cacheFile,self._setCacheMode)
         return self.cache
 
     def _setCacheMode(self):
@@ -177,10 +177,11 @@ class MismatchedID(Exception):
 
 class IDCache:
     """DOCDOC"""
-    def __init__(self, location):
+    def __init__(self, location, postSave=None):
         self.location = location
         self.dirty = 0
         self.cache = None
+        self.postSave = postSave
 
     def emptyCache(self):
         self.dirty = 1
@@ -254,6 +255,8 @@ class IDCache:
         writePickled(self.location,
                      ("V0", self.cache),
                      0640)
+        if self.postSave:
+            self.postSave()
         self.dirty = 0
             
 def getIDFingerprint(server):

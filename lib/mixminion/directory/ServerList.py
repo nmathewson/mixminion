@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.20 2003/05/26 21:08:13 nickm Exp $
+# $Id: ServerList.py,v 1.21 2003/05/28 08:37:49 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -424,9 +424,9 @@ class ServerList:
         self.rlock.release()
 
 
-def _writeServer(directory, contents, nickname):
+def _writeServer(directory, contents, nickname, mode=0600):
     newFile = nickname+"-"+formatFnameTime()
-    f, newFile = openUnique(os.path.join(directory, "newFile"))
+    f, newFile = openUnique(os.path.join(directory, newFile), 'w', mode)
     newFile = os.path.split(newFile)[1]
     f.write(contents)
     f.close()

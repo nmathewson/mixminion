@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.5 2003/05/28 07:54:08 nickm Exp $
+# $Id: ServerInbox.py,v 1.6 2003/05/28 08:37:49 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -12,7 +12,7 @@ __all__ = [ 'ServerInbox' ]
 import os
 
 from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
-     readPickled, writePickled
+     readPickled, writePickled,formatBase64
 from mixminion.ServerInfo import ServerInfo
 
 from mixminion.directory.Directory import getIDFingerprint, MismatchedID
@@ -133,7 +133,7 @@ class ServerInbox:
         # lcnickname->nicknames
         nicknames = {}
     
-        for f,s,t,fp in incoming:
+        for fname,s,t,fp in incoming:
             nickname = s.getNickname()
             lcnickname = nickname.lower()
             nicknames.setdefault(lcnickname, []).append(nickname)
@@ -151,7 +151,7 @@ class ServerInbox:
             ss = servers[lcnickname]
             if len(ss) > 1:
                 print >>f, ("***** MULTIPLE KEYIDS FOR %s:"%nickname)
-            for fp, s in ss:
+            for fp, s in ss.items():
                 print >>f, (format%(nickname,fp,len(s)))
 
 class IncomingQueue:
@@ -168,11 +168,11 @@ class IncomingQueue:
     def queueIncomingServer(self, contents, server):
         """DOCDOC"""
         nickname = server.getNickname()
-        _writeServer(nickname, contents, self.incomingDir)
+        _writeServer(self.incomingDir, contents, nickname, 0644)
 
     def queueRejectedServer(self, contents, server):
         nickname = server.getNickname()
-        _writeServer(nickname, contents, self.rejectDir)        
+        _writeServer(self.rejectDir, contents, nickname, 0644)
 
     def newServersPending(self, newServ):
         """DOCDOC"""
@@ -189,13 +189,14 @@ class IncomingQueue:
                 LOG.warn("Removed a bad server descriptor %s from incoming dir: %s",
                          fname, e)
                 continue
-            res.append((fname, server, text, getIDFingerprint(server)))
+            fp = formatBase64(getIDFingerprint(server))
+            res.append((fname, server, text, fp))
         return res
 
     def delPendingServers(self, fnames):
         for fname in fnames:
             try:
-                os.path.unlink(os.path.join(self.incomingDir, fname))
+                os.unlink(os.path.join(self.incomingDir, fname))
             except OSError:
                 LOG.warn("delPendingServers: no such server %s"%fname)
 
