@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.40 2003/09/12 15:48:19 nickm Exp $
+# $Id: ServerList.py,v 1.41 2003/10/20 19:40:32 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -130,6 +130,17 @@ class ServerList:
                               % server.getNickname())
         finally:
             self._unlock()
+
+    def rebuildIDCache(self):
+        for fn in os.listdir(self.serverIDDir):
+            fname = os.path.join(self.serverIDDir, fn)
+            tp,val = readPickled(fname)
+            if tp != "V0":
+                LOG.warn("Weird file version %s on %s",tp,fname)
+                continue
+            nickname, ident = val
+            ID = mixminion.Crypto.sha1(ident)
+            self.idCache.insertID(nickname, ID)
 
     def learnServerID(self, server):
         """Mark the ID for a server descriptor as the canonical

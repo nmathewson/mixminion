@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.16 2003/06/06 06:04:58 nickm Exp $
+# $Id: DirMain.py,v 1.17 2003/10/20 19:40:32 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -90,6 +90,15 @@ def cmd_list(args):
     inbox = d.getInbox()
     inbox.listNewPendingServers(sys.stdout)
 
+def cmd_rebuildcache(args):
+    """DOCDOC"""
+    if args:
+        raise UIError("mixminion dir rebuildcache takes no arguments")
+    d = getDirectory()
+    serverList = d.getServerList()
+    serverList.rebuildIDCache()
+    d.getIDCache().save()
+
 def cmd_import(args):
     """[Entry point] Import descriptors for new servers, by nickname."""
     d = getDirectory()
@@ -178,7 +187,8 @@ SUBCOMMANDS = { 'initialize' : cmd_init,
                 'list' : cmd_list,
                 'import-new' : cmd_import,
                 'generate' : cmd_generate,
-                'fingerprint' : cmd_fingerprint
+                'fingerprint' : cmd_fingerprint,
+                'rebuildcache' : cmd_rebuildcache
                 }
 
 def main(cmd, args):
