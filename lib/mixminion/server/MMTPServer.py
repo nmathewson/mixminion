@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.32 2003/05/31 12:52:55 nickm Exp $
+# $Id: MMTPServer.py,v 1.33 2003/06/03 07:42:14 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -247,6 +247,8 @@ class SimpleTLSConnection(Connection):
     #    __servermode: If true, we're the server side of the connection.
     #           Else, we're the client side.
     # DOCDOC __connecting
+    # DOCDOC __failed
+    # DOCDOC possibile None on state, server.
     def __init__(self, sock, tls, serverMode, address=None):
         """Create a new SimpleTLSConnection.
 
@@ -259,6 +261,7 @@ class SimpleTLSConnection(Connection):
         self.fd = self.__con.fileno()
         self.lastActivity = time.time()
         self.__serverMode = serverMode
+        self.__failed = 0
 
         if serverMode:
             self.__connecting = 0
@@ -335,9 +338,8 @@ class SimpleTLSConnection(Connection):
         # ourself.
         if self.__con.shutdown() == 1: #may throw want*
             #trace("Got a 1 on shutdown (fd %s)", self.fd)
-            self.__server.unregister(self)
-            self.__state = None
             self.__sock.close()
+            self.__state = None
             self.shutdownFinished()
             return
 
@@ -418,10 +420,11 @@ class SimpleTLSConnection(Connection):
             warn("Connection to %s timed out", self.address)
             # ????     I'm not sure this is right.  Instead of just killing
             # ???? the socket, should we shut down the SSL too?
-            self.__server.unregister(self)
-            self.__state = None
             self.__sock.close()
-            self.handleFail(1)
+            if not self.__failed:
+                self.__failed = 1
+                self.handleFail(1)
+            self.remove()                
 
     def handleRead(self):
         self.__handleAll()
@@ -452,9 +455,11 @@ class SimpleTLSConnection(Connection):
                 warn("Couldn't connect to server %s", self.address)
             else:
                 warn("Unexpectedly closed connection to %s", self.address)
-            self.handleFail(retriable=1)
             self.__sock.close()
-            self.__server.unregister(self)
+            if not self.__failed:
+                self.__failed = 1
+                self.handleFail(retriable=1)
+            self.remove()                
         except _ml.TLSError, e:
             if self.__state != self.__shutdownFn:
                 warn("Unexpected error: %s. Closing connection to %s.",
@@ -465,11 +470,13 @@ class SimpleTLSConnection(Connection):
                 warn("Error while shutting down: closing connection to %s",
                      self.address)
                 self.__sock.close()
-                self.__server.unregister(self)
-                self.handleFail(1)
+                if not self.__failed:
+                    self.__failed = 1
+                    self.handleFail(1)
+                self.remove()
         else:
             # We are in no state at all; disconnect
-            self.__server.unregister(self)
+            self.remove()
 
     def finished(self):
         """Called whenever a connect, accept, read, or write is finished."""
@@ -485,7 +492,7 @@ class SimpleTLSConnection(Connection):
 
     def shutdown(self, err=0, retriable=0):
         """Begin a shutdown on this connection"""
-        if err:
+        if err and not self.__failed:
             self.handleFail(retriable)
             #self.__sock.close()
             #self.__state = None
@@ -506,6 +513,13 @@ class SimpleTLSConnection(Connection):
     def handleFail(self, retriable=0):
         """Called when we shutdown with an error."""
         pass
+
+    def remove(self):
+        """DOCDOC"""
+        self.__server.unregister(self)
+        self.__server = None
+        self.__state = None
+
 
 #----------------------------------------------------------------------
 # Implementation for MMTP.
@@ -651,6 +665,14 @@ class MMTPServerConnection(SimpleTLSConnection):
         self.finished = self.__receivedMessage
         self.expectRead(SEND_RECORD_LEN)
 
+    def remove(self):
+        self.messageConsumer = None
+        self.finished = None
+        self.junkCallback = None
+        self.rejectCallback = None
+        
+        SimpleTLSConnection.remove(self)
+
 #----------------------------------------------------------------------
 
 NULL_KEYID = "\x00"*20
@@ -675,6 +697,7 @@ class MMTPClientConnection(SimpleTLSConnection):
     #     in the order we offer them.
     # _curMessage, _curHandle: Correspond to the message and handle
     #     that we are currently trying to deliver.
+    # DOCDOC other callbacks
     PROTOCOL_VERSIONS = [ '0.3' ]
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None, finishedCallback=None,
@@ -873,7 +896,7 @@ class MMTPClientConnection(SimpleTLSConnection):
        self.beginNextMessage()
 
     def handleFail(self, retriable):
-        """Invoked when a message is not deliverable."""
+        """Invoked when we shutdown with an error."""
         if self.failCallback is not None:
             if self._curHandle is not None:
                 self.failCallback(self._curMessage, self._curHandle, retriable)
@@ -884,12 +907,15 @@ class MMTPClientConnection(SimpleTLSConnection):
         self._messageList = self.handleList = []
         self._curMessage = self._curHandle = None
 
+    def remove(self):
         if self.finishedCallback is not None:
             self.finishedCallback()
-
-    def shutdownFinished(self):
-        if self.finishedCallback is not None:
-            self.finishedCallback()
+        self.finishedCallback = None
+        self.failCallback = None
+        self.sentCallback = None
+        
+        SimpleTLSConnection.remove(self)
+            
 
 
 
