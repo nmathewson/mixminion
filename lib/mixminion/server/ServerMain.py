@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.135 2004/12/02 06:47:08 nickm Exp $
+# $Id: ServerMain.py,v 1.136 2004/12/06 19:26:31 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -333,17 +333,17 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
     """
     ## Fields:
     # server -- an instance of _MMTPServer
-    # addr -- (publishedIP, publishedPort, publishedKeyID)
+    # addr -- the key ID we published in our descriptor.
     # incomingQueue -- pointer to IncomingQueue object to be used for
     #        self->self communication.
-    def __init__(self, location, (ip,port,keyid)):
+    def __init__(self, location, keyID):
         """Create a new OutgoingQueue that stores its packets in a given
            location."""
         mixminion.server.ServerQueue.PerAddressDeliveryQueue.__init__(self, location)
         self.server = None
         self.incomingQueue = None
         self.pingGenerator = None
-        self.keyID = keyid
+        self.keyID = keyID
 
     def configure(self, config):
         """Set up this queue according to a ServerConfig object."""
@@ -841,8 +841,6 @@ class MixminionServer(_Scheduler):
 
         self.dirClient._installAsKeyIDResolver()
 
-        publishedIP, publishedPort, publishedKeyID = self.keyring.getAddress()
-
         # FFFF Modulemanager should know about async so it can patch in if it
         # FFFF needs to.
         LOG.debug("Initializing delivery module")
@@ -867,7 +865,7 @@ class MixminionServer(_Scheduler):
         outgoingDir = os.path.join(queueDir, "outgoing")
         LOG.debug("Initializing outgoing queue")
         self.outgoingQueue = OutgoingQueue(outgoingDir,
-                               (publishedIP, publishedPort, publishedKeyID))
+                                           self.keyring.getKeyDigest())
         self.outgoingQueue.configure(config)
         LOG.debug("Found %d pending packets in outgoing queue",
                        self.outgoingQueue.count())

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.68 2004/08/24 22:16:09 nickm Exp $
+# $Id: ServerKeys.py,v 1.69 2004/12/06 19:26:31 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -580,13 +580,6 @@ class ServerKeyring:
                          formatTime(self.nextUpdate,1))
 
         return self.nextUpdate
-
-    def getAddress(self):
-        """Return out current ip/port/keyid tuple"""
-        desc = self.getCurrentDescriptor()
-        return (desc['Incoming/MMTP']['IP'],
-                desc['Incoming/MMTP']['Port'],
-                desc.getKeyDigest())
 
     def getCurrentDescriptor(self, now=None):
         """DOCDOC"""
