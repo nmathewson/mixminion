@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.19 2002/12/02 03:41:49 nickm Exp $
+# $Id: Modules.py,v 1.20 2002/12/02 04:25:52 nickm Exp $
 
 """mixminion.Modules
 
@@ -538,7 +538,7 @@ class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
         
 #----------------------------------------------------------------------
 def sendSMTPMessage(server, toList, fromAddr, message):
-    con = smtplib(server)
+    con = smtplib.SMTP(server)
     try:
 	con.sendmail(fromAddr, toList, message)
 	res = DELIVER_OK
