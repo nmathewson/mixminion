@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.33 2004/02/06 23:14:28 nickm Exp $ */
+/* $Id: tls.c,v 1.34 2004/02/07 21:27:58 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -198,6 +198,9 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
         }
         if (!err)
                 SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+        if (!err)
+                SSL_CTX_set_mode(ctx, SSL_MODE_ENABLE_PARTIAL_WRITE|
+                                      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
         Py_END_ALLOW_THREADS
 
         if (!err) {
