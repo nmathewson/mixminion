@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.14 2002/09/10 14:45:31 nickm Exp $
+# $Id: ServerInfo.py,v 1.15 2002/10/30 02:19:39 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,7 +15,7 @@ import os
 import base64
 import socket
 
-from mixminion.Common import createPrivateDir, getLog
+from mixminion.Common import createPrivateDir, getLog, MixError
 from mixminion.Modules import SWAP_FWD_TYPE, FWD_TYPE
 from mixminion.Packet import IPV4Info
 import mixminion.Config
@@ -156,7 +156,7 @@ class ServerKeyset:
         self.descFile = os.path.join(keydir, "ServerDesc")
         if not os.path.exists(keydir):
 	    createPrivateDir(keydir)
-        
+
     def load(self, password=None):
         "Read this set of keys from disk."
         self.packetKey = mixminion.Crypto.pk_PEM_load(self.packetKeyFile,
@@ -186,14 +186,14 @@ def _time(t):
     """Helper function: turns a time (in seconds) into the format used by
        Server descriptors"""
     gmt = time.gmtime(t)
-    return "%02d/%02d/%04d %02d:%02d:%02d" % (
-	gmt[2],gmt[1],gmt[0],  gmt[3],gmt[4],gmt[5])
+    return "%04d/%02d/%02d %02d:%02d:%02d" % (
+	gmt[0],gmt[1],gmt[2],  gmt[3],gmt[4],gmt[5])
 
 def _date(t):
     """Helper function: turns a time (in seconds) into a date in the format
        used by server descriptors"""
     gmt = time.gmtime(t+1) # Add 1 to make sure we round down.
-    return "%02d/%02d/%04d" % (gmt[2],gmt[1],gmt[0])
+    return "%04d/%02d/%02d" % (gmt[0],gmt[1],gmt[2])
 
 def _rule(allow, (ip, mask, portmin, portmax)):
     if mask == '0.0.0.0':
@@ -279,6 +279,14 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 	"KeyID":
 	   _base64(serverKeys.getMMTPKeyID()),
 	}
+
+    if fields['IP'] == '0.0.0.0':
+	try:
+	    fields['IP'] = _guessLocalIP()
+	    getLog().warn("No IP configured; guessing %s",fields['IP'])
+	except IPGuessError, e:
+	    getLog().error("Can't guess IP: %s", str(e))
+	    raise MixError()
 	
     info = """\
         [Server]
@@ -353,7 +361,7 @@ def getServerInfoDigest(info):
 def signServerInfo(info, rsa):
     """Sign a server descriptor.  <info> should be a well-formed server
        descriptor, with Digest: and Signature: lines present but with
-       no values."""       
+       no values."""
     return _getServerInfoDigestImpl(info, rsa)
 
 def _getServerInfoDigestImpl(info, rsa=None):
@@ -395,3 +403,53 @@ def _getServerInfoDigestImpl(info, rsa=None):
     infoLines[signatureLine] = 'Signature: '+signature
 
     return "\n".join(infoLines)
+
+
+class IPGuessError(MixError):
+    pass
+
+_GUESSED_IP = None
+
+def _guessLocalIP():
+    "Try to find a reasonable IP for this host."
+    global _GUESSED_IP
+    if _GUESSED_IP is not None:
+	return _GUESSED_IP
+
+    # First, let's see what our name resolving subsystem says our
+    # name is.
+    ip_set = {}
+    try:
+	ip_set[ socket.gethostbyname(socket.gethostname()) ] = 1
+    except socket.error, host_error:
+	try:
+	    ip_by_host = socket.gethostbyname(socket.getfqdn())
+	except socket.error, _:
+	    pass
+
+    # And in case that doesn't work, let's see what other addresses we might
+    # think we have by using 'getsockname'.
+    for target_addr in ('18.0.0.1', '10.0.0.1', '192.168.0.1',
+			'172.16.0.1')+tuple(ip_set.keys()):
+	# open a datagram socket so that we don't actually send any packets
+	# by connecting.
+	try:
+	    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	    s.connect((target_addr, 9)) #discard port
+	    ip_set[ s.getsockname()[0] ] = 1
+	except socket.error, _:
+	    pass
+
+    if len(ip_set) == 0:
+	raise IPGuessError("No address found")
+
+    for ip in ip_set.keys():
+	if ip.startswith("127.") or ip.startswith("0."):
+	    del ip_set[ip]
+
+    if len(ip_set) > 1:
+	raise IPGuessError("Multiple addresses found: %s" % (
+	            ", ".join(ip_set)))
+
+    return ip_set.keys()[0]
+

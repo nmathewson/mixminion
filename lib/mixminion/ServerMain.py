@@ -1,9 +1,11 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.10 2002/09/16 15:30:02 nickm Exp $
+# $Id: ServerMain.py,v 1.11 2002/10/30 02:19:39 nickm Exp $
 
 """mixminion.ServerMain
 
-   The main loop and related functionality for a Mixminion server
+   The main loop and related functionality for a Mixminion server.
+   See the "MixminionServer" class for more information about how it
+   all works.
 
    BUG: No support for encrypting private keys."""
 
@@ -436,19 +438,32 @@ class MixminionServer:
 	nextRotate = self.keyring.getNextKeyRotation() # FFFF use this.
 	while 1:
 	    while time.time() < nextMix:
+		# Handle pending network events
 		self.mmtpServer.process(1)
+		# Process any new messages that have come in, placing them
+		# into the mix pool.
 		self.incomingQueue.sendReadyMessages()
 	    
+	    # Before we mix, we need to log the hashes to avoid replays.
+	    # FFFF We need to recover on server failure.
 	    self.packetHandler.syncLogs()
+	    
 	    getLog().trace("Mix interval elapsed")
+	    # Choose a set of outgoing messages; put them in outgoingqueue and
+	    # modulemanger
 	    self.mixPool.mix()
+	    # Send outgoing messages
 	    self.outgoingQueue.sendReadyMessages()
+	    # Send exit messages
 	    self.moduleManager.sendReadyMessages()
 
+	    # Choose next mix interval
 	    now = time.time()
 	    nextMix = now + 60
+
 	    if now > nextShred:
-		# Configurable shred interval
+		# FFFF Configurable shred interval
+		getLog().trace("Expunging queues")
 		self.incomingQueue.cleanQueue()
 		self.mixPool.queue.cleanQueue()
 		self.outgoingQueue.cleanQueue()
@@ -516,6 +531,7 @@ def runServer(cmd, args):
 	getLog().fatal_exc(sys.exc_info(),"Exception while running server")
     getLog().info("Server shutting down")
     server.close()
+    getLog().info("Server is shut down")
     
     sys.exit(0)
 

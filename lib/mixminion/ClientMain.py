@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.4 2002/10/13 01:34:44 nickm Exp $
+# $Id: ClientMain.py,v 1.5 2002/10/30 02:19:39 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -22,7 +22,7 @@
 #           directories.  Each server can have any number of virtual or 
 #           official tags.  Users should use the CLI to add/remove entries from
 #           dir.)
-#      - Per-systemm directory location is a neat idea, but individual users
+#      - Per-system directory location is a neat idea, but individual users
 #        must check signature.  That's a way better idea for later.
 
 import os
@@ -31,12 +31,13 @@ import sys
 import time
 import bisect
 
+from mixminion.Common import getLog, floorDiv, createPrivateDir, MixError
 import mixminion.Crypto
-from mixminion.Common import getLog, floorDiv, createPrivateDir
-import mixminion.Config
 import mixminion.BuildMessage
 import mixminion.MMTPClient
 import mixminion.Modules
+from mixminion.ServerInfo import ServerInfo
+from mixminion.Config import ClientConfig
 
 class DirectoryCache:
     """Holds a set of directories and serverinfo objects persistently.
@@ -86,9 +87,9 @@ class DirectoryCache:
 	    if self.servers.has_key(nickname):
 		self.servers[nickname].append(info)
 	    else:
-		self.servers[nickname] = info
+		self.servers[nickname] = [ info ]
 
-    def getCurrentServer(nickname, when=None, until=None):
+    def getCurrentServer(self,nickname, when=None, until=None):
         """Return a server descriptor valid during the interval
            when...until.  If 'nickname' is a string, return only a
            server with the appropriate nickname.  If 'nickname' is a
@@ -100,7 +101,7 @@ class DirectoryCache:
 	    when = time.time()
 	if until is None:
 	    until = when+1
-	if type(nickname) == ServerInfo:
+	if isinstance(nickname, ServerInfo):
 	    serverList = [ nickname ]
 	else:
 	    try:
@@ -114,7 +115,7 @@ class DirectoryCache:
 		return info
 	raise MixError("No time-valid information for server %s"%nickname)
 
-    def getAllCurrentServers(when=None, until=None):
+    def getAllCurrentServers(self, when=None, until=None):
 	"""Return all ServerInfo objects valid during a given interval."""
         self.load()
 	if when is None:
@@ -129,13 +130,17 @@ class DirectoryCache:
 		    result.append(info)
 	return result
 
-    def importServerInfo(self, fname, force=1):
+    def importServerInfo(self, fname, force=1, string=None):
 	"""Import a server descriptor from an external file into the internal
 	   cache.  Return 1 on import; 0 on failure."""
 	self.load()
-	f = open(fname)
-	contents = f.read()
-	f.close()
+	if string is None:
+	    f = open(fname)
+	    contents = f.read()
+	    f.close()
+	else:
+	    assert fname is None
+	    contents = string
 	info = ServerInfo(string=contents, assumeValid=0)
 	now = time.time()
 	if info['Server']['Valid-Until'] < now:
@@ -154,17 +159,22 @@ class DirectoryCache:
 		else:
 		    getLog().error("... importing anyway.")
 	
+	    for other in self.servers[nickname]:
+		if other['Server']['Digest'] == info['Server']['Digest']:
+		    getLog().warn("Duplicate server info; skipping")
+		    return 0
+
 	    self.servers[nickname].append(info)
 	else:
-	    self.servers[nickname] = info
+	    self.servers[nickname] = [ info ]
 
 	self.allServers.append(info)
 
 	self.highest_num += 1
 	fname_new = "si%d" % self.highest_num
-	f = os.fdopen(os.open(os.path.join(self.dirname, fname_name),
-			      os.O_CREAT|os.O_EXCL, 0600),
-		      'w')
+	fd = os.open(os.path.join(self.dirname, fname_new), 
+		     os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0600)
+	f = os.fdopen(fd, 'w')
 	f.write(contents)
 	f.close()
 
@@ -210,7 +220,7 @@ class MixminionClient:
 		if not os.path.exists(conf):
 		    installDefaultConfig(conf)
 	conf = os.path.expanduser(conf)
-	self.config = mixminion.Config.ClientConfig(fname=conf)
+	self.config = ClientConfig(fname=conf)
 
 	getLog().configure(self.config)
 	getLog().debug("Configuring client")
@@ -242,6 +252,9 @@ class MixminionClient:
 	# XXXX bad!  It allows a delaying/partitioning attack.
 	servers = self.dirCache.getAllCurrentServers(when=time.time(),
 					     until=time.time()+24*60*60)
+
+	# XXXX Pick only servers that relay to all other servers!
+	# XXXX Watch out for many servers with the same IP or nickname or...
 
 	if length > len(servers):
 	    getLog().warn("I only know about %s servers; That's not enough to use distinct servers on your path.", len(servers))
@@ -382,7 +395,7 @@ def sendTestMessage(servers1, servers2):
 
 def readConfigFile(configFile):
     try:
-	return mixminion.Config.ClientConfig(fname=configFile)
+	return ClientConfig(fname=configFile)
     except (IOError, OSError), e:
 	print >>sys.stderr, "Error reading configuration file %r:"%configFile
 	print >>sys.stderr, "   ", str(e)
@@ -412,7 +425,7 @@ def runClient(cmd, args):
     mixminion.Crypto.init_crypto(config)
     if len(args) < 2:
 	print >> sys.stderr, "I need at least 2 servers"
-    servers = [ mixminion.ServerInfo.ServerInfo(fn) for fn in args ]
+    servers = [ ServerInfo(fn) for fn in args ]
     idx = floorDiv(len(servers),2)
 
     sendTestMessage(servers[:idx], servers[idx:])

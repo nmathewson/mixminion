@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.33 2002/10/21 02:52:03 nickm Exp $
+# $Id: test.py,v 1.34 2002/10/30 02:19:39 nickm Exp $
 
 """mixminion.tests
 
@@ -25,7 +25,8 @@ import cPickle
 import cStringIO
 
 from mixminion.testSupport import mix_mktemp
-from mixminion.Common import MixError, MixFatalError, MixProtocolError, getLog
+from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
+     getLog, previousMidnight
 import mixminion.Crypto as Crypto
 
 try:
@@ -58,7 +59,7 @@ def suspendLog():
     if hasattr(log, '_storedHandlers'):
 	resumeLog()
     buf = cStringIO.StringIO()
-    h = mixminion.Common._ConsoleLogHandler(cStringIO.StringIO())
+    h = mixminion.Common._ConsoleLogHandler(buf)
     log._storedHandlers = log.handlers
     log._testBuf = buf
     log.handlers = []
@@ -74,7 +75,7 @@ def resumeLog():
     del log._testBuf
     log.handlers = log._storedHandlers
     del log._storedHandlers
-    return str(buf)
+    return buf.getvalue()
 
 # RSA key caching functionality
 _generated_rsa_keys = {}
@@ -1417,7 +1418,7 @@ class BuildMessageTests(unittest.TestCase):
 	for k in s:
 	    key = Keyset(k).getLionessKeys(PAYLOAD_ENCRYPT_MODE)
 	    m = lioness_decrypt(m,key)
-	self.assertEquals(payload, 
+	self.assertEquals(payload,
 		     BuildMessage.decodeStatelessReplyPayload(m,tag,passwd))
 	repl2, repl2tag = m, tag
 	
@@ -1432,13 +1433,13 @@ class BuildMessageTests(unittest.TestCase):
 	    for d in (sdict, None):
 		for p in (passwd, None):
 		    for tag in ("zzzz"*5, "pzzz"*5):
-			self.assertEquals(payload, 
+			self.assertEquals(payload,
 					  decodePayload(encoded1, tag,pk,d,p))
 	
 	# efwd
 	for d in (sdict, None):
 	    for p in (passwd, None):
-		self.assertEquals(payload, 
+		self.assertEquals(payload,
 		        decodePayload(efwd_p, efwd_t, self.pk1, d,p))
 		self.assertEquals(None,
 		        decodePayload(efwd_p, efwd_t, None, d,p))
@@ -1476,12 +1477,12 @@ class BuildMessageTests(unittest.TestCase):
 	
 	# Bad efwd
 	efwd_pbad = efwd_p[:-1] + chr(ord(efwd_p[-1])^0xaa)
-	self.failUnlessRaises(MixError, 
-			      BuildMessage.decodeEncryptedForwardPayload, 
+	self.failUnlessRaises(MixError,
+			      BuildMessage.decodeEncryptedForwardPayload,
 			      efwd_pbad, efwd_t, self.pk1)
 	for d in (sdict, None):
 	    for p in (passwd, None):
-		self.failUnlessRaises(MixError, decodePayload, 
+		self.failUnlessRaises(MixError, decodePayload,
 				      efwd_pbad, efwd_t, self.pk1, d, p)
 		self.assertEquals(None,
 			  decodePayload(efwd_pbad, efwd_t, self.pk2, d,p))
@@ -1495,9 +1496,9 @@ class BuildMessageTests(unittest.TestCase):
 			 decodePayload, repl1_bad, "tag1"*5, pk, sd, p)
 		sd = sdict.copy()
 		self.failUnlessRaises(MixError,
-			 BuildMessage.decodeReplyPayload, repl1_bad, 
+			 BuildMessage.decodeReplyPayload, repl1_bad,
 				      sd["tag1"*5])
-	# Bad srepl 
+	# Bad srepl
 	repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
 	self.assertEquals(None,
 		  decodePayload(repl2_bad, repl2tag, None, None, passwd))
@@ -2475,11 +2476,11 @@ IntRS=5
 
 	self.assertEquals(C._parseBase64(" YW\nJj"), "abc")
 	self.assertEquals(C._parseHex(" C0D0"), "\xC0\xD0")
-	tm = C._parseDate("30/05/2002")
+	tm = C._parseDate("2002/05/30")
 	self.assertEquals(time.gmtime(tm)[:6], (2002,5,30,0,0,0))
-	tm = C._parseDate("01/01/2000")
+	tm = C._parseDate("2000/01/01")
 	self.assertEquals(time.gmtime(tm)[:6], (2000,1,1,0,0,0))
-	tm = C._parseTime("25/12/2001 06:15:10")
+	tm = C._parseTime("2001/12/25 06:15:10")
 	self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
 
         def fails(fn, val, self=self):
@@ -2505,11 +2506,11 @@ IntRS=5
 	fails(C._parseBase64, "Y")
 	fails(C._parseHex, "Z")
 	fails(C._parseHex, "A")
-	fails(C._parseDate, "1/1/2000")
-	fails(C._parseDate, "01/50/2000")
-	fails(C._parseDate, "01/50/2000 12:12:12")
-	fails(C._parseTime, "01/50/2000 12:12:12")
-	fails(C._parseTime, "01/50/2000 12:12:99")
+	fails(C._parseDate, "2000/1/1")
+	fails(C._parseDate, "2000/50/01")
+	fails(C._parseDate, "2000/50/01 12:12:12")
+	fails(C._parseTime, "2000/50/01 12:12:12")
+	fails(C._parseTime, "2000/50/01 12:12:99")
 
         nonexistcmd = '/file/that/does/not/exist'
         if not os.path.exists(nonexistcmd):
@@ -2570,8 +2571,8 @@ Mode: relay
 Nickname: fred-the-bunny
 """
 
-def _getIdentityKey():
-    return getRSAKey(0,2048)
+def _getIdentityKey(n=0):
+    return getRSAKey(n,2048)
 
 import mixminion.Config
 import mixminion.ServerInfo
@@ -2645,7 +2646,11 @@ class ServerInfoTests(unittest.TestCase):
         # Now with a shorter configuration
 	try:
 	    suspendLog()
-	    conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG_SHORT)
+	    conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG_SHORT+
+					   """[Incoming/MMTP]
+Enabled: yes
+IP: 192.168.0.99
+""")
 	finally:
 	    resumeLog()
 	mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
@@ -2653,7 +2658,6 @@ class ServerInfoTests(unittest.TestCase):
 							     d,
 							     "key2",
 							     d)
-
         # Now with a bad signature
         sig2 = mixminion.Crypto.pk_sign(sha1("Hello"), identity)
         sig2 = base64.encodestring(sig2).replace("\n", "")
@@ -2855,18 +2859,18 @@ Foo: 100
 	# plaintext text message, bin mode.
 	self.assertEquals(dem(payload, tag, 0), ("TXT", message, None))
 	# plaintext bin message, text mode.	
-	self.assertEquals(dem(binpayload, tag, 1), 
+	self.assertEquals(dem(binpayload, tag, 1),
 			  ("BIN", base64.encodestring(binmessage), None))
 	# plaintext bin message, bin mode.
 	self.assertEquals(dem(binpayload, tag, 0), ("BIN", binmessage, None))
 
 	encoded = "baobob "*1024*4
 	# "Encoded" message, text mode
-	self.assertEquals(dem(encoded, tag, 1), 
-			  ("ENC", base64.encodestring(encoded), 
+	self.assertEquals(dem(encoded, tag, 1),
+			  ("ENC", base64.encodestring(encoded),
 			   base64.encodestring(tag)[:-1]))
 	# "Encoded" message, binary mode
-	self.assertEquals(dem(encoded, tag, 0), 
+	self.assertEquals(dem(encoded, tag, 0),
 			  ("ENC", encoded, tag))
 
 	####
@@ -2891,10 +2895,13 @@ PublicKeyLifetime: 10 days
 IdentityKeyBits: 2048
 EncryptPrivateKey: no
 Nickname: mac-the-knife
+[Incoming/MMTP]
+Enabled: yes
+IP: 10.0.0.1
 """
 
 _FAKE_HOME = None
-def _getKeyring():
+def _getServerKeyring():
     global _FAKE_HOME
     if _FAKE_HOME is None:
 	_FAKE_HOME = mix_mktemp()	
@@ -2908,7 +2915,7 @@ def _getKeyring():
 
 class ServerMainTests(unittest.TestCase):
     def testServerKeyring(self):
-	keyring = _getKeyring()
+	keyring = _getServerKeyring()
 	home = _FAKE_HOME
 
 	# Test creating identity key
@@ -2987,12 +2994,172 @@ class ServerMainTests(unittest.TestCase):
 	pass
 
 #----------------------------------------------------------------------
+
+_EXAMPLE_DESCRIPTORS = {} # name->list of str
+EX_SERVER_CONF_TEMPLATE = """
+[Server]
+Mode: relay
+EncryptIdentityKey: No
+PublicKeyLifetime: %(lifetime)s days
+IdentityKeyBits: 2048
+EncryptPrivateKey: no
+Nickname: %(nickname)s
+[Incoming/MMTP]
+Enabled: yes
+IP: %(ip)s
+[Outgoing/MMTP]
+Enabled: yes
+"""
+
+_EXAMPLE_DESCRIPTORS_INP = [
+    # name        days         ip?        validAt
+    [ "Fred",	  "10 days", "10.0.0.6", (-19,-9,1,11) ],
+    [ "Lola",	  "5 days",  "10.0.0.7", (-2,0,5) ],
+    [ "Joe",	  "20 days", "10.0.0.8", (-15,5,25) ],
+    [ "Alice",	  "8 days",  "10.0.0.9", (-3,5,13) ],
+    [ "Bob",	  "11 days", "10.0.0.10", (-10,-1,6) ],
+    [ "Lisa",	  "3 days",  "10.0.0.11", (-10,-1,5) ],
+]
+
+def getExampleServerDescriptors():
+    if _EXAMPLE_DESCRIPTORS:
+ 	return _EXAMPLE_DESCRIPTORS
+    global _EXAMPLE_DESCRIPTORS_TIME
+    gen = mixminion.ServerInfo.generateServerDescriptorAndKeys
+    tmpkeydir = mix_mktemp()
+    identity = _getIdentityKey()
+    _EXAMPLE_DESCRIPTORS_TIME = now = time.time()
+
+    sys.stdout.flush()
+
+    for (nickname, lifetime, ip, starting) in _EXAMPLE_DESCRIPTORS_INP:
+	conf = EX_SERVER_CONF_TEMPLATE % locals()
+	try:
+	    suspendLog()
+	    conf = mixminion.Config.ServerConfig(string=conf)
+	finally:
+	    resumeLog()
+	
+	_EXAMPLE_DESCRIPTORS[nickname] = []
+	for n in xrange(len(starting)):
+	    k = "tst%d"%n
+	    validAt = previousMidnight(now + 24*60*60*starting[n])
+	    gen(config=conf, identityKey=identity, keyname=k,
+		keydir=tmpkeydir, hashdir=tmpkeydir, validAt=validAt)
+
+	    sd = os.path.join(tmpkeydir,"key_"+k,"ServerDesc")
+	    f = open(sd,'r')
+	    _EXAMPLE_DESCRIPTORS[nickname].append(f.read())
+	    f.close()
+	    sys.stdout.write('.')
+	    sys.stdout.flush()
+    sys.stdout.flush()
+    return _EXAMPLE_DESCRIPTORS
+
 class ClientMainTests(unittest.TestCase):
     def testClientKeystore(self):
+	eq = self.assertEquals
+	raises = self.failUnlessRaises
+
 	import mixminion.ClientMain
 	dirname = mix_mktemp()
 	dc = mixminion.ClientMain.DirectoryCache(dirname)
-	dc.load()
+
+	# Test empty directorycache.
+	for _ in xrange(2):
+	    now = time.time()
+	    eq([], dc.getAllCurrentServers())
+	    eq([], dc.getAllCurrentServers(now-1000, now+36000))
+	    eq([], dc.getAllCurrentServers(now-1000))
+	    eq([], dc.getAllCurrentServers(None, now+36000))
+	    raises(MixError, dc.getCurrentServer, "Fred")
+	    raises(MixError, dc.getCurrentServer, "Fred", now-1000)
+	    raises(MixError, dc.getCurrentServer, "Fred", now-1000,now+36000)
+	    raises(MixError, dc.getCurrentServer, "Fred", None,now+36000)
+	    dc.load(1)
+
+	edesc = getExampleServerDescriptors()
+	
+	## Test importing.
+	# tell server about descriptors: "Lisa", "Fred". The first of 
+	# each is expired.
+	for sd in (edesc['Lisa'][0],edesc['Fred'][0]):
+	    try:
+		suspendLog()
+		dc.importServerInfo(fname=None,string=sd)
+	    finally:
+		s = resumeLog()
+		self.failUnless(s.find("expired")>=0)
+	for sd in edesc['Lisa'][1:]+edesc['Fred'][1:]:
+	    dc.importServerInfo(fname=None,string=sd)
+
+	# tests shouldn't fail at 11:55pm
+	now = previousMidnight(_EXAMPLE_DESCRIPTORS_TIME)+60*60
+
+	for _ in (0,1): # test once before; once after a reload
+	    self.assertEquals(5, len(dc.allServers))
+	    self.assertEquals(2, len(dc.servers))
+	    s = dc.getCurrentServer("Fred",when=now)
+	    s2 = dc.getCurrentServer("Fred",when=(now+25*60*60))
+	    s3 = dc.getCurrentServer("Fred",when=(now+6*24*60*60))
+	    self.assert_(self.isSameServerDesc(edesc['Fred'][1], s))
+	    self.assert_(self.isSameServerDesc(s2, s3))
+	    self.assert_(not self.isSameServerDesc(s, s3))
+	    s4 = dc.getCurrentServer("Lisa")
+	    s5 = dc.getCurrentServer("Lisa",when=(now+5*25*60*60))
+	    self.assert_(not self.isSameServerDesc(s4, s))
+	    self.assert_(not self.isSameServerDesc(s4, s5))
+	    raises(MixError, dc.getCurrentServer, "Lisa", when=now+3*25*60*60)
+	    s6 = dc.getCurrentServer("Lisa", 
+				     when=(now-12*60*60),
+				     until=(now+12*60*60))
+	    self.assert_(self.isSameServerDesc(s6, s4))
+	    raises(MixError, dc.getCurrentServer, "Lisa", when=(now-12*60*60),
+		   until=(now+3*24*60*60))
+	    
+	    # Test reloading.
+	    dc.load(forceReload=1)
+
+	# test duplicates.
+	try:
+	    suspendLog()
+	    for _ in xrange(10):
+		dc.importServerInfo(fname=None,string=edesc['Lisa'][2])
+	finally:
+	    resumeLog()
+	self.assertEquals(5, len(dc.allServers))
+
+	# import rest of servers
+	try:
+	    suspendLog()
+	    for _, sds in edesc.items():
+		for sd in sds:
+		    dc.importServerInfo(fname=None,string=sd)
+	finally:
+	    resumeLog()
+	    
+	s1 = dc.getAllCurrentServers(now)
+	self.assertEquals(len(s1), 8)
+	s2 = dc.getAllCurrentServers(0)
+	self.assertEquals([], s2)
+	s3 = dc.getAllCurrentServers(now, now+50*60*60)
+	self.assertEquals(len(s3), 5)
+	s4 = dc.getAllCurrentServers(now-2*25*60*60, now+2*25*60*60)
+	self.assertEquals(len(s4), 2)
+	
+    def isSameServerDesc(self, s1, s2):
+	"""s1 and s2 are either ServerInfo objects or strings containing server
+	   descriptors. Returns 1 iff their digest fields match"""
+	ds = []
+	for s in s1, s2:
+	    if type(s) == type(""):
+		m = re.search(r"^Digest: (\S+)\n", s, re.M)
+		assert m
+		ds.append(base64.decodestring(m.group(1)))
+	    else:
+		ds.append(s['Server']['Digest'])
+	return ds[0] == ds[1]
+
 	
 #----------------------------------------------------------------------
 def testSuite():

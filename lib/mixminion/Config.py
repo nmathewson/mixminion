@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.17 2002/09/16 15:30:02 nickm Exp $
+# $Id: Config.py,v 1.18 2002/10/30 02:19:39 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -250,10 +250,10 @@ def _parsePublicKey(s):
 	raise ConfigError("Invalid exponent on public key")
     return key
 
-_date_re = re.compile(r"(\d\d)/(\d\d)/(\d\d\d\d)")
-_time_re = re.compile(r"(\d\d)/(\d\d)/(\d\d\d\d) (\d\d):(\d\d):(\d\d)")
+_date_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d)")
+_time_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)")
 def _parseDate(s,_timeMode=0):
-    """Validation function.  Converts from DD/MM/YYYY format to a (long)
+    """Validation function.  Converts from YYYY/MM/DD format to a (long)
        time value for midnight on that date."""
     s = s.strip()
     r = (_date_re, _time_re)[_timeMode]
@@ -261,9 +261,9 @@ def _parseDate(s,_timeMode=0):
     if not m:
 	raise ConfigError("Invalid %s %r" % (("date", "time")[_timeMode],s))
     if _timeMode:
-	dd, MM, yyyy, hh, mm, ss = map(int, m.groups())
+	yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
     else:
-	dd, MM, yyyy = map(int, m.groups())
+	yyyy, MM, dd = map(int, m.groups())
 	hh, mm, ss = 0, 0, 0	
 
     if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
@@ -274,7 +274,7 @@ def _parseDate(s,_timeMode=0):
     return mixminion.Common.mkgmtime(yyyy, MM, dd, hh, mm, ss)
 
 def _parseTime(s):
-    """Validation function.  Converts from DD/MM/YYYY HH:MM:SS format
+    """Validation function.  Converts from YYYY/MM/DD HH:MM:SS format
        to a (float) time value for GMT."""
     return _parseDate(s,1)
 
@@ -647,9 +647,6 @@ class ClientConfig(_ConfigFile):
 	if p < 4:
 	    getLog().warn("Your default path length is frighteningly low."
 			  "  I'll trust that you know what you're doing.")
-	
-	    
-	    
 
 SERVER_SYNTAX =  {
         'Host' : ClientConfig._syntax['Host'],
@@ -678,7 +675,7 @@ SERVER_SYNTAX =  {
                                             "10 minutes",) },
 	# FFFF Generic multi-port listen/publish options.
         'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-			    'IP' : ('ALLOW', _parseIP, None),
+			    'IP' : ('ALLOW', _parseIP, "0.0.0.0"),
                             'Port' : ('ALLOW', _parseInt, "48099"),
                             'Allow' : ('ALLOW*', _parseAddressSet_allow, None),
                             'Deny' : ('ALLOW*', _parseAddressSet_deny, None) },
