@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.110 2003/12/14 01:43:38 nickm Exp $
+# $Id: ServerMain.py,v 1.111 2003/12/14 02:15:20 weasel Exp $
 
 """mixminion.ServerMain
 
@@ -1078,7 +1078,7 @@ def readConfigFile(configFile):
     if configFile is None:
         configFile = None
         for p in ["~/.mixminiond.conf", "~/etc/mixminiond.conf",
-                  "/etc/mixminiond.conf"]:
+                  "/etc/mixminiond.conf", "/etc/mixminion/mixminiond.conf" ]:
             p = os.path.expanduser(p)
             if os.path.exists(p):
                 configFile = p
