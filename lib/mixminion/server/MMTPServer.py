@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.66 2004/01/03 07:35:24 nickm Exp $
+# $Id: MMTPServer.py,v 1.67 2004/01/04 02:44:10 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -381,7 +381,6 @@ class DeliverablePacket(mixminion.MMTPClient.DeliverableMessage):
        Wraps a ServerQueue.PendingMessage object for a queue holding
        PacketHandler.RelayPacket objects."""
     def __init__(self, pending):
-        mixminion.MMTPClient.DeliverableMessage.__init__(self)
         assert hasattr(pending, 'succeeded')
         assert hasattr(pending, 'failed')
         assert hasattr(pending, 'getMessage')
