@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.50 2004/01/22 05:42:07 nickm Exp $
+# $Id: MMTPClient.py,v 1.51 2004/01/27 05:58:46 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -518,7 +518,7 @@ class PeerCertificateCache:
             else:
                 # We recognize the key, but some other identity signed it.
                 raise MixProtocolBadAuth(
-                    "Mismatch between expected and actual key id")
+                    "Mismatch between expected and actual key ID")
         except KeyError:
             pass
 
