@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.215 2004/12/17 20:40:03 nickm Exp $
+# $Id: test.py,v 1.216 2004/12/20 04:16:20 nickm Exp $
 
 """mixminion.tests
 
@@ -7837,7 +7837,7 @@ class PingerTests(TestCase):
             s = resumeLog()
         self.assertEndsWith(s, "Received ping with no record of its hash\n")
         log.gotPing("''"*10, now=t+161.1)
-        log.rotate(now=t+160)
+        log.rotate(t-15*24*60*60,t-15*24*60*60)
         log.heartbeat(t+200)
         log.calculateUptimes(t,t+200,now=t+200)
         ups = log.getUptimes(t,t+200)
@@ -7873,6 +7873,7 @@ class PingerTests(TestCase):
         env = {}
         execfile(statusFile,env)
 
+        log.rotate(t+15*24*60*60,t+30*24*60*60)
         log.close()
 
 #----------------------------------------------------------------------

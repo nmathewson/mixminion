@@ -33,8 +33,10 @@ For 0.0.8:
                           across invocations.
                         o Tests for pinging
                 o Save stats to disk
-                - Make more ping parameters configurable.
-                - Performance/data examination: is disk usage too insanely high?
+                o Make more ping parameters configurable.
+                o Fix how uptime is computed: handle edges of days correctly
+                o Performance/data examination: is disk usage too insanely high?
+                - Too many constants in Pinger.py; fix them.
                 - Document.  Describe how to replace sqlite with pg or mysql.
         . Distributed directories
                o Spec changes

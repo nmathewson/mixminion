@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.58 2004/08/24 22:16:09 nickm Exp $
+# $Id: ServerConfig.py,v 1.59 2004/12/20 04:16:21 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -357,7 +357,18 @@ SERVER_SYNTAX =  {
                      'MaxBandwidth' : ('ALLOW', "size", None),
                      'MaxBandwidthSpike' : ('ALLOW', "size", None),
                      },
-        'Pinging' : { 'Enabled' : ('ALLOW', 'boolean', 'yes') },
+        #DOCDOC
+        'Pinging' : { 'Enabled' : ('ALLOW', 'boolean', 'yes'),
+                      'RecomputeInterval' : ('ALLOW', 'interval', '30 min'),
+                      'ServerPingPeriod' : ('ALLOW', 'interval', '2 hours'),
+                      'DullChainPingPeriod' : ('ALLOW', 'interval', '4 days'),
+                      'ChainPingPeriod' : ('ALLOW', 'interval', '1 day'),
+                      'ServerProbePeriod' : ('ALLOW', 'interval', '1 hour'),
+                      # XXXX008 enforce > 15 days.
+                      'RetainData' : ('ALLOW', 'interval', '30 days'),
+                      # XXXX008 enforce > 15 days
+                      'RetainResults' : ('ALLOW', 'interval', '1 year'),
+                      },
         'DirectoryServers' : { # '__SECTION__' : ('REQUIRE', None, None),
                                'ServerURL' : ('ALLOW*', None, None),
                                'PublishURL' : ('ALLOW*', None, None),

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.70 2004/12/06 20:02:23 nickm Exp $
+# $Id: ServerKeys.py,v 1.71 2004/12/20 04:16:21 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -103,6 +103,7 @@ class ServerKeyring:
         self.currentKeys = None
         self._tlsContext = None #DOCDOC
         self._tlsContextExpires = -1 #DOCDOC
+        self.pingerSeed = None
         self.checkKeys()
 
     def checkKeys(self):
@@ -242,6 +243,24 @@ class ServerKeyring:
             LOG.info("Generated %s-bit identity key.", bits)
 
         return key
+
+    def getPingerSeed(self):
+        """DOCDOC"""
+        if self.pingerSeed is not None:
+            return self.pingerSeed
+
+        fn = os.path.join(self.keyDir, "pinger.seed")
+        if os.path.exists(fn):
+            checkPrivateFile(fn)
+            r = readFile(fn)
+            if len(r) == mixminion.Crypto.DIGEST_LEN:
+                self.pingerSeed = r
+                return r
+
+        self.pingerSeed = r = mixminion.Crypto.trng(mixminion.Crypto.DIGEST_LEN)
+        createPrivateDir(self.keyDir)
+        writeFile(fn, r, 0600)
+        return r
 
     def getIdentityKeyDigest(self):
         """DOCDOC"""

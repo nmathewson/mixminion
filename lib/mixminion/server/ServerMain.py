@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.141 2004/12/13 01:06:43 nickm Exp $
+# $Id: ServerMain.py,v 1.142 2004/12/20 04:16:21 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -1004,13 +1004,11 @@ class MixminionServer(_Scheduler):
                 mixminion.server.Pinger.HEARTBEAT_INTERVAL))
             # FFFF if we aren't using a LOCKING_IS_COURSE database, we will
             # FFFF still want this to happen in another thread.
-            #XXXX008 use symbolic constants here
             self.scheduleEvent(RecurringEvent(
-                now+1*60, #3*60
+                now+60,
                 lambda self=self: self.pingLog.calculateAll(
-                 os.path.join(self.config.getWorkDir(), "pinger", "status")),
-                #1*60*60))
-                10*60))
+                  os.path.join(self.config.getWorkDir(), "pinger", "status")),
+                self.config['Pinging']['RecomputeInterval']))
 
         # Makes next update get scheduled.
         nextUpdate = self.updateDirectoryClient()
@@ -1123,7 +1121,9 @@ class MixminionServer(_Scheduler):
         self.outgoingQueue.cleanQueue(df)
         self.moduleManager.cleanQueues(df)
         if self.pingLog:
-            self.pingLog.rotate()
+            now = time.time()
+            self.pingLog.rotate(now-self.config['Pinging']['RetainData'],
+                                now-self.config['Pinging']['RetainResults'])
 
     def close(self):
         """Release all resources; close all files."""

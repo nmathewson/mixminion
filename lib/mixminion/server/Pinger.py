@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.19 2004/12/17 20:40:04 nickm Exp $
+# $Id: Pinger.py,v 1.20 2004/12/20 04:16:21 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -46,10 +46,8 @@ try:
 except ImportError:
     sqlite = None
 
-KEEP_HISTORY_DAYS = 15
 HEARTBEAT_INTERVAL = 30*60
 ONE_DAY = 24*60*60
-
 
 class IntervalSchedule:
     """DOCDOC -- defines a set of intervals in time."""
@@ -322,6 +320,7 @@ class PingLog:
         broken = {}
         interesting = {}
         for s1, s2, b, i in res:
+            if s1 == '<self>' or s2 == '<self>': continue
             p = "%s,%s"%(s1,s2)
             if b:
                 broken[p]=1
@@ -333,10 +332,11 @@ class PingLog:
         self._interestingChains = interesting
 
     def updateServers(self, names):
+        #XXXX008 call when a new directory arrives.
         self._lock.acquire()
         try:
             for n in names:
-                self._addServer(n)
+                self._getServerID(n)
         finally:
             self._lock.release()
 
@@ -380,13 +380,25 @@ class PingLog:
         assert len(r) == 1
         return r[0][0]
 
-    def rotate(self, now=None):
-        if now is None: now = time.time()
-        cutoff = self._time(now - KEEP_HISTORY_DAYS * ONE_DAY)
+    def rotate(self, dataCutoff, resultsCutoff):
+        #if now is None: now = time.time()
+        #sec = config['Pinging']
+        #dataCutoff = self._time(now - sec['RetainPingData'])
+        #resultsCutoff = self._time(now - sec['RetainPingResults'])
+
         cur = self._db.getCursor()
-        cur.execute("DELETE FROM myLifespan WHERE stillup < %s", cutoff)
-        cur.execute("DELETE FROM ping WHERE sentat < %s", cutoff)
-        cur.execute("DELETE FROM connectionAttempt WHERE at < %s", cutoff)
+        cur.execute("DELETE FROM myLifespan WHERE stillup < %s", dataCutoff)
+        cur.execute("DELETE FROM ping WHERE sentat < %s", dataCutoff)
+        cur.execute("DELETE FROM connectionAttempt WHERE at < %s", dataCutoff)
+
+        cur.execute("DELETE FROM uptime WHERE interval IN "
+                    "( SELECT id FROM statsInterval WHERE endAt < %s )",
+                    resultsCutoff)
+        cur.execute("DELETE FROM echolotOneHopResult WHERE interval IN "
+                    "( SELECT id FROM statsInterval WHERE endAt < %s )",
+                    resultsCutoff)
+        cur.execute("DELETE FROM statsInterval WHERE endAt < %s", resultsCutoff)
+
         self._db.getConnection().commit()
 
     def flush(self):
@@ -459,7 +471,8 @@ class PingLog:
         self.heartbeat(now)
 
         timespan = IntervalSet( [(startTime, endTime)] )
-        intervalID = self._getIntervalID(startTime, endTime)
+        calcIntervals = [ (s,e,self._getIntervalID(s,e)) for s,e in
+                          self._intervals.getIntervals(startTime,endTime)]
 
         cur.execute("SELECT startup, stillup, shutdown FROM myLifespan WHERE "
                     "startup <= %s AND stillup >= %s",
@@ -468,22 +481,22 @@ class PingLog:
         myIntervals = IntervalSet([ (start, max(end,shutdown))
                                     for start,end,shutdown in cur ])
         myIntervals *= timespan
-        myUptime = myIntervals.spanLength()
-        fracUptime = float(myUptime)/(endTime-startTime)
-        self._setUptime(
-            (intervalID, self._getServerID("<self>")),
-            (fracUptime,))
+        for s, e, i in calcIntervals:
+            uptime = (myIntervals * IntervalSet([(s,e)])).spanLength()
+            fracUptime = float(uptime)/(e-s)
+            self._setUptime((i, self._getServerID("<self>")), (fracUptime,))
 
         # Okay, now everybody else.
         for s, serverID in self._serverIDs.items():
+            if s == '<self>': continue
             cur.execute("SELECT at, success FROM connectionAttempt"
                         " WHERE server = %s AND at >= %s AND at <= %s"
                         " ORDER BY at",
                         serverID, startTime, endTime)
 
+            intervals = [[], []] #uptimes, downtimes
             lastStatus = None
             lastTime = None
-            times = [ 0, 0 ] # uptime, downtime
             for at, success in cur:
                 assert success in (0,1)
                 upAt, downAt = myIntervals.getIntervalContaining(at)
@@ -496,16 +509,24 @@ class PingLog:
                     lastTime = upAt
                     lastStatus = None
                 if lastStatus is not None:
-                    t = (at-lastTime)/2.0
-                    times[success] += t
-                    times[lastStatus] += t
+                    t = (at+lastTime)/2.0
+                    intervals[lastStatus].append((lastTime,t))
+                    intervals[success].append((t,at))
                 lastStatus = success
                 lastTime = at
+            downIntervals = IntervalSet(intervals[0])
+            upIntervals = IntervalSet(intervals[1])
+            downIntervals *= myIntervals
+            upIntervals *= myIntervals
 
-            if times == [0,0]:
-                continue
-            fraction = float(times[1])/(times[0]+times[1])
-            self._setUptime((intervalID, serverID), (fraction,))
+            for s,e,intervalID in calcIntervals:
+                uptime = (upIntervals*IntervalSet([(s,e)])).spanLength()
+                downtime = (downIntervals*IntervalSet([(s,e)])).spanLength()
+                if s == 'foobart': print uptime, downtime
+                if uptime < 1 and downtime < 1:
+                    continue
+                fraction = float(uptime)/(uptime+downtime)
+                self._setUptime((intervalID, serverID), (fraction,))
 
     def calculateUptimes(self, startAt, endAt, now=None):
         if now is None: now = time.time()
@@ -515,8 +536,7 @@ class PingLog:
         finally:
             self._lock.release()
         serverNames.sort()
-        for s, e in self._intervals.getIntervals(startAt, endAt):
-            self._calculateUptimes(serverNames, s, e, now=now)
+        self._calculateUptimes(serverNames, startAt, endAt, now=now)
         self._db.getConnection().commit()
 
     def getUptimes(self, startAt, endAt):
@@ -681,6 +701,7 @@ class PingLog:
         serverNames.sort()
         reliability = {}
         for s in serverNames:
+            if s == '<self>': continue
             # For now, always calculate overall results.
             r = self._calculateOneHopResult(s,now,now,now,
                                              calculateOverallResults=1)
@@ -738,7 +759,9 @@ class PingLog:
         serverNames.sort()
 
         for s1 in serverNames:
+            if s1 == '<self>': continue
             for s2 in serverNames:
+                if s2 == '<self>': continue
                 p = "%s,%s"%(s1,s2)
                 nS, nR, prod, isBroken, isInteresting = \
                     self._calculate2ChainStatus(since, s1, s2)
@@ -803,6 +826,7 @@ class PingLog:
                    "ORDER BY name, startat", (since, now))
         lastServer = "---"
         for n,s,e,nS,nR,lat,r in cur:
+            if s == '<self>': continue
             if n != lastServer:
                 if lastServer != '---': print >>f, "   ],"
                 lastServer = n
@@ -817,6 +841,7 @@ class PingLog:
                     "echolotCurrentOneHopResult, server WHERE "
                     "echolotCurrentOneHopResult.server = server.id")
         for n,lat,r in cur:
+            if n == '<self>': continue
             print >>f, "   %r : (%s,%.04f)," %(n,lat,r)
         print >>f, "}"
 
@@ -826,6 +851,7 @@ class PingLog:
                     "   server as S1, server as S2 WHERE "
                     "interesting = 1 AND S1.id = server1 AND S2.id = server2")
         for s1,s2 in cur:
+            if s1 == '<self>' or s2 == '<self>': continue
             print >>f, "   '%s,%s',"%(s1,s2)
         print >>f, "]"
 
@@ -835,6 +861,7 @@ class PingLog:
                     "   server as S1, server as S2 WHERE "
                     "broken = 1 AND S1.id = server1 AND S2.id = server2")
         for s1,s2 in cur:
+            if s1 == '<self>' or s2 == '<self>': continue
             print >>f, "   '%s,%s',"%(s1,s2)
         print >>f, "]"
         print >>f, "\n"
@@ -903,36 +930,47 @@ class PingGenerator:
 class _PingScheduler:
     def __init__(self):
         self.nextPingTime = {}#path->when
-        # PERIOD
-        # PING_INTERVAL
     def connect(self, directory, outgoingQueue, pingLog, keyring):
         self.directory = directory
         self.outgoingQueue = outgoingQueue
         self.pingLog = pingLog
         self.keyring = keyring
+        self.seed = keyring.getPingerSeed()
+    def _calcPeriodLen(self, interval):
+        period = ONE_DAY
+        while period < interval*2:
+            period *= 2
+        return period
     def scheduleAllPings(self, now=None):
         raise NotImplemented()
     def _getPeriodStart(self, t):
         raise NotImplemented()
     def _getPingInterval(self, path):
         raise NotImplemented()
+    def _getPeriodLength(self):
+        raise NotImplemented()
     def _schedulePing(self,path,now=None):
         if now is None: now = int(time.time())
         periodStart = self._getPeriodStart(now)
+        periodEnd = periodStart + self._period_length
+
         interval = self._getPingInterval(path)
         t = periodStart + self._getPerturbation(path, periodStart, interval)
         t += interval * ceilDiv(now-t, interval)
-        if t>periodStart+self.PERIOD:
-            t = periodStart+self.PERIOD+self._getPerturbation(path,
-                                                    periodStart+self.PERIOD,
-                                                              interval)
+        if t>periodEnd:
+            t = periodEnd+self._getPerturbation(path,
+                                                periodEnd,
+                                                interval)
         self.nextPingTime[path] = t
         LOG.trace("Scheduling %d-hop ping for %s at %s", len(path),
                   ",".join(path), formatTime(t,1))
         return t
     def _getPerturbation(self, path, periodStart, interval):
-        #XXXX add a secret seed
-        sha = mixminion.Crypto.sha1(",".join(path) + "@@" + str(interval))
+        sha = mixminion.Crypto.sha1("%s@@%s@@%s"%(",".join(path),
+                                                  interval,
+                                                  self.seed))
+        # This modulo calculation biases the result, but less than 0.1 percent,
+        # so I don't really care.
         sec = abs(struct.unpack("I", sha[:4])[0]) % interval
         return sec
 
@@ -944,12 +982,11 @@ class _PingScheduler:
 
 class OneHopPingGenerator(_PingScheduler,PingGenerator):
     """DOCDOC"""
-    #XXXX008 make this configurable, but not less than 2 hours.
-    PING_INTERVAL = 2*60*60
-    PERIOD = ONE_DAY
     def __init__(self, config):
         PingGenerator.__init__(self, config)
         _PingScheduler.__init__(self)
+        self._ping_interval = config['Pinging']['ServerPingPeriod']
+        self._period_length = self._calcPeriodLen(self._pingInterval)
 
     def scheduleAllPings(self, now=None):
         if now is None: now = int(time.time())
@@ -964,7 +1001,7 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
         return previousMidnight(t)
 
     def _getPingInterval(self, path):
-        return self.PING_INTERVAL
+        return self._ping_interval
 
     def sendPings(self, now=None):
         if now is None: now = time.time()
@@ -991,13 +1028,13 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
 
 class TwoHopPingGenerator(_PingScheduler, PingGenerator):
     """DOCDOC"""
-    #XXXX008 make this configurable, but not less than 2 hours.
-    DULL_INTERVAL = 4*ONE_DAY
-    INTERESTING_INTERVAL = ONE_DAY
-    PERIOD = 8*ONE_DAY
     def __init__(self, config):
         PingGenerator.__init__(self, config)
         _PingScheduler.__init__(self)
+        self._dull_interval = self['Pinging']['DullChainPingPeriod'].getSeconds()
+        self._interesting_interval = self['Pinging']['ChainPingPeriod'].getSeconds()
+        self._period_length = self._calcPeriodLen(
+            max(self._interesting_interval,self._dull_interval))
 
     def scheduleAllPings(self, now=None):
         if now is None: now = time.time()
@@ -1014,9 +1051,9 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
 
     def _getPingInterval(self, path):
         if self.pingLog._interestingChains.get(path, 0):
-            return self.INTERESTING_INTERVAL
+            return self._interesting_interval
         else:
-            return self.DULL_INTERVAL
+            return self._dull_interval
 
     def sendPings(self, now=None):
         if now is None: now = time.time()
@@ -1047,9 +1084,10 @@ class TestLinkPaddingGenerator(PingGenerator):
     """DOCDOC"""
     def __init__(self, config):
         PingGenerator.__init__(self,config)
-        interval = config['Server']['MixInterval'].getSeconds()
-        if interval < 60*60:
-            self.prob = interval / float(60*60)
+        mixInterval = config['Server']['MixInterval'].getSeconds()
+        probeInterval = config['Pinging']['ServerProbePeriod'].getSeconds()
+        if mixInterval < probeInterval:
+            self.prob = mixInterval / float(probeInterval)
         else:
             self.prob = 1.0
     def connect(self, directory, outgoingQueue, pingLog, keyring):
