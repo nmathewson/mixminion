@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.61 2003/10/09 15:26:16 nickm Exp $
+# $Id: Packet.py,v 1.62 2003/10/13 17:32:04 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -33,6 +33,7 @@ import binascii
 import re
 import struct
 import sys
+import types
 import zlib
 from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, MixFatalError, encodeBase64, \
@@ -552,6 +553,23 @@ First server is: %s""" % (hash, expiry, server)
 
 #----------------------------------------------------------------------
 # Routing info
+
+def parseRelayInfoByType(routingType,routingInfo):
+    """DOCDOC: Returns rt, (IPV4Info/MMTPHostInfo)."""
+    if routingType in (mixminion.Packet.FWD_IPV4_TYPE,
+                       mixminion.Packet.SWAP_FWD_IPV4_TYPE):
+        parseFn = mixminion.Packet.parseIPV4Info
+        parsedType = mixminion.Packet.IPV4Info
+    elif routingType in (mixminion.Packet.FWD_HOST_TYPE,
+                         mixminion.Packet.SWAP_FWD_HOST_TYPE):
+        parseFn = mixminion.Packet.parseMMTPHost
+        parsedType = mixminion.Packet.MMTPHostInfo
+    else:
+        raise MixFatalError("Unrecognized relay type 0x%04X"%routingType)
+    if type(routingInfo) == types.StringType:
+        routingInfo = parseFn(routingInfo)
+    assert isinstance(routingInfo, parsedType)
+    return routingInfo
 
 # An IPV4 address (Used by SWAP_FWD and FWD) is packed as: four bytes
 # of IP address, a short for the portnum, and DIGEST_LEN bytes of keyid.
