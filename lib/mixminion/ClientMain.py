@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.33 2003/01/06 12:41:49 nickm Exp $
+# $Id: ClientMain.py,v 1.34 2003/01/07 04:12:05 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -22,6 +22,7 @@ __all__ = []
 import cPickle
 import getopt
 import os
+import socket
 import stat
 import sys
 import time
