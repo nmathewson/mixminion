@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.4 2002/05/29 22:51:58 nickm Exp $
+# $Id: Crypto.py,v 1.5 2002/05/31 12:47:58 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -11,14 +11,14 @@
 import sys
 import mixminion._minionlib as _ml
 
-__all__ = [ 'init_crypto', 'sha1',  'ctr_crypt', 'prng',
+__all__ = [ 'init_crypto', 'sha1',  'ctr_crypt', 'prng', 'strxor',
             'lioness_encrypt', 'lioness_decrypt', 'trng', 'pk_encrypt',
             'pk_decrypt', 'pk_generate', 'openssl_seed',
             'pk_get_modulus', 'pk_from_modulus',
             'pk_encode_private_key', 'pk_decode_private_key',
             'Keyset', 'AESCounterPRNG',
             'HEADER_SECRET_MODE', 'PRNG_MODE', 'RANDOM_JUNK_MODE',
-            'HEADER_ENCRYPT_MODE',
+            'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
             'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
 
 AES_KEY_LEN = 128/8
@@ -109,7 +109,6 @@ def lioness_decrypt(s,key):
     left = s[:20]
     right = s[20:]
     del s
-    #XXXX This slice makes me nervous
     left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
     right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:16])
     left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
@@ -127,10 +126,7 @@ def trng(count):
 
     Returns (count) bytes of true random data from a true source of
     entropy (/dev/urandom)"""
-    f = open('/dev/urandom')
-    d = f.read(count)
-    f.close()
-    return d
+    return _theTrueRNG.getBytes(count)
 
 OAEP_PARAMETER = "He who would make his own liberty secure, "+\
                  "must guard even his enemy from oppression."
@@ -194,6 +190,7 @@ HEADER_ENCRYPT_MODE = "HEADER ENCRYPT"
 PAYLOAD_ENCRYPT_MODE = "PAYLOAD ENCRYPT"
 HIDE_HEADER_MODE = "HIDE HEADER"
 REPLAY_PREVENTION_MODE = "REPLAY PREVENTION"
+APPLICATION_KEY_MODE = "APPLICATION KEY"
 
 class Keyset:
     """A Keyset represents a set of keys generated from a single master
@@ -230,20 +227,14 @@ def lioness_keys_from_payload(payload):
 
 #---------------------------------------------------------------------
 
-class AESCounterPRNG:
-    _CHUNKSIZE = 16*1024
-    _KEYSIZE = 16
-    def __init__(self, seed=None):
-        self.counter = 0
-        self.bytes = ""
-        if seed==None: seed=trng(AESCounterPRNG._KEYSIZE)
-        self.key = _ml.aes_key(seed)
-
+class RNG:
+    def __init__(self, chunksize):
+        self.bytes=""
+        self.chunksize=chunksize
     def getBytes(self, n):
         if n > len(self.bytes):
-            nMore = n+AESCounterPRNG._CHUNKSIZE-len(self.bytes)
-            morebytes = prng(self.key,nMore,self.counter)
-            self.counter+=nMore
+            nMore = n+self.chunksize-len(self.bytes)
+            morebytes = self._prng(nMore)
             res = self.bytes+morebytes[:n-len(self.bytes)]
             self.bytes=morebytes[n-len(self.bytes):]
             return res
@@ -251,3 +242,31 @@ class AESCounterPRNG:
             res = self.bytes[:n]
             self.bytes=self.bytes[n:]
             return res
+    def _prng(self, n):
+        assert 0
+
+class AESCounterPRNG(RNG):
+    def __init__(self, seed=None):
+        RNG.__init__(self, 16*1024)
+        self.counter = 0
+        if seed == None:
+            seed = trng(16)
+        self.key = aes_key(seed)
+    def _prng(self, n):
+        c = self.counter
+        self.counter+=n
+        return prng(self.key,n,c)
+
+def trng_uncached(n):
+    f = open('/dev/urandom')
+    d = f.read(n)
+    f.close()
+    return d
+
+class _TrueRNG(RNG):
+    def __init__(self,n):
+        RNG.__init__(self,n)
+    def _prng(self,n):
+        return trng_uncached(n)
+
+_theTrueRNG = _TrueRNG(128)

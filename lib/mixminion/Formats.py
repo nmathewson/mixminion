@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Formats.py,v 1.3 2002/05/29 22:51:58 nickm Exp $
+# $Id: Formats.py,v 1.4 2002/05/31 12:47:58 nickm Exp $
 """mixminion.Formats
 
    Functions, classes, and constants to parse and unparse Mixminion messages
@@ -8,8 +8,8 @@
 __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseMessage', 'parseHeader', 'parseSubheader',
             'getTotalBlocksForRoutingInfoLen',
-            'IPV4Info', 'SMTPInfo',
-            'parseIPV4Info', 'parseSMTPInfo',
+            'IPV4Info', 'SMTPInfo', 'LocalInfo',
+            'parseIPV4Info', 'parseSMTPInfo', 'parseLocalInfo',
             'ENC_SUBHEADER_LEN', 'HEADER_LEN',
             'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO',
             'SECRET_LEN']
@@ -116,8 +116,11 @@ def parseSubheader(s):
     if len(s) < MIN_SUBHEADER_LEN:
         raise ParseError("Header too short")
 
-    major, minor, secret, digest, rlen, rt = \
-           struct.unpack(SH_UNPACK_PATTERN, s[:MIN_SUBHEADER_LEN])
+    try:
+        major, minor, secret, digest, rlen, rt = \
+               struct.unpack(SH_UNPACK_PATTERN, s[:MIN_SUBHEADER_LEN])
+    except struct.error:
+        raise ParseError("Misformatted subheader")
     ri = s[MIN_SUBHEADER_LEN:]
     if rlen < len(ri):
         ri = ri[:rlen]
@@ -183,7 +186,9 @@ class Subheader:
         self.routinginfo = ("".join(raw))[:self.routinglen]
         
     def pack(self):
-        """Returns the (unencrypted) string representation of this Subhead"""
+        """Returns the (unencrypted) string representation of this Subhead.
+
+           Does not include extra blocks"""
         assert self.routinglen == len(self.routinginfo)
         assert len(self.digest) == DIGEST_LEN
         assert len(self.secret) == SECRET_LEN
@@ -229,15 +234,21 @@ def _packIP(s):
 def _unpackIP(s):
     "XXXX"
     if len(s) != 4: raise ParseError("Malformed IP")
-    return ".".join(map(str, struct.unpack("!BBBB", s)))
-
+    try:
+        return ".".join(map(str, struct.unpack("!BBBB", s)))
+    except struct.error:
+        raise ParseError("Misformatted IP address")
+    
 def parseIPV4Info(s):
     """parseIP4VInfo(s) -> IPV4Info
 
        Converts routing info for an IPV4 address into an IPV4Info object."""
     if len(s) != 4+2+DIGEST_LEN:
         raise ParseError("IPV4 information with wrong length")
-    ip, port, keyinfo = struct.unpack(IPV4_PAT, s)
+    try:
+        ip, port, keyinfo = struct.unpack(IPV4_PAT, s)
+    except struct.error:
+        raise ParseError("Misformatted IPV4 routing info")
     ip = _unpackIP(ip)
     return IPV4Info(ip, port, keyinfo)
 
@@ -274,10 +285,11 @@ class SMTPInfo:
         
 def parseLocalInfo(s):
     "XXXX"
-    nil = s.find('\000')
-    user = s[:nil]
-    tag = s[nil+1]
-    return LocalInfo(user,tag)
+    lst = s.split("\000",1)
+    if len(lst) == 1:
+        return LocalInfo(s,None)
+    else:
+        return LocalInfo(lst[0], lst[1])
     
 class LocalInfo:
     "XXXX"
@@ -287,4 +299,7 @@ class LocalInfo:
         self.tag = tag
 
     def pack(self):
-        return self.user+"\000"+self.tag
+        if self.tag:
+            return self.user+"\000"+self.tag
+        else:
+            return self.user

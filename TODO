@@ -16,10 +16,9 @@ NEEDS TO BE WRITTEN
 - Publishing to directory servers
 - Downloading from directory servers
 - Key rotation
+- Reply block storage and format.
 
 WRITTEN, BUT UNTESTED
 
-- BuildMessages.py
 - ServerProcess.py
-- Some of Formats.py
 

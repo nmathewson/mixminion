@@ -1,7 +1,8 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: HashLog.py,v 1.2 2002/05/31 12:47:58 nickm Exp $
 
 import anydbm
+from mixminion.Common import MixFatalError
 
 __all__ = [ 'HashLog' ]
 
@@ -30,8 +31,7 @@ class HashLog:
         self.log = anydbm.open(filename, 'c')
         try:
             if self.log["KEYID"] != keyid:
-                print "Mismatch on keyid"
-                #XXXX Need warning mechanism
+                raise MixFatalError("Log KEYID does not match current KEYID")
         except KeyError:
             self.log["KEYID"] = keyid
             
