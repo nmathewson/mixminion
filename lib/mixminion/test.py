@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.205 2004/12/02 23:39:02 nickm Exp $
+# $Id: test.py,v 1.206 2004/12/07 00:15:14 nickm Exp $
 
 """mixminion.tests
 
@@ -7759,6 +7759,7 @@ class PingerTests(TestCase):
         log.gotPing("BL"*10) #Never sent.
         log.rotate()
         log.calculateUptimes(time.time()-1000, time.time())
+        log.calculateOneHopResults()
         log.shutdown()
         #log.calculateDailyResults( ) #XXXX TEST
         log.close()
@@ -7799,7 +7800,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 1:
+    if 0:
         suite.addTest(tc(PingerTests))
         return suite
     testClasses = [MiscTests,
