@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.14 2003/01/05 01:30:20 nickm Exp $
+# $Id: ServerMain.py,v 1.15 2003/01/05 04:29:11 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -452,7 +452,7 @@ def runServer(cmd, args):
         print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
         sys.exit(1)
 
-    if not config['Server'].get("NoDaemon",0):
+    if config['Server'].get("Daemon",1):
         print >>sys.stderr, "Starting server in the background"
         daemonize()
 

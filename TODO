@@ -17,7 +17,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		o Exit filtering support
 		o Tests for blacklist
 		o Tests for SMTP module
-		- Actually try it out.
+		o Actually try it out.
 	D Interface for reply blocks
 	. Minimal directory support
 		o Make everything resistant to newline corruption
@@ -27,28 +27,28 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		       o Directories are independent of nl style
 		       o Tests for above
 		o Test whether serverinfo is really pickleable.
-		. Client-side directory support
+		o Client-side directory support
 			o Backend
 			o Integrated server list management
 			o Tests for backend
 			o CLI support
-				- 'Import' support
-				- 'Remove' support
+				o 'Import' support
+				D 'Remove' support
 				o Actually invoke 'downloadDirectory'
 			o Tests for new server lists
 			o Tests for CLI support
-			- Test CLI
+			o Test CLI
 		o Server-side directory generation (not automated;
 	          still no automatic rotation.)	
 		  	o Backend
 			o CLI
 			o Tests for backend
 			o Test CLI
-	. Path selection
+	o Path selection
 		o Implement
 		o Test backend
 		o Test CLI code
-		- Test CLI
+		o Test CLI
 	o Minimal DOS prevention
 		o SMTP-address blacklisting (for SMTP module)
 		o Prevent bogus nicknames from bombing server.
@@ -64,8 +64,6 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Tests for MMTPServer code: setting lastActivity
 			o Tests for MMTPServer code: timing out.
 			o Test server
-	- Add another level of CLI commands. (E.g., mixminion server
-	  keygen)?
 	o Correct README to mention: no 'make build'.
 	o Correct mixminiond.conf to mention that ~ must be mode 0700.
 	o Fix Makefile to work on FreeBSD.
@@ -92,6 +90,8 @@ Required for "1.0":
 	- Better CLIs
 		- Actual strategy for reporting exceptions vs
 	   	  user-visible errors.
+	        - Add another level of CLI commands. (E.g., mixminion server
+		  keygen, mixminion client send, etc.)
 	- Key rotation and expiry
 		- Automatic keygen as needed
 		- Automatic key rotation
@@ -153,6 +153,8 @@ Required for "1.0":
 		- Make server gripe loudly when config doesn't match published
 		  serverinfo.
 	- Client support
+		- Support to remove servers from imported directory,
+	 	  or to block servers from directory.
 	  	- Generate (but don't send) a message
 		- Generate a reply block
 		- Read message from reply block

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.22 2003/01/05 01:27:35 nickm Exp $
+# $Id: ClientMain.py,v 1.23 2003/01/05 04:29:11 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -40,10 +40,9 @@ from mixminion.ServerInfo import ServerInfo, ServerDirectory
 from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo, \
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
-# FFFF This should be made configurable.
+# FFFF This should be made configurable and adjustable.
 MIXMINION_DIRECTORY_URL = "http://www.mixminion.net/directory/latest.gz"
-# FFFF This should be made configurable.
-MIXMINION_DIRECTORY_FINGERPRINT = ""
+MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 
 class ClientKeystore:
     """A ClientKeystore manages a list of server descriptors, either
@@ -65,10 +64,10 @@ class ClientKeystore:
     # DIR/cache: A cPickled tuple of ("ClientKeystore-0",
     #         lastModified, lastDownload, serverlist, digestMap)
     # DIR/dir.gz *or* DIR/dir: A (possibly gzipped) directory file.
-    # DIR/servers/: A directory of server descriptors.
+    # DIR/imported/: A directory of server descriptors.
 
     MAGIC = "ClientKeystore-0"
-    #DOCDOC
+    # 
     DEFAULT_REQUIRED_LIFETIME = 3600
     
     def __init__(self, directory):
@@ -76,9 +75,27 @@ class ClientKeystore:
            under <directory>."""
         self.dir = directory
         createPrivateDir(self.dir)
+        createPrivateDir(os.path.join(self.dir, "imported"))
         self.digestMap = {}
         self.__scanning = 0
         self.__load()
+        self.clean()
+
+        # Mixminion 0.0.1 used an obsolete directory-full-of-servers in 
+        #   DIR/servers.  If there's nothing there, we remove it.  Otherwise,
+        #   we warn.
+        sdir = os.path.join(self.dir,"servers")
+        if os.path.exists(sdir):
+            if os.listdir(sdir):
+                LOG.warn("Skipping obsolete server directory %s", sdir)
+            else:
+                try:
+                    LOG.warn("Removing obsolete server directory %s", sdir)
+                    os.rmdir(sdir)
+                    print >>sys.stderr, "OK"
+                except OSError, e:
+                    print >>sys.stderr, "BAD"
+                    LOG.warn("Failed: %s", e)
 
     def updateDirectory(self, forceDownload=0, now=None):
         """Download a directory from the network as needed."""
@@ -171,7 +188,7 @@ class ClientKeystore:
             break
 
         # Now check the server in DIR/servers.
-        serverDir = os.path.join(self.dir, "servers")
+        serverDir = os.path.join(self.dir, "imported")
         createPrivateDir(serverDir)
         for fn in os.listdir(serverDir):
             # Try to read a file: is it a server descriptor?
@@ -253,10 +270,19 @@ class ClientKeystore:
         # Have we already imported this server?
         if self.digestMap.get(info.getDigest(), "X").startswith("I:"):
             raise MixError("Server descriptor is already imported")
+
+        # Is the server expired?
+        if info.isExpiredAt(time.time()):
+            raise MixError("Server desciptor is expired")
+
+        # Is the server superseded?
+        if self.byNickname.has_key(nickname):
+            if info.isSupersededBy([s for s, _ in self.byNickname[nickname]]):
+                raise MixError("Server descriptor is superseded")
         
         # Copy the server into DIR/servers.
         fnshort = "%s-%s"%(nickname, formatFnameTime())
-        fname = os.path.join(self.dir, "servers", fnshort)
+        fname = os.path.join(self.dir, "imported", fnshort)
         f = openUnique(fname)[0]
         f.write(contents)
         f.close()
@@ -280,7 +306,7 @@ class ClientKeystore:
             n += 1
             try:
                 fn = source[2:]
-                os.unlink(os.path.join(self.dir, "servers", fn))
+                os.unlink(os.path.join(self.dir, "imported", fn))
             except OSError, e:
                 LOG.error("Couldn't remove %s: %s", fn, e)
 
@@ -376,27 +402,18 @@ class ClientKeystore:
 
         newServers = []
         for info, where in self.serverList:
-            if where == 'D':
-                # Don't scratch servers from directory.
-                newServers.append((info, where))
-                continue
-            elif info.isExpiredAt(cutoff):
-                pass
+            others = [ s for s, _ in self.byNickname[info.getNickname()] ]
+            if (where != 'D'
+                and (info.isExpiredAt(cutoff)
+                     or info.isSupersededBy(others))):
+                # Otherwise, remove it.
+                try:
+                    os.unlink(os.path.join(self.dir, "imported", where[2:]))
+                except OSError, e:
+                    LOG.info("Couldn't remove %s: %s", where[2:], e)
             else:
-                valid = info.getIntervalSet()
-                for s, _ in self.byNickname[info.getNickname()]:
-                    if s.isNewerThan(info):
-                        valid -= s.getIntervalSet()
-                if not valid.isEmpty():
-                    # Don't scratch non-superseded, non-expired servers.
-                    newServers.append((info, where))
-                    continue
-            
-            # Otherwise, remove it.
-            try:
-                os.unlink(os.path.join(self.dir, "servers", where[2:]))
-            except OSError, e:
-                LOG.info("Couldn't remove %s: %s", where[2:], e)
+                # Don't scratch non-superseded, non-expired servers.
+                newServers.append((info, where))            
 
         if len(self.serverList) != len(newServers):
             self.serverList = newServers
@@ -558,10 +575,10 @@ class ClientKeystore:
             # We don't know any servers at all.
             raise MixError("No relays known")
 
-        LOG.info("Chose path: [%s][%s][%s]",
-                 " ".join([ s.getNickname() for s in startServers ]),
-                 " ".join([ s.getNickname() for s in midServers   ]),
-                 " ".join([ s.getNickname() for s in endServers   ]))
+        LOG.debug("getPath: [%s][%s][%s]",
+                  " ".join([ s.getNickname() for s in startServers ]),
+                  " ".join([ s.getNickname() for s in midServers   ]),
+                  " ".join([ s.getNickname() for s in endServers   ]))
 
         return startServers + midServers + endServers
 
@@ -607,11 +624,15 @@ def resolvePath(keystore, address, enterPath, exitPath,
                            % server.getNickname())
     if exitCap and exitCap not in path[-1].getCaps():
         raise MixError("Server %s does not support %s"
-                       % (server.getNickname(), exitCap))
+                       % (path[-1].getNickname(), exitCap))
  
     if nSwap is None:
         nSwap = ceilDiv(len(path),2)-1
-    return path[:nSwap+1], path[nSwap+1:]
+
+    path1, path2 = path[:nSwap+1], path[nSwap+1:]
+    if not path1 or not path2:
+        raise MixError("Each leg of the path must have at least 1 hop")
+    return path1, path2
 
 def parsePath(keystore, config, path, address, nHops=None, 
               nSwap=None, startAt=None, endAt=None):
@@ -682,7 +703,13 @@ def parsePath(keystore, config, path, address, nHops=None,
     if starPos is None:
         myNHops = len(enterPath)
     else:
-        myNHops = nHops or 6 # FFFF Configurable default!
+        if nHops:
+            myNHops = nHops
+        elif config is not None:
+            myNHops = config['Security'].get("PathLength", 6)
+        else:
+            myNHops = 6
+            
 
     if swapPos is None:
         # a,b,c,d or a,b,*,c
@@ -767,8 +794,6 @@ class MixminionClient:
         # Make directories
         userdir = os.path.expanduser(self.config['User']['UserDir'])
         createPrivateDir(userdir)
-        #createPrivateDir(os.path.join(userdir, 'surbs'))
-        createPrivateDir(os.path.join(userdir, 'servers'))
 
         # Initialize PRNG
         self.prng = mixminion.Crypto.getCommonPRNG()
@@ -944,11 +969,13 @@ def runClient(cmd, args):
         elif opt in ('-H', '--hops'):
             try:
                 nHops = int(val)
+                if nHops < 2:
+                    usageAndExit(cmd, "Must have at least 2 hops")
             except ValueError:
                 usageAndExit(cmd, "%s expects an integer"%opt)
         elif opt == '--swap-at':
             try:
-                nHops = int(val)
+                nSwap = int(val)-1
             except ValueError:
                 usageAndExit(cmd, "%s expects an integer"%opt)
         elif opt in ('-t', '--to'):
@@ -961,6 +988,7 @@ def runClient(cmd, args):
                 download = 1
             else:
                 usageAndExit(cmd, "Unrecognized value for %s"%opt)
+
     if args:
         usageAndExit(cmd,"Unexpected options")
     if address is None:
@@ -969,7 +997,9 @@ def runClient(cmd, args):
     config = readConfigFile(configFile)
     LOG.configure(config)
     if verbose:
-        LOG.setMinSeverity("DEBUG")
+        LOG.setMinSeverity("TRACE")
+    else:
+        LOG.setMinSeverity("INFO")
 
     LOG.debug("Configuring client")
     mixminion.Common.configureShredCommand(config)
@@ -979,12 +1009,14 @@ def runClient(cmd, args):
     if download != 0:
         keystore.updateDirectory(forceDownload=download)
     
-    #try:
-    if 1:
+    try:
         path1, path2 = parsePath(keystore, config, path, address, nHops, nSwap)
-    #except MixError, e:
-    #    print e
-    #    sys.exit(1)
+        LOG.info("Chose path: [%s][%s]",
+                 " ".join([ s.getNickname() for s in path1 ]),
+                 " ".join([ s.getNickname() for s in path2 ]))
+    except MixError, e:
+        print >>sys.stderr, e
+        sys.exit(1)
 
     client = MixminionClient(config)
 
@@ -996,6 +1028,31 @@ def runClient(cmd, args):
     f.close()
 
     client.sendForwardMessage(address, payload, path1, path2)
+
+    print >>sys.stderr, "Message sent"
+
+def importServer(cmd, args):
+    options, args = getopt.getopt(args, "hf:", ['help', 'config='])
+    configFile = None
+    for o,v in options:
+        if o in ('-h', '--help'):
+            print "Usage %s [--help] [--config=configFile] <filename> ..."
+            sys.exit(1)
+        elif o in ('-f', '--config'):
+            configFile = v
+
+    config = readConfigFile(configFile)
+    userdir = os.path.expanduser(config['User']['UserDir'])
+    keystore = ClientKeystore(os.path.expanduser(config['User']['UserDir']))
+
+    for filename in args:
+        print "Importing from", filename
+        try:
+            keystore.importFromFile(filename)
+        except MixError, e:
+            print "Error while importing: %s" % e
+
+    print "Done."
 
 def listServers(cmd, args):
     options, args = getopt.getopt(args, "hf:", ['help', 'config='])
@@ -1009,7 +1066,6 @@ def listServers(cmd, args):
 
     config = readConfigFile(configFile)
     userdir = os.path.expanduser(config['User']['UserDir'])
-    createPrivateDir(os.path.join(userdir, 'servers'))
 
     keystore = ClientKeystore(os.path.expanduser(config['User']['UserDir']))
         

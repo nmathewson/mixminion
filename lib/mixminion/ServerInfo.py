@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.31 2003/01/04 04:12:51 nickm Exp $
+# $Id: ServerInfo.py,v 1.32 2003/01/05 04:29:11 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -299,7 +299,7 @@ class ServerDirectory:
             contents = string
         else:
             contents = readPossiblyGzippedFile(fname)
-        
+
         contents = _cleanForDigest(contents)
 
         # First, get the digest.  Then we can break everything up.

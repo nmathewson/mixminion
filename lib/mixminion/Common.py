@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.43 2003/01/05 01:28:11 nickm Exp $
+# $Id: Common.py,v 1.44 2003/01/05 04:29:11 nickm Exp $
 
 """mixminion.Common
 
@@ -115,12 +115,17 @@ def createPrivateDir(d, nocreate=0):
 
     checkPrivateDir(d)
 
+_WARNED_DIRECTORIES = {}
+
 def checkPrivateDir(d, recurse=1):
     """Return true iff d is a directory owned by this uid, set to mode
        0700. All of d's parents must not be writable or owned by anybody but
        this uid and uid 0.  If any of these conditions are unmet, raise
        MixFatalErrror.  Otherwise, return None."""
     me = os.getuid()
+
+    if not os.path.isabs(d):
+        d = os.path.abspath(d)
 
     if not os.path.exists(d):
         raise MixFatalError("Directory %s does not exist" % d)
@@ -156,9 +161,10 @@ def checkPrivateDir(d, recurse=1):
 
         if (mode & 020) and not (mode & stat.S_ISVTX):
             # FFFF We may want to give an even stronger error here.
-            LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
-                     mode, d, st[stat.ST_GID])
-
+            if not _WARNED_DIRECTORIES.has_key(d):
+                LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
+                         mode, d, st[stat.ST_GID])
+            _WARNED_DIRECTORIES[d] = 1
 #----------------------------------------------------------------------
 # Secure filesystem operations.
 
@@ -385,9 +391,10 @@ class Log:
                     self.addHandler(_FileLogHandler(logfile))
                 except MixError, e:
                     self.error(str(e))
-            if logfile and not (config['Server'].get('EchoMessages',0) and
-                                config['Server'].get('NoDaemon',0)):
-                del self.handlers[0]
+                if (config['Server'].get('Daemon',0) or
+                    not config['Server'].get('EchoMessages',0)):
+                    print "Removing console handler"
+                    del self.handlers[0]
 
     def setMinSeverity(self, minSeverity):
         """Sets the minimum severity of messages to be logged.
@@ -812,7 +819,7 @@ def readPossiblyGzippedFile(fname, mode='r'):
     f = None
     try:
         if fname.endswith(".gz"):
-            f = gzip.GzipFile(fname, 'r')
+            f = gzip.GzipFile(fname, 'rb')
         else:
             f = open(fname, 'r')
         return f.read()

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.59 2003/01/05 01:29:55 nickm Exp $
+# $Id: test.py,v 1.60 2003/01/05 04:29:11 nickm Exp $
 
 """mixminion.tests
 
@@ -4355,7 +4355,7 @@ class ClientMainTests(unittest.TestCase):
             for idx in xrange(len(descriptors)):
                 fname = os.path.join(impdirname, "%s%s" % (server,idx))
                 writeFile(fname, descriptors[idx])
-                f = gzip.GzipFile(fname+".gz", 'w')
+                f = gzip.GzipFile(fname+".gz", 'wb')
                 f.write(descriptors[idx])
                 f.close()
 
@@ -4838,11 +4838,6 @@ class ClientMainTests(unittest.TestCase):
         usercfgstr = "[User]\nUserDir: %s\n[DirectoryServers]\n"%userdir
         usercfg = mixminion.Config.ClientConfig(string=usercfgstr)
         client = mixminion.ClientMain.MixminionClient(usercfg)
-
-        # Make sure client sets its directories up correctly.
-        serverdir = os.path.join(userdir, 'servers')
-        self.assert_(os.path.exists(serverdir))
-        self.assertEquals([], os.listdir(serverdir))
 
         # Now try with some servers...
         edesc = getExampleServerDescriptors()

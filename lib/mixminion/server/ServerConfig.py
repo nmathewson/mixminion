@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.8 2003/01/05 01:30:20 nickm Exp $
+# $Id: ServerConfig.py,v 1.9 2003/01/05 04:29:11 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -56,6 +56,10 @@ class ServerConfig(mixminion.Config._ConfigFile):
             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
         if server['PublicKeySloppiness'][2] > 20*60:
             raise ConfigError("PublicKeySloppiness must be <= 20 minutes.")
+
+        if _haveEntry(entries, 'Server', 'NoDaemon'):
+            LOG.warn("The NoDaemon option is obsolete.  Use Daemon instead.")
+
         if _haveEntry(entries, 'Server', 'Mode'):
             LOG.warn("Mode specification is not yet supported.")
 
@@ -147,8 +151,10 @@ SERVER_SYNTAX =  {
                      'LogFile' : ('ALLOW', None, None),
                      'LogLevel' : ('ALLOW', C._parseSeverity, "WARN"),
                      'EchoMessages' : ('ALLOW', C._parseBoolean, "no"),
-                     'NoDaemon' : ('ALLOW', C._parseBoolean, "no"),
-                     'EncryptIdentityKey' : ('REQUIRE', C._parseBoolean, "yes"),
+                     'Daemon' : ('ALLOW', C._parseBoolean, "no"),
+                     # Deprecated.
+                     'NoDaemon' : ('ALLOW', C._parseBoolean, None),
+                     'EncryptIdentityKey' :('REQUIRE', C._parseBoolean, "yes"),
                      'IdentityKeyBits': ('ALLOW', C._parseInt, "2048"),
                      'PublicKeyLifetime' : ('ALLOW', C._parseInterval,
                                             "30 days"),
@@ -161,7 +167,12 @@ SERVER_SYNTAX =  {
                      'Comments': ('ALLOW', None, None),
                      'ModulePath': ('ALLOW', None, None),
                      'Module': ('ALLOW*', None, None),
-                     'MixAlgorithm' : ('ALLOW', _parseMixRule, "Cottrell"),
+                     
+##                      'MixAlgorithm' : ('ALLOW', _parseMixRule, "Cottrell"),
+##                      'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
+##                      'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
+##                      'MixPoolMinSize' : ('ALLOW', C._parseInt, "5"),
+                     'MixAlgorithm' : ('ALLOW', _parseMixRule, "Timed"),
                      'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
                      'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
                      'MixPoolMinSize' : ('ALLOW', C._parseInt, "5"),

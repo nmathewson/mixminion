@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.2 2003/01/03 08:25:48 nickm Exp $
+# $Id: DirMain.py,v 1.3 2003/01/05 04:29:11 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -87,7 +87,7 @@ def cmd_export(cmd, base, rest):
         sys.stdout.write(d)
     elif rest[0].endswith(".gz"):
         fIn = open(fname)
-        fOut = gzip.GzipFile(rest[0], 'w')
+        fOut = gzip.GzipFile(rest[0], 'wb')
         fOut.write(fIn.read())
         fIn.close()
         fOut.close()
