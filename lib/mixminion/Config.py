@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.55 2003/08/25 21:05:33 nickm Exp $
+# $Id: Config.py,v 1.56 2003/08/25 23:44:30 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -793,7 +793,6 @@ class ClientConfig(_ConfigFile):
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
-
 
 
     def prevalidate(self, contents):

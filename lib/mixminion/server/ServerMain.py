@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.89 2003/08/25 21:05:34 nickm Exp $
+# $Id: ServerMain.py,v 1.90 2003/08/25 23:44:30 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -146,7 +146,7 @@ class IncomingQueue(mixminion.Filestore.StringStore):
 
     def queueMessage(self, msg):
         """Add a message for delivery"""
-        h = mixminion.server.ServerQueue.Queue.queueMessage(self, msg)
+        h = mixminion.Filestore.StringStore.queueMessage(self, msg)
         LOG.trace("Inserting message IN:%s into incoming queue", h)
         assert h is not None
         self.processingThread.addJob(
@@ -188,9 +188,10 @@ class IncomingQueue(mixminion.Filestore.StringStore):
             self.removeMessage(handle)
 
 class MixPool:
-    """Wraps a mixminion.server.Queue.*MixPool to send messages to an exit
-       queue and a delivery queue.  The files in the MixPool are instances
-       of RelayedPacket or DeliveryPacket from PacketHandler.
+    """Wraps a mixminion.server.ServerQueue.*MixPool to send messages
+       to an exit queue and a delivery queue.  The files in the
+       MixPool are instances of RelayedPacket or DeliveryPacket from
+       PacketHandler.
 
        All methods on this class are invoked from the main thread.
     """

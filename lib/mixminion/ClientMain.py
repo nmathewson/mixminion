@@ -104,7 +104,7 @@ class ClientDirectory:
     #         fullServerList, digestMap)
     # DIR/dir.gz *or* DIR/dir: A (possibly gzipped) directory file.
     # DIR/imported/: A directory of server descriptors.
-    MAGIC = "ClientKeystore-0.2"
+    MAGIC = "ClientKeystore-0.3"
 
     # The amount of time to require a path to be valid, by default.
     #
@@ -1521,8 +1521,8 @@ class MixminionClient:
             routingType = mixminion.Packet.FRAGMENT_TYPE
             routingInfo = ""
             if servers2[-1]['Delivery/Fragmented'].get('Maximum-Fragments',1) < len(payloads):
-                raise UIError("Oops; %s won't reassable a message this large.",
-                              servers2.getNickname())
+                raise UIError("Oops; %s won't reassable a message this large."%
+                              servers2[-1].getNickname())
 
         #XXXX006 don't use the same path for all the packets!
         for p in payloads:
@@ -2242,7 +2242,7 @@ def runClient(cmd, args):
     options, args = getopt.getopt(args, "hvf:D:t:H:P:R:i:",
              ["help", "verbose", "config=", "download-directory=",
               "to=", "hops=", "path=", "reply-block=",
-              "input=", "queue", "no-queue"
+              "input=", "queue", "no-queue",
               "subject=", "from=", "in-reply-to=", "references=", ])
 
     if not options:
@@ -2362,7 +2362,7 @@ def runClient(cmd, args):
         if message:
             msgLen = len(message)
             if address.exitType == SMTP_TYPE:
-                maxlen = path2[-1]["Delivery/SMTP"]["Maximum-Size"] * 1024
+                maxLen = path2[-1]["Delivery/SMTP"]["Maximum-Size"] * 1024
                 if msgLen > maxLen:
                     LOG.warn("Message is too long for server %s--looking for another..."
                              % path2[-1].getNickname())
@@ -2375,7 +2375,7 @@ def runClient(cmd, args):
                              server.getNickname())
                     path2[-1] = server
             elif address.exitType == MBOX_TYPE:
-                maxlen = path2[-1]["Delivery/MBOX"]["Maximum-Size"] * 1024
+                maxLen = path2[-1]["Delivery/MBOX"]["Maximum-Size"] * 1024
                 if msgLen > maxLen:
                     raise UIError("Message is too long for MBOX server %s, and client-side reconstruction is not yet supported"
                                   % path2[-1].getNickname())

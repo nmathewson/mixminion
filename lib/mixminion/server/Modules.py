@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.51 2003/08/25 21:05:34 nickm Exp $
+# $Id: Modules.py,v 1.52 2003/08/25 23:44:30 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -186,22 +186,23 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
     def _deliverMessages(self, msgList):
         for handle in msgList:
             try:
+                dh = handle.getHandle() # display handle
                 EventStats.log.attemptedDelivery() #FFFF
                 packet = handle.getMessage()
                 result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
-                    LOG.debug("Successfully delivered message MOD:%s", handle)
+                    LOG.debug("Successfully delivered message MOD:%s", dh)
                     handle.succeeded()
                     EventStats.log.successfulDelivery() #FFFF
                 elif result == DELIVER_FAIL_RETRY:
                     LOG.debug("Unable to deliver message MOD:%s; will retry",
-                              handle)
+                              dh)
                     handle.failed(1)
                     EventStats.log.failedDelivery() #FFFF
                 else:
                     assert result == DELIVER_FAIL_NORETRY
                     LOG.error("Unable to deliver message MOD:%s; giving up",
-                              handle)
+                              dh)
                     handle.failed(0)
                     EventStats.log.unretriableDelivery() #FFFF
             except:
@@ -271,7 +272,7 @@ class ModuleManager:
     # Fields
     #    syntax: extensions to the syntax configuration in Config.py
     #    modules: a list of DeliveryModule objects
-    #    enabled: a set of enabled DeliveryModule objects
+    #    enabled: a set of enabled DeliveryModule names.
     #    nameToModule: Map from module name to module
     #    typeToModule: a map from delivery type to enabled deliverymodule.
     #    path: search path for python modules.
@@ -298,6 +299,7 @@ class ModuleManager:
         self.registerModule(DropModule())
         self.registerModule(DirectSMTPModule())
         self.registerModule(MixmasterSMTPModule())
+        self.registerModule(FragmentModule())
 
         self._isConfigured = 0
         self.thread = None
@@ -468,13 +470,14 @@ class ModuleManager:
 
     def close(self):
         """Release all resources held by all modules."""
-        for module in self.enabled:
-            module.close()
+        for module in self.enabled.keys():
+            self.nameToModule[module].close()
 
     def sync(self):
         """Flush all state held by all modules to disk."""
-        for module in self.enabled:
-            module.sync()
+        for module in self.enabled.keys():
+            self.nameToModule[module].close()
+
 
 #----------------------------------------------------------------------
 class DropModule(DeliveryModule):
@@ -522,11 +525,13 @@ class FragmentModule(DeliveryModule):
             self.close()
             return
         self.maxMessageSize = sec['MaximumSize']
-        self.maxInterval = sec['MaximumInterval']
+        self.maxInterval = sec['MaximumInterval'].getSeconds()
         # How many packets could it take to encode a max-size message?
-        fp = mixminion.Fragments.FragmentParams(self.maxMessageSize, 0)
+        fp = mixminion.Fragments.FragmentationParams(self.maxMessageSize, 0)
         self.maxFragments = fp.nChunks * fp.n
         self.manager = manager
+        manager.enableModule(self)
+
     def getServerInfoBlock(self):
         return """[Delivery/Fragmented]
                   Version: 0.1
@@ -555,7 +560,10 @@ class FragmentDeliveryQueue:
         self.pool = mixminion.Fragments.FragmentPool(self.directory)
 
     def queueDeliveryMessage(self, packet, retry=0, lastAttempt=0):
-        if not packet.isFragment():
+        if packet.isError():
+            LOG.warn("Dropping FRAGMENT packet with decoding error: %s",
+                     packet.error)
+        elif not packet.isFragment():
             LOG.warn("Dropping FRAGMENT packet with non-fragment payload.")
             return
         if packet.getAddress():
@@ -565,6 +573,9 @@ class FragmentDeliveryQueue:
         payload = packet.getDecodedPayload()
         assert payload is not None
         self.pool.addFragment(payload)
+
+    def cleanQueue(self, deleteFn=None):
+        self.pool.cleanQueue(deleteFn)
 
     def sendReadyMessages(self):
         self.pool.unchunkMessages()

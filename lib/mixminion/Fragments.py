@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.6 2003/08/25 21:05:34 nickm Exp $
+# $Id: Fragments.py,v 1.7 2003/08/25 23:44:30 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -128,6 +128,10 @@ class FragmentPool:
             dir,create=1,scrub=1)
         self.db = FragmentDB(dir+"_db")
         self.rescan()
+
+    def cleanQueue(self, deleteFn=None):
+        """DOCDOC"""
+        self.store.cleanQueue(deleteFn)
 
     def sync(self):
         """Flush pending changes to disk."""

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.22 2003/08/25 21:05:34 nickm Exp $
+# $Id: PacketHandler.py,v 1.23 2003/08/25 23:44:30 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -273,7 +273,7 @@ class DeliveryPacket:
         """Construct a new DeliveryPacket."""
         assert 0 <= routingType <= 0xFFFF
         assert len(applicationKey) == 16
-        assert len(tag) == 20
+        #assert len(tag) == 20 #XXXX make tag system sane.
         assert len(payload) == 28*1024
         self.exitType = routingType
         self.address = routingInfo
@@ -369,8 +369,9 @@ class DeliveryPacket:
             self.contents = Packet.parsePayload(message).getContents()
             self.type = 'long'
             self.headers = {}
-        except MixError:
+        except MixError, e:
             self.contents = message
+            self.error = str(e) #DOCDOC
             self.type = 'err'
             self.headers = {}
 
