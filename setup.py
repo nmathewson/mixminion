@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.15 2002/12/16 02:40:11 nickm Exp $
+# $Id: setup.py,v 1.16 2002/12/16 19:17:46 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -44,6 +44,12 @@ try:
     import unittest
 except:
     shutil.copy("contrib/unittest.py", "lib/mixminion/_unittest.py")
+
+# Install textwrap if python doesn't provide it. (This goes for all python<2.3)
+try:
+    import textwrap
+except:
+    shutil.copy("contrib/textwrap.py", "lib/mixminion/_textwrap.py")
 
 #======================================================================
 # Detect endian-ness
