@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.24 2003/02/20 16:57:39 nickm Exp $
+# $Id: MMTPClient.py,v 1.24.2.1 2003/05/05 00:43:30 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -67,7 +67,7 @@ class BlockingClientConnection:
            errors."""
         try:
             self._connect(connectTimeout)
-        except (socket.error, _ml.TLSError), e:
+        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
             self._raise(e, "connecting")
 
     def _raise(self, err, action):
@@ -78,11 +78,15 @@ class BlockingClientConnection:
             tp = "Socket"
         elif isinstance(err, _ml.TLSError):
             tp = "TLS"
+        elif isinstance(err, _ml.TLSClosed):
+            tp = "TLSClosed"
         else:
             tp = str(type(err))
-        raise MixProtocolError("%s error while %s to %s:%s: %s",
-             tp, action, self.targetIP, self.targetPort, err)
-
+        e = MixProtocolError("%s error while %s to %s:%s: %s",
+                             tp, action, self.targetIP, self.targetPort, err)
+        e.base = err
+        raise e
+    
     def _connect(self, connectTimeout=None):
         """Helper method; implements _connect."""
         # FFFF There should be a way to specify timeout for communication.
@@ -152,7 +156,7 @@ class BlockingClientConnection:
         try:
             self.tls.renegotiate()
             self.tls.do_handshake()
-        except (socket.error, _ml.TLSError), e:
+        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
             self._raise(e, "renegotiating connection")
 
     def sendPacket(self, packet):
@@ -197,7 +201,7 @@ class BlockingClientConnection:
             if inp != serverControl+sha1(packet+serverHashExtra):
                 raise MixProtocolError("Bad ACK received")
             LOG.debug("ACK received; packet successfully delivered")
-        except (socket.error, _ml.TLSError), e:
+        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
             self._raise(e, "sending packet")
             
     def shutdown(self):
@@ -209,7 +213,7 @@ class BlockingClientConnection:
                 self.tls.shutdown()
             if self.sock is not None:
                 self.sock.close()
-        except (socket.error, _ml.TLSError), e:
+        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
             self._raise(e, "closing connection")
         LOG.debug("Connection closed")
 
