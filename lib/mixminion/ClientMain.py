@@ -647,7 +647,7 @@ class MixminionClient:
         finally:
             clientUnlock()
         if len(pktList) > 1:
-            LOG.info("Pacekts queued")
+            LOG.info("Packets queued")
         else:
             LOG.info("Packet queued")
         return handles
