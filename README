@@ -1,4 +1,4 @@
-$Id: README,v 1.71 2003/12/15 05:16:47 nickm Exp $
+$Id: README,v 1.72 2003/12/18 23:03:41 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.7alpha, from the Mixminion CVS repository.
 
@@ -309,15 +309,6 @@ To specify a path manually, type:
       this:
              -P 'Foo,~3,Bar'      [Foo, about three random servers, then Bar.]
 
-      If you have specified a path length (explicitly or in ~/.mixminionrc)
-      you can use a '*' to indicate as many random servers as are needed to
-      make your path long enough:
-
-             -P 'Foo,*'           [Path that starts with Foo]
-             -P '*,Foo'           [Path that ends with Foo]
-             -P 'Foo,Bar,*,Quux'  [Path that starts with Foo and Bar,
-                                   and ends with Quux]
-
       {ADVANCED} By default, the swap point will be halfway through
       the path (rounding up). To specify a swap point explicitly, use
       a colon in your path, as in:
@@ -335,7 +326,7 @@ edit the  ~/.mixminionrc and change the ForwardPath line:
 To send a dummy message, specify "drop" instead of an email address, as in:
 
       mixminion send -t drop
-      mixminion send -t drop -P '*,Foo'
+      mixminion send -t drop -P '*4,Foo'
       mixminion send -t drop -H 8
 
 To queue a message for later transmission, run "mixminion queue" instead of
@@ -396,9 +387,9 @@ To generate a reply block, type:
       Also, you can control path selection in the same way as with
       sending messages:
 
-      mixminion generate-surb -H 3        (a 3-hop path)
-      mixminion generate-surb -P '*,Foo'  (end with server foo)
-      mixminion generate-surb -P 'Bar,*'  (start with server bar)
+      mixminion generate-surb -H 3         (a 3-hop path)
+      mixminion generate-surb -P '*3,Foo'  (a 4-hop path ending with foo)
+      mixminion generate-surb -P 'Bar,*3'  (a 4-hop path starting with bar)
 
       You can use the '-n' option to generate many reply blocks at once:
 
@@ -429,11 +420,11 @@ typing:
 
       The other options to 'send' and 'pool' still apply; the reply block
       takes the place of the destination address:
-         mixminion send -R <reply-block>          (Read from stdin)
-         mixminion send -R <reply-block> -D yes   (Reload directory)
-         mixminion send -R <reply-block> -H 4     (Use 4 hops before reply.)
-         mixminion send -R <reply-block> -P 'Z,*' (Start with server "Z".)
-         mixminion pool -R <reply-block>          (Pool the message.)
+         mixminion send -R <reply-block>           (Read from stdin)
+         mixminion send -R <reply-block> -D yes    (Reload directory)
+         mixminion send -R <reply-block> -H 4      (Use 4 hops before reply.)
+         mixminion send -R <reply-block> -P 'Z,*3' (Start with server "Z".)
+         mixminion pool -R <reply-block>           (Pool the message.)
 
       IMPORTANT: Mixminion reply blocks can only be used once!  (Thus,
       SURB="Single Use Reply Block".)  The program will remember which
