@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.43 2003/06/06 09:12:52 nickm Exp $
+# $Id: ServerKeys.py,v 1.44 2003/06/10 10:40:21 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -343,9 +343,18 @@ class ServerKeyring:
         return nextKeygen
 
     def removeDeadKeys(self, now=None):
-        """Remove all keys that have expired"""
+        """Remove all keys that have expired."""
+        self.checkKeys()
+        keys = self.getDeadKeys(now)
+        for message, keyset in keys:
+            LOG.info(message)
+            keyset.delete()
         self.checkKeys()
 
+    def getDeadKeys(self,now=None):
+        """DOCDOC
+           doesn't checkKeys.
+        """
         if now is None:
             now = time.time()
             expiryStr = " expired"
@@ -354,15 +363,16 @@ class ServerKeyring:
 
         cutoff = now - self.keyOverlap
 
+        result = []
         for va, vu, keyset in self.keySets:
             if vu >= cutoff:
                 continue
             name = keyset.keyname
-            LOG.info("Removing%s key %s (valid from %s through %s)",
-                     expiryStr, name, formatDate(va), formatDate(vu-3600))
-            keyset.delete()
+            message ="Removing%s key %s (valid from %s through %s)"%(
+                      expiryStr, name, formatDate(va), formatDate(vu))
+            result.append((message, keyset))
 
-        self.checkKeys()
+        return result
 
     def _getLiveKeys(self, now=None):
         """Find all keys that are now valid.  Return list of (Valid-after,
@@ -427,9 +437,14 @@ class ServerKeyring:
 
            This function is idempotent.
         """
-        self.removeDeadKeys()
+        self.checkKeys()
+        deadKeys = self.getDeadKeys()
         self.currentKeys = keys = self.getServerKeysets(when)
-        LOG.info("Updating keys: %s currently valid", len(keys))
+        keyNames = [k.keyname for k in keys]
+        deadKeyNames = [k.keyname for msg, k in deadKeys]
+        LOG.info("Updating keys: %s currently valid (%s); %s expired (%s)",
+                 len(keys), " ".join(keyNames),
+                 len(deadKeys), " ".join(deadKeyNames))
         if mmtpServer is not None:
             context = self._getTLSContext(keys[-1])
             mmtpServer.setContext(context)
@@ -439,14 +454,20 @@ class ServerKeyring:
 
             for k in keys:
                 packetKeys.append(k.getPacketKey())
-                hashLogs.append(mixminion.server.HashLog.getHashLog(
-                    k.getHashLogFileName(), k.getPacketKeyID()))
+                hashLogs.append(k.getHashLog())
             packetHandler.setKeys(packetKeys, hashLogs)
 
         if statusFile:
             writeFile(statusFile,
                     "".join(["%s\n"%k.getDescriptorFileName() for k in keys]),
                     0644)
+
+        for msg, ks in deadKeys:
+            LOG.info(msg)
+            ks.delete()
+
+        if deadKeys:
+            self.checkKeys()
 
         self.nextUpdate = None
         self.getNextKeyRotation(keys)
@@ -563,15 +584,8 @@ class ServerKeyset:
                  self.publishedFile,
                  self.hashlogFile ]
         files = [f for f in files if os.path.exists(f)]
-        hashdir, name = os.path.split(self.hashlogFile)
-        if os.path.exists(hashdir):
-            start1 = name+"."
-            start2 = name+"_"
-            for fn in os.listdir(hashdir):
-                if fn.startswith(start1) or fn.startswith(start2):
-                    files.append(os.path.join(hashdir, fn))
-
         secureDelete(files, blocking=1)
+        mixminion.server.HashLog.deleteHashLog(self.hashlogFile)
         os.rmdir(self.keydir)
 
     def load(self, password=None):
@@ -603,6 +617,9 @@ class ServerKeyset:
         if self.serverinfo is None:
             self.serverinfo = ServerInfo(fname=self.descFile)
         return self.serverinfo
+    def getHashLog(self):
+        return mixminion.server.HashLog.getHashLog(
+            self.getHashLogFileName(), self.getPacketKeyID())
     def getLiveness(self):
         """Return a 2-tuple of validAfter/validUntil for this server."""
         if self.validAfter is None or self.validUntil is None:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.15 2003/06/06 06:04:58 nickm Exp $
+# $Id: HashLog.py,v 1.16 2003/06/10 10:40:21 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -13,10 +13,10 @@ import stat
 import anydbm, dumbdbm
 import threading
 from mixminion.Common import MixFatalError, LOG, createPrivateDir, readFile, \
-     tryUnlink
+     secureDelete, tryUnlink
 from mixminion.Packet import DIGEST_LEN
 
-__all__ = [ 'HashLog' ]
+__all__ = [ 'HashLog', 'getHashLog', 'deleteHashLog' ]
 
 # FFFF Mechanism to force a different default db module.
 
@@ -27,9 +27,8 @@ __all__ = [ 'HashLog' ]
 MAX_JOURNAL = 128
 
 # Lock to pretect _OPEN_HASHLOGS
-_HASHLOG_DICT_LOCK = threading.Lock()
-# Map from (filename,keyid) to the open HashLog object with that fname and
-# ID.  Needed to implement getHashLog.
+_HASHLOG_DICT_LOCK = threading.RLock()
+# Map from (filename) to (keyid,open HashLog). Needed to implement getHashLog.
 _OPEN_HASHLOGS = {}
 
 def getHashLog(filename, keyid):
@@ -40,13 +39,42 @@ def getHashLog(filename, keyid):
     try:
         _HASHLOG_DICT_LOCK.acquire()
         try:
-            return _OPEN_HASHLOGS[(filename, keyid)]
+            keyid_orig, hl = _OPEN_HASHLOGS[filename]
+            if keyid != keyid_orig:
+                raise MixFatalError("KeyID changed for hashlog %s"%filename)
+            LOG.trace("getHashLog() returning open hashlog at %s",filename)
         except KeyError:
+            LOG.trace("getHashLog() opening hashlog at %s",filename)
             hl = HashLog(filename, keyid)
-            _OPEN_HASHLOGS[(filename, keyid)] = hl
-            return hl
+            _OPEN_HASHLOGS[filename] = (keyid, hl)
+        return hl
     finally:
         _HASHLOG_DICT_LOCK.release()
+
+def deleteHashLog(filename):
+    """Remove all files associated with a hashlog."""
+    try:
+        _HASHLOG_DICT_LOCK.acquire()
+        try:
+            _, hl = _OPEN_HASHLOGS[filename]
+            LOG.trace("deleteHashLog() removing open hashlog at %s",filename)
+            hl.close()
+        except KeyError:
+            LOG.trace("deleteHashLog() removing closed hashlog at %s",filename)
+            pass
+        remove = []
+        parent,name = os.path.split(filename)
+        prefix1 = name+"."
+        prefix2 = name+"."
+        if os.path.exists(parent):
+            for fn in os.listdir(parent):
+                if fn.startswith(prefix1) or fn.startswith(prefix2):
+                    files.append(os.path.join(parent, fn))
+        remove = [f for f in remove if os.path.exists(f)]                
+        secureDelete(remove, blocking=1)
+    finally:
+        _HASHLOG_DICT_LOCK.release()
+        
 
 # flags to pass to os.open when opening the journal file.
 _JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)
@@ -181,18 +209,17 @@ class HashLog:
     def close(self):
         """Closes this log."""
         try:
+            _HASHLOG_DICT_LOCK.acquire()
             self.__lock.acquire()
+            LOG.trace("Closing hashlog at self.filename")
             self.sync()
             self.log.close()
+            self.log = None
             os.close(self.journalFile)
             try:
-                _HASHLOG_DICT_LOCK.acquire()
-                try:
-                    del _OPEN_HASHLOGS[(self.filename, self.keyid)]
-                except KeyError:
-                    pass
-            finally:
-                _HASHLOG_DICT_LOCK.release()
-                    
+                del _OPEN_HASHLOGS[self.filename]
+            except KeyError:
+                pass
         finally:
             self.__lock.release()
+            _HASHLOG_DICT_LOCK.release()
