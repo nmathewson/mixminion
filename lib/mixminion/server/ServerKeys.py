@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.63 2004/01/12 04:48:16 nickm Exp $
+# $Id: ServerKeys.py,v 1.64 2004/01/15 21:01:20 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -479,6 +479,9 @@ class ServerKeyring:
                  len(keys), " ".join(keyNames),
                  len(deadKeys), " ".join(deadKeyNames))
         if mmtpServer is not None:
+            LOG.trace("Using TLS cert from %s: good from %s to %s",
+                      keyNames[-1], formatDate(keys[-1].validAfter),
+                      formatDate(keys[-1].validUntil))
             context = self._getTLSContext(keys[-1])
             mmtpServer.setServerContext(context)
         if packetHandler is not None:
