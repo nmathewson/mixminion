@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.3 2002/06/02 06:11:16 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.4 2002/08/12 18:12:24 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because 
@@ -15,7 +15,6 @@
  */
 
 #include <openssl/aes.h>
-#include <alloca.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -29,14 +28,16 @@ typedef unsigned char u8;
 #undef SET_U32
 
 #ifdef MM_B_ENDIAN
-#define GET_U32(ptr) (*(ptr))
-#define SET_U32(ptr,i) (*(ptr)) = i 
+#define GET_U32(ptr) (*(u32*)(ptr))
+#define SET_U32(ptr,i) (*(u32*)(ptr)) = i 
+#define INCR_U32(ptr, i) i = ++(*(u32*)(ptr))
 #endif
 
-#if 0  /* On my Athlon, bswap_32 is actually slower.  Surprisingly,
-	 the code in glib/gtypes.h _is_ faster; but shaves only 1%
-         off encryption.  We seem to be near the point of diminishing
-         returns here. */
+#if 0  
+/* On my Athlon, bswap_32 is actually slower.  Surprisingly,
+   the code in glib/gtypes.h _is_ faster; but shaves only 1%
+   off encryption.  We seem to be near the point of diminishing
+   returns here. */
 #ifdef MM_L_ENDIAN
 #ifdef MM_HAVE_BYTESWAP_H
 #include <byteswap.h>
@@ -58,6 +59,7 @@ typedef unsigned char u8;
                              ptr[3] = (i>>24) & 0xff; } 
 #define GET_U32(ptr)   GET_U32_cp(((u8*)(ptr)))
 #define SET_U32(ptr,i) SET_U32_cp(((u8*)(ptr)), i)
+#define INCR_U32(ptr, i) { i = GET_U32(ptr); SET_U32(ptr,++i); }
 #endif
 
 static inline void
@@ -65,6 +67,17 @@ mm_incr(u32 const* ctr32)
 {
 	u32 i;
 
+	INCR_U32(ctr32+3,i);
+	if (i) return;
+
+	INCR_U32(ctr32+2,i);
+	if (i) return;
+
+	INCR_U32(ctr32+1,i);
+	if (i) return;
+
+	INCR_U32(ctr32,  i);
+#if 0
 	i = GET_U32(ctr32+3) + 1;
 	SET_U32(ctr32+3, i);
 	if (i) return;
@@ -79,6 +92,7 @@ mm_incr(u32 const* ctr32)
 			
 	i = GET_U32(ctr32) + 1;
 	SET_U32(ctr32, i);
+#endif
 }
 
 void

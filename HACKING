@@ -13,7 +13,7 @@ Setting up:
 	Get the source.
 	Unpack openssl 0.9.7 into minion/contrib/openssl.
 	cd minion/contrib/openssl; ./config; make
-	
+
 Things to try:
 	make
 	make test
@@ -79,11 +79,12 @@ PORTABILITY NOTES:
       we should migrate to libnss entirely.
 
 PORTING TO NON-LINUX PLATFORMS:
-    - If you need to run on a system without /dev/urandom, you'll need
-      to write an acceptable fallback for mixminion.Crypto.trng() to
-      use.  
+    - If you need to run on a system without an acceptable /dev/*random, 
+      you'll nee to write an acceptable fallback for mixminion.Crypto.trng() 
+      to use.  
     - We assume the existence of a /usr/bin/shred to securely delete
-      files.  This should be made configurable, but isn't yet.
+      files.  This is now configurable, but I'd like to know a few other
+      alternatives.
 
 CAVEATS:
     - If I haven't got a test for it in tests.py, assume it doesn't work.

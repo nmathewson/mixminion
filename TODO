@@ -8,7 +8,29 @@ SPEC	- Spec not finalized
 
 NEEDS TO BE WRITTEN
 
-FOR 0.0.1: (The rough edges release)
+FOR 0.0.1: (The first alpha)
+	- Refactor brokenness
+		- Key sets are their own class
+		- Queue sets are their own class
+		- A server is its own class, and has a better method breakdown
+		- Clean out deleted stuff every so often
+		o Configuration stuff should go into servermain/clientmain.
+		   Forget this broken system of today.
+		o Reset logic should also go into servermain/clientmain.
+		o Document changes to Queue, MMTPServer
+		. Document and refactor ModuleManager (it needs to know about
+                  queues).
+		- Make individualized queues into special classes.
+		. DeliveryQueue
+			- Tests for Queue.*Object*
+			o Implement
+			o Document
+			- Test
+		. MixQueue
+			o Implement
+			- Test
+		- Document all changes; resolve XXXXs
+	o Need hooks for undeliverable messages in MMTPServer.
 	. Module system
 		o Stub classes
 		o Modules are configurable
@@ -22,9 +44,13 @@ FOR 0.0.1: (The rough edges release)
 			*- Implement
 			*- Test
 	*- Server
-		- Main loop for server
-		- Startup, config
-		- Load keys
+		. Main loop for server
+		. Startup, config
+		. Load keys
+		. Receive messages
+		. Process messages
+		- Deliver MBOX messages.
+		- Better debugging logs
 		o Design directory layout
 	*- CLI for server
 		*- Run server
@@ -42,9 +68,7 @@ FOR 0.0.1: (The rough edges release)
 		- Validation function for client
 		- Validation function for server		
 	- Clean shutdown for server
-
 	- MMTP	
-		- Code to send junk
 		. Tests for all cases:
 			- Junk
 			- Multiple senders
@@ -60,9 +84,11 @@ SPEC		- Reading messages sent to reply blocks
 FOR 0.0.2: (The first hacker release)
 	- Key rotation and expiry
 	- MMTP
+		- Code to send junk
 SPEC!!		- Timeout old connections
 		- Test new features
 	- Very clean build process
+		- Get SSL as needed
 	- RPMS
 	- Key management
 	- Test on other (non-redhat, non-linux) systems

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.11 2002/08/11 07:50:34 nickm Exp $
+# $Id: Common.py,v 1.12 2002/08/12 18:12:24 nickm Exp $
 
 """mixminion.Common
 
@@ -49,6 +49,28 @@ def floorDiv(a,b):
 def ceilDiv(a,b):
     "Compute ceil(a / b). See comments for portability notes."
     return divmod(a-1,b)[0]+1
+
+#----------------------------------------------------------------------
+def createPrivateDir(d):
+    """Create a directory, and all parent directories, checking permissions
+       as we go along.  All superdirectories must be owned by root or us.
+       
+       XXXX we don't check permissions properly yet."""
+    if not os.path.exists(d):
+	try:
+	    os.makedirs(s, 0700)
+	except OSError, e:
+	    getLog().fatal("Unable to create directory %s"%d)
+	    raise MixFatalError()
+    elif not os.path.isdir(d):
+        getLog().fatal("%s is not a directory"%d)
+        raise MixFatalError()
+    else:
+        m = os.stat(d)[stat.ST_MODE]
+        # check permissions
+        if m & 0077:
+            getLog().fatal("Directory %s must be mode 0700" %d)
+            raise MixFatalError()
 
 #----------------------------------------------------------------------
 # Secure filesystem operations.
@@ -171,7 +193,18 @@ _SEVERITIES = { 'TRACE' : -2,
 
 class Log:
     """A Log is a set of destinations for system messages, along with the
-       means to filter them to a desired verbosity."""
+       means to filter them to a desired verbosity.
+
+       Log messages have 'severities' as follows:
+              TRACE: hyperverbose mode; used for debugging fiddly
+                 little details.  This is a security risk.
+              DEBUG: very verbose mode; used for tracing connections
+	         and messages through the system.  This is a security risk.
+              INFO: non-critical events.
+	      WARN: recoverable errors
+	      ERROR: nonrecoverable errors that affect only a single 
+                 message or a connection.
+	      FATAL: nonrecoverable errors that affect the entire system"""
     def __init__(self, minSeverity):
 	self.configure(None)
 	self.setMinSeverity(minSeverity)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.8 2002/08/06 16:09:21 nickm Exp $
+# $Id: ServerInfo.py,v 1.9 2002/08/12 18:12:24 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -132,7 +132,6 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return IPV4Info(self.getAddr(), self.getPort(), self.getKeyID())
 
 #----------------------------------------------------------------------
-# This should go in a different file.
 class ServerKeys:
     """A set of expirable keys for use by a server.
 
@@ -334,12 +333,13 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     finally:
         f.close()
 
-    # for debugging XXXX ### Remove this once we're more confident.
+    # XXXX for debugging: try to parse and validate the thing we just made.
+    # XXXX Remove this once we're more confident.
     ServerInfo(string=info)
 
     return info
 
-#-----------------------b-----------------------------------------------
+#----------------------------------------------------------------------
 def getServerInfoDigest(info):
     """Calculate the digest of a server descriptor"""
     return _getServerInfoDigestImpl(info, None)

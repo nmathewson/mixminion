@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.2 2002/08/11 07:50:34 nickm Exp $
+# $Id: ServerMain.py,v 1.3 2002/08/12 18:12:24 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -9,7 +9,7 @@
 
 import cPickle
 
-from mixminion.Common import getLog, MixFatalError, MixError
+from mixminion.Common import getLog, MixFatalError, MixError, createPrivateDir
 
 # Directory layout:
 #     MINION_HOME/work/queues/incoming/
@@ -27,23 +27,6 @@ from mixminion.Common import getLog, MixFatalError, MixError
 #                 conf/miniond.conf 
 #                       ....
 
-def createDir(d):
-    if not os.path.exists(d):
-        try:
-            os.mkdir(d, 0700)
-        except OSError, e:
-            getLog().fatal("Unable to create directory %s"%d)
-            raise MixFatalError()
-    elif not os.path.isdir(d):
-        getLog().fatal("%s is not a directory"%d)
-        raise MixFatalError()
-    else:
-        m = os.stat(d)[stat.ST_MODE]
-        # check permissions
-        if m & 0077:
-            getLog().fatal("Directory %s must be mode 0700" %d)
-            raise MixFatalError()
-
 class ServerState:
     # XXXX This should be refactored.  keys should be separated from queues.
     # config
@@ -56,8 +39,8 @@ class ServerState:
         # set up directory structure.
         c = self.config
         self.homedir = c['Server']['Homedir']
-        createDir(self.homedir)
-        getLog()._configure() # ????
+        createPrivateDir(self.homedir)
+        getLog()._configure(self.config)# ????
         
         w = os.path.join(self.homeDir, "work")
         q = os.path.join(w, "queues")
@@ -65,7 +48,6 @@ class ServerState:
         self.mixDir = os.path.join(q, "mix")
         self.outgoingDir = os.path.join(q, "outgoing")
         self.deliverDir = os.path.join(q, "deliver")
-        self.deliverMBOXDir = os.path.join(self.deliverDir, "mbox")
 
         tlsDir = os.path.join(w, "tls")
         self.hashlogsDir = os.path.join(w, "hashlogs")
@@ -75,9 +57,9 @@ class ServerState:
         for d in [self.homeDir, w, q, self.incomingDir, self.mixDir,
                   self.outgoingDir, self.deliverDir, tlsDir,
                   self.hashlogsDir, self.keysDir, self.confDir]:
-            createDir(d)
+            createPrivateDir(d)
 
-        for name in ("incoming", "mix", "outgoing", "deliverMBOX"):
+        for name in ("incoming", "mix", "outgoing"):
             loc = getattr(self, name+"Dir")
             queue = mixminion.Queue.Queue(loc, create=1, scrub=1)
             setattr(self, name+"Queue", queue)

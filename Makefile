@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.3 2002/06/24 20:28:18 nickm Exp $
+# $Id: Makefile,v 1.4 2002/08/12 18:12:24 nickm Exp $
 PYTHON=python2.2
 
 all: do_build
@@ -30,5 +30,5 @@ lines:
 	wc -l src/*.[ch] lib/*/*.py
 
 xxxx:
-	find . -type f | grep -v \.py.$ | grep -v \.so$        \
-	    | grep -v \.o$ | xargs grep 'XXXX\|FFFF|\?\?\?\?'
+	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
+	   | xargs -0 grep 'XXXX\|FFFF|\?\?\?\?'
