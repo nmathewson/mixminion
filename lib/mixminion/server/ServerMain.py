@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.82 2003/06/26 17:52:09 nickm Exp $
+# $Id: ServerMain.py,v 1.83 2003/06/30 17:33:33 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -643,7 +643,12 @@ class MixminionServer(_Scheduler):
                 raise UIError("The server homedir contains keys for an "
                               "unrecognized version of the server.")
             else:
-                raise
+                raise UIError("""\
+For some reason, your generated server descriptors cannot be parsed.  You
+may want to delete all your keysets with server-DELKEYS and have the server
+generate new ones.  [Messages sent to the old keys will be lost].\n
+The original error message was '%s'."""%e)
+            
         self.keyring.createKeysAsNeeded()
         self.keyring.checkDescriptorConsistency()
         

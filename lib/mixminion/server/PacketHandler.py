@@ -1,13 +1,14 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.17 2003/06/06 06:04:58 nickm Exp $
+# $Id: PacketHandler.py,v 1.18 2003/06/30 17:33:33 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
 import binascii
+import re
 import threading
 import types
 
-from mixminion.Common import encodeBase64, formatBase64
+from mixminion.Common import encodeBase64, formatBase64, LOG
 import mixminion.Crypto as Crypto
 import mixminion.Packet as Packet
 import mixminion.Common as Common
@@ -276,6 +277,7 @@ class DeliveryPacket:
         self.payload = payload
         self.contents = None
         self.type = None
+        self.headers = None#DOCDOC
 
     def isDelivery(self):
         """Return true iff this packet is a delivery (non-relay) packet."""
@@ -333,17 +335,20 @@ class DeliveryPacket:
                 # encrypted message
                 self.type = 'enc'
                 self.contents = message
+                self.headers = {}
             else:
                 # forward message
                 self.type = 'plain'
-                # self.contents is right
+                self.contents, self.headers = \
+                               Packet.parseMessageAndHeaders(self.contents)
         except Packet.CompressedDataTooLong, _:
-            self.contents = (mixminion.Packet.parsePayload(message)
-                                             .getContents())
+            self.contents = Packet.parsePayload(message).getContents()
             self.type = 'long'
+            self.headers = {}
         except MixError:
             self.contents = message
             self.type = 'err'
+            self.headers = {}
 
         self.payload = None
 
@@ -357,6 +362,13 @@ class DeliveryPacket:
             return self.contents
         else:
             return encodeBase64(self.contents)
+
+    def getHeaders(self):
+        """DOCDOC"""
+        if self.type is None:
+            self.decode()
+        assert self.headers is not None
+        return self.headers
 
     def getAsciiTag(self):
         """Return a base64-representation of this message's decoding handle."""
@@ -378,3 +390,4 @@ class DeliveryPacket:
             tp = 'BIN'
 
         return Packet.TextEncodedMessage(self.contents, tp, tag)
+

@@ -39,8 +39,11 @@ For 0.0.5:
                   in a row.
                 - Change pathgen to avoid using same node for entry
                   and exit?
+                - Include cfg info in descriptor
         - Support for large messages and K-of-N
-        - UI improvements:
+        . UI improvements:
+                o If we can't read serverdescs on startup, suggest a
+                  server-DELKEYS.
                 - Audit exceptions: which should be UIError?
                 - Quiet server startup; should be by default if daemon
                   mode.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.47 2003/06/25 17:03:11 arma Exp $
+# $Id: Packet.py,v 1.48 2003/06/30 17:33:33 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -11,6 +11,7 @@
 
 __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'ENC_FWD_OVERHEAD', 'ENC_SUBHEADER_LEN',
+            'encodeMailHeaders', 'encodeMessageHeaders',
             'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_TYPE', 'FragmentPayload',
             'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
             'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
@@ -20,7 +21,8 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_TYPE', 'SingletonPayload',
             'Subheader', 'TAG_LEN', 'TextEncodedMessage',
             'parseHeader', 'parseIPV4Info',
-            'parseMBOXInfo', 'parseMessage', 'parsePayload', 'parseReplyBlock',
+            'parseMBOXInfo', 'parseMessage', 'parseMessageAndHeaders',
+            'parsePayload', 'parseReplyBlock',
             'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
             'parseTextEncodedMessages', 'parseTextReplyBlocks', 'uncompressData'            ]
 
@@ -665,6 +667,58 @@ class TextEncodedMessage:
 
         return armorText(c, MESSAGE_ARMOR_NAME, headers=fields,
                          base64=(self.messageType!='TXT'))
+
+#----------------------------------------------------------------------
+# Header encoding
+
+def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
+                      references=None):
+    """DOCDOC"""
+    #XXXX005 check values
+    headers = {}
+    if subject:
+        headers['SUBJECT'] = subject
+    if fromAddr:
+        headers['FROM'] = fromAddr
+    if inReplyTo:
+        headers['IN-REPLY-TO'] = inReplyTo
+    if references:
+        headers['REFERENCES'] = references
+    return encodeMessageHeaders(message, headers)
+
+def encodeMessageHeaders(headers):
+    """DOCDOC msg, dict
+
+       Requires that headers are in acceptable format.
+    """
+    items = []
+    hitems = headers.items()
+    hitems.sort()
+    for k,v in hitems:
+        items.append("%s:%s\n"%(k,v))
+    items.append("\n")
+    return "".join(items)
+
+HEADER_RE = re.compile(r'^([!-9;-~]+):([ -~]*)\n')
+
+def parseMessageAndHeaders(message):
+    """DOCDOC -> message, {header : value}"""
+    headers = {}
+    msg = message
+    while 1:
+        if msg[0] == '\n':
+            return msg[1:], headers
+        m = HEADER_RE.match(msg)
+        if m:
+            k,v = m.groups()
+            if len(v) > 900:
+                LOG.warn("Rejecting overlong exit header %r:%r...",k,v[:30])
+            else:
+                headers[k] = v
+            msg = msg[m.end():]
+        else:
+            LOG.warn("Could not parse headers on message; not using them.")
+            return message, headers
 
 #----------------------------------------------------------------------
 # COMPRESSION FOR PAYLOADS

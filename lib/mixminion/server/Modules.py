@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.45 2003/06/25 17:03:15 arma Exp $
+# $Id: Modules.py,v 1.46 2003/06/30 17:33:33 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -765,12 +765,40 @@ class SMTPModule(DeliveryModule):
         return "SMTP"
     def getExitTypes(self):
         return [ mixminion.Packet.SMTP_TYPE ]
+    def _formatSMTPMessage(self, address, packet):
+        """DOCDOC"""
+        #DOCDOC implied fields
+
+        headers = packet.getHeaders()
+        subject = headers.get("SUBJECT", self.subject)
+        fromAddr = headers.get("FROM")
+        if fromAddr:
+            fromAddr = '"%s %s" <%s>' % (self.fromTag, fromAddr,
+                                         self.returnAddress)
+        else:
+            fromAddr = self.returnAddress
+
+        morelines = []
+        if headers.has_key("IN-REPLY-TO"):
+            morelines.append("In-Reply-To: %s\n" % headers['IN-REPLY-TO'])
+        if headers.has_key("REFERENCES"):
+            morelines.append("References: %s\n" % headers['REFERENCES'])
+
+        # Decode and escape the message, and get ready to send it.
+        msg = _escapeMessageForEmail(packet)
+        msg = "To: %s\nFrom: %s\nSubject: %s\n%s%s\n\n%s"%(
+            address, fromAddr, subject, "".join(morelines), self.header, msg)
+
+        return msg
 
 class DirectSMTPModule(SMTPModule):
     """Module that delivers SMTP messages via a local MTA."""
     ## Fields
     # server -- Name of the MTA server.
-    # header -- The string, minus "To:"-line, that gets prepended to all
+    # subject: The default subject line we use for outgoing messages
+    # fromPattern: A printf format string with a field for user-supplied
+    #    from addresses.
+    # header -- A string, minus "To:"-line, that gets prepended to all
     #    outgoing messages.
     # returnAddress -- The address to use in the "From:" line.
     # blacklist -- An EmailAddressSet of addresses to which we refuse
@@ -792,6 +820,7 @@ class DirectSMTPModule(SMTPModule):
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
                    'Message' : ('ALLOW', None, ""),
                    'ReturnAddress': ('ALLOW', None, None), #Required on e
+                   'FromTag' : ('ALLOW', None, "[Anon]"),
                    'SubjectLine' : ('ALLOW', None,
                                     'Type III Anonymous Message'),
 
@@ -827,11 +856,13 @@ class DirectSMTPModule(SMTPModule):
         else:
             self.blacklist = None
         message = "\n".join(textwrap.wrap(sec.get('Message',""))).strip()
-        subject = sec['SubjectLine']
+        self.subject = sec['SubjectLine']
         self.returnAddress = sec['ReturnAddress']
-
-        self.header = "From: %s\nSubject: %s\nX-Anonymous: yes\n\n%s" %(
-            self.returnAddress, subject, message)
+        self.fromTag = sec.get('FromTag', "[Anon]")
+        if message:
+            self.header = "X-Anonymous: yes\n\n%s" %(message)
+        else:
+            self.header = "X-Anonymous: yes"
 
         manager.enableModule(self)
 
@@ -851,10 +882,7 @@ class DirectSMTPModule(SMTPModule):
             LOG.warn("Dropping message to blacklisted address %r", address)
             return DELIVER_FAIL_NORETRY
 
-        # Decode and escape the message, and get ready to send it.
-        msg = _escapeMessageForEmail(packet)
-        msg = "To: %s\n%s\n\n%s"%(address, self.header, msg)
-
+        msg = self._formatSMTPMessage(address, packet)
         # Send the message.
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
@@ -868,7 +896,9 @@ class MixmasterSMTPModule(SMTPModule):
     ## Fields:
     # server: The path (usually a single server) to use for outgoing messages.
     #    Multiple servers should be separated by commas.
-    # subject: The subject line we use for outgoing messages
+    # subject: The default subject line we use for outgoing messages
+    # fromPattern: A printf format string with a field for user-supplied
+    #    from addresses.
     # command: The Mixmaster binary.
     # options: Options to pass to the Mixmaster binary when queueing messages
     # tmpQueue: An auxiliary Queue used to hold files so we can pass them to
@@ -887,6 +917,7 @@ class MixmasterSMTPModule(SMTPModule):
                              "7 hours for 6 days"),
                    'MixCommand' : ('REQUIRE', _parseCommand, None),
                    'Server' : ('REQUIRE', None, None),
+                   'FromTag' : ('ALLOW', None, "[Anon]"),
                    'SubjectLine' : ('ALLOW', None,
                                     'Type III Anonymous Message'),
                    }
@@ -908,9 +939,11 @@ class MixmasterSMTPModule(SMTPModule):
         self.server = sec['Server']
         self.subject = sec['SubjectLine']
         self.retrySchedule = sec['Retry']
+        self.fromTag = sec.get('FromTag', "[Anon]")
         self.command = cmd[0]
-        self.options = tuple(cmd[1]) + ("-l", self.server,
-                                        "-s", self.subject)
+        self.options = tuple(cmd[1]) + ("-l", self.server)
+        self.returnAddress = "nobody"
+        self.header = "X-Anonymous: yes"
         manager.enableModule(self)
 
     def getName(self):
@@ -934,12 +967,11 @@ class MixmasterSMTPModule(SMTPModule):
                      packet.getAddress())
             return DELIVER_FAIL_NORETRY
 
-        msg = _escapeMessageForEmail(packet)
+        msg = self._formatSMTPMessage(info.email, packet)
         handle = self.tmpQueue.queueMessage(msg)
 
         cmd = self.command
-        opts = self.options + ("-t", info.email,
-                               self.tmpQueue.getMessagePath(handle))
+        opts = self.options + (self.tmpQueue.getMessagePath(handle),)
         code = os.spawnl(os.P_WAIT, cmd, cmd, *opts)
         LOG.debug("Queued Mixmaster message: exit code %s", code)
         self.tmpQueue.removeMessage(handle)
@@ -959,6 +991,20 @@ class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
     def _deliverMessages(self, msgList):
         SimpleModuleDeliveryQueue._deliverMessages(self, msgList)
         self.module.flushMixmasterPool()
+
+#----------------------------------------------------------------------
+
+MAIL_HEADERS = ["SUBJECT", "FROM", "IN-REPLY-TO", "REFERENCES"]
+def checkMailHeaders(headers):
+    """DOCDOC"""
+    for k in headers.keys():
+        if k not in MAIL_HEADERS:
+            #XXXX this should raise parse error instead.
+            LOG.warn("Skipping unrecognized mail header %s"%k)
+        
+    fromAddr = headers['FROM']
+    if re.search(r'[\[\]:"]', fromAddr):
+        raise ParseError("Invalid FROM address: %r", fromAddr)
 
 #----------------------------------------------------------------------
 
@@ -991,6 +1037,7 @@ def _escapeMessageForEmail(packet):
     """Helper function: Given a message and tag, escape the message if
        it is not plaintext ascii, and wrap it in some standard
        boilerplate.  Add a disclaimer if the message is not ascii.
+       Extracts headers if possible.  Returns a 2-tuple of message/headers.
 
           packet -- an instance of DeliveryPacket
 

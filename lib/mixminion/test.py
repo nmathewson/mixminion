@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.126 2003/06/28 03:34:00 arma Exp $
+# $Id: test.py,v 1.127 2003/06/30 17:33:33 nickm Exp $
 
 """mixminion.tests
 
@@ -1331,6 +1331,34 @@ ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzl
         self.assert_(p.isEncrypted())
         eq(p.getTag(), "9"*20)
 
+    def testHeaders(self):
+        emh = encodeMessageHeaders
+        pmh = parseMessageAndHeaders
+        eq = self.assertEquals
+
+        encoded = emh({"ABC": "x y zzy", "X": "<42>"}) + "Hello whirled"
+        eq(encoded, "ABC:x y zzy\nX:<42>\n\nHello whirled")
+        m,h = pmh(encoded)
+        eq(m, "Hello whirled")
+        eq(h, {"ABC": "x y zzy", "X": "<42>"})
+
+        encoded = emh({}) + "A short message"
+        eq(encoded, "\nA short message")
+        eq(("A short message", {}), pmh(encoded))
+        eq(("\nA short message", {}), pmh("\n"+encoded))
+
+        try:
+            suspendLog()
+            m,h = pmh("A message that doesn't start with a header")
+            eq(m, "A message that doesn't start with a header")
+            eq(h, {})
+            encoded = "X:"+("Y"*1000)+"\nY:X\n\nZ"
+            m,h = pmh(encoded)
+            eq(h, {"Y": "X"})
+            eq(m, "Z")
+        finally:
+            resumeLog()
+
 #----------------------------------------------------------------------
 class HashLogTests(unittest.TestCase):
     def test_hashlog(self):
@@ -2218,7 +2246,7 @@ class PacketHandlerTests(unittest.TestCase):
         bfm = BuildMessage.buildForwardMessage
         # A two-hop/one-hop message.
         p = "Now is the time for all good men to come to the aid"
-        m = bfm(p, SMTP_TYPE, "nobody@invalid",
+        m = bfm("\n"+p, SMTP_TYPE, "nobody@invalid",
                 [self.server1, self.server2], [self.server3])
 
         self.do_test_chain(m,
@@ -2230,7 +2258,8 @@ class PacketHandlerTests(unittest.TestCase):
                            p)
 
         # A one-hop/one-hop message.
-        m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
+        m = bfm("\n"+p,
+                SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
 
         self.do_test_chain(m,
                            [self.sp1,self.sp3],
@@ -2240,7 +2269,8 @@ class PacketHandlerTests(unittest.TestCase):
                            p)
 
         # Try servers with multiple keys
-        m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])
+        m = bfm("\n"+p,
+                SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])
         self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"], p)
@@ -2248,7 +2278,7 @@ class PacketHandlerTests(unittest.TestCase):
         # A 3/3 message with a long exit header.
         for i in (100,300):
             longemail = "f"*i+"@invalid"
-            m = bfm(p, SMTP_TYPE, longemail,
+            m = bfm("\n"+p, SMTP_TYPE, longemail,
                     [self.server1, self.server2, self.server1],
                     [self.server3, self.server1, self.server2])
 
@@ -2270,8 +2300,10 @@ class PacketHandlerTests(unittest.TestCase):
         bfm = BuildMessage.buildForwardMessage
         befm = BuildMessage.buildEncryptedForwardMessage
 
+        h = "SUBJECT:cooper\n\n"
         p = "That gum you like, it's coming back in style."
-        m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
+        m = bfm(h+p, SMTP_TYPE, "nobody@invalid", [self.server1],
+                [self.server3])
 
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
@@ -2292,9 +2324,10 @@ class PacketHandlerTests(unittest.TestCase):
         self.assertEquals(p, pkt.getAsciiContents())
         self.assertEquals(base64.encodestring(pkt.getTag()).strip(),
                           pkt.getAsciiTag())
+        self.assertEquals({"SUBJECT":"cooper"}, pkt.getHeaders())
         # with a plaintext, nonascii packet.
         pbin = hexread("0123456789ABCDEFFEDCBA9876543210")
-        m = bfm(pbin, SMTP_TYPE, "nobody@invalid",
+        m = bfm("\n"+pbin, SMTP_TYPE, "nobody@invalid",
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
@@ -4523,12 +4556,14 @@ deny pattern    /nyet.*Nyet/
 
 class FakeDeliveryPacket(mixminion.server.PacketHandler.DeliveryPacket):
     """Stub version of DeliveryPacket used for testing modules"""
-    def __init__(self, type, exitType, exitAddress, contents, tag=None):
+    def __init__(self, type, exitType, exitAddress, contents, tag=None,
+                 headers = {}):
         if tag is None:
             tag = "-="*10
         mixminion.server.PacketHandler.DeliveryPacket.__init__(self,
                         exitType, exitAddress, "Z"*16, tag, "Q"*(28*1024))
         self.type = type
+        self.headers = headers
         self.payload = None
         self.contents = contents
 
@@ -4634,16 +4669,17 @@ class ModuleTests(unittest.TestCase):
             mixfn, mixargs = calls[0][1][2], calls[0][1][3:]
             self.assertEquals("ls", mixfn)
             self.assertEquals(mixargs[:-1],
-                              ('-z', '-l', 'nonesuch', '-s', 'foobar',
-                               '-t', 'foo@bar'))
+                              ('-z', '-l', 'nonesuch'))
             # ...and, if the temporary file it used hasn't been removed yet,
             # that it contains the correct data.
             fn = mixargs[-1]
             fn = os.path.join(os.path.split(fn)[0],
                               "rmv_"+os.path.split(fn)[1][4:])
-            if os.path.exists(fn):
-                self.assert_(stringContains(readFile(fn),
-                                            "This is the message"))
+            m = readFile(fn)
+            self.assert_(m.startswith(
+                "To: foo@bar\nFrom: nobody\n"
+                "Subject: foobar\nX-Anonymous: yes\n\n"))
+            self.assert_(stringContains(m, "This is the message"))
 
             ## What about the flush command?
             self.assertEquals("spawnl", calls[-1][0])
@@ -5877,7 +5913,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ServerKeysTests))
+        suite.addTest(tc(ModuleTests))
         return suite
 
     suite.addTest(tc(MiscTests))

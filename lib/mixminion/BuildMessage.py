@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.47 2003/06/11 19:05:35 nickm Exp $
+# $Id: BuildMessage.py,v 1.48 2003/06/30 17:33:33 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -690,3 +690,4 @@ def _getRouting(path, exitType, exitInfo):
         raise MixError("Routing info won't fit in header")
 
     return routing, sizes, totalSize
+
