@@ -1,25 +1,29 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirFormats.py,v 1.1 2004/08/24 22:16:09 nickm Exp $
+# $Id: DirFormats.py,v 1.2 2004/12/07 01:44:31 nickm Exp $
 
 """mixminion.directory.Directory
 
    General purpose code for directory servers.
    """
 
+import sys
+
 import mixminion
 import mixminion.ServerInfo
-from mixminion.Common import formatBase64, formatDate, floorDiv, LOG
+from mixminion.Common import formatBase64, formatDate, floorDiv, LOG, \
+     previousMidnight
+from mixminion.Config import ConfigError
 from mixminion.Crypto import pk_sign, sha1, pk_encode_public_key
 
 def generateDirectory(identity, status,
                       servers, goodServerNames,
                       voters, validAfter,
-                      clientVersion, serverVersions):
+                      clientVersions, serverVersions):
 
     assert status in ("vote", "consensus")
     va = formatDate(validAfter)
     vu = formatDate(validAfter+24*60*60+5)
-    rec = goodServernames[:]
+    rec = goodServerNames[:]
     rec.sort()
     rec = ", ".join(rec)
     v = []
@@ -42,7 +46,7 @@ def generateDirectory(identity, status,
                                          cvers, svers)
 
     unsigned = "".join([dirInfo]+[s._originalContents for s in servers])
-    signature = getDirectorySignature(unsigned, pkey)
+    signature = getDirectorySignature(unsigned, identity)
     return signature+unsigned
 
 def generateConsensusDirectory(identity, voters, validAfter, directories,
@@ -82,7 +86,7 @@ def generateConsensusDirectory(identity, voters, validAfter, directories,
                 serverMap[d] = s
 
         del directory.servers[:] # Save RAM
-        goodDirectories.append(src, directory)
+        goodDirectories.append((src, directory))
 
     # Next -- what is the result of the vote? (easy cases)
     threshold = floorDiv(len(voters)+1, 2)
@@ -106,7 +110,7 @@ def generateConsensusDirectory(identity, voters, validAfter, directories,
     digestsByIdent = {}
     for digestList in serversByDir.values():
         idents = {}
-        for digest in digestLists:
+        for digest in digestList:
             s = serverMap[digest]
             n = s.getNickname()
             ident = s.getIdentityDigest()
@@ -121,8 +125,8 @@ def generateConsensusDirectory(identity, voters, validAfter, directories,
             digestsByIdent.setdefault(ident,{})[digest]=1
         identsByVoter.append(idents.keys())
 
-    includedIdenties = [ i for i in commonElements(identsByVoter, threshold)
-                         if not badIdents.has_key(i) ]
+    includedIdentities = [ i for i in commonElements(identsByVoter, threshold)
+                           if not badIdents.has_key(i) ]
 
     # okay -- for each identity, what servers do we include?
     includedServers = []
@@ -139,7 +143,7 @@ def generateConsensusDirectory(identity, voters, validAfter, directories,
 
     # Generate and sign the result.
     return generateDirectory(identity, "consensus",
-                             includedServers, includedNicknames,
+                             includedServers, includedRecommended,
                              voters, validAfter,
                              includedClientVersions, includedServerVersions)
 
@@ -210,7 +214,7 @@ def checkVoteDirectory(voters, validAfter, directory):
 
     # Are the dates right?
     va = directory['Directory-Info']['Valid-After']
-    va = directory['Directory-Info']['Valid-Until']
+    vu = directory['Directory-Info']['Valid-Until']
     if va != validAfter:
         raise BadVote("Validity date is wrong (%s)"%formatDate(va))
     elif vu != previousMidnight(va+24*60*60+60):

@@ -1673,7 +1673,6 @@ def updateServers(cmd, args):
     parser.init()
     directory = parser.directory
     config = parser.config
-    timeout = int(config['DirectoryServers']['DirectoryTimeout'])
     clientLock()
     try:
         directory.update(force=1)

@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.10 2004/12/07 01:26:38 nickm Exp $
+# $Id: Pinger.py,v 1.11 2004/12/07 01:44:31 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -23,8 +23,6 @@ import calendar
 import cPickle
 import operator
 import os
-import re
-import string
 import struct
 import sys
 import threading
@@ -195,7 +193,6 @@ class PingLog(_SQLiteMixin):
         self._loadServers()
 
     def _createAllTables(self):
-        cur = self.cursor
         self.lock.acquire()
         try:
             # FFFF This is terrible DB design.  It's not normalized by
@@ -574,7 +571,7 @@ class PingLog(_SQLiteMixin):
             latent = allLatencies[floorDiv(len(allLatencies),2)]
         else:
             latent = 0
-        wsent = wreceived = 0.0
+        wsent = wrcvd = 0.0
         for s, r, w in zip(perTotalWeights, perTotalWeighted, self._WEIGHT_AGE):
             wsent += s*w
             wrcvd += r*w
@@ -709,11 +706,11 @@ class _PingScheduler:
         self.pingLog = pingLog
         self.keyring = keyring
     def scheduleAllPings(self, now=None):
-        raise NotImplemented
+        raise NotImplemented()
     def _getPeriodStart(self, t):
-        raise NotImplemented
+        raise NotImplemented()
     def _getPingInterval(self, path):
-        raise NotImplemented
+        raise NotImplemented()
     def _schedulePing(self,path,now=None):
         if now is None: now = int(time.time())
         periodStart = self._getPeriodStart(now)

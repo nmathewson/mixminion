@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.86 2004/08/24 22:16:08 nickm Exp $
+# $Id: ServerInfo.py,v 1.87 2004/12/07 01:44:30 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -597,7 +597,7 @@ class SignedDirectory:
         contents = _cleanForDigest(contents)
 
         digest = _getMultisignedDirectoryDigest(contents)
-        sigs, info, servers = splitMultisignedDirectory(contents)
+        sigs, info, servers = _splitMultisignedDirectory(contents)
         del contents
 
         self.signatures = [ ]
@@ -620,7 +620,7 @@ class SignedDirectory:
         self.servers = [ ]
         for s in servers:
             si = ServerInfo(string=s, validatedDigests=validatedDigests,
-                            _keepServerContents=_keepServerContents)
+                            _keepContents=_keepServerContents)
         self.goodServerNames = [ name.lower()
              for name in self.dirInfo['Directory-Info']['Recommended-Servers'] ]
 
@@ -774,11 +774,11 @@ class _DirectoryInfo(mixminion.Config._ConfigFile):
                         raise ConfigError("Unrecognized descriptor version: %s"
                                           % v.strip())
 
-    def validate(self):
+    def validate(self, lines, contents):
         sec = self['Directory-Info']
         if sec['Status'] not in ("consensus", "vote"):
             raise ConfigError("Unrecognized 'status' in directory")
-        if sec['Valid-Until'] <= direc['Valid-After']:
+        if sec['Valid-Until'] <= sec['Valid-After']:
             raise ConfigError("Directory is never valid")
 
         self.voters = []
@@ -813,7 +813,7 @@ class _DirectorySignature(mixminion.Config._ConfigFile):
         idKeyBytes = sec['Directory-Identity'].get_modulus_bytes() 
         if not (2048 <= idKeyBytes*8 <= 4096):
             raise ConfigError("Identity key length is out of range (%s bits)"
-                              % idKeyBits*8)
+                              % idKeyBytes*8)
         if len(sec['Directory-Digest']) != DIGEST_LEN:
             raise ConfigError("Impossible digest length (%s)"%
                               len(sec['Directory-Digest']))

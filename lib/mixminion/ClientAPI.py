@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientAPI.py,v 1.3 2004/12/02 06:49:03 nickm Exp $
+# $Id: ClientAPI.py,v 1.4 2004/12/07 01:44:30 nickm Exp $
 
 """mixminion.ClientAPI
 
@@ -531,7 +531,7 @@ class ReceivedFragment(ReceivedPacket):
     def getMessageID(self):
         pass
 
-class ReceivedSingleton(ReceivedPacket, ReceivedMessage):
+class ReceivedSingleton(ReceivedPacket):
     """The (decrypted) contents of a single packet containing an entire
        message.
     """
