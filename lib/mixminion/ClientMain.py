@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.62 2003/02/17 15:02:25 nickm Exp $
+# $Id: ClientMain.py,v 1.63 2003/02/19 03:40:34 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -918,6 +918,7 @@ class ClientKeyring:
         createPrivateDir(self.keyDir)
         self.surbKey = None
 
+    # XXXX support multiple pseudoidentities.
     def getSURBKey(self, create=0):
         """Return the 20-byte SURB key.  If it has not already been loaded,
            load it, asking the user for a password if needed.  If 'create' is
@@ -1438,6 +1439,8 @@ class MixminionClient:
         timeout = self.config['Network'].get('ConnectionTimeout')
         if timeout:
             timeout = timeout[2]
+        else:
+            timeout = 60
 
         if noPool or lazyPool: 
             handles = []
