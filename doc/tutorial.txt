@@ -1,12 +1,13 @@
-$Id: tutorial.txt,v 1.1 2004/05/10 16:48:33 nickm Exp $
-DRAFT DRAFT DRAFT DRAFT DRAFT DRAFT DRAFT DRAFT DRAFT DRAFT DRAFT DRAFT
+
 
 
 		    Getting Started with Mixminion
 
 		 Peter Hendrickson <pdh@wiredyne.com>
 
-			     May 7, 2004
+			    June 22, 2004
+
+
 
 
 License: This tutorial is in the public domain.
@@ -36,16 +37,15 @@ the messages going in.  This process is called "mixing."
 
 Each server reduces the ability of the adversary to determine the
 origin of a message.  Chaining the servers further reduces this
-ability and contains the damage caused by compromised servers.  The
-chain of servers is chosen by the Mixminion software running on the
-user's machine.
+ability and contains damage caused by compromised servers.  The chain
+of servers is chosen by the Mixminion software running on the user's
+machine.
 
 A full discussion of the Mixminion design with references to the large
 body of existing research will be found in [1].
 
 This tutorial will get the reader started using Mixminion.  It is not
-complete documentation of the program and not every feature is
-covered.
+complete documentation and not every feature is covered.
 
 To use this tutorial, the reader will need a machine supporting
 outgoing SSL connections which has Mixminion installed and an
@@ -112,7 +112,7 @@ connections give the servers the opportunity to manage their own
 queues, rather than being dependent on SMTP based mail systems which
 may not be under the operator's control.  Direct connections also mean
 that message pile ups will affect only the Mixmaster network and not
-overflow the SMTP mail spool directories.
+overflow SMTP mail spool directories.
 
 Long time mix network users may also be accustomed to a certain level
 of unreliability.  As of this writing, Mixminion does not perfectly
@@ -214,12 +214,12 @@ This is what sending a message looks like:
 > May 07 08:15:32.711 -0800 [INFO] Connecting...
 > May 07 08:15:40.063 -0800 [INFO] ... 1 sent
 
-By default, Mixminion expects a message to by typed to it directly and
+By default, Mixminion expects a message to be typed to it directly and
 terminated with "Ctrl-D".  In this example, the message was "The world
 is all that is the case."
 
 This is the list of servers chosen to deliver the message:
-rufus,nixon,grove,nowwhat:POboxes,moria,frell
+rufus,nixon,grove,nowwhat:POboxes,moria,metacolo
 
 The colon shows where the "swap point" is.  Swap points are a
 fundamental feature to the design of the system.  They permit users to
@@ -307,6 +307,12 @@ Mixmaster network, to choose specific routes with sections of randomly
 selected servers inserted, or to choose routes of random servers of an
 approximate length.  The mixminion(1)[2] man page documents these
 features.
+
+Paths can be up to about 15 hops before and after the swap point.  A
+direct forward message can be up to about 30 hops.  Each server takes
+up a different amount of header space, so the amount of space needed
+depends on the particular path chosen.  Header space is limited and
+not all paths with the same number of hops can be used.
 
 It is also possible to send "messages" without content or any final
 destination.  The purpose of this is to generate "dummy traffic",
@@ -531,9 +537,10 @@ Like direct forward messages, SURBs can have a path specified:
 > May 07 09:35:59.761 -0800 [INFO] Selected path is Kisangani,grove,Tonga,POboxes,snorky,Tonga,Kisangani,rufus,POboxes,sushi,chicago,lakshmi,gurski,nowwhat,Tonga
 > Enter passphrase for keyring:
 
-However, no more than 15 servers can be specified.  The reason for
-this is that there can be no more than 15 servers before or after the
-swap point.  The SURB only specifies the servers after the swap point.
+However, no more than about 15 servers can be specified.  The reason
+for this is that there can be no more than 15 or so servers before or
+after the swap point.  The SURB only specifies the servers after the
+swap point.
 
 7. The Queue
 
