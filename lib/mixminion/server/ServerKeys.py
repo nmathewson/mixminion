@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.64 2004/01/15 21:01:20 nickm Exp $
+# $Id: ServerKeys.py,v 1.65 2004/01/27 05:15:38 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -422,7 +422,7 @@ class ServerKeyring:
         #     * it did not become invalid until keyOverlap seconds ago
 
         return [ (va,vu,k) for (va,vu,k) in self.keySets
-                 if va < now and vu > cutoff ]
+                 if va <= now and vu >= cutoff ]
 
     def getServerKeysets(self, now=None):
         """Return list of ServerKeyset objects for the currently live keys.
@@ -432,9 +432,6 @@ class ServerKeyring:
         for va, vu, ks in self._getLiveKeys(now):
             ks.load()
             keysets.append(ks)
-
-        if len(keysets) > 2:
-            LOG.error("Got >2 active keys! That's not supposed to happen.")
 
         return keysets
 
@@ -471,7 +468,7 @@ class ServerKeyring:
            This function is idempotent.
         """
         self.checkKeys()
-        deadKeys = self.getDeadKeys()
+        deadKeys = self.getDeadKeys(when)
         self.currentKeys = keys = self.getServerKeysets(when)
         keyNames = [k.keyname for k in keys]
         deadKeyNames = [k.keyname for msg, k in deadKeys]
@@ -877,9 +874,10 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
 
     info_testing = info.get("Testing",{})
     if info_testing.get("Platform", "") != getPlatformSummary():
-        warn("Mismatched platform summary")
+        warn("Mismatched platform: running %r, but %r published",
+             getPlatformSummary(), info_testing.get("Platform",""))
     if not warn.errors and info_testing.get("Configuration", "") != config.getConfigurationSummary():
-        warn("Mismatched configuration summary")
+        warn("Configuration has changed since last publication")
 
     if warn.errors:
         return "bad"
@@ -993,7 +991,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "MMTPProtocolsOut" : mmtpProtocolsOut,
         "PacketVersion" : mixminion.Packet.PACKET_VERSION,
         "mm_version" : mixminion.__version__,
-        "Secure" : secure
+        "Secure" : secure,
+        "Contact" : contact,
         }
 
     # If we don't know our IP address, try to guess
@@ -1036,11 +1035,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         Packet-Versions: %(PacketVersion)s
         Software: Mixminion %(mm_version)s
         Secure-Configuration: %(Secure)s
+        Contact: %(Contact)s
         """ % fields
     if insecurities:
         info += "Why-Insecure: %s\n"%(", ".join(insecurities))
-    if contact:
-        info += "Contact: %s\n"%contact
     if comments:
         info += "Comments: %s\n"%comments
 
