@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.94 2004/03/08 03:27:31 nickm Exp $
+# $Id: setup.py,v 1.95 2004/03/09 04:30:18 nickm Exp $
 import sys
 
 #
@@ -524,6 +524,8 @@ if 'py2exe' in sys.argv:
                      'excludes': ['mixminion._textwrap','mixminion._unittest',
                                   'mixminion._zlibutil','coverage'] }
                  },
+        data_files : [("",["README","TODO","LICENSE","HISTORY",
+                           "etc/mixminiond.conf"])],
         }
 
 setup(name='Mixminion',
@@ -539,8 +541,6 @@ setup(name='Mixminion',
       scripts=SCRIPTS,
       ext_modules=[extmodule],
       cmdclass={'run': runMMCommand},
-      data_files=[("",["README","TODO","LICENSE","HISTORY",
-                      "etc/mixminiond.conf"])],
       **EXTRA
 )
 
