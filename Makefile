@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.20 2002/12/16 19:18:24 nickm Exp $
+# $Id: Makefile,v 1.21 2002/12/29 22:47:33 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -12,12 +12,10 @@
 
 # XXXX This fails when PYTHON is set to a version of Python earlier than 1.3
 
-ifdef PYTHON
-FINDPYTHON = PYTHON="$(PYTHON)"
-else
 PYTHON_CANDIDATES = python2.2 python2.2x python2.1 python2.1x python2.0      \
 	python2.0x python2 python
 FINDPYTHON = \
+   if [ 'x' = "x$$PYTHON" ]; then                                            \
 	for n in $(PYTHON_CANDIDATES) ; do                                   \
 	  if [ 'x' = "x$$PYTHON" ]; then                                     \
             if [ -x "`which $$n 2>&1`" ]; then                               \
@@ -34,8 +32,8 @@ FINDPYTHON = \
 	if [ 'x' = "`$$PYTHON -V 2>&1 | grep 'Python [23456789]'`x" ]; then  \
 	   echo "WARNING: $$PYTHON doesn't seem to be version 2 or later.";  \
 	   echo ' If this fails, please set the PYTHON environment variable.';\
-	fi
-endif
+	fi                                                                   \
+   fi 
 
 #
 # Here are the real make targets.
@@ -77,21 +75,18 @@ time: do_build
 #======================================================================
 # Install target (minimal.)
 
-ifdef PREFIX
-PREFIXARG = --prefix="$(PREFIX)"
-export PREFIXARG
-export PREFIX
-else
-PREFIXARG=
-PREFIX=""
-export PREFIXARG
-export PREFIX
-endif
 
 install: do_build
 	@$(FINDPYTHON); \
-	echo $$PYTHON setup.py install $(PREFIXARG) --compile --optimize=1; \
-	$$PYTHON setup.py install $(PREFIXARG) --compile --optimize=1
+	if [ 'x' = "x$(PREFIX)" ] ; then                                     \
+	  echo $$PYTHON setup.py install --compile --optimize=1;             \
+	  $$PYTHON setup.py install --compile --optimize=1;                  \
+	else                                                                 \
+	  PREFIX=$(PREFIX);                                                  \
+	  export PREFIX;                                                     \
+	  echo $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1; \
+	  $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1;\
+	fi
 
 #======================================================================
 # Source dist target
