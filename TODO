@@ -134,8 +134,13 @@ TCP latency, and me.)
                   message is confusing.
         - Large reply messages and efwd messages
                 - Relay non-FRAGMENT fragment messages
+                - Make the fragment path selection not suck.
                 - Send logic for client
                 - Fragment-pool logic for client
+                - Don't allow 'FRAGMENT' exit type if no exit modules are
+                  supported.
+                - Catch wild mismatches between Max-Packets on FRAGMENT 
+                  and Max-Size on SMTP/MBOX/etc.
         - Full windows support
                 - Address everything on Itamar's non-blocking
                   incompatibility list.
