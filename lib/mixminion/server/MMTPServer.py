@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.49 2003/09/03 15:55:20 nickm Exp $
+# $Id: MMTPServer.py,v 1.50 2003/09/04 16:11:22 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -444,15 +444,13 @@ class SimpleTLSConnection(Connection):
 
     def __writeFn(self):
         """Hook to implement write"""
-        out = self.__outbuf
-        while len(out):
-            r = self.__con.write(out) # may throw
+        while len(self.__outbuf):
+            r = self.__con.write(self.__outbuf) # may throw
 
             assert r > 0
-            out = out[r:]
+            self.__outbuf = self.__outbuf[r:]
 
-        self.__outbuf = out
-        if len(out) == 0:
+        if len(self.__outbuf) == 0:
             self.finished()
 
     def __handshakeFn(self):
