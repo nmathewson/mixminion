@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.5 2003/08/14 19:37:24 nickm Exp $
+# $Id: Filestore.py,v 1.6 2003/08/17 21:09:56 nickm Exp $
 
 """mixminion.Filestore
 
@@ -642,8 +642,8 @@ class JournaledDBBase(DBBase):
     # to disk.
     MAX_JOURNAL = 128
     ## Fields:
-    # klen -- required length of encoded keys
-    # vlen -- required length of encoded values
+    # klen -- required length of journal-encoded keys
+    # vlen -- required length of journal-encoded values
     # vdflt -- If vlen is 0, default value used when reading journaled value
     #      from disk.
     # journal -- map from journal-encoded key to journal-encoded value.
@@ -749,7 +749,12 @@ class JournaledDBBase(DBBase):
 
 class BooleanJournaledDBBase(JournaledDBBase):
     """Specialization of JournaledDBBase that encodes a set of keys, mapping
-       each key to the value '1'."""
+       each key to the value '1'.
+
+       (By default, constant-length string keys are accepted, and are
+       hex-encoded when stored in the database, in case the database
+       isn't 8-bit clean.)
+       """
     def __init__(self, location, purpose, klen):
         JournaledDBBase.__init__(self,location,purpose,klen,0,"1")
     def _encodeKey(self, k):

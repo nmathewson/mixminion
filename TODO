@@ -49,10 +49,10 @@ For 0.0.5:
                 o Rephrase tests to use new names.
                 o Remove old 'Queue' class.
                 o Tests for metadata methods
-        . Refactor database logic out of SURBLog, HashLog
+        o Refactor database logic out of SURBLog, HashLog
                 o Implement common logic
                 o Refactor existing classes
-                - Tests for new logic
+                o Tests for new logic
         . Initial support for email headers (client side)
                 o Implement
                 - Give error messages on bad headers

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.1 2003/08/14 19:37:24 nickm Exp $
+# $Id: Fragments.py,v 1.2 2003/08/17 21:09:56 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -182,6 +182,7 @@ class MessageState:
 class _FragmentDB(mixminion.Filestore.DBBase):
     def __init__(self, location):
         mixminion.Filestore.DBBase.__init__(self, location, "fragment")
+        self.sync()
     def markStatus(self, msgid, status, today):
         assert status in ("COMPLETED", "REJECTED")
         if now is None:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.143 2003/08/14 19:37:25 nickm Exp $
+# $Id: test.py,v 1.144 2003/08/17 21:09:56 nickm Exp $
 
 """mixminion.tests
 
@@ -2636,7 +2636,7 @@ class PacketHandlerTests(TestCase):
         self.failUnlessRaises(CryptoError, self.sp3.processMessage, m_x)
 
 #----------------------------------------------------------------------
-# QUEUE
+# FILESTORE and QUEUE
 
 class TestDeliveryQueue(DeliveryQueue):
     def __init__(self,d,now=None):
@@ -2648,18 +2648,18 @@ class TestDeliveryQueue(DeliveryQueue):
     def _deliverMessages(self, msgList):
         self._msgs = msgList
 
-class QueueTests(TestCase):
+class FStoreTestBase(TestCase):
+    def unlink(self, fns):
+        for f in fns:
+            os.unlink(f)
+
+class FilestoreTests(FStoreTestBase):
     def setUp(self):
         mixminion.Common.installSIGCHLDHandler()
         self.d1 = mix_mktemp("q1")
         self.d2 = mix_mktemp("q2")
         self.d3 = mix_mktemp("q3")
-
-    def unlink(self, fns):
-        for f in fns:
-            os.unlink(f)
-
-    def testCreateQueue(self):
+    def testCreateStore(self):
         Store = mixminion.Filestore.MixedStore
         
         # Nonexistent dir.
@@ -2693,7 +2693,7 @@ class QueueTests(TestCase):
 
         queue.removeAll(self.unlink)
 
-    def testQueueOps(self):
+    def testStoreOps(self):
         Store = mixminion.Filestore.MixedStore
         
         queue1 = Store(self.d2, create=1)
@@ -2790,7 +2790,7 @@ class QueueTests(TestCase):
         queue1.cleanQueue(self.unlink)
         queue2.cleanQueue(self.unlink)
 
-    def testMetadataQueues(self):
+    def testMetadataStores(self):
         d_d = mix_mktemp("q_md")
         Store = mixminion.Filestore.StringMetadataStore
 
@@ -2823,6 +2823,153 @@ class QueueTests(TestCase):
         self.assert_(not os.path.exists(os.path.join(d_d, "rmvm_"+h2)))
         self.assert_(not os.path.exists(os.path.join(d_d, "rmv_"+h2)))
 
+    def testDBWrappers(self):
+        d_parent = mix_mktemp("db")
+        loc = os.path.join(d_parent, "db0")
+        # Test unjournaled DB.
+        class NumDB(mixminion.Filestore.DBBase):
+            def __init__(self,loc):
+                mixminion.Filestore.DBBase.__init__(self, loc, "numbers")
+            def _encodeKey(self,k):
+                return str(k)
+            def _decodeKey(self,k):
+                return int(k)
+            def _encodeVal(self,v):
+                return v.upper()
+            def _decodeVal(self,v):
+                return v.lower()
+        db0 = NumDB(loc)
+        db0[3] = 'three'
+        db0[99] = 'Ninety-nine'
+        self.assertEquals(db0[3], 'three')
+        self.assertEquals(db0[99], 'ninety-nine')
+        self.assertRaises(KeyError, lambda db0=db0:db0[10])
+        self.assertRaises(KeyError, lambda db0=db0:db0["10"])
+        self.assertEquals(db0.log["3"], 'THREE')
+        db0[3] = 'iii'
+        self.assertEquals(db0.log["3"], 'III')
+        self.assertEquals(db0["3"], 'iii')
+        self.assertEquals(db0.get(10), None)
+        self.assertEquals(db0.get(10, "hi"), "hi")
+        self.assert_(db0.has_key(3))
+        self.assert_(not db0.has_key(" 3"))
+        self.assert_(not db0.has_key("10"))
+        db0[6]='six'
+        del db0[6]
+        self.assert_(not db0.has_key(6))
+        self.assert_(not db0.log.has_key("6"))
+        self.assertRaises(KeyError, lambda db0=db0:db0[6])
+        self.assertUnorderedEq([3, 99], db0.keys())
+        db0.close()
+        db0 = NumDB(loc)
+        self.assertUnorderedEq([3, 99], db0.keys())
+        self.assert_(not db0.has_key(6))
+        self.assertEquals(db0["3"], 'iii')
+        db0.sync()
+        db0[3] = 'three'
+        db0.close()
+
+        for fn in os.listdir(d_parent):
+            self.assertStartsWith(fn, "db0")
+            os.unlink(os.path.join(d_parent,fn))
+        
+        # Test journaled DB.
+        loc = os.path.join(d_parent, "db1")
+        jloc = loc+"_jrnl"
+        class JNumDB(mixminion.Filestore.JournaledDBBase):
+            def __init__(self,loc):
+                mixminion.Filestore.JournaledDBBase.__init__(
+                    self, loc, "numbers", 5, 20, None)
+            def _encodeKey(self,k): return str(k)
+            def _decodeKey(self,k): return int(k)
+            def _encodeVal(self,v): return v
+            def _decodeVal(self,v): return v
+            def _jEncodeKey(self,k): return "%05d"%k
+            def _jDecodeKey(self,k): return int(k)
+            def _jEncodeVal(self,v): return "%20s"%v
+            def _jDecodeVal(self,v): return v.strip()
+
+        db1 = JNumDB(loc)
+        db1[3] = "three"
+        db1[10] = "ten"
+        db1[8] = "eight"
+        self.assertEquals(readFile(jloc),
+                          "00003               three"
+                          "00010                 ten"
+                          "00008               eight")
+        self.assertUnorderedEq(db1.log.keys(), [])
+        self.assertUnorderedEq(db1.keys(), [10, 3, 8])
+        self.assertEquals(db1[3], "three")
+        self.assertEquals(db1[10], "ten")
+        self.assertEquals(db1[8], "eight")
+        self.assertRaises(KeyError, lambda db1=db1:db1[7])
+        self.assert_(db1.has_key(8))
+        self.assert_(not db1.has_key(5))
+        db1.close()
+        db1 = JNumDB(loc)
+        self.assertUnorderedEq(db1.log.keys(), ['10', '3', '8'])
+        self.assertUnorderedEq(db1.keys(), [10, 3, 8])
+        self.assertUnorderedEq(db1.journal.keys(), [])
+        self.assertEquals(readFile(jloc), "")
+        self.assertEquals(db1[3], "three")
+        self.assertEquals(db1[10], "ten")
+        self.assertEquals(db1[8], "eight")
+        self.assertRaises(KeyError, lambda db1=db1:db1[7])
+        self.assert_(db1.has_key(8))
+        self.assert_(not db1.has_key(5))
+        db1[9] = "nine"
+        self.assertEquals(readFile(jloc),
+                          "00009                nine")
+        self.assertEquals(db1[9], "nine")
+        db1.sync()
+        self.assertEquals(db1[9], "nine")
+        self.assertEquals(db1[10], "ten")
+        db1.close()
+        for fn in os.listdir(d_parent):
+            self.assertStartsWith(fn, "db1")
+            os.unlink(os.path.join(d_parent,fn))
+
+        # Test journaled value-less DB
+        loc = os.path.join(d_parent, "db2")
+        jloc = loc+"_jrnl"
+        db2 = mixminion.Filestore.BooleanJournaledDBBase(loc, "numbers", 2)
+        db2["02"] = 1
+        db2["03"] = 1
+        db2["05"] = 1
+        db2["07"] = 1
+        db2["11"] = 1
+        db2["13"] = 1
+        self.assertEquals(1, db2["02"])
+        self.assertEquals(readFile(jloc), "020305071113")
+        db2.close()
+        db2 = mixminion.Filestore.BooleanJournaledDBBase(loc, "numbers", 2)
+        self.assertEquals(readFile(jloc), "")
+        self.assertEquals(1, db2["13"])
+        self.assert_(db2.has_key("07"))
+        self.assert_(not db2.has_key("08"))
+        db2.close()
+
+        # Test migration from unjournaled to journaled.
+        loc = os.path.join(d_parent, "db3")
+        jloc = loc+"_jrnl"
+        db3 = NumDB(loc)
+        db3[9] = "nine"
+        db3[10] = "ten"
+        db3[11] = "eleven"
+        db3.close()
+        db3 = JNumDB(loc)
+        self.assertEquals(readFile(jloc), "")
+        db3[12] = 'twelve'
+        self.assertEquals(readFile(jloc), "00012              twelve")
+        self.assertEquals(db3[10], "TEN")
+        self.assertEquals(db3[12], "twelve")
+        db3.close()
+        for fn in os.listdir(d_parent):
+            os.unlink(os.path.join(d_parent,fn))
+
+class QueueTests(FStoreTestBase):
+    def setUp(self):
+        mixminion.Common.installSIGCHLDHandler()
     def testDeliveryQueues(self):
         d_d = mix_mktemp("qd")
 
@@ -6185,7 +6332,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(HashLogTests))
+        suite.addTest(tc(FilestoreTests))
         return suite
 
     suite.addTest(tc(MiscTests))
@@ -6199,6 +6346,7 @@ def testSuite():
     suite.addTest(tc(HashLogTests))
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))
+    suite.addTest(tc(FilestoreTests))
     suite.addTest(tc(QueueTests))
     suite.addTest(tc(EventStatsTests))
     suite.addTest(tc(ModuleTests))

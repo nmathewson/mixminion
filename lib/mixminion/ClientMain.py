@@ -9,7 +9,6 @@
 __all__ = [ 'Address', 'ClientKeyring', 'ClientDirectory', 'MixminionClient',
     'parsePath', ]
 
-import anydbm
 import binascii
 import errno
 import cPickle
@@ -1177,7 +1176,18 @@ ConnectionTimeout: 20 seconds
 """)
 
 class SURBLog(mixminion.Filestore.DBBase):
+    """A SURBLog manipulates a database on disk to remember which SURBs we've
+       used, so we don't reuse them accidentally.
+       """
+    #FFFF Using this feature should be optional.
+    ## Format:
+    # The database holds two kinds of keys:
+    #    "LAST_CLEANED" -> an integer of the last time self.clean() was called.
+    #    20-byte-hash-of-SURB -> str(expiry-time-of-SURB)
     def __init__(self, filename, forceClean=0):
+        """Open a new SURBLog to store data in the file 'filename'.  If
+           forceClean is true, remove expired entries on startup.
+        """
         clientLock()
         mixminion.Filestore.DBBase.__init__(self, filename, "SURB log")
         try:
@@ -1187,8 +1197,12 @@ class SURBLog(mixminion.Filestore.DBBase):
 
         if lastCleaned < time.time()-24*60*60 or forceClean:
             self.clean()
+        self.sync()
 
     def findUnusedSURB(self, surbList, verbose=0, now=None):
+        """Given a list of ReplyBlock objects, find the first that is neither
+           expired, about to expire, or used in the past.  Return None if
+           no such reply block exists."""
         if now is None:
             now = time.time()
         nUsed = nExpired = nShortlived = 0
@@ -1217,16 +1231,22 @@ class SURBLog(mixminion.Filestore.DBBase):
         return result
 
     def close(self):
+        """Release resources associated with the surblog."""
         mixminion.Filestore.DBBase.close(self)
         clientUnlock()
 
     def isSURBUsed(self, surb):
+        """Return true iff the ReplyBlock object 'surb' is marked as used."""
         return self.has_key[surb]
 
     def markSURBUsed(self, surb):
+        """Mark the ReplyBlock object 'surb' as used."""
         self[surb] = surb.timestamp
 
     def clean(self, now=None):
+        """Remove all entries from this SURBLog the correspond to expired
+           SURBs.  This is safe because if a SURB is expired, we'll never be
+           able to use it inadvertently."""
         if now is None:
             now = time.time() + 60*60
         allHashes = self.log.keys()
@@ -1249,101 +1269,6 @@ class SURBLog(mixminion.Filestore.DBBase):
             return int(timestamp)
         except ValueError:
             return 0
-
-class XSURBLog:
-    """A SURBLog manipulates a database on disk to remember which SURBs we've
-       used, so we don't reuse them accidentally.
-       """
-    #FFFF Using this feature should be optional.
-
-    ##Fields
-    # log -- a database, as returned by anydbm.open.
-    ## Format:
-    # The database holds two kinds of keys:
-    #    "LAST_CLEANED" -> an integer of the last time self.clean() was called.
-    #    20-byte-hash-of-SURB -> str(expiry-time-of-SURB)
-    def __init__(self, filename, forceClean=0):
-        """Open a new SURBLog to store data in the file 'filename'.  If
-           forceClean is true, remove expired entries on startup.
-        """
-        clientLock()
-        parent, shortfn = os.path.split(filename)
-        createPrivateDir(parent)
-        LOG.debug("Opening SURB log")
-        self.log = anydbm.open(filename, 'c')
-        try:
-            lastCleaned = int(self.log['LAST_CLEANED'])
-        except (KeyError, ValueError):
-            lastCleaned = 0
-
-        if lastCleaned < time.time()-24*60*60 or forceClean:
-            self.clean()
-
-    def findUnusedSURB(self, surbList, verbose=0,now=None):
-        """Given a list of ReplyBlock objects, find the first that is neither
-           expired, about to expire, or used in the past.  Return None if
-           no such reply block exists."""
-        if now is None:
-            now = time.time()
-        nUsed = nExpired = nShortlived = 0
-        result = None
-        for surb in surbList:
-            expiry = surb.timestamp
-            timeLeft = expiry - now
-            if self.isSURBUsed(surb):
-                nUsed += 1
-            elif timeLeft < 60:
-                nExpired += 1
-            elif timeLeft < 3*60*60:
-                nShortlived += 1
-            else:
-                result = surb
-                break
-
-        if verbose:
-            if nUsed:
-                LOG.warn("Skipping %s used reply blocks", nUsed)
-            if nExpired:
-                LOG.warn("Skipping %s expired reply blocks", nExpired)
-            if nShortlived:
-                LOG.warn("Skipping %s sooon-to-expire reply blocks", nShortlived)
-
-        return result
-
-    def close(self):
-        """Release resources associated with the surblog."""
-        self.log.close()
-        clientUnlock()
-
-    def isSURBUsed(self, surb):
-        """Return true iff the ReplyBlock object 'surb' is marked as used."""
-        hash = binascii.b2a_hex(sha1(surb.pack()))
-        try:
-            _ = self.log[hash]
-            return 1
-        except KeyError:
-            return 0
-
-    def markSURBUsed(self, surb):
-        """Mark the ReplyBlock object 'surb' as used."""
-        hash = binascii.b2a_hex(sha1(surb.pack()))
-        self.log[hash] = str(surb.timestamp)
-
-    def clean(self, now=None):
-        """Remove all entries from this SURBLog the correspond to expired
-           SURBs.  This is safe because if a SURB is expired, we'll never be
-           able to use it inadvertently."""
-        if now is None:
-            now = time.time() + 60*60
-        allHashes = self.log.keys()
-        removed = []
-        for hash in allHashes:
-            if self.log[hash] < now:
-                removed.append(hash)
-        del allHashes
-        for hash in removed:
-            del self.log[hash]
-        self.log['LAST_CLEANED'] = str(int(now))
 
 class ClientQueue:
     """A ClientQueue holds packets that have been scheduled for delivery
