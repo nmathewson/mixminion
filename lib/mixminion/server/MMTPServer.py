@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.58 2003/11/24 19:59:04 nickm Exp $
+# $Id: MMTPServer.py,v 1.59 2003/11/27 08:53:03 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -1092,11 +1092,13 @@ class MMTPAsyncServer(AsyncServer):
                 IP = config['Incoming/MMTP'].get('IP')
             if IP is None:
                 IP = "0.0.0.0"
-        if ip6_supported:
-            IP6 = config['Incoming/MMTP'].get('ListenIP6')
-            if IP6 is None:
-                IP6 = "::"
-            
+        # FFFF Until we get the non-clique situation is supported, we don't 
+        # FFFF listen on IPv6.
+        #if ip6_supported:
+        #    IP6 = config['Incoming/MMTP'].get('ListenIP6')
+        #    if IP6 is None:
+        #        IP6 = "::"
+
         port =  config['Incoming/MMTP'].get('ListenPort')
         if port is None:
             port = config['Incoming/MMTP']['Port']
@@ -1111,7 +1113,7 @@ class MMTPAsyncServer(AsyncServer):
                                         self._newMMTPConnection)
             self.listeners.append(listener)
             listener.register(self)
-        
+
         self._timeout = config['Server']['Timeout'].getSeconds()
         self.clientConByAddr = {}
         self.certificateCache = PeerCertificateCache()
@@ -1159,7 +1161,7 @@ class MMTPAsyncServer(AsyncServer):
            and a list of DeliverableMessage objects, start sending all the
            corresponding packets to the corresponding sever, doing a DNS
            lookup first if necessary.
-        """   
+        """
         serverName = displayServer(routing)
         if isinstance(routing, IPV4Info):
             self._sendPackets(AF_INET, routing.ip, routing.port,
@@ -1254,7 +1256,7 @@ class MMTPAsyncServer(AsyncServer):
                 except AttributeError:
                     pass
         else:
-            # No exception: We created the connection successfully.  
+            # No exception: We created the connection successfully.
             # Thus, register it in clientConByAddr
             assert addr == con.getAddr()
             con.register(self)
