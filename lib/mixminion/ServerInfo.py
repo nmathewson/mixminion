@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.62 2003/11/19 09:48:09 nickm Exp $
+# $Id: ServerInfo.py,v 1.63 2003/11/20 08:49:20 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -132,14 +132,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Delivery/MBOX" : {
                      "Version": ("REQUIRE", None, None),
-                     # XXXX006 change to 'REQUIRE'
+                     # XXXX007 change to 'REQUIRE'
                      "Maximum-Size": ("ALLOW", "int", "32"),
-                     # XXXX006 change to 'REQUIRE'
+                     # XXXX007 change to 'REQUIRE'
                      "Allow-From": ("ALLOW", "boolean", "yes"),
                      },
         "Delivery/SMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     # XXXX006 change to 'REQUIRE'
+                     # XXXX007 change to 'REQUIRE'
                      "Maximum-Size": ("ALLOW", "int", "32"),
                      "Allow-From": ("ALLOW", "boolean", "yes"),
                      },
