@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.85 2003/05/30 03:07:56 nickm Exp $
+# $Id: ClientMain.py,v 1.86 2003/05/30 03:28:26 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -2222,9 +2222,13 @@ def runPing(cmd, args):
     print "==========================================================="
     print "WARNING: Pinging a server is potentially dangerous, since"
     print "      it might alert people that you plan to use the server"
-    print "      for your messages.  This command is for testing only,"
-    print "      and will go away before Mixminion 1.0.  By then, all"
-    print "      listed servers will be reliable anyway.  <wink>"
+    print "      for your messages.  Even if you ping *all* the servers,"
+    print "      an attacker can see _when_ you pinged the servers and"
+    print "      use this information to help a traffic analysis attack."
+    print
+    print "      This command is for testing only, and will go away before"
+    print "      Mixminion 1.0.  By then, all listed servers will be"
+    print "      reliable anyway.  <wink>"
     print "==========================================================="
 
     parser = CLIArgumentParser(options, wantConfig=1,
