@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.10 2002/12/21 01:54:23 nickm Exp $
+# $Id: ServerMain.py,v 1.11 2002/12/29 20:29:21 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -370,6 +370,21 @@ class MixminionServer:
             pass
 
 #----------------------------------------------------------------------
+def daemonize():
+    """Put the server into daemon mode with the standard trickery."""
+    # ??? This 'daemonize' logic should go in Common.
+    pid = os.fork()
+    if pid != 0:
+	os._exit(0)
+    if hasattr(os, 'setsid'):
+	# Setsid is not available everywhere.
+	os.setsid()
+    sys.stderr.close()
+    sys.stdout.close()
+    sys.stdin.close()
+    sys.stdout = LogStream("STDOUT", "WARN")
+    sys.stderr = LogStream("STDERR", "WARN")
+
 def usageAndExit(cmd):
     executable = sys.argv[0]
     print >>sys.stderr, "Usage: %s %s [-h] [-f configfile]" % (executable, cmd)
@@ -419,15 +434,7 @@ def runServer(cmd, args):
 
     if not config['Server'].get("NoDaemon",0):
         print >>sys.stderr, "Starting server in the background"
-        # ??? This 'daemonize' logic should go in Common.
-        pid = os.fork()
-        if pid != 0:
-            os._exit(0)
-        sys.stderr.close()
-        sys.stdout.close()
-        sys.stdin.close()
-        sys.stdout = LogStream("STDOUT", "WARN")
-        sys.stderr = LogStream("STDERR", "WARN")
+	daemonize()
 
     LOG.info("Starting server")
     try:
