@@ -141,17 +141,19 @@ TCP latency, and me.)
                 o Catch wild mismatches between Max-Packets on FRAGMENT
                   and Max-Size on SMTP/MBOX/etc.
         . Full windows support
-                . Finish port
+                o Finish port
                         o Some kind of substitute for /dev/urandom.
-                        . Build process
-                        . Signal code may need to change.
-                        . Process mgt code may need to change.
-                        . Resolve as-yet-unsuspected platform dependencies
-                - Address everything on Itamar's non-blocking
+                        o Build process
+                        o Signal code may need to change.
+                        o Process mgt code may need to change.
+                        o Resolve as-yet-unsuspected platform dependencies
+                . Address everything on Itamar's non-blocking
                   incompatibility list.
-                D Installer
+                . Make sure client works
+                - Make sure server works
+                o Minimal installer
                 - Instructions
-                . Py2EXE support
+                o Py2EXE support
         o Delayed Tests
                 D Tests for ServerInbox and Directory.py
                 D Tests for checkConsistency
