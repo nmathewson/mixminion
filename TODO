@@ -16,29 +16,19 @@ FOR 0.0.1: (The first alpha)
          work.  There need not be an interface for replies.  Key rotation
          need not be automated.]
 
-	o MMTP
-		o Is it okay to just bind 127.0.0.1?
 	*. MBox module
 		o Implement
 		*- Test
 	*. Server
-		*. Startup, config
-		- Hardwired code to drop undeliverable messages
+		o Startup, config
+		o Hardwired code to drop undeliverable messages
 		- Unit test for keyset and various queues.
-		- Better debugging logs
+		*- Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
-	o Add traceback-dumping functionality to Log class. 
-		o Write
-		o Test
 	- Better log messages at all points throughout system.
-	o createPrivateDir
-	       	o Warn about group-writable parent dirs
-		o Refactor 'create' and 'check' code.
-		o Test normal cases
-		o Test failing cases
 	*- CLI for server
-		*- Run server
+		*. Run server
 		*- Generate future key/publish to dirserver
 	- CLI client
 		- Send a message

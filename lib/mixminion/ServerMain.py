@@ -1,14 +1,15 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.4 2002/08/19 15:33:56 nickm Exp $
+# $Id: ServerMain.py,v 1.5 2002/08/21 20:49:17 nickm Exp $
 
 """mixminion.ServerMain
 
    The main loop and related functionality for a Mixminion server
 
-   BUG: No support for encrypting private keys.n"""
+   BUG: No support for encrypting private keys."""
 
-import cPickle
 import os
+import getopt
+import sys
 
 import mixminion._minionlib
 import mixminion.Queue
@@ -208,7 +209,7 @@ class _MMTPConnection(MMTPServer):
 
 
 class MixminionServer:
-    def __init__(self, config, keyring):
+    def __init__(self, config):
 	self.config = config
 	self.keyring = ServerKeyring(config)
 	
@@ -263,6 +264,61 @@ class MixminionServer:
 		self.moduleManager.cleanQueues()
 		nextShred = now + 6000
 
-	    # XXXX Remove long-undeliverable messages
+#----------------------------------------------------------------------
 
+def usageAndExit():
+    executable = sys.argv[0]
+    # XXXX show versioning info
+    print >>sys.stderr, "Usage: %s [-h] [-f configfile]" % cmd
+    sys.exit(0)
 
+def configFromArgs(cmd, args):
+    options, args = getopt.getopt(args, "hf=", ["help", "config="])
+    if args:
+	usageAndExit()
+    configFile = "/etc/miniond.conf"
+    for o,v in options:
+	if o in ('-h', '--help'):
+	    usageAndExit()
+	if o in ('-f', '--config'):
+	    configFile = v
+    try:
+	config = mixminion.Config.ServerConfig(fname=configFile)
+    except OSError:
+	print >>sys.stderr, "Error reading configuration file %r"%configFile
+	sys.exit(1)
+    except mixminion.Config.ConfigError, e:
+	print >>sys.stderr, "Error in configuration file %r"%configFile
+	print >>sys.stderr, str(e)
+	sys.exit(1)
+
+    return config
+
+def runServer(cmd, args):
+    config = configFromArgs(cmd, args)
+    try:
+	mixminion.Common.getLog().configure(config)
+	getLog().debug("Configuring server")
+	mixminion.Common.configureShredCommand(config)
+	mixminion.Crypto.init_crypto(config)
+	config.getModuleManager().configure(config)
+
+	server = MixminionServer(config)
+    except:
+	getLog().fatal_exc("Exception while configuring server")
+	print >>sys.stderr, "Shutting down because of exception"
+	sys.exit(1)
+
+    getLog().info("Starting server")
+    try:
+	server.run()
+    except KeyboardInterrupt:
+	pass
+    except:
+	getLog().fatal_exc("Exception while running server")
+    getLog().info("Server shutting down")
+    
+    sys.exit(0)
+
+if __name__ = '__main__':
+    runServer(sys.argv[0], sys.argv[1])

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.13 2002/08/21 19:09:48 nickm Exp $
+# $Id: Queue.py,v 1.14 2002/08/21 20:49:16 nickm Exp $
 
 """mixminion.Queue
 
@@ -345,8 +345,11 @@ class DeliveryQueue(Queue):
 	if retriable:
 	    # Queue the new one before removing the old one, for 
 	    # crash-proofness
-	    retries,  addr, msg = self.getObject(handle)
-	    self.queueMessage(addr, msg, retries+1)
+	    retries, addr, msg = self.getObject(handle)
+	    # FFFF This test makes us never retry past the 10th attempt.
+	    # FFFF That's wrong; we should be smarter.
+	    if retries <= 10:
+		self.queueMessage(addr, msg, retries+1)
 	self.removeMessage(handle)    
 
 class TimedMixQueue(Queue):

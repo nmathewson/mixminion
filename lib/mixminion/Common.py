@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.15 2002/08/21 19:09:48 nickm Exp $
+# $Id: Common.py,v 1.16 2002/08/21 20:49:16 nickm Exp $
 
 """mixminion.Common
 
@@ -315,21 +315,27 @@ class Log:
         self.log("ERROR", message, *args)
     def fatal(self, message, *args):
         self.log("FATAL", message, *args)
-    def error_exc(self, (exclass, ex, tb), message=None, *args):
+    def log_exc(self, severity, (exclass, ex, tb), message=None, *args):
 	if message is not None:
-	    self.log("ERROR", message, *args)
+	    self.log(severity, message, *args)
 	elif tb is not None:
 	    filename = tb.tb_frame.f_code.co_filename
-	    self.log("ERROR", "Unexpected exception in %s", filename)
+	    self.log(severity, "Unexpected exception in %s", filename)
 	else:
-	    self.log("ERROR", "Unexpected exception")
+	    self.log(severity, "Unexpected exception")
 	
 	formatted = traceback.format_exception(exclass, ex, tb)
 	formatted[1:] = [ "  %s" % line for line in formatted[1:] ]
 	indented = "".join(formatted)
 	if indented.endswith('\n'):
 	    indented = indented[:-1]
-	self._log("ERROR", indented, ())
+	self._log(severity, indented, ())
+
+    def error_exc(self, (exclass, ex, tb), message=None, *args):
+	self.log_exc("ERROR", (exclass, ex, tb), message, *args)
+
+    def fatal_exc(self, (exclass, ex, tb), message=None, *args):
+	self.log_exc("FATAL", (exclass, ex, tb), message, *args)
 
 _THE_LOG = None
 def getLog():
