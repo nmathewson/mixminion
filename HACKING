@@ -1,4 +1,5 @@
-Hacking Mixminion
+$Id: HACKING,v 1.17 2003/05/28 04:12:16 nickm Exp $
+Hacking Mixminion 
 
 Requirements:
         Python >= 2.0 (see PORTING NOTES below)
@@ -11,10 +12,14 @@ Requirements:
 THINGS TO HACK:  (Good introductory projects that I won't get to myself for
   at least a version or two.)
 
-- We need a windows port!  (A client-only port would be a good start.)  Most
-  of the code is in Python, and what C we have is pretty standard, so I don't
-  anticipate too many problems.  Some known issues in the source are marked
-  with comments labeled WIN32.  Other areas of potential difficulty are:
+- Last time I checked, the client could run okay on Cygwin.  Somebody should
+  do a full port.
+
+- We need a native (non-Cygwin) windows port!  (A client-only port would be a
+  good start.)  Most of the code is in Python, and what C we have is pretty
+  standard, so I don't anticipate too many problems.  Some known issues in
+  the source are marked with comments labeled WIN32.  Other areas of
+  potential difficulty are:
       - The build process.  (I don't know the first thing about how to build
         Python modules under windows.  Python distutils should work, but I
         don't know what compiler is appropriate.  Studying the Python
@@ -26,7 +31,7 @@ THINGS TO HACK:  (Good introductory projects that I won't get to myself for
         differently in subtle ways.  [This is mostly a server issue, but the
         client code uses SIGALRM to timeout dead connections.]
       - The 'daemonize' code in ServerMain.py is almost certainly not
-        write on windows.
+        right on windows.
       - We assume the existence of /dev/urandom or some other similar entropy
         source; these do not exist on windows.  OpenSSL's RAND_* functions
         may be helpful, but coming up with good seed information may be
@@ -72,14 +77,6 @@ THINGS TO HACK:  (Good introductory projects that I won't get to myself for
       - Throttling delivery as well as MMTP
       - Throttling CPU usage in the processing thread.
   (Difficulty: moderate.  Invasiveness: moderate.)
-
-- TLS sessions might be beneficial, especially for server->server
-  connections.  The spec allows them, but only under specific circumstances.
-  If you're doing this, you should benchmark the code thoroughly to be sure
-  that you're actually improving performance. (Difficulty: easy/moderate,
-  depending on how much OpenSSL you know.  Invasiveness: moderate.)
-
-- Write us an init.d script.  (Difficulty: easy. Invasiveness: none.)
 
 - If you have access to a multiprocessor machine, it would be nice to make
   good use of more than one CPU.  Right now, the network code runs in
@@ -182,10 +179,26 @@ HARD HACKING:
   down the NSS route, you should contribute an implementation for server-side
   DHE.  (Difficulty: hard.  Invasiveness: moderate.)
 
-- We need automatic key rotation and key generation.  (Difficulty:
-  hard. Invasiveness: moderate.)
+- We should eventually port to Twisted, which looks to be an incredibly cool
+  and featureful networking platform written in Python.  Issues:
+      - I don't want to switch Twisted's favored crypto library: PyOpenSSL.
+        This library, however cool, lacks a lot of symmetric cipher
+        functionality I need, and I really don't want to carry _two_ crypto
+        library dependencies.  This means that we need to either bring
+        PyOpenSSL up to date, or change Twisted's SSL wrapper to speak
+        _minionlib's admittedly limited OpenSSL dialect.
+      - Twisted has functionality for a few things that Mixminion's libraries
+        currently duplicate, such as logging.  We'll need to integrate these.
+      - I'd rather keep the changes one-by-one, and not have to port the
+        entire codebase in one step.  First, we'd change the async loop, then
+        change more and more of the other IO-intensive stuff to use it.
+      - The install process MUST NOT get hard!  Requiring users to install
+        Twisted beforehand could get tricky.  We'll need to either make the
+        Twisted install project learn all of our Python-Python-Who's-Got-The-
+        Python trickery, or add a 'download and install twisted' target.
+  (Difficulty: moderate.  Invasiveness: moderate.)
 
-- We could use a nymserver.
+- We could really use a nymserver.
 
 DESIGN PRINCIPLES:
     - It's not done till it's documented.
