@@ -161,7 +161,13 @@ For 0.0.4:
                 o Make sure rotation gets recalculated after keygen.
                 o Let users see and specifically request unrecommended servers
                 o Does rotation happen?
+        - Make sure that stats log isn't truncated, and that it is closed
+          and reopened on sighup.
+        - Add note to README about decreasing key lifetime.
         - Finish all documentation, resolve all XXXX004s
+        - Quiet server startup; should be by default if daemon mode.
+        - Partially superceded descriptors should get replaced in dir,
+          right?
         - Remaining unit tests
                 - Tests for online key rotation
                 - Tests for ServerInbox and Directory.py
@@ -203,6 +209,11 @@ Deferred from 0.0.4:
 2                       - Decide whom to include; make dirgen
                           include them
 3                       - Tests
+
+        - Issues from 0.0.4:
+                - 'Iffy mode' messages are crappy.
+                - Trusted groups, trusted users for directory permissions
+                - Make 'SIGHUP' reload, 'SIGUSR' dump.
 
 Required for "1.0":
          [These features must be in place before we can take the system out
