@@ -1,7 +1,4 @@
-(THIS README IS FOR VERSION 0.0.2, but you're looking at the CVS version of the
- code.  Stuff may be subtly different.)
-
-This is Mixminion version 0.0.2.
+This is Mixminion version 0.0.2.1.
 
 CONTENTS:
         I.    Overview
@@ -38,6 +35,15 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.2.1:
+   - BUGFIX: A nasty bug is fixed that could, under just the right
+     circumstances, send the server into an infinite loop and fill up your
+     hard drive.  If you're running a server, you *should* upgrade.
+   - Server log messages are more reasonably structured.
+   - setup.py is more clever about half-installed Python.
+   - "list-servers" now supports the same directory-download options as
+     does "send".
 
 NEW IN VERSION 0.0.2:
    - A real SMTP exit module to relay messages via a local MTA.  Blacklisting
