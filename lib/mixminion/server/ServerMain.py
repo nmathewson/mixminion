@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.11 2002/12/29 20:29:21 nickm Exp $
+# $Id: ServerMain.py,v 1.12 2002/12/29 21:00:48 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -375,10 +375,10 @@ def daemonize():
     # ??? This 'daemonize' logic should go in Common.
     pid = os.fork()
     if pid != 0:
-	os._exit(0)
+        os._exit(0)
     if hasattr(os, 'setsid'):
-	# Setsid is not available everywhere.
-	os.setsid()
+        # Setsid is not available everywhere.
+        os.setsid()
     sys.stderr.close()
     sys.stdout.close()
     sys.stdin.close()
@@ -434,7 +434,7 @@ def runServer(cmd, args):
 
     if not config['Server'].get("NoDaemon",0):
         print >>sys.stderr, "Starting server in the background"
-	daemonize()
+        daemonize()
 
     LOG.info("Starting server")
     try:
