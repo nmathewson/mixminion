@@ -928,6 +928,7 @@ class CLIArgumentParser:
             LOG.debug("Configuring server list")
             self.directory = mixminion.ClientDirectory.ClientDirectory(
                 userdir, _CLIENT_LOCKFILE)
+            self.directory.configure(self.config)
             self.directory._installAsKeyIDResolver()
 
         if self.wantDownload:
