@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.4 2002/12/20 23:52:07 nickm Exp $
+# $Id: ServerConfig.py,v 1.5 2002/12/21 01:54:23 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -166,6 +166,7 @@ SERVER_SYNTAX =  {
                      'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
                      'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
                      'MixPoolMinSize' : ('ALLOW', C._parseInt, "5"),
+		     'Timeout' : ('ALLOW', C._parseInterval, "5 min"),
                      },
         'DirectoryServers' : { 'ServerURL' : ('ALLOW*', None, None),
                                'Publish' : ('ALLOW', C._parseBoolean, "no"),
@@ -175,13 +176,13 @@ SERVER_SYNTAX =  {
         'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', C._parseBoolean, "no"),
                             'IP' : ('ALLOW', C._parseIP, "0.0.0.0"),
                             'Port' : ('ALLOW', C._parseInt, "48099"),
-                          'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
-                          'Deny' : ('ALLOW*', C._parseAddressSet_deny, None) },
+			  'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
+                          'Deny' : ('ALLOW*', C._parseAddressSet_deny, None) 
+			 },
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', C._parseBoolean, "no"),
                           'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
                           'Deny' : ('ALLOW*', C._parseAddressSet_deny, None) },
         # FFFF Missing: Queue-Size / Queue config options
-        # FFFF         timeout options
         # FFFF         listen timeout??
         # FFFF         Retry options
         # FFFF         pool options

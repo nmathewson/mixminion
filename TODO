@@ -18,7 +18,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		- Client-side directory support
 		- Server-side directory generation (not automated;
 	          still no automatic rotation.)	 
-	- Path support
+	- Path selection
 	- Minimal DOS prevention
 		- SMTP-address blacklisting (for SMTP module)
 		o Prevent zlib bombing: minimal version.
@@ -26,19 +26,25 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Tests for BuildMessage functionality
 			o Tests for ModuleManager functionality
 			o Mention in the spec.
-		- Timeout connections.
+		. Timeout connections.
+			o Implement timeout logic in MMTPServer
+			o Implement in ServerMain
+			- Tests for MMTPServer code: setting lastActivity
+			- Tests for MMTPServer code: timing out.
+			- Test server
 	o Configurable mix algorithm, defaulting to cottrell-style
 	  mixing with a medium-long interval.
 	  	o Implement
 		o Tests for configuration
 		o Tests for new validation functions.
 		o Add examples to mixminiond.conf
+	o Refactor main loop to be event based
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
           the first beta.  The first three priorities are: replies,
-  	  DOS-preventiion, and directories.]
+  	  DOS-prevention, and directories.]
 
 	- Better CLIs
 		- Actual strategy for reporting exceptions vs

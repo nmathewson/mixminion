@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.9 2002/12/21 00:18:49 nickm Exp $
+# $Id: ServerMain.py,v 1.10 2002/12/21 01:54:23 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -25,6 +25,7 @@ import mixminion.server.Queue
 import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 
+from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
      createPrivateDir, formatBase64, formatTime, waitForChildren
 
@@ -280,9 +281,6 @@ class MixminionServer:
 
     def run(self):
         """Run the server; don't return unless we hit an exception."""
-        # FFFF Use heapq to schedule events? [I don't think so; there are only
-        # FFFF   two events, after all!]  [But the intervals may be very
-        # FFFF   different...!]
 
         f = open(self.pidFile, 'wt')
         f.write("%s\n" % os.getpid())
@@ -290,14 +288,23 @@ class MixminionServer:
 
         self.cleanQueues()
 
+        # List of (eventTime, eventName) tuples.  Current names are:
+        #  'MIX', 'SHRED', and 'TIMEOUT'.  Kept in sorted order.
+        scheduledEvents = []
         now = time.time()
+        scheduledEvents.append( (now + 6000, "SHRED") )#FFFF make configurable
+        scheduledEvents.append( (self.mmtpServer.getNextTimeoutTime(now),
+                                 "TIMEOUT") )
         nextMix = self.mixPool.getNextMixTime(now)
-        nextShred = now + 6000
+        scheduledEvents.append( (nextMix, "MIX") )
+        LOG.trace("Next mix at %s", formatTime(nextMix,1))
+        scheduledEvents.sort()
+
         #FFFF Unused
         #nextRotate = self.keyring.getNextKeyRotation()
         while 1:
-            LOG.trace("Next mix at %s", formatTime(nextMix,1))
-            timeLeft = 1
+            nextEventTime = scheduledEvents[0][0]
+            timeLeft = nextEventTime - time.time()
             while timeLeft > 0:
                 # Handle pending network events
                 self.mmtpServer.process(timeLeft)
@@ -307,29 +314,41 @@ class MixminionServer:
                 # Prevent child processes from turning into zombies.
                 waitForChildren(1)
                 # Calculate remaining time.
-                timeLeft = nextMix - time.time()
+                now = time.time()
+                timeLeft = nextEventTime - now
 
-            # Before we mix, we need to log the hashes to avoid replays.
-            # FFFF We need to recover on server failure.
-            self.packetHandler.syncLogs()
+            event = scheduledEvents[0][1]
+            del scheduledEvents[0]
 
-            LOG.trace("Mix interval elapsed")
-            # Choose a set of outgoing messages; put them in outgoingqueue and
-            # modulemanger
-            self.mixPool.mix()
-            # Send outgoing messages
-            self.outgoingQueue.sendReadyMessages()
-            # Send exit messages
-            self.moduleManager.sendReadyMessages()
-
-            # Choose next mix interval
-            now = time.time()
-            nextMix = self.mixPool.getNextMixTime(now)
-
-            if now > nextShred:
-                # FFFF Configurable shred interval
+            if event == 'TIMEOUT':
+                LOG.info("Timing out.")
+                self.mmtpServer.tryTimeout(now)
+                insort(scheduledEvents,
+                       (self.mmtpServer.getNextTimeoutTime(now), "TIMEOUT"))
+            elif event == 'SHRED':
                 self.cleanQueues()
-                nextShred = now + 6000
+                insort(scheduledEvents,
+                       (now + 6000, "SHRED"))
+            elif event == 'MIX':
+                # Before we mix, we need to log the hashes to avoid replays.
+                # FFFF We need to recover on server failure.
+                self.packetHandler.syncLogs()
+
+                LOG.trace("Mix interval elapsed")
+                # Choose a set of outgoing messages; put them in
+                # outgoingqueue and modulemanger
+                self.mixPool.mix()
+                # Send outgoing messages
+                self.outgoingQueue.sendReadyMessages()
+                # Send exit messages
+                self.moduleManager.sendReadyMessages()
+
+                # Choose next mix interval
+                nextMix = self.mixPool.getNextMixTime(now)
+                insort(scheduledEvents, (nextMix, "MIX"))
+                LOG.trace("Next mix at %s", formatTime(nextMix,1))
+            else:
+                assert event in ("MIX", "SHRED", "TIMEOUT")
 
     def cleanQueues(self):
         """Remove all deleted messages from queues"""

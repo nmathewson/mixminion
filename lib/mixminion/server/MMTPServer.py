@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.4 2002/12/16 02:40:11 nickm Exp $
+# $Id: MMTPServer.py,v 1.5 2002/12/21 01:54:23 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -152,6 +152,10 @@ class Connection:
         """Returns an integer file descriptor for this connection, or returns
            an object that can return such a descriptor."""
         pass
+    def tryTimeout(self, cutoff):
+        """If this connection has seen no activity since 'cutoff', and it
+           is subject to aging, shut it down."""
+        pass
 
 class ListenConnection(Connection):
     """A ListenConnection listens on a given port/ip combination, and calls
@@ -239,6 +243,7 @@ class SimpleTLSConnection(Connection):
         self.__sock = sock            
         self.__con = tls
         self.fd = self.__con.fileno()
+        self.lastActivity = time.time()
 
         if serverMode:
             self.__state = self.__acceptFn
@@ -374,6 +379,18 @@ class SimpleTLSConnection(Connection):
         self.__outbuf = out
         if len(out) == 0:
             self.finished()
+
+    def tryTimeout(self, cutoff):
+        if self.lastActivity <= cutoff:
+            warn("Socket %s to %s timed out", self.fd, self.address)
+            # ????     I'm not sure this is right.  Instead of just killing 
+            # ???? the socket, should we shut down the SSL too?
+            # ????     Also, should we handle timeout as a separate kind of
+            # ???? error from a hooks point of view.
+            self.__server.unregister(self)
+            self.__state = None
+            self.__sock.close()
+            self.handleFail(1)
 
     def handleRead(self):
         self.__handleAll()
@@ -694,6 +711,8 @@ class MMTPAsyncServer(AsyncServer):
     """A helper class to invoke AsyncServer, MMTPServerConnection, and
        MMTPClientConnection, with a function to add new connections, and
        callbacks for message success and failure."""
+    ##
+    # _timeout: the interval after which we drop open inactive connections.
     def __init__(self, config, tls):
         AsyncServer.__init__(self)
 
@@ -706,6 +725,12 @@ class MMTPAsyncServer(AsyncServer):
                                          self._newMMTPConnection)
         #self.config = config
         self.listener.register(self)
+        self._timeout = config['Server']['Timeout'][2]
+
+    def getNextTimeoutTime(self, now):
+        """Return the time at which we next purge connections, if we have
+           last done so at time 'now'."""
+        return now + self._timeout
 
     def _newMMTPConnection(self, sock):
         """helper method.  Creates and registers a new server connection when
@@ -742,3 +767,14 @@ class MMTPAsyncServer(AsyncServer):
     def onMessageSent(self, msg, handle):
         pass
 
+    def tryTimeout(self, now):
+        """Timeout any connection that is too old."""
+        cutoff = now - self._timeout
+        filenos = {}
+        for fd, r in self.readers.items():
+            r.tryTimeout(self._timeout)
+            filenos[fd] = 1
+        for fd, w in self.writers.items():
+            if filenos.has_key(fd): continue
+            w.tryTimeout(self._timeout)
+            filenos[fd] = 0
