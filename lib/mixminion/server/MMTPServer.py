@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.23 2003/04/18 18:32:36 nickm Exp $
+# $Id: MMTPServer.py,v 1.24 2003/04/22 01:45:22 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -510,6 +510,8 @@ SEND_CONTROL         = "SEND\r\n"
 JUNK_CONTROL         = "JUNK\r\n"
 # Control line for acknowledging a message
 RECEIVED_CONTROL     = "RECEIVED\r\n"
+# Control line for refusing a message
+REJECTED_CONTROL     = "REJECTED\r\n"
 SEND_CONTROL_LEN     = len(SEND_CONTROL)
 RECEIVED_CONTROL_LEN = len(RECEIVED_CONTROL)
 SEND_RECORD_LEN      = len(SEND_CONTROL) + MESSAGE_LEN + DIGEST_LEN
@@ -775,10 +777,12 @@ class MMTPClientConnection(SimpleTLSConnection):
                 self.beginNextMessage()
                 return
             self.expectedDigest = sha1(msg+"RECEIVED JUNK")
+            self.rejectDigest = sha1(msg+"REJECTED") 
             msg = JUNK_CONTROL+msg+sha1(msg+"JUNK")
             self.isJunk = 1
         else:
             self.expectedDigest = sha1(msg+"RECEIVED")
+            self.rejectDigest = sha1(msg+"REJECTED") 
             msg = SEND_CONTROL+msg+sha1(msg+"SEND")
             self.isJunk = 0
 
@@ -806,20 +810,27 @@ class MMTPClientConnection(SimpleTLSConnection):
        trace("received ack (fd %s)", self.fd)
        # FFFF Rehandshake
        inp = self.getInput()
-       if inp != (RECEIVED_CONTROL+self.expectedDigest):
+       rejected = 0
+       if inp == REJECTED_CONTROL+self.rejectDigest:
+           debug("Message rejected from %s (fd %s)", self.address, self.fd)
+           rejected = 1
+       elif inp != (RECEIVED_CONTROL+self.expectedDigest):
            # We only get bad ACKs if an adversary somehow subverts TLS's
            # checksumming.  That's not fixable.
            self.shutdown(err=1,retriable=0)
            return
+       else:
+           debug("Received valid ACK for message from %s", self.address)
 
-       debug("Received valid ACK for message from %s", self.address)
        if not self.isJunk:
            justSent = self.messageList[0]
            justSentHandle = self.handleList[0]
            del self.messageList[0]
            del self.handleList[0]
-           if self.sentCallback is not None:
+           if not rejected and self.sentCallback is not None:
                self.sentCallback(justSent, justSentHandle)
+           elif rejected and self.failCallback is not None:
+               self.failCallback(justSent, justSentHandle, retriable=1)
 
        self.beginNextMessage()
 

@@ -63,7 +63,9 @@ For 0.0.4:
                 o Don't have multiple connections to same server.
                 o KEYID should be hash of signing key==hash of
                   identity key.  (Spec may be incorrect.)
-                - Add support for "REJECTED" reply.
+                . Add support for "REJECTED" reply.
+                        o Implement
+                        - Test
         - Key management:
                 . Ability to generate new serverdesc with old keys.
                         o Implement

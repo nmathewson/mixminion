@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.26 2003/04/07 01:14:12 nickm Exp $
+# $Id: MMTPClient.py,v 1.27 2003/04/22 01:45:22 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -22,7 +22,8 @@ import signal
 import socket
 import mixminion._minionlib as _ml
 from mixminion.Crypto import sha1, getCommonPRNG
-from mixminion.Common import MixProtocolError, LOG, MixError, formatBase64
+from mixminion.Common import MixProtocolError, MixProtocolReject, LOG, \
+     MixError, formatBase64
 
 class TimeoutError(MixProtocolError):
     """Exception raised for protocol timeout."""
@@ -192,7 +193,10 @@ class BlockingClientConnection:
 
             # And we expect, "RECEIVED\r\n", and sha1(packet|"RECEIVED")
             inp = self.tls.read(len(serverControl)+20)
-            if inp != serverControl+sha1(packet+serverHashExtra):
+            if inp == "REJECTED\r\n"+sha1(packet+"REJECTED"):
+                raise MixProtocolReject()
+            elif inp != serverControl+sha1(packet+serverHashExtra):
+                LOG.warn("Received bad ACK from server")
                 raise MixProtocolError("Bad ACK received")
             LOG.debug("ACK received; packet successfully delivered")
         except (socket.error, _ml.TLSError), e:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.68 2003/04/13 15:50:54 nickm Exp $
+# $Id: Common.py,v 1.69 2003/04/22 01:45:22 nickm Exp $
 
 """mixminion.Common
 
@@ -47,6 +47,10 @@ class MixFatalError(MixError):
 
 class MixProtocolError(MixError):
     """Exception class for MMTP protocol violations"""
+    pass
+
+class MixProtocolReject(MixProtocolError):
+    """Exception class for server-rejected packets."""
     pass
 
 class UIError(MixError):
