@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.30 2003/02/07 17:23:11 nickm Exp $
+# $Id: benchmark.py,v 1.31 2003/02/20 16:50:42 nickm Exp $
 
 """mixminion.benchmark
 
@@ -614,7 +614,7 @@ def fileOpsTiming():
     lockfile = Lockfile(os.path.join("dname"))
     t1 = time()
     for _ in xrange(2000):
-        lockfile.acquire(1)
+        lockfile.acquire(blocking=1)
         lockfile.release()
     t = time()-t1
     print "Lockfile: lock+unlock", timestr(t/2000.)
