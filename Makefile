@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.53 2003/11/10 04:58:07 nickm Exp $
+# $Id: Makefile,v 1.54 2003/11/20 04:02:30 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -24,12 +24,15 @@ FINDPYTHON = \
 	for n in $(PYTHON_CANDIDATES) ; do                                   \
 	  if [ 'x' = "x$$PYTHON" ]; then                                     \
             if [ -x "`which $$n 2>&1`" ]; then                               \
-	            PYTHON=$$n;                                              \
-                fi;                                                          \
+	      if [ 'x' != "`$$n -V 2>&1 | grep 'Python [23456789]'`x" ]; then\
+	        PYTHON=$$n;                                                  \
+              fi;                                                            \
             fi;                                                              \
+          fi;	                                                             \
 	done;                                                                \
 	if [ 'x' = "x$$PYTHON" ]; then                                       \
-	    echo "ERROR: couldn't find any of $(PYTHON_CANDIDATES) in PATH"; \
+	    echo "ERROR: couldn't find Python 2 or later on PATH as any of ";\
+	    echo "   $(PYTHON_CANDIDATES) in PATH";                          \
 	    echo "   Please install python in your path, or set the PYTHON"; \
             echo '   environment variable';                                  \
 	    exit;                                                            \
