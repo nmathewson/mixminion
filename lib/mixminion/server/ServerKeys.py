@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.17 2003/04/18 17:41:38 nickm Exp $
+# $Id: ServerKeys.py,v 1.18 2003/04/18 18:32:36 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -578,7 +578,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "PacketFormat" : "%s.%s"%(mixminion.Packet.MAJOR_NO,
                                   mixminion.Packet.MINOR_NO),
         "mm_version" : mixminion.__version__
-        
+        }
 
     # If we don't know our IP address, try to guess
     if fields['IP'] == '0.0.0.0':

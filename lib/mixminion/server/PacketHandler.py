@@ -1,9 +1,10 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.12 2003/02/20 16:57:40 nickm Exp $
+# $Id: PacketHandler.py,v 1.13 2003/04/18 18:32:36 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
 import binascii
+import threading
 
 from mixminion.Common import encodeBase64, formatBase64
 import mixminion.Crypto as Crypto
@@ -46,18 +47,48 @@ class PacketHandler:
             self.hashlog = hashlog
         except TypeError:
             # Privatekey is not be subscriptable; we must have only one.
-            self.privatekey = (privatekey, )
-            self.hashlog = (hashlog, )
+            self.privatekey = [privatekey]
+            self.hashlog = [hashlog]
 
+        self.lock = threading.Lock()
+
+    def addKey(self, key, hashlog):
+        """DOCDOC"""
+        self.lock.acquire()
+        self.privatekey.append(key)
+        self.hashlog.append(hashlog)
+        self.lock.release()
+
+    def removeKey(self, key):
+        """DOCDOC"""
+        self.lock.acquire()
+        try:
+            enc = key.encode_key(1)
+            for i in range(len(self.privatekey)):
+                k = self.privatekey[i]
+                if k.enc(1) == enc:
+                    del self.privatekey[i]
+                    hlog = self.hashlog[i]
+                    del self.hashlog[i]
+                    hlog.close()
+                    return
+            raise KeyError
+        finally:
+            self.lock.release()
+            
     def syncLogs(self):
         """Sync all this PacketHandler's hashlogs."""
+        self.lock.acquire()
         for h in self.hashlog:
             h.sync()
+        self.lock.release()
 
     def close(self):
         """Close all this PacketHandler's hashlogs."""
+        self.lock.acquire()
         for h in self.hashlog:
             h.close()
+        self.lock.release()
 
     def processMessage(self, msg):
         """Given a 32K mixminion message, processes it completely.
@@ -84,12 +115,16 @@ class PacketHandler:
         # order.  Only fail if all private keys fail.
         subh = None
         e = None
-        for pk, hashlog in zip(self.privatekey, self.hashlog):
-            try:
-                subh = Crypto.pk_decrypt(header1[0], pk)
-                break
-            except Crypto.CryptoError, err:
-                e = err
+        self.lock.acquire()
+        try:
+            for pk, hashlog in zip(self.privatekey, self.hashlog):
+                try:
+                    subh = Crypto.pk_decrypt(header1[0], pk)
+                    break
+                except Crypto.CryptoError, err:
+                    e = err
+        finally:
+            self.lock.release()
         if not subh:
             # Nobody managed to get us the first subheader.  Raise the
             # most-recently-received error.

@@ -25,9 +25,6 @@ For 0.0.4:
                 o Ctrl-C should just print "interrupted."
                 o Change behavior on binary messages; don't dump 'em
                   to terminals.
-             
-           o Implement
-                        o Test
                 o DELKEYS should work. (neruaL)
         . Internal statistics
         	o Event log module
@@ -77,12 +74,14 @@ For 0.0.4:
                         o Implement
                         - Test backend
                         - Integrate with frontend
-                - Online key rotation
+                . Online key rotation
                         - Function to determine time for next rotation event.
-                        - Ability to add PK to packethandler
-                        - Ability to remove PK from packethandler.
+                        o Ability to add PK to packethandler
+                        o Ability to remove PK from packethandler.
+                        o Ability to change TLS context for new connections.
                         - Ability to delete PK.
                         - Trigger all of the above as timed events occur.
+                        - Somehow test the whole business.
                 - Consider linewrap protection on server descriptors,
                   if demand warrants.  (None yet.)
 

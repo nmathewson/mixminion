@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.22 2003/04/07 01:13:54 nickm Exp $
+# $Id: MMTPServer.py,v 1.23 2003/04/18 18:32:36 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -868,6 +868,11 @@ class MMTPAsyncServer(AsyncServer):
         self.listener.register(self)
         self._timeout = config['Server']['Timeout'][2]
         self.clientConByAddr = {}
+
+    def setContext(self, context):
+        """Change the TLS context used for newly received connections.
+           Used to rotate keys."""
+        self.context = context
 
     def getNextTimeoutTime(self, now):
         """Return the time at which we next purge connections, if we have
