@@ -7,35 +7,35 @@ CONTENTS:
         IV.   How to install
         V.    How to send messages
         VI.   How to run a server
-        VII.  How to report bugs and suggestions.
+        VII.  How to report bugs and suggestions
 	VIII. Future interoperability
         IX.   How to contribute
 
 I. OVERVIEW
 ===========
 
-Mixminion is the standard implementation for the Type-III anonymous Mix
+Mixminion is the standard implementation of the Type-III anonymous Mix
 protocol, which lets you send very anonymous email.  This best-of-breed
 remailer uses conservative design approaches to provide security against most
-known attacks. We chose a simple extensible design so we can provide a robust
-core system, and then go on to experiment with new research features such as
+known attacks. We chose a simple, extensible design so that we can provide a
+robust core system and then experiment with new research features such as
 dummy policies, directory servers, and reputation systems.
 
 This is a testing alpha release.  You will probably only want to use it if
 you are technically inclined, curious, and interested in helping the
 Mixminion development effort.
 
-WARNING!  Don't use this release if you require strong anonymity.  It has
-known deficiencies, including some that make it possible for an adversary to
-trace your message through the system.
+WARNING!  Do NOT use this release if you require strong anonymity.  It has
+known deficiencies, including some that make it possible for an adversary
+to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
 NEW IN VERSION 0.0.2:
    - A real SMTP exit module to relay messages via a local MTA.  Blacklisting
-     is supported by address, by username, by host, by domain, and by regular
-     expression.
+     is supported by address, by username, by host, by entire domain, and 
+     by regular expression.
    - Integrated directory support for clients.
    - Automatic path selection, along with a better user interface to specify
      paths.
@@ -94,8 +94,8 @@ The quick version.
  OR:
     % make install PREFIX=~
 
-The verbose version
--------------------
+The verbose version.
+--------------------
 
   1) You must have Python version 2.0 or later installed on your system.  The
      binary may be called "python", "python2", "python2.X", or something else.
@@ -132,7 +132,7 @@ V. HOW TO SEND MESSAGES VIA MIXMINION
 
 Just run the following command line:
 
-     mixminion send -t <email address> -i <filename to send, or '-' for stdin>
+     mixminion send -t <email address> -i <filename to send>
 
 Mixminion will then take the following steps:
 
@@ -144,6 +144,14 @@ Mixminion will then take the following steps:
      D) Construct a Type-III Mix packet containing your message.
         (For more information, see the links at http://www.mixminion.net/)
      E) Send the message to the first server in your path.
+    
+To read from stdin instead of a file, type:
+
+     mixminion send -t <email address> -i -
+
+     or
+       
+     mixminion send -t <email address>
 
 To see a list of currently known servers, type:
 
@@ -193,8 +201,14 @@ To specify a path manually, type:
              --swap-at=<n>            [Swap headers at the n'th server]
       If you don't know what a swap point is, don't worry. :)
 
-VI. HOW TO RUN YOUR OWN MIXMINION SERVER:
-=========================================
+To send a dummy message, specify "drop" instead of an email address, as in:
+
+      mixminion -t drop
+      mixminion -t drop -P '*,Foo'
+      mixminion -t drop -H 8
+      
+VI. HOW TO RUN YOUR OWN MIXMINION SERVER
+========================================
 
 1) Create your own mixminiond.conf based on "etc/mixminiond.conf" from the
    mixminion distribution.
@@ -246,7 +260,7 @@ If your error occurred on a running server, please make a copy of your
 log--it might be helpful.
 
 VIII. FUTURE INTEROPERABILITY
-==========================
+=============================
 
 Mixminion is not yet feature complete.  As the software moves closer to
 official release, backwards-incompatible changes *WILL* be introduced.
@@ -259,7 +273,7 @@ features that potentially compromise anonymity and would be inappropriate in
 a production system; these features will be removed or disabled by 1.0.
 
 IX. HOW TO CONTRIBUTE
-========================
+=====================
 
 Send patches to <nickm@freehaven.net>.  If you can, please submit unified
 diffs against the latest version of the code in CVS.
