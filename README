@@ -1,8 +1,11 @@
 This is Mixminion version 0.0.1.
 
-XXXX More Flavor text here.
+Mixminion is the standard implementation for the Type-III anonymous Mix
+protocol, which lets you send very anonymous email.
 
-IN THIS VERSION: (XXXX Be more verbose)
+XXXX MORE TEXT HERE!
+
+IN THIS VERSION: 
    - You can run a rudimentary server that uses Mixmaster to deliver SMTP, or
      that sends SMTP directly to a preconfigured set of addresses.
    - You can send anonymous email.
@@ -18,16 +21,23 @@ NOT IN THIS VERSION: (XXXX Be more verbose)
    - No automatic key generation.
    - No automatic path selection.
    - MMTP is not exactly as specified.
+   - Cottrell batching is disabled; the mix interval is set to a ridiculously
+     low 5 minutes for testing.
 
 HOW TO BUILD, TEST, AND INSTALL MIXMINION: The quick version.
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.1.tar.gz>
+
   % cd Mixminion-0.0.1
   % make download-openssl
   % make build-openssl
   % make
   % make test
-  % su
-  Password:
-  # make install
+ EITHER:
+    % su
+    Password:
+    # make install
+ OR:
+    % make install PREFIX=~
 
 HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
   1) You must have Python version 2.0 or later installed on your system.  The
@@ -80,7 +90,7 @@ HOW TO SEND AN EMAIL MESSAGE VIA MIXMINION:
 	      -i <filename to send, or - to read from stdin>.
 
       Example:
-         mixminion client -t nosuchuser@mixminion.org --path1=server1,server9 \
+         mixminion client -t nosuchuser@mixminion.net --path1=server1,server9 \
               --path2=server5,server10 -i /etc/motd
 
 HOW TO RUN YOUR OWN MIXMINION SERVER:
@@ -103,8 +113,4 @@ HOW TO RUN YOUR OWN MIXMINION SERVER:
       in their "~/.mixminion/servers" directory.
 
       To get your server advertised to the rest of the world, please
-      send it to XXXXemail.
-
-   5) OPTIONAL. XXXXHow to set up MBOX
-
-   6) OPTIONAL. XXXXHow to set up SMTP-via-Mixmaster.
+      send the file to XXXXemail.

@@ -1,24 +1,13 @@
-Hacking Mixminion
+Hacking Mixminion                                  -*- Text -*-
 
 Requirements:
 	Python 2.0-2.2  (see PORTING NOTES below)
 
 	OpenSSL 0.9.7 (You'll need to download a beta. As of 1 December 2002,
-           that's http//www.openssl.org/source/openssl-0.9.7-beta4.tar.gz)
+           that's http//www.openssl.org/source/openssl-0.9.7-beta4.tar.gz).
+	   Don't worry; the makefile knows how to download it for you.
 
 	A working /dev/urandom (see PORTING NOTES below)
-
-Setting up:
-	1) Get python 2.2.  You can download RPMS from www.python.org.
-	2) Get the mixminion source.
-	3) EITHER Unpack openssl 0.9.7 into minion/contrib/openssl
-	          cd minion/contrib/openssl; ./config; make
-           OR make download-openssl; make build-openssl
-
-Things to try:
-	make
-	make test
-	make time
 
 Things to hack:
 	See the TODO list.
@@ -30,34 +19,17 @@ DESIGN PRINCIPALS:
       operations you need.
     - "Premature optimization is the route of all evil." -Knuth
       Resist the temptation to optimize until it becomes a necessity.
-      
-    - Here's the conceptual layout. XXXX EXPLAIN MORE
-
-       -------------
-       I User code I
-       -------------
-             I
-             V 
-             -----------------------------------------
-             I            MM library code            I
-             -----------------------------------------
-               I             I                 ^
-               V             I                 I
-       ------------------    I                 I
-     ..| Network client |    V                 I
-    .  ------------------<==---------       ----------
- net                        | Queue |<=====>| Engine |
-    .  ------------------==>---------       ----------
-     ..| Network server |
-       ------------------
 
 CODING STYLE:
     - See PEP-0008: "Style Guide For Python Code".  I believe in most of it.
       (http://www.python.org/peps/pep-0008.html)
     - Also see PEP-0257 for documentation; we're not there yet, but it's
       happening. (http://www.python.org/peps/pep-0257.html)
-    - The magic string "XXXX" indicates a defect in the code. "FFFF" indicates
-      a missing feature, and "????" indicates an untested or iffy block.
+    - Magic strings:
+         "XXXX" indicates a defect in the code. 
+         "FFFF" indicates a missing feature.
+	 "????" indicates an untested or iffy block.
+	 "DOCDOC" indicates missing documentation.
 
 PORTABILITY NOTES:
     - I've already backported to Python 2.0.  (I refuse to backport to 1.5 or
@@ -82,13 +54,40 @@ PORTABILITY NOTES:
 PORTING TO NON-LINUX PLATFORMS:
     - If you need to run on a system without an acceptable /dev/*random, 
       you'll need to write an acceptable fallback for mixminion.Crypto.trng() 
-      to use.  
-    - We assume the existence of a /usr/bin/shred to securely delete
-      files.  This is now configurable, but I'd like to know a few other
-      alternatives.
+      to use.
 
 CAVEATS:
     - If I haven't got a test for it in tests.py, assume it doesn't work.
     - The code isn't threadsafe.  It will become so only if it must.
+
+FINDING YOUR WAY AROUND THE CODE.
+    - All the C code is in src/.  Right now, this is just a set of thin
+      Python wrappers for the OpenSSL functionality we use.
+    - The Python code lives in lib/mixminion (for client and shared code)
+      and lib/mixminion/server (for server code only).  The main loop is
+      in lib/mixminion/server/ServerMain; the asynchronous server code is
+      in lib/mixminion/server/MMMTPServer.
+    - A message coming in to a Mixminion server takes the following path:
+
+        Received in MMTPServer;
+              V
+         Stored in an 'Incoming' queue, implemented in ServerMain and Queue.
+              V
+        Validated, decrypted, padded by code in PacketHandler.
+              V
+         Stored in a 'Mix' pool, implemented in ServerMain and Queue.
+             V
+        A batch of messages is selected by the 'Mix pool' for delivery.
+             V
+             ---Some are placed in an 'Outgoing' queue...
+	     I       V
+             I   ... and delivered to other Mixminion servers via MMTPServer
+             V
+             ---Others are queued and delivered by other exit methods, 
+	        implemented and selected by ModuleManager.
+
+CONTRIBUTING PATCHES:
+    - Send them to the list mixminion-dev@freehaven.net, or to me
+      (nickm@freehaven.net).
 
 --Nick

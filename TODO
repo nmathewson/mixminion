@@ -9,37 +9,6 @@ SPEC	- Spec not finalized
 
 NEEDS TO BE WRITTEN
 
-FOR 0.0.1: (The first alpha)
-	[Requirements: hackers can use this system to try sending messages
-         around.  At least one delivery method works.  The code may be
-         DOS'able, but must not have remote exploits.  Dirservers need not
-         work.  There need not be an interface for replies.  Key rotation
-         need not be automated.]
-
-	o Build
-		o Marginal 'make install'
-		o Marginal 'make dist'
-	o Stability:
-		o Do some basic locking to keep other processes from
-		  using same queue set.
-		o Make startup not spew to stderr when we request it
- 	  	  not to.
-		o Really daemonize ourselves.
-		o Take it easy with the fork calls!
-	. Integration testing
-		- Automated tests for several servers running on one machine.
-		- Tests for servers on several different machines.
-	- Documentation
-		- Contributor's guide
-		o Basic HOWTO
-		- Difference between XXXX FFFF ????
-		- Overall design
-		- More readable mixminiond.conf
-	- Patch specification:
-	  	- SPEC comments from code
-		o Incorporate e2e mixminin design
-		- Rename stateful, stateless SURBs
-
 Required for "1.0":
 	 [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
@@ -149,6 +118,11 @@ SPEC!!		- Timeout old connections
 SPEC		o Patch to address George's 15August attack
 	- Testing
 		- Test on other (non-redhat, non-linux) systems
+		- Integration tests
+			- Automated tests for several servers running
+		          on one machine.  
+			- Tests for servers on several different
+		          machines.
 		- Repeatable CLI tests.
 		        - For client
 			- For server
