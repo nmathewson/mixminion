@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.76 2004/01/27 05:30:23 nickm Exp $
+# $Id: Config.py,v 1.77 2004/01/27 05:55:54 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -985,12 +985,15 @@ class ClientConfig(_ConfigFile):
                        'ForwardPath' : ('ALLOW', None, "*6"),
                        'ReplyPath' : ('ALLOW', None, "*4"),
                        'SURBPath' : ('ALLOW', None, "*4"),
+                       #DOCDOC and add to .mixminionrc
+                       'BlockServers' : ('ALLOW*', 'seq', ""),
+                       'BlockEntries' : ('ALLOW*', 'seq', ""),
+                       'BlockExits' : ('ALLOW*', 'seq', ""),
                        },
         'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", "2 minutes")}
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
-
 
     def prevalidate(self, contents):
         # See if we've been passed a server configuration.

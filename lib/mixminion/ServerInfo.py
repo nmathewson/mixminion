@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.77 2004/01/27 05:14:31 nickm Exp $
+# $Id: ServerInfo.py,v 1.78 2004/01/27 05:55:54 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -393,6 +393,10 @@ class ServerInfo(mixminion.Config._ConfigFile):
             if out in otherInProtocols:
                 return 1
         return 0
+
+    def canRelay(self):
+        """Return 1"""
+        return 1
 
     def canStartAt(self):
         """Return true iff this server is one we (that is, this

@@ -60,11 +60,9 @@ class ClientDirectory:
     # byNickname: Map from nickname.lower() to list of (ServerInfo, source)
     #   tuples.
     # byKeyID: Map from desc.getKeyDigest() to list of (ServerInfo,source)
-    # byCapability: Map from capability ('mbox'/'smtp'/'relay'/None) to
-    #    list of (ServerInfo, source) tuples.
-    # allServers: Same as byCapability[None]
+    # allServers: DOCDOC
     # __scanning: Flag to prevent recursive invocation of self.rescan().
-    # __downloading: Flag to prevent simultaneous invocation of 
+    # __downloading: Flag to prevent simultaneous invocation of
     #    downloadDirectory()
     # clientVersions: String of allowable client versions as retrieved
     #    from most recent directory.
@@ -100,6 +98,8 @@ class ClientDirectory:
         self.__scanning = 0
         self.__downloading = 0
         self._lock = RWLock()
+        self.config = None
+        self.blockedNicknames = {} #nickname->['*','entry','exit']
         if diskLock is None:
             self._diskLock = threading.RLock()
         else:
@@ -110,6 +110,26 @@ class ClientDirectory:
             self.clean()
         finally:
             self._diskLock.release()
+
+    def configure(self, config):
+        """DOCDOC"""
+        sec = config.get("Security", {})
+        blocked = {}
+        for lst in sec.get("BlockServers", []):
+            for nn in lst:
+                blocked[nn] = ['*']
+        for lst in sec.get("BlockEntries", []):
+            for nn in lst:
+                blocked.setdefault(nn,[]).append('entry')
+        for lst in sec.get("BlockExits", []):
+            for nn in lst:
+                blocked.setdefault(nn,[]).append('exit')
+        self._lock.write_in()
+        try:
+            self.blockedNicknames = blocked
+        finally:
+            self._lock.write_out()
+
 
     def updateDirectory(self, forceDownload=0, timeout=None, now=None):
         """Download a directory from the network as needed."""
@@ -133,7 +153,7 @@ class ClientDirectory:
             self.__downloading = 1
         finally:
             self._lock.write_out()
-            
+
         try:
             self._downloadDirectory(timeout)
         finally:
@@ -322,7 +342,7 @@ class ClientDirectory:
             self.serverVersions = s_serverVersions
             self.goodServerNicknames = s_goodServerNicknames
             self.digestMap = s_digestMap
-            
+
             # Regenerate the cache
             self.__save()
             # Now try reloading, to make sure we can, and for __rebuildTables.
@@ -416,7 +436,7 @@ class ClientDirectory:
 
         self._lock.write_in()
         try:
-            
+
             self._diskLock.acquire()
             try:
                 # Copy the server into DIR/servers.
@@ -464,34 +484,28 @@ class ClientDirectory:
         return len(badSources)
 
     def __rebuildTables(self):
-        """Helper method.  Reconstruct byNickname, byKeyID,
-           allServers, and byCapability from the internal start of
-           this object.  Caller must hold write lock."""
+        """Helper method.  Reconstruct byNickname, byKeyID, and allServers
+           from the internal state of this object.  Caller must hold write
+           lock."""
         self.byNickname = {}
         self.byKeyID = {}
         self.allServers = []
-        self.byCapability = { 'mbox': [],
-                              'smtp': [],
-                              'relay': [],
-                              'frag': [],
-                              None: self.allServers }
+        self.byCapability = { } #DOCDOC disused
         self.goodServerNicknames = {}
 
         for info, where in self.serverList:
             nn = info.getNickname().lower()
-            lists = [ self.allServers, self.byNickname.setdefault(nn, []),
-                      self.byKeyID.setdefault(info.getKeyDigest(), []) ]
-            for c in info.getCaps():
-                lists.append( self.byCapability[c] )
-            for lst in lists:
-                lst.append((info, where))
+            self.allServers.append((info,where))
             self.goodServerNicknames[nn] = 1
 
         for info, where in self.fullServerList:
             nn = info.getNickname().lower()
-            if self.goodServerNicknames.get(nn):
-                continue
-            self.byNickname.setdefault(nn, []).append((info, where))
+            lists = [
+                self.byNickname.setdefault(nn, []),
+                self.byKeyID.setdefault(info.getKeyDigest(), [])
+                ]
+            for lst in lists:
+                lst.append((info, where))
 
     def getFeatureMap(self, features, at=None, goodOnly=0):
         """Given a list of feature names (see Config.resolveFeatureName for
@@ -525,6 +539,7 @@ class ClientDirectory:
                     continue
                 nickname = sd.getNickname()
                 isGood = self.goodServerNicknames.get(nickname.lower(), 0)
+                blocked = self.blockedNicknames.get(nickname.lower(), [])
                 if goodOnly and not isGood:
                     continue
                 va = sd['Server']['Valid-After']
@@ -533,10 +548,20 @@ class ClientDirectory:
                 for feature,(sec,ent) in resFeatures:
                     if sec == '+':
                         if ent == 'status':
-                            if isGood:
-                                d['status'] = "(ok)"
+                            stat = []
+                            if not isGood:
+                                stat.append("not recommended")
+                            if '*' in blocked:
+                                stat.append("blocked")
                             else:
-                                d['status'] = "(not recommended)"
+                                if 'entry' in blocked:
+                                    stat.append("blocked as entry")
+                                if 'exit' in blocked:
+                                    stat.append("blocked as exit")
+                            if stat:
+                                d['status'] = "(%s)"%(",".join(stat))
+                            else:
+                                d['status'] = "(ok)"
                         else:
                             raise AssertionError # Unreached.
                     else:
@@ -574,6 +599,41 @@ class ClientDirectory:
 
         return u.values()
 
+    def __nicknameIsBlocked(self, nn, isEntry=0, isExit=0):
+        """DOCDOC"""
+        b = self.blockedNicknames.get(nn.lower(), None)
+        if b is None:
+            return 0
+        elif '*' in b:
+            return 1
+        elif isEntry and 'entry' in b:
+            return 1
+        elif isExit and 'exit' in b:
+            return 1
+        else:
+            return 0
+
+    def __excludeBlocked(self, lst, isEntry=0, isExit=0):
+        """DOCDOC"""
+        res = []
+        for info in lst:
+            if not self.__nicknameIsBlocked(info.getNickname(),isEntry,isExit):
+                res.append(info)
+        return res
+
+    def getNicknameByIP(self, ip):
+        """DOCDOC"""
+        self._lock.read_in()
+        try:
+            nicknames = []
+            for desc,where in self.fullServerList:
+                if desc.getIP() == ip:
+                    if desc.getNickname() not in nicknames:
+                        nicknames.append(desc.getNickname())
+            return "/".join(nicknames)
+        finally:
+            self._lock.read_out()
+
     def getNicknameByKeyID(self, keyid):
         """Given a keyid, return the nickname of the server with that keyid.
            Return None if no such server is known."""
@@ -584,7 +644,7 @@ class ClientDirectory:
                 return None
             r = []
             for (desc,_) in s:
-                if desc.getNickname().lower() not in r:
+                if desc.getNickname() not in r:
                     r.append(desc.getNickname())
             return "/".join(r)
         finally:
@@ -614,10 +674,11 @@ class ClientDirectory:
         else:
             return nn
 
-    def getLiveServers(self, startAt=None, endAt=None):
+    def getLiveServers(self, startAt=None, endAt=None, isEntry=0, isExit=0):
         """Return a list of all server desthat are live from startAt through
            endAt.  The list is in the standard (ServerInfo,where) format,
            as returned by __find.
+           DOCDOC no blocked or notrecommended
            """
         if startAt is None:
             startAt = time.time()
@@ -625,7 +686,9 @@ class ClientDirectory:
             endAt = time.time()+self.DEFAULT_REQUIRED_LIFETIME
         self._lock.read_in()
         try:
-            return self.__find(self.serverList, startAt, endAt)
+            return self.__excludeBlocked(
+                self.__find(self.allServers, startAt, endAt),
+                isEntry=isEntry, isExit=isExit)
         finally:
             self._lock.read_out()
 
@@ -680,7 +743,7 @@ class ClientDirectory:
                 val = getattr(self, field)
                 val = [ (i,w) for i,w in val if not badSources.has_key(w) ]
                 setattr(self,field,val)
-            for field in 'byNickname', 'byKeyID', 'byCapability':
+            for field in 'byNickname', 'byKeyID':
                 d = getattr(self,field)
                 for k,v in d.items():
                     v = [ (i,w) for i,w in v if not badSources.has_key(w) ]
@@ -704,8 +767,7 @@ class ClientDirectory:
            such server is found, return None.
 
            name -- A ServerInfo object, a nickname, or a filename.
-           """
-
+        """
         if startAt is None:
             startAt = time.time()
         if endAt is None:
@@ -860,7 +922,7 @@ class ClientDirectory:
         if prng is None:
             prng = mixminion.Crypto.getCommonPRNG()
 
-        # Resolve explicitly-provided servers
+        # Resolve explicitly-provided servers (we already warned.)
         servers = []
         for name in template:
             if name is None:
@@ -869,7 +931,8 @@ class ClientDirectory:
                 servers.append(self.getServerInfo(name, startAt, endAt, 1))
 
         # Now figure out which relays we haven't used yet.
-        relays = self.__find(self.byCapability['relay'], startAt, endAt)
+        relays = self.__find(self.allServers, startAt, endAt)
+        relays = self.__excludeBlocked(relays)
         if not relays:
             raise UIError("No relays known")
         elif len(relays) == 2:
@@ -893,6 +956,14 @@ class ClientDirectory:
             # ...and see if there are any relays left that aren't adjacent?
             candidates = []
             for c in relays:
+                # Skip blocked entry points
+                if i==0 and self.__nicknameIsBlocked(c.getNickname(),
+                                                     isEntry=1):
+                    continue
+                # Skip blocked exit points
+                if i==(len(servers)-1) and self.__nicknameIsBlocked(
+                    c.getNickname(), isExit=1):
+                    continue
                 # Avoid same-server hops
                 if ((prev and c.hasSameNicknameAs(prev)) or
                     (next and c.hasSameNicknameAs(next))):
@@ -906,7 +977,7 @@ class ClientDirectory:
                     continue
                 candidates.append(c)
             if candidates:
-                # Good.  There aresome okay servers/
+                # Good.  There are some okay servers.
                 servers[i] = prng.pick(candidates)
             else:
                 # Nope.  Can we duplicate a relay?
@@ -947,7 +1018,7 @@ class ClientDirectory:
             self._lock.read_out()
 
     def _validatePath(self, pathSpec, exitAddress, startAt=None, endAt=None,
-                     warnUnrecommended=1):    
+                     warnUnrecommended=1):
         """Helper: implement validatePath without getting lock"""
         if startAt is None: startAt = time.time()
         if endAt is None: endAt = startAt+self.DEFAULT_REQUIRED_LIFETIME
@@ -996,19 +1067,33 @@ class ClientDirectory:
         if not warnUnrecommended:
             return
         warned = {}
-        for e in p:
+        for i in xrange(len(p)):
+            e = p[i]
             fixed = e.getFixedServer(self, startAt, endAt)
             if not fixed: continue
-            lc_nickname = fixed.getNickname().lower()
+            nick = fixed.getNickname()
+            lc_nickname = nick.lower()
+            if warned.has_key(lc_nickname):
+                continue
             if not self.goodServerNicknames.has_key(lc_nickname):
-                if warned.has_key(lc_nickname):
-                    continue
                 warned[lc_nickname] = 1
-                LOG.warn("Server %s is not recommended",fixed.getNickname())
+                LOG.warn("Server %s is not recommended", nick)
+            b = self.blockedNicknames.get(lc_nickname,None)
+            if not b: continue
+            if '*' in b:
+                warned[lc_nickname] = 1
+                LOG.warn("Server %s is blocked", nick)
+            else:
+                if i == 0 and 'entry' in b:
+                    warned[lc_nickname] = 1
+                    LOG.warn("Server %s is blocked as an entry", nick)
+                elif i==(len(p)-1) and 'exit' in b:
+                    warned[lc_nickname] = 1
+                    LOG.warn("Server %s is blocked as an exit", nick)
 
     def checkSoftwareVersion(self,client=1):
         """Check the current client's version against the stated version in
-           the most recently downloaded directory; print a warning if this
+           the most recently downloaded directory; log a warning if this
            version isn't listed as recommended.
            """
         self._lock.read_in()
@@ -1338,7 +1423,7 @@ class ExitAddress:
            exit address.
            """
         assert self.lastHop is None
-        liveServers = directory.getLiveServers(startAt, endAt)
+        liveServers = directory.getLiveServers(startAt, endAt, isExit=1)
         result = [ desc for desc in liveServers
                    if self.isSupportedByServer(desc) and
                       desc.supportsPacketVersion() ]
