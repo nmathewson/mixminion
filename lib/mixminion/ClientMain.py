@@ -530,7 +530,7 @@ class MixminionClient:
             if exc and not nBad:
                 LOG.info("Got error after all packets were delivered.")
             if exc:
-                LOG.info("Error was: %s",exc[1])
+                LOG.info("Error was: %s", exc[1])
         finally:
                 clientUnlock()
 
@@ -561,10 +561,11 @@ class MixminionClient:
             if handles is None:
                 handles = self.queue.getHandles()
                 LOG.info("Found %s pending packets", len(handles))
+            else:
+                LOG.info("Flushing %s packets", len(handles))
             if maxPackets is not None:
                 handles = mixminion.Crypto.getCommonPRNG().shuffle(handles,
                                                                maxPackets)
-            LOG.info("Flushing %s", len(handles))
             packets = []
             for h in handles:
                 try:
@@ -1812,7 +1813,7 @@ def flushQueue(cmd, args):
 
     if args:
         handles = parser.client.queue.getHandlesByDestAndAge(
-            args,parser.directory, None)
+            args, parser.directory, notAfter=None)
     else:
         handles = None
 

@@ -689,7 +689,7 @@ class ClientQueue:
         createPrivateDir(directory)
 
         # We used to name entries "pkt_X"; this has changed.
-        # XXXX007 remove this when it's no longer needed.
+        # XXXX008a remove this when it's no longer needed.
         for fn in os.listdir(directory):
             if fn.startswith("pkt_"):
                 handle = fn[4:]

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.77 2004/01/27 05:55:54 nickm Exp $
+# $Id: Config.py,v 1.78 2004/03/02 05:40:14 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -986,9 +986,9 @@ class ClientConfig(_ConfigFile):
                        'ReplyPath' : ('ALLOW', None, "*4"),
                        'SURBPath' : ('ALLOW', None, "*4"),
                        #DOCDOC and add to .mixminionrc
-                       'BlockServers' : ('ALLOW*', 'seq', ""),
-                       'BlockEntries' : ('ALLOW*', 'seq', ""),
-                       'BlockExits' : ('ALLOW*', 'seq', ""),
+                       'BlockServers' : ('ALLOW*', 'list', ""),
+                       'BlockEntries' : ('ALLOW*', 'list', ""),
+                       'BlockExits' : ('ALLOW*', 'list', ""),
                        },
         'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", "2 minutes")}
         }

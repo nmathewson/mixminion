@@ -117,22 +117,21 @@ class ClientDirectory:
         """Adjust this ClientDirectory to account for blocked servers."""
         sec = config.get("Security", {})
         blocked = {}
-        for lst in sec.get("BlockServers", []):
-            for nn in lst:
-                blocked[nn] = ['*']
         for lst in sec.get("BlockEntries", []):
             for nn in lst:
-                blocked.setdefault(nn,[]).append('entry')
+                blocked.setdefault(nn.lower(),[]).append('entry')
         for lst in sec.get("BlockExits", []):
             for nn in lst:
-                blocked.setdefault(nn,[]).append('exit')
+                blocked.setdefault(nn.lower(),[]).append('exit')
+        for lst in sec.get("BlockServers", []):
+            for nn in lst:
+                blocked[nn.lower()] = ['*']
         self._lock.write_in()
         try:
             self.blockedNicknames = blocked
             self.__rebuildTables()
         finally:
             self._lock.write_out()
-
 
     def updateDirectory(self, forceDownload=0, timeout=None, now=None):
         """Download a directory from the network as needed."""

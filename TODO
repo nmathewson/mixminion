@@ -32,39 +32,42 @@ For 0.0.7:
         o Performance
                 o Do a setsockopt(IP_TOS, IPTOS_THROUGHPUT), unless on
                   cygwin, dgux, sni-sysv.
-        . UI improvements
+        o UI improvements
                 o Use feature values instead of raw configuration values in
                   the [Testing]/Configuration entry.
                 o Allow 'mixminion ping' to take addr:port as argument.
-                . Flush messages to a single mix, or set of mixes.
+                o Flush messages to a single mix, or set of mixes.
                         o Implement
-                        - Test
-                . Clean messages for a single mix, or set of mixes.
+                        o Test
+                o Clean messages for a single mix, or set of mixes.
                         o Implement
-                        - Test
-                . Support to remove servers from imported set, or to block
+                        o Test
+                o Support to remove servers from imported set, or to block
                   servers from directory.
                         o Implement
-                        - Test
+                        o Test
+                        o Unit tests
                 o "mixminiond" frontend
-        . MMTP
+        o MMTP
                 o Make MMTP bursty.
-                . Bandwidth throttling
-                        . Limit number of simultaneous outgoing connections
+                o Bandwidth throttling
+                        o Limit number of simultaneous outgoing connections
                                 o Implement code
                                 o Implement configurability
-                                - Test
-                        . Limit number of bytes transmitted/read per second
+                                o Test
+                        o Limit number of bytes transmitted/read per second
                                 o Implement per-connnection cap functionality.
                                 o Set and adjust caps.
                                 o Configuration to enable caps
-                                - Test
+                                o Test
         o Security
                 X Make createPrivateDirs gripe about group-writable parent
                   dirs.  [Actually, this has been done for a while!]
         . Large reply messages and efwd messages
                 . Fragment-pool logic for client
-                        o Implement
+                        . Decoding messages, pooling messages
+                        - Inspecting pool state
+                        - Extracting reconstructed messages
                         - Test
         o Pending bugs from email
                 o Better response to failed bind(2)

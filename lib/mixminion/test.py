@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.186 2004/02/25 06:03:11 nickm Exp $
+# $Id: test.py,v 1.187 2004/03/02 05:40:14 nickm Exp $
 
 """mixminion.tests
 
@@ -233,6 +233,14 @@ class TestCase(unittest.TestCase):
             if len(s1) > min(40, len(s2)+5):
                 s1 = "..."+s1[-(len(s2)+5):]
             self.fail("%r does not end with %r"%(s1,s2))
+    def assertIn(self, item, lst):
+        """Fail unless 'item in lst'"""
+        if not (item in lst):
+            self.fail("%r not in %r"%(item,lst))
+    def assertNotIn(self, item, lst):
+        """Fail unless 'item not in lst'"""
+        if (item in lst):
+            self.fail("%r in %r"%(item,lst))
 
 #----------------------------------------------------------------------
 # Tests for common functionality
@@ -6727,6 +6735,20 @@ class ClientDirectoryTests(TestCase):
             self.assertSameSD(joe[0], p[3])
             neq(p[1].getNickname(), "Alice")
             neq(p[1].getNickname(), "Joe")
+
+            # 2a.1. (Blocking some servers)
+            ks.configure({"Security" : { "BlockServers" : [["Joe"]],
+                                         "BlockEntries" : [["Alice"]],
+                                         "BlockExits" : [["Bob"]] } })
+            for _ in xrange(100):
+                p = ks.getPath([None]*4)
+                eq(4, len(p))
+                p = [ s.getNickname() for s in p ]
+                self.assertNotEquals("Alice", p[0])
+                self.assertNotEquals("Bob", p[3])
+                self.assertNotIn("Joe", p)
+
+            ks.configure({})
             # 2b. With 3 <= servers < length
             ks2 = mixminion.ClientDirectory.ClientDirectory(mix_mktemp())
             ks2.importFromFile(os.path.join(impdirname, "Joe0"))
@@ -6802,7 +6824,7 @@ class ClientDirectoryTests(TestCase):
             else:
                 return paths
 
-        #XXXX007 remove
+        #XXXX008a remove
         mixminion.ClientDirectory.WARN_STAR = 0
 
         paddr = mixminion.ClientDirectory.parseAddress
@@ -7001,6 +7023,7 @@ class ClientDirectoryTests(TestCase):
         ks = mixminion.ClientDirectory.ClientDirectory(dirname)
         ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
         raises(MixError, ks.getServerInfo, "Lola", strict=1)
+        ks.getServerInfo
 
     def testFeatureMaps(self):
         from mixminion.ClientDirectory import compressFeatureMap
@@ -7542,7 +7565,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ModuleTests))
+        suite.addTest(tc(ClientDirectoryTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
