@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.41 2003/01/10 20:12:04 nickm Exp $
+# $Id: ClientMain.py,v 1.42 2003/01/12 04:25:27 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -828,13 +828,19 @@ class MixminionClient:
 
             address -- the results of a parseAddress call
             payload -- the contents of the message to send
-            path1,path2 -- lists of servers."""
+            path1,path2 -- lists of servers.
+
+            DOCDOC payload == None.
+            """
 
         routingType, routingInfo, _ = address.getRouting()
         LOG.info("Generating payload...")
+        suppressTag = 0
+        if payload is None:
+            suppressTag = 1
         msg = mixminion.BuildMessage.buildForwardMessage(
             payload, routingType, routingInfo, servers1, servers2,
-            self.prng)
+            self.prng, suppressTag=suppressTag)
         return msg, servers1[0]
 
     def sendMessages(self, msgList, server):
@@ -1090,11 +1096,12 @@ def runClient(cmd, args):
 
     # XXXX Clean up this ugly control structure.
     if inFile is None and address.getRouting()[0] == DROP_TYPE:
-        payload = ""
+        payload = None
         LOG.info("Sending dummy message")
     else:
         if address.getRouting()[0] == DROP_TYPE:
-            LOG.warn("Sending a payload with a dummy message makes no sense")
+            LOG.error("Cannot send a payload with a DROP message.")
+            sys.exit(0)
 
         if inFile is None:
             inFile = "-"

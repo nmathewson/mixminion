@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.34 2003/01/09 06:28:58 nickm Exp $
+# $Id: BuildMessage.py,v 1.35 2003/01/12 04:25:27 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -20,10 +20,11 @@ __all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
            'buildReplyBlock', 'decodePayload' ]
 
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
-                        paddingPRNG=None):
+                        paddingPRNG=None, suppressTag=0):
     """Construct a forward message.
             payload: The payload to deliver.  Must compress to under 28K-22b.
-                  If it does not, MixError is raised.
+                  If it does not, MixError is raised.  If the payload is
+                  None, 28K of random data is sent.
             exitType: The routing type for the final node. (2 bytes, >=0x100)
             exitInfo: The routing info for the final node, not including tag.
             path1: Sequence of ServerInfo objects for the first leg of the path
@@ -40,19 +41,25 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
     if not path2:
         raise MixError("Second leg of path is empty")
 
-    LOG.debug("Encoding forward message for %s-byte payload",len(payload))
-    LOG.debug("  Using path %s/%s",
-                   [s.getNickname() for s in path1],
-                   [s.getNickname() for s in path2])
-    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
-
     # Compress, pad, and checksum the payload.
-    payload = _encodePayload(payload, 0, paddingPRNG)
+    if payload is not None:
+        payload = _encodePayload(payload, 0, paddingPRNG)
+        LOG.debug("Encoding forward message for %s-byte payload",len(payload))
+    else:
+        payload = paddingPRNG.getBytes(PAYLOAD_LEN)
+        LOG.debug("Generating DROP message with %s bytes", PAYLOAD_LEN)
 
+    LOG.debug("  Using path %s:%s",
+                   ",".join([s.getNickname() for s in path1]),
+                   ",".join([s.getNickname() for s in path2]))
+    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
+    
     # Choose a random decoding tag.
-    tag = _getRandomTag(paddingPRNG)
-    exitInfo = tag + exitInfo
-    return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
+    if not suppressTag:
+        tag = _getRandomTag(paddingPRNG)
+        exitInfo = tag + exitInfo
+    return _buildMessage(payload, exitType, exitInfo, path1, path2,
+                         paddingPRNG)
 
 def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
                                  key, paddingPRNG=None, secretRNG=None):
@@ -375,7 +382,7 @@ def _buildMessage(payload, exitType, exitInfo,
         reply = path2
         path2 = None
     else:
-        if len(exitInfo) < TAG_LEN:
+        if len(exitInfo) < TAG_LEN and exitType != DROP_TYPE:
             raise MixError("Implausibly short exit info: %r"%exitInfo)
         if exitType < MIN_EXIT_TYPE and exitType != DROP_TYPE:
             raise MixError("Invalid exit type: %4x"%exitType)
