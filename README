@@ -1,6 +1,6 @@
-$Id: README,v 1.76 2004/03/18 04:49:59 nickm Exp $
+$Id: README,v 1.77 2004/04/01 15:57:14 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.7rc1, from the Mixminion CVS repository.
+This is Mixminion version 0.0.7rc2, from the Mixminion CVS repository.
 
 CONTENTS:
         I.    Overview
@@ -38,8 +38,27 @@ to trace your message through the system.
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
-NEW IN 0.0.7rc1:
+NEW IN VERSION 0.0.7rc2:
+   - BUGFIXES
+     - Provide more helpful error messages when directory download fails.
+     - Fix a possible crash during message delivery
+     - Fix a race condition with multiple simultaneous processes.
+     - Don't create empty output files when there is no data to write.
+     - Many bugfixes for client-side message reassembly.
 
+   - UI FIXES
+     - All options that asked for a number of hops are now deprecated (with
+       warnings) or disabled (with errors); use -P instead.
+     - Server bandwith spikiness is now configurable.
+     - ConnectionTimout has been renamed (more accurately) to Timeout.
+     - The -i and -o flags are now optional whereever possible, and
+       default to stdin and stdout.
+
+   - DOCUMENTATION
+     - Mixminion now ships with man pages for mixminion(1), mixminiond(8),
+       mixminionrc(5), and mixminiond.conf(5).
+
+NEW IN VERSION 0.0.7rc1:
    - USER FUNCTIONALITY
      - Ability to delete or transmit queued messages to selected mixes,
        instead of all mixes.
@@ -84,8 +103,6 @@ NEW IN 0.0.7rc1:
 <See HISTORY file for changes in earlier versions.>
 
 STILL NOT IN THIS VERSION:
-   - There's a man page, but it's not included yet because I want it to
-     work cross-platform.
    - IP-based restrictions don't work.
    - No support for distributed directories.
    - Other stuff too numerous to mention; see TODO.
@@ -114,9 +131,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version: For Unix-clones, Mac OS X, or Windows with Cygwin
 ---------------------------------------------------------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.7rc1.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.7rc2.tar.gz>
 
-  % cd Mixminion-0.0.7rc1
+  % cd Mixminion-0.0.7rc2
   % make download-openssl
   % make build-openssl
   % make
@@ -183,7 +200,7 @@ The very easy version: For Windows
 
    First, make sure that you're running Win98 or later.
 
-   Download 'Mixminion-0.0.7rc1.win32.zip", and unpack it anywhere you like.
+   Download 'Mixminion-0.0.7rc2.win32.zip", and unpack it anywhere you like.
    It will create a directory named 'mixminion'.
 
    Use mixminion.exe from that directory as your command-line client.
@@ -194,7 +211,7 @@ The slightly harder version: For Windows with Python 2.3
    First, make sure that you have the latest official release of Python 2.3
    installed.  As of 5 Dec 2003, this is 2.3.2.
 
-   Download and run "Mixminion-0.0.7rc1.win32-py2.3.exe".  It will unpack
+   Download and run "Mixminion-0.0.7rc2.win32-py2.3.exe".  It will unpack
    its files into your Python directory.
 
    The script to invoke Mixminion will be stored in the 'Scripts'
@@ -219,8 +236,8 @@ The verbose version: How to build on Windows
 
    Second, download an unpack the Mixminion source distribution.
 
-   Third, get a compiled copy of OpenSSL version 0.9.7 or later (as of 5 Dec
-   2003, the latest stable version is 0.9.7c).  You can either compile it
+   Third, get a compiled copy of OpenSSL version 0.9.7 or later (as of 1 Apr
+   2004, the latest stable version is 0.9.7d).  You can either compile it
    yourself, or use a set of precompiled binaries (such as are available from
    XXXX).  Place the compiled libraries under the "contrib" directory in the
    Mixminion source directory, so that the include files are in
@@ -258,222 +275,8 @@ Just run one of the following command lines:
     OR  mixminion send -t <email address>            (to read from stdin)
     OR  mixminion send -t <email address> -i -       (also reads from stdin)
 
-Mixminion will then take the following steps:
-
-     A) Download and validate the latest server directory.
-        (But only if you haven't done so since midnight GMT.)
-     B) Select a path that ends at a server with SMTP support.
-        (Currently, this defaults to 4 hops.)
-     C) Read your message.
-     D) Construct a Type III Mix packet containing your message.
-        (For more information, see the links at http://www.mixminion.net/)
-     E) Send the message to the first server in your path.
-
-To specify headers, use any of the following options:
-
-      --subject=<subject line to use>
-      --in-reply-to=<in-reply-to line to use>
-      --references=<references line to use>
-      --from=<from address to use>
-
-      All are used verbatim, except for 'from', which the exit server wraps
-      in an envelope to indicate that the address is anonymous.  For example,
-      if you specify --from="Tristero", your recipient will get an email that
-      says something like "From: "[Anon] Tristero" <nobody@remailer>".
-
-To see a list of currently known servers, type:
-
-      mixminion list-servers
-
-      You can change the format and contents of this listing.  For more
-      information, run 'mixminion list-servers --help'.
-
-To force a reload of the server directory, type:
-
-      mixminion send -t <address> [-i <file>] -D yes
-
-To send a message _without_ reloading the directory, type:
-
-      mixminion send -t <address> [-i <file>] -D no
-
-To reload the directory without sending a message, type:
-
-        mixminion send -D yes
-     OR mixminion update-servers
-
-To see whether a server is running, type:
-
-      mixminion ping <servername>
-
-      (WARNING: This command is potentially dangerous, for a number of subtle
-      and not-so-subtle reasons.  It will go away before Mixminion 1.0.)
-
-To specify a path manually, type:
-
-      mixminion send -t <address> [-i <file>] -P <path>
-
-      The argument <path> must be a comma separated list of either:
-          (a) Server nicknames as given by 'list-servers'
-          (b) Paths to files containing server descriptors [more info below]
-
-      For example, to send a message through the servers Foo, Bar, Baz, and
-      Quux, you would type "-P Foo,Bar,Baz,Quux."
-
-      To specify a randomly chosen server, you can include a question mark,
-      like this:
-             -P 'Foo,?,Bar,?'     [Foo, a random server, Bar, and another
-                                   random server]
-
-      You can specify a sequence of N random servers like this:
-             -P 'Foo,*3,Bar'      [Foo, three random servers, then Bar.]
-
-      You can specify a random-length sequence of *about* N servers like
-      this:
-             -P 'Foo,~3,Bar'      [Foo, about three random servers, then Bar.]
-
-      {ADVANCED} By default, the swap point will be halfway through
-      the path (rounding up). To specify a swap point explicitly, use
-      a colon in your path, as in:
-             -P 'Foo,Bar:Baz,Quux'    [Swap headers at server Bar]
-      If you don't know what a swap point is, don't worry. :)
-
-If you want to use the same path by default for all of your messages,
-edit the  ~/.mixminionrc and change the ForwardPath line:
-
-      # By default, use the same servers for entry and exit each time,
-      # with about three randomly chosen servers in the middle.
-      ForwardPath: FavoriteEntry,~3,FavoriteExit
-
-To send a dummy message, specify "drop" instead of an email address, as in:
-
-      mixminion send -t drop
-      mixminion send -t drop -P '*4,Foo'
-
-To queue a message for later transmission, run "mixminion queue" instead of
-"mixminion send":
-
-      mixminion queue -t <address> -i <file> -P <path>
-
-      To see all the packets waiting in the queue:
-
-      mixminion inspect-queue
-
-      To attempt to deliver all messages waiting in the queue:
-
-      mixminion flush
-
-      To attempt to deliver no more than 16 messages:
-
-      mixminion flush -n 16
-
-      To remove messages that have been waiting in the queue for more than
-      seven days:
-
-      mixminion clean-queue -d 7
-
-      (QUEUE NOTE: By default, when "mixminion send" fails to deliver a
-      message, it leaves that message in the queue to be reattempted later.
-      To suppress this behavior, use the "--no-queue" option:
-            mixminion send --no-queue -t <address> -i <file> -P <path>
-      Also, as a final side note, "mixminion send --queue" is a synonym for
-      "mixminion queue".)
-
-To decode a message you have received, type:
-
-      mixminion decode -i <input-file> -o <output-file>.
-
-      Or, to send output to stdout:
-
-      mixminion decode -i <input-file>
-
-      (When you receive a message with non-printing characters via email, it
-      will be encoded in base64 before delivery.  When you receive a reply,
-      its contents will be encrypted.  The "mixminion decode" command
-      extracts the original text from either kind of message as best it can.)
-
-To generate a reply block, type:
-
-      mixminion generate-surb -t <your-address>
-
-      To send the reply block to a file, instead of to stdout:
-
-      mixminion generate-surb -t <your-address> -o <filename>
-
-      If you specify a "SURBAddress" field in ~/.mixminionrc, you may
-      omit the target address:
-
-      mixminion generate-surb
-
-      Also, you can control path selection in the same way as with
-      sending messages:
-
-      mixminion generate-surb -P '*3'      (a 3-hop path)
-      mixminion generate-surb -P '~3'      (an about-3-hop path)
-      mixminion generate-surb -P '*3,Foo'  (a 4-hop path ending with foo)
-      mixminion generate-surb -P 'Bar,*3'  (a 4-hop path starting with bar)
-
-      You can use the '-n' option to generate many reply blocks at once:
-
-      mixminion generate-surb -n 100      (generate 100 reply blocks)
-
-      To save space, you can specify binary (as opposed to text) encoding
-      for your reply blocks:
-
-      mixminion generate-surb -b -o <filename>
-
-      By default, the client will choose servers to make sure that your
-      reply blocks will still function for 7 days.  To choose a different
-      lifetime:
-         mixminion generate-surb --lifetime=1           (1 day)
-      Note that if you choose an overlong lifetime, there may not be enough
-      servers whose keys will be valid for the entire period.
-
-      If you maintain multiple pseudonymous identities, to avoid a
-      SURB-swapping attack, you should use the --identity option so that
-      you can later see which messages were to sent to which SURB identity.
-         mixminion generate-surb --identity=alice -o alices_surb
-         mixminion generate-surb --identity=bob   -o bobs_surb
-
-Once you have a reply block for a user, you can send reply messages by
-typing:
-
-      mixminion send -R <reply-block-filename> -i <input-filename>
-
-      The other options to 'send' and 'pool' still apply; the reply block
-      takes the place of the destination address:
-         mixminion send -R <reply-block>           (Read from stdin)
-         mixminion send -R <reply-block> -D yes    (Reload directory)
-         mixminion send -R <reply-block> -P '*4'   (Use 4 hops before reply.)
-         mixminion send -R <reply-block> -P 'Z,*3' (Start with server "Z".)
-         mixminion pool -R <reply-block>           (Pool the message.)
-
-      IMPORTANT: Mixminion reply blocks can only be used once!  (Thus,
-      SURB="Single Use Reply Block".)  The program will remember which
-      reply blocks it has used in the past, but if you give a single reply
-      block to 2 users, it will only work for one of them, once.
-
-      As a convenience, if you have a file containing many reply blocks,
-      you can use it with '-R': the client will choose the first reply
-      block from the file which has not expired, and which you have not
-      yet used.
-
-      To inspect the reply blocks in a file, you can run:
-         mixminion inspect-surbs <filename>
-
-If you need to use a proxy server to use the web you can specify it using the
-http_proxy environment variable:
-
-      export http_proxy=http://proxy:3128/
-      mixminion send -D yes
-
-If you have a very large message to send, and the recipient also has
-mixminion software, you can use the "--deliver-fragments" option to prevent
-the last server in the chain from trying to reassemble the message.  (This is
-automatic when sending a reply.)  Later, when the recipient runs "mixminion
-decode" to retrieve the fragment contents, the fragments will be stored in an
-internal pool until enough have been retrieved to reassemble the message.
-Clients can manipulate this fragment pool with "mixminion list-fragments",
-"mixminion purge-fragments", and "mixminion reassemble".
+For more options, see the manual page. (Type "man mixminion" on any Unix-like
+computer, or see the latest version at http://mixminion.net/.)
 
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 ========================================
@@ -487,7 +290,7 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
 3) Run your server for the first time:
 
-        "mixminion server-start -f <path to mixminiond.conf>"
+        "mixminiond start -f <path to mixminiond.conf>"
 
     (The -f flag and path are only necessary if you placed the
     configuration file somewhere other than ~/.mixminiond.conf,
@@ -534,10 +337,10 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
    {This step will be more automated in later versions.}
 
 To shut down a server:
-    mixminion server-stop [-f configfile]
+    mixminiond stop [-f configfile]
 
 To make a server reload its configuration:
-    mixminion server-reload [-f configfile]
+    mixminiond reload [-f configfile]
 
     (Right now, this just closes and re-opens the log files.)
 
@@ -546,7 +349,7 @@ receives and other interesting statistics.  Ordinarily, it aggregates these
 totals and flushes a report to disk at a configurable interval.  If you want
 to see statistics in the _current_ interval, run:
 
-    mixminion server-stats [-f configfile]
+    mixminiond stats [-f configfile]
 
 
 VII. HOW TO REPORT BUGS AND SUGGEST NEW FEATURES

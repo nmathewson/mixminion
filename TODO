@@ -94,7 +94,7 @@ For 0.0.7rc2:
                 o Add pages for 'mixminiond' and 'mixminion.conf' and
                   'mixminiond.conf'.
         o Disable -H/--hops; give good errors on PathLength, SURBPathLength
-        - Fix weasel's prepend-newline bug.
+        o Fix weasel's prepend-newline bug.
 
 
 For 0.0.7final:
