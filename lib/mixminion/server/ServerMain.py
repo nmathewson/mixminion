@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.63 2003/05/29 05:47:32 nickm Exp $
+# $Id: ServerMain.py,v 1.64 2003/05/29 23:15:04 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -738,6 +738,7 @@ class MixminionServer(_Scheduler):
                 if self.config['DirectoryServers'].get('Publish'):
                     self.keyring.publishKeys()
                 self.scheduleOnce(self.keyring.getNextKeyRotation(),
+                                  "KEY_GEN",
                                   self.generateKeys)
             finally:
                 self.keyring.unlock()
