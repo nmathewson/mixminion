@@ -1,4 +1,4 @@
-$Id: README,v 1.55 2003/08/31 19:22:21 nickm Exp $
+$Id: README,v 1.56 2003/09/01 17:53:02 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.5alpha, from the Mixminion CVS repository.
 
@@ -197,6 +197,18 @@ Mixminion will then take the following steps:
         (For more information, see the links at http://www.mixminion.net/)
      E) Send the message to the first server in your path.
 
+To specify headers, use any of the following options:
+
+      --subject=<subject line to use>
+      --in-reply-to=<in-reply-to line to use>
+      --references=<references line to use>
+      --from=<from address to use>
+
+      All are used verbatim, except for 'from', which the exit server wraps
+      in an envelope to indicate that the address is anonymous.  For example,
+      if you specify --from="Tristero", your recipient will get an email that
+      says something like "From: "[Anon] Tristero" <nobody@remailer>".
+
 To see a list of currently known servers, type:
 
       mixminion list-servers
@@ -219,13 +231,13 @@ To see whether a server is running, type:
       mixminion ping <servername>
 
       (WARNING: This command is potentially dangerous, for a number of subtle
-      and not-so-subtle reasons.  It will go away before mixminion 1.0.)
+      and not-so-subtle reasons.  It will go away before Mixminion 1.0.)
 
 To force a path of a given length, type:
 
       mixminion send -t <address> [-i <file>] -H <number of hops>
 
-      You can change the default by editing ~/.mixminionrc
+      You can change the default number of hops by editing ~/.mixminionrc
 
 To specify a path manually, type:
 
