@@ -1190,7 +1190,7 @@ def runClient(cmd, args):
                                       inReplyTo=h_irt, references=h_references)
     except MixError, e:
         raise UIError("Invalid headers: %s"%e)
-    if no_ss_fragments:
+    if no_ss_fragment:
         if headerStr != '\n':
             raise UIError("Can't use --deliver-fragments with message headers")
         else:
