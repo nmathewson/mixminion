@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.52 2003/07/13 03:45:34 nickm Exp $
+# $Id: Packet.py,v 1.53 2003/07/28 01:02:33 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -24,7 +24,9 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'parseMBOXInfo', 'parseMessage', 'parseMessageAndHeaders',
             'parsePayload', 'parseReplyBlock',
             'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
-            'parseTextEncodedMessages', 'parseTextReplyBlocks', 'uncompressData'            ]
+            'parseTextEncodedMessages', 'parseTextReplyBlocks', 
+            'uncompressData'            
+            ]
 
 import binascii
 import re
@@ -289,6 +291,7 @@ FRAGMENT_UNPACK_PATTERN = "!H%ds%dsL" % (DIGEST_LEN, FRAGMENT_MESSAGEID_LEN)
 class _Payload:
     pass
 
+
 class SingletonPayload(_Payload):
     """Represents the payload for a standalone mixminion message.
        Fields:  size, hash, data.  (Note that data is padded.)"""
@@ -329,6 +332,11 @@ class FragmentPayload(_Payload):
         self.msgLen = msgLen
         self.data = data
 
+    def computeHash(self):
+        self.hash = "X"*DIGEST_LEN
+        p = self.pack()
+        self.hash = sha1("XXXX")
+
     def isSingleton(self):
         """Return false; not a singleton"""
         return 0
@@ -345,6 +353,9 @@ class FragmentPayload(_Payload):
         header = struct.pack(FRAGMENT_UNPACK_PATTERN, idx, self.hash,
                              self.msgID, self.msgLen)
         return "%s%s" % (header, self.data)
+
+    
+
 
 #----------------------------------------------------------------------
 # REPLY BLOCKS

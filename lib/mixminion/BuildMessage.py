@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.50 2003/07/13 16:43:35 arma Exp $
+# $Id: BuildMessage.py,v 1.51 2003/07/28 01:02:33 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -13,6 +13,7 @@ import types
 import mixminion.Crypto as Crypto
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG, UIError
+import mixminion._minionlib
 
 if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
@@ -598,6 +599,62 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
 
 #----------------------------------------------------------------------
 # Payload-related helpers
+
+MAX_FRAGMENTS_PER_CHUNK = 32
+EXP_FACTOR = 1.33333333333
+
+def _encodePayloads(message, overhead, paddingPRNG):
+    assert overhead in (0, ENC_FWD_OVERHEAD)
+    origLength = len(message)
+    payload = compress(message)
+    length = len(payload)
+
+    if length > 1024 and length*20 <= origLength:
+        LOG.warn("Message is very compressible and will look like a zlib bomb")
+
+    paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
+
+    # If the compressed payload fits in 28K, we're set.
+    if paddingLen >= 0:
+        # We pad the payload, and construct a new SingletonPayload,
+        # including this payload's size and checksum.
+        payload += paddingPRNG.getBytes(paddingLen)
+        return [SingletonPayload(length, Crypto.sha1(payload), payload).pack()]
+
+    # XXXX005 Whiten payload!!!
+
+    fragCapacity = PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - overhead
+    minFragments = ceilDiv(length, fragCapacity)
+    k = 2
+    while k < minFragments and k < 16:
+        k *= 2
+    nChunks = ceilDiv(minFragments, k)
+    paddingLen = nChunks*fragCapacity*k
+    payload += paddingPRNG.getBytes(paddingLen)
+    chunks = []
+    for i in xrange(nChunks):
+        chunk[i] = payload[fragCapacity*k*i:fragCapacity*k*(i+1)]
+    n = math.ceil(EXP_FACTOR*k)
+    fragments = []
+    fec = getFEC(k,n)
+    messageid = getCommonPRNG().getBytes(20)
+    
+    idx = 0
+    for i in xrange(nChunks):
+        blocks = []
+        for j in xrange(k):
+            blocks[j] = chunks[i][j*fragCapacity:(j+1)*fragCapacity]
+        chunks[i] = None
+        for j in xrange(n):
+            frag = fec.encode(j, blocks)
+            fragments.append(idx, Crypto.sha1())
+
+            idx += 1
+
+
+        
+    
+
 
 def _encodePayload(payload, overhead, paddingPRNG):
     """Helper: compress a payload, pad it, and add extra fields (size and hash)
