@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.24 2005/01/01 21:25:28 nickm Exp $
+# $Id: Pinger.py,v 1.25 2005/01/01 21:56:03 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -946,14 +946,15 @@ class PingLog:
 
         isInteresting = ((nSent < 3 and nReceived == 0) or
                          (product and frac <= product*0.3))
-        if isInteresting:#XXXX008 this is too verbose for a release version.
-            if nSent < 3 and nReceived == 0:
-                LOG.trace("%s,%s is interesting because %d were sent and %d were received",
-                          s1,s2, nSent, nReceived)
-            elif product and frac <= product*0.3:
-                LOG.trace("%s,%s is interesting because its reliability is %s and we expected a reliability of %s", s1,s2,frac, product)
-            else:
-                LOG.trace("I have no idea why %s,%s is interesting.",s1,s2)
+        if 0:
+            if isInteresting:
+                if nSent < 3 and nReceived == 0:
+                    LOG.trace("%s,%s is interesting because %d were sent and %d were received",
+                              s1,s2, nSent, nReceived)
+                elif product and frac <= product*0.3:
+                    LOG.trace("%s,%s is interesting because its reliability is %s and we expected a reliability of %s", s1,s2,frac, product)
+                else:
+                    LOG.trace("I have no idea why %s,%s is interesting.",s1,s2)
 
         return nSent, nReceived, isBroken, isInteresting
 
@@ -1237,17 +1238,23 @@ class _PingScheduler:
         path = tuple([ p.lower() for p in path ])
 
         interval = self._getPingInterval(path)
-        t = periodStart + self._getPerturbation(path, periodStart, interval)
+        perturbation = self._getPerturbation(path, periodStart, interval)
+        t = periodStart + perturbation
         t += interval * ceilDiv(now-t, interval)
         if t>periodEnd:
-            t = periodEnd+self._getPerturbation(path,
-                                                periodEnd,
-                                                interval)
+            periodStart = periodEnd
+            perturbation = self._getPerturbation(path,
+                                                 periodStart,
+                                                 interval)
+            t = periodStart+perturbation
+
         oldTime = self.nextPingTime.get(path, None)
         self.nextPingTime[path] = t
         if oldTime != t:
             LOG.trace("Scheduling %d-hop ping for %s at %s", len(path),
                       ",".join(path), formatTime(t,1))
+            #LOG.trace("(Period starts at %s; period is %s days; interval is %s sec; perturbation is %s sec)",
+            #          formatTime(periodStart,1), self._period_length/ONE_DAY, interval, perturbation)
         return t
     def _getPerturbation(self, path, periodStart, interval):
         """Return the offset to be used for the ping intervals for 'path'
@@ -1353,10 +1360,12 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
                 self._schedulePing((n1,n2),now)
 
     def _getPingInterval(self, path):
-        p = "".join([ s.lower() for s in path])
+        p = ",".join([ s.lower() for s in path])
         if self.pingLog._interestingChains.get(p, 0):
+            #LOG.trace("While scheduling, I decided that %s was interesting",p)
             return self._interesting_interval
         else:
+            #LOG.trace("While scheduling, I decided that %s was dull",p)
             return self._dull_interval
 
     def sendPings(self, now=None):
