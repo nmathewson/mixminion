@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
+# $Id: ServerMain.py,v 1.3 2002/12/15 04:15:38 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -25,7 +25,7 @@ import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 
 from mixminion.Common import LOG, MixError, MixFatalError, ceilDiv, \
-     formatBase64, formatTime
+     formatBase64, formatTime, waitForChildren
 
 class IncomingQueue(mixminion.server.Queue.DeliveryQueue):
     """A DeliveryQueue to accept messages from incoming MMTP connections,
@@ -256,6 +256,8 @@ class MixminionServer:
 		# Process any new messages that have come in, placing them
 		# into the mix pool.
 		self.incomingQueue.sendReadyMessages()
+                # Prevent child processes from turning into zombies.
+                waitForChildren(1)
 
 	    # Before we mix, we need to log the hashes to avoid replays.
 	    # FFFF We need to recover on server failure.

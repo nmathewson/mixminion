@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.32 2002/12/12 19:56:46 nickm Exp $
+# $Id: Common.py,v 1.33 2002/12/15 04:15:37 nickm Exp $
 
 """mixminion.Common
 
@@ -312,6 +312,7 @@ class _FileLogHandler:
 	if self.file is None:
 	    return
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
+        self.file.flush()
 
 class _ConsoleLogHandler:
     """Helper class for logging: directs all log messages to a stderr-like
@@ -567,7 +568,7 @@ def onTerminate(fn):
        this process next receives a SIGTERM."""
     terminateHooks.append(fn)
 
-def waitForChildren():
+def waitForChildren(onceOnly=0):
     """Wait until all subprocesses have finished.  Useful for testing."""
     while 1:
         try:
@@ -577,6 +578,8 @@ def waitForChildren():
             break
         except e:
             print e, repr(e), e.__class__
+        if onceOnly:
+            return
 
 def _sigChldHandler(signal_num, _):
     '''(Signal handler for SIGCHLD)'''
