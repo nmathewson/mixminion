@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.50 2003/09/04 16:11:22 nickm Exp $
+# $Id: MMTPServer.py,v 1.51 2003/09/28 04:12:29 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -33,6 +33,7 @@ from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN
 from mixminion.MMTPClient import PeerCertificateCache
 import mixminion.server.EventStats as EventStats
+from mixminion.Filestore import CorruptedFile
 
 __all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
             'MMTPClientConnection' ]
@@ -928,11 +929,11 @@ class MMTPClientConnection(SimpleTLSConnection):
 
     def beginNextMessage(self):
         """Start writing a message to the connection."""
-        if not self.messageList:
+        self._getNextMessage()
+        if not self._curMessage:
             self.shutdown(0)
             return
-        
-        self._getNextMessage()
+
         msg = self._curMessage
         if msg == 'RENEGOTIATE':
             self.finished = self.beginNextMessage
@@ -958,14 +959,21 @@ class MMTPClientConnection(SimpleTLSConnection):
     def _getNextMessage(self):
         """Helper function: pull the next _curHandle, _curMessage pair from
            self.messageList."""
-        m = self.messageList[0]
-        del self.messageList[0]
-        if hasattr(m, 'getContents'):
-            self._curHandle = m
-            self._curMessage = m.getContents()
-        else:
-            self._curHandle = None
-            self._curMessage = m
+        while self.messageList:
+            m = self.messageList[0]
+            del self.messageList[0]
+            if hasattr(m, 'getContents'):
+                self._curHandle = m
+                try:
+                    self._curMessage = m.getContents()
+                except CorruptedFile:
+                    pass
+                return
+            else:
+                self._curHandle = None
+                self._curMessage = m
+                return
+        self._curHandle = self._curMessage = None
 
     def __sentMessage(self):
         """Called when we're done sending a message.  Begins reading the

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.92 2003/08/31 19:29:29 nickm Exp $
+# $Id: ServerMain.py,v 1.93 2003/09/28 04:12:29 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -257,7 +257,10 @@ class MixPool:
                   self.queue.count(), len(handles))
 
         for h in handles:
-            packet = self.queue.getObject(h)
+            try:
+                packet = self.queue.getObject(h)
+            except mixminion.Filestore.CorruptedFile:
+                continue
             if packet.isDelivery():
                 h2 = self.moduleManager.queueDecodedMessage(packet)
                 if h2:
@@ -315,9 +318,12 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         # Map from addr -> [ (handle, msg) ... ]
         msgs = {}
         for pending in msgList:
-            addr = pending.getAddress()
-            if addr is None:
-                addr = pending.getMessage().getAddress()
+            try:
+                addr = pending.getAddress()
+                if addr is None:
+                    addr = pending.getMessage().getAddress()
+            except mixminion.Filestore.CorruptedFile:
+                continue
             msgs.setdefault(addr, []).append(pending)
         for addr, messages in msgs.items():
             if self.addr[:2] == (addr.ip, addr.port):

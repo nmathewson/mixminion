@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.55 2003/09/12 15:52:46 nickm Exp $
+# $Id: Modules.py,v 1.56 2003/09/28 04:12:29 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -197,7 +197,10 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
             try:
                 dh = handle.getHandle() # display handle
                 EventStats.log.attemptedDelivery() #FFFF
-                packet = handle.getMessage()
+                try:
+                    packet = handle.getMessage()
+                except mixminion.Filestore.CorruptedFile:
+                    continue
                 result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
                     LOG.debug("Successfully delivered message MOD:%s", dh)

@@ -1215,7 +1215,8 @@ class ClientQueue:
     def getPacket(self, handle):
         """Given a handle, return a 3-tuple of the corresponding
            32K packet, IPV4Info, and time of first queueing.  (The time
-           is rounded down to the closest midnight GMT.)"""
+           is rounded down to the closest midnight GMT.)  May raise 
+           CorruptedFile."""
         obj = self.store.getObject(handle)
         try:
             magic, message, routing, when = obj
@@ -1247,7 +1248,10 @@ class ClientQueue:
             return
         timesByServer = {}
         for h in handles:
-            _, routing, when = self.getPacket(h)
+            try:
+                _, routing, when = self.getPacket(h)
+            except mixminion.Filestore.CorruptedFile:
+                continue
             timesByServer.setdefault(routing, []).append(when)
         for s in timesByServer.keys():
             count = len(timesByServer[s])
@@ -1266,7 +1270,10 @@ class ClientQueue:
         cutoff = now - maxAge
         remove = []
         for h in self.getHandles():
-            when = self.getPacket(h)[2]
+            try:
+                when = self.getPacket(h)[2]
+            except mixminion.Filestore.CorruptedFile:
+                continue
             if when < cutoff:
                 remove.append(h)
         LOG.info("Removing %s old messages from queue", len(remove))
@@ -1524,7 +1531,10 @@ class MixminionClient:
             LOG.info("Flushing %s", len(handles))
             messagesByServer = {}
             for h in handles:
-                message, routing, _ = self.queue.getPacket(h)
+                try:
+                    message, routing, _ = self.queue.getPacket(h)
+                except mixminion.Filestore.CorruptedFile: 
+                    continue
                 messagesByServer.setdefault(routing, []).append((message, h))
         finally:
             clientUnlock()
