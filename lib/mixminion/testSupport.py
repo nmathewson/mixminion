@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.24 2004/01/03 07:35:23 nickm Exp $
+# $Id: testSupport.py,v 1.25 2004/03/06 05:33:01 nickm Exp $
 
 """mixminion.testSupport
 
@@ -212,6 +212,8 @@ def deltree(*dirs):
                     os.unlink(loc)
             #ld = os.listdir(d)
             #if ld: print "remaining in %s: %s" % (d, ld)
+            if os.listdir(d):
+                print "os.listdir(%r)==(%r)"%(d,os.listdir(d))
             os.rmdir(d)
         elif os.path.exists(d):
             #print "Unlinking", d
