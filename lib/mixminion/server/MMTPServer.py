@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.47 2003/08/21 21:34:03 nickm Exp $
+# $Id: MMTPServer.py,v 1.48 2003/08/25 21:05:34 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -43,7 +43,8 @@ debug = LOG.info
 warn = LOG.warn
 error = LOG.error
 
-#DOCDOC
+# For windows -- list of errno values that we can expect when blocking IO
+# blocks on a connect.
 IN_PROGRESS_ERRNOS = [ getattr(errno, ename) 
    for ename in [ "EINPROGRESS", "WSAEWOULDBLOCK"]
    if hasattr(errno,ename) ]
@@ -81,7 +82,9 @@ class AsyncServer:
         writefds = self.writers.keys()
  
         if not (readfds or writefds):
-            #DOCDOC
+            # Windows 'select' doesn't timeout properly when we aren't
+            # selecting on any FDs.  This should never happen to us,
+            # but we'll check for it anyway.
             time.sleep(timeout)
             return
    
@@ -352,9 +355,21 @@ class SimpleTLSConnection(Connection):
         # needs to be retried till the other guy sends an 'ack'
         # back... but we don't want to keep retrying indefinitely, or
         # else we can deadlock on a connection from ourself to
-        # ourself.
+        # ourself.  Thus, we do the following:
+        #
 
-        #DOCDOC this insanity.
+        # We try to shutdown.  This either acknowledges the other
+        # side's attempt to close the stream, or sends a request to
+        # close the stream.
+        #      - If OpenSSL says we're finished, great!
+        #      - If not, and we've already tried to shutdown, then freak out;
+        #        that's not supposed to happen.
+        #      - If we're not finished, and this *is* our first time trying,
+        #        then start *reading* from the incoming socket.  We should
+        #        get an acknowledgement for our close request soon when read
+        #        returns a 0.  Then, calling shutdown again should mean we're
+        #        done.
+
         while 1:
             done = self.__con.shutdown() # may throw want*
             if not done and self.__awaitingShutdown:
@@ -377,8 +392,10 @@ class SimpleTLSConnection(Connection):
                 raise _ml.TLSWantRead()
 
     def __readTooMuch(self):
-        """DOCDOC"""
-        print "AAAARGH."
+        """Helper function -- called if we read too much data while we're
+           shutting down."""
+        LOG.error("Read over 128 bytes of unexpected data from closing "
+                  "connection to %s", self.address)
         self.__sock.close()
         self.state = None
 
@@ -1013,6 +1030,8 @@ class MMTPClientConnection(SimpleTLSConnection):
 
     def shutdown(self, err=0, retriable=0):
         self.active = 0
+        if err and self.finished == self.__setupFinished:
+            EventStats.log.failedConnect()
         SimpleTLSConnection.shutdown(self, err=err, retriable=retriable)
 
     def remove(self):

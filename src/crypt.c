@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.28 2003/08/21 21:32:30 nickm Exp $ */
+/* $Id: crypt.c,v 1.29 2003/08/25 21:05:34 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -292,7 +292,8 @@ mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
 #ifdef MS_WINDOWS
 const char mm_win32_openssl_seed__doc__[]=
   "openssl_seed_win32()\n\n"
-  "DOCDOC\n";
+  "Windows-only function: seed OpenSSL's random number generator baswed on\n"
+  "the current contents of the screen.\n";
 
 PyObject *
 mm_win32_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
@@ -311,10 +312,13 @@ mm_win32_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
         return Py_None;
 }
 
-/* DOCDOC */
+/* Flag: set to true if the variable 'provider' has been set. */
 static int provider_set = 0;
+/* A global handle to a crypto context. */
 static HCRYPTPROV provider;
 
+/* Helper method: return a handle for a Windows Crypto API crypto provider,
+ * initializing it if necessary. */
 static HCRYPTPROV getProvider()
 {
         if (provider_set)
@@ -343,7 +347,8 @@ static HCRYPTPROV getProvider()
 
 const char mm_win32_get_random_bytes__doc__[]=
   "win32_get_random_bytes(n)\n\n"
-  "DOCDOC";
+  "Return n random bytes, using Windows's internal supposedly secure random\n"
+  "number generator.  \n";
 
 PyObject *
 mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
@@ -392,12 +397,13 @@ mm_win32_get_random_bytes(PyObject *self, PyObject *args, PyObject *kwdict)
 #endif
 
 const char mm_openssl_rand__doc__[]=
-  "DOCDOC\n";
+  "openssl_rand(n)\n\n"
+  "Return n random bytes from OpenSSL's random number generator.\n";
 
 PyObject *
 mm_openssl_rand(PyObject *self, PyObject *args, PyObject *kwdict)
 {
-        static char *kwlist[] = { "bytes", NULL };
+        static char *kwlist[] = { "n", NULL };
         int bytes;
         PyObject *result;
         int r;
@@ -407,7 +413,7 @@ mm_openssl_rand(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
 
         if (bytes < 0) {
-                TYPE_ERR("bytes must be >= 0");
+                TYPE_ERR("n must be >= 0");
         }
 
         if (!(result = PyString_FromStringAndSize(NULL,bytes))) {

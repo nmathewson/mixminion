@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.7 2003/08/21 21:34:02 nickm Exp $
+# $Id: Filestore.py,v 1.8 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.Filestore
 
@@ -157,7 +157,8 @@ class BaseStore:
         return hs
 
     def messageExists(self, handle):
-        """DOCDOC"""
+        """Return true iff this filestore contains a message with the handle
+           'handle'."""
         return os.path.exists(os.path.join(self.dir, "msg_"+handle))
 
     def removeMessage(self, handle):

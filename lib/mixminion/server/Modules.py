@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.50 2003/08/21 21:34:03 nickm Exp $
+# $Id: Modules.py,v 1.51 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -128,10 +128,10 @@ class DeliveryModule:
         raise NotImplementedError("processMessage")
 
     def sync(self):
-        """DOCDOC"""
+        """Flush all pending data held by this module to disk."""
 
     def close(self):
-        """DOCDOC"""
+        """Release all resources held by this module."""
         pass
 
 class ImmediateDeliveryQueue:
@@ -459,19 +459,20 @@ class ModuleManager:
             queue.sendReadyMessages()
 
     def getServerInfoBlocks(self):
-        """DOCDOC"""
+        """Return a list of strings that should be appended to the server
+           descriptor of this server, based on the configuration of its
+           modules.
+        """
         return [ m.getServerInfoBlock() for m in self.modules
                        if self.enabled.get(m.getName(),0) ]
 
     def close(self):
-        """DOCDOC"""
-        #XXXX005 this method must be called on shutdown!
+        """Release all resources held by all modules."""
         for module in self.enabled:
             module.close()
 
     def sync(self):
-        """DOCDOC"""
-        #XXXX005 this method must be called on reset!
+        """Flush all state held by all modules to disk."""
         for module in self.enabled:
             module.sync()
 
@@ -591,7 +592,12 @@ class FragmentDeliveryQueue:
         
 
 class _FragmentedDeliveryMessage:
+    """Helper class: obeys the interface of mixminion.server.PacketHandler.
+       DeliveryMessage, but contains a long message reassembled from
+       fragments."""
     def __init__(self, ssfm):
+        """Create a _FragmentedDeliveryMessage object from an instance of
+           mixminion.Packet.ServerSideFragmentedMessage."""
         self.m = ssfm
         self.contents = None
     def __getstate__(self):
@@ -624,7 +630,6 @@ class _FragmentedDeliveryMessage:
         else:
             return encodeBase64(self.contents)
     def getHeaders(self):
-        """DOCDOC"""
         if self.contents is None:
             self.decode()
         assert self.headers is not None
@@ -779,11 +784,24 @@ class EmailAddressSet:
 
 #----------------------------------------------------------------------
 class MailBase:
-    """DOCDOC"""
+    """Implementation class: contains code shared by modules that send email
+       messages (such as mbox and smtp)."""
+    ## Fields: (to be set by subclass)
+    # subject: Default subject to use for outgoing mail, if none is given
+    #    in the message.
+    # fromTag: String to prepend to from name.
+    # returnAddress: Return address for mail; should be an rfc822-style 
+    #    mailbox.
+    # header: Text that should be appended after the headers and before
+    #    the message itself.  It must include the empty line that separates
+    #    headers from body.
+    # maxMessageSize: Largest allowable size (after decompression, before
+    #   base64) for outgoing messages.
     def _formatEmailMessage(self, address, packet):
-        """DOCDOC"""
-        #DOCDOC implied fields
-        #   subject, fromTag, returnAddress, header, maxMessageSize
+        """Given a RFC822 mailbox (delivery address), and an instance of
+           DeliveryMessage, return a string containing a message to be sent
+           to a recipient, adding headers as needed.
+        """
 
         if len(packet.getContents()) > self.maxMessageSize:
             LOG.warn("Dropping over-long message (message is %sb; max is %sb)",
@@ -844,8 +862,6 @@ class MBoxModule(DeliveryModule, MailBase):
         return self.retrySchedule
 
     def getConfigSyntax(self):
-        # Validate returnaddress! XXXX005
-
         # FFFF There should be some way to say that fields are required
         # FFFF if the module is enabled.
         return { "Delivery/MBOX" :
@@ -972,8 +988,7 @@ and you will be removed.""" %(self.nickname, self.addr, self.contact)
 
 #----------------------------------------------------------------------
 class SMTPModule(DeliveryModule, MailBase):
-    """Placeholder for real exit node implementation.
-       For now, use MixmasterSMTPModule DOCDOC"""
+    """Common base class for SMTP mail."""
     def __init__(self):
         DeliveryModule.__init__(self)
     def getServerInfoBlock(self):
@@ -1003,8 +1018,6 @@ class DirectSMTPModule(SMTPModule):
         return self.retrySchedule
 
     def getConfigSyntax(self):
-        # Validate returnaddress! XXXX005
-        
         return { "Delivery/SMTP" :
                  { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
                    'Retry': ('ALLOW', _parseIntervalList,
@@ -1205,7 +1218,8 @@ class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
 
 MAIL_HEADERS = ["SUBJECT", "FROM", "IN-REPLY-TO", "REFERENCES"]
 def checkMailHeaders(headers):
-    """DOCDOC"""
+    """Check whether the decoded headers in a provided dict are permissible
+       for an outgoing email message.  Raise ParseError if they are not."""
     for k in headers.keys():
         if k not in MAIL_HEADERS:
             #XXXX this should raise parse error instead.

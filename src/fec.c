@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.9 2003/08/21 21:32:30 nickm Exp $ */ 
+/* $Id: fec.c,v 1.10 2003/08/25 21:05:35 nickm Exp $ */ 
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -780,7 +780,7 @@ fec_decode(struct fec_parms *code, gf *pkt[], int index[], int sz)
     return 0;
 }
 
-/* ======= PYTHON INTERFACE ====== */
+/* ======= ORIGINAL FEC CODE ENDS; PYTHON INTERFACE BEGINS ====== */
 
 char mm_FECError__doc__[] =
   "mixminion._minionlib.FECError\n\n"
@@ -797,7 +797,10 @@ extern PyTypeObject mm_FEC_Type;
 
 /* **************** */
 
-const char mm_FEC_generate__doc__[] = "DOCDOC";
+const char mm_FEC_generate__doc__[] = 
+ "fec_generate(k,n)\n\n"
+ "Return a FEC object to implement k-out-of-n erasure correcting codes, for\n"
+ "the provided values of k and n.\n";
 
 PyObject *
 mm_FEC_generate(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -840,7 +843,9 @@ mm_FEC_dealloc(mm_FEC *self)
         PyObject_DEL(self);
 }
 
-static const char mm_FEC_getParameters__doc__[] = "DOCDOC";
+static const char mm_FEC_getParameters__doc__[] = 
+ "fec.getParameters() -> (k,n)\n\n"
+ "Return a 2-tuple of the k and n parameters for this FEC object.\n";
 
 static PyObject*
 mm_FEC_getParameters(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -855,7 +860,11 @@ mm_FEC_getParameters(PyObject *self, PyObject *args, PyObject *kwargs)
         return Py_BuildValue("ii", fec->k, fec->n);
 }
 
-static const char mm_FEC_encode__doc__[] = "DOCDOC";
+static const char mm_FEC_encode__doc__[] = 
+"fec.encode(idx,[blocks...])\n\n"
+"Encode a single block of FEC-encoded data.  'idx' is the index of the block\n"
+"to return (0<=idx<N), and 'blocks' is a list of K strings of equal length,\n"
+"containing the original string to encode.";
 
 static PyObject *
 mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -952,7 +961,13 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
 	return NULL;
 }
 
-static const char mm_FEC_decode__doc__[] = "DOCDOC";
+static const char mm_FEC_decode__doc__[] = 
+ "fec.decode([ (idx1,block1), (idx2, block2), ...])\n\n"
+ "Recover a FEC-encoded string.  This methods expects as input a list of\n"
+ "2-tuples, each containing the index (0<=idx<=N) of an encoded block, and\n"
+ "the encoded block itself.  There must be exactly K elements in the list,\n"
+ "and their indices must be distinct.  Returns a list of K strings, which\n"
+ "when concatenated yields the original FEC-encoded string.\n";
 
 static PyObject *
 mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -1099,7 +1114,10 @@ mm_FEC_getattr(PyObject *self, char *name)
         return Py_FindMethod(mm_FEC_methods, self, name);
 }
 
-static const char mm_FEC_Type__doc__[] = "DOCDOC";
+static const char mm_FEC_Type__doc__[] = 
+ "Type to implement forward error correction based on Vandermonde matrices.\n"
+ "The algorithm is from Luigi Rizzo; the underlying code is copyright\n"
+ "1997-1998 Luigi Rizzo; see fec.c for more information.\n";
 
 PyTypeObject mm_FEC_Type = {
 	PyObject_HEAD_INIT(/*&PyType_Type*/ 0)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.55 2003/08/21 21:34:02 nickm Exp $
+# $Id: BuildMessage.py,v 1.56 2003/08/25 21:05:33 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -34,7 +34,9 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
               overhead: number of bytes to omit from each payload,
                         given the type ofthe message encoding.
                         (0 or ENC_FWD_OVERHEAD)
-              uncompressedFragmentPrefix: DOCDOC 
+              uncompressedFragmentPrefix: If we fragment the message,
+                we add this string to the message after compression but
+                before whitening and fragmentation.
               paddingPRNG: generator for padding.
 
        Note: If multiple strings are returned, be sure to shuffle them
@@ -61,14 +63,17 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
         p.computeHash()
         return [ p.pack() ]
 
+    # Okay, we need fo fragment the message.  First, add the prefix if needed.
     if uncompressedFragmentPrefix:
         payload = uncompressedFragmentPrefix+payload
-
-    # DOCDOC
+    # Now generate a message ID
     messageid = Crypto.getCommonPRNG().getBytes(20)
+    # Figure out how many chunks to divide it into...
     p = mixminion.Fragments.FragmentationParams(len(payload), overhead)
+    # ... fragment the payload into chunks...
     rawFragments = p.getFragments(payload)
     fragments = []
+    # ... and annotate each chunk with appropriate payload header info.
     for i in xrange(len(rawFragments)):
         pyld = FragmentPayload(i, None, messageid, p.length, rawFragments[i])
         pyld.computeHash()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.5 2003/08/21 21:34:02 nickm Exp $
+# $Id: Fragments.py,v 1.6 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -401,7 +401,7 @@ class MessageState:
     # inserted -- the midnight (GMT) of the day on the first packet
     #     associated with this message was inserted.
     # nym -- the name of the identity receiving this message.  Used to
-    #     prevent linkage attacks. XXXX005 specify this need!
+    #     prevent linkage attacks.
     #
     # params -- an instance of FragmentationParams for this message.
     # chunks -- a map from chunk number to tuples of (handle within the pool,
@@ -412,7 +412,8 @@ class MessageState:
     #     are ready for reconstruction, but haven't been reconstructed
     #     yet.
     def __init__(self, messageid, length, overhead, inserted, nym):
-        """Create a new MessageState."""
+        """Create a new MessageState. 
+        """
         self.messageid = messageid
         self.overhead = overhead
         self.inserted = inserted

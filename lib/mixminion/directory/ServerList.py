@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.35 2003/07/13 03:45:34 nickm Exp $
+# $Id: ServerList.py,v 1.36 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -462,7 +462,8 @@ class ServerList:
         self.rlock.release()
 
 def _moveServer(directory1, directory2, fname):
-    #DOCDOC
+    """Move a server contained in directory1/fname into directory2, chosing
+       a new name for it as needed, and avoiding duplicates."""
     fname1 = os.path.join(directory1, fname)
     if "-" in fname:
         nn = fname[:fname.find("-")]

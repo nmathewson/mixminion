@@ -1,10 +1,9 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.31 2003/08/21 21:34:03 nickm Exp $
+# $Id: ServerQueue.py,v 1.32 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.server.ServerQueue
 
-   Facility for fairly secure, directory-based, unordered queues.
-   DOCDOC not any more.
+   Facilities for retriable delivery queues, and for mix pools.
    """
 
 import os
@@ -22,16 +21,6 @@ from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ 'DeliveryQueue', 'TimedMixPool', 'CottrellMixPool',
             'BinomialCottrellMixPool' ]
-
-# Mode to pass to open(2) for creating a new file, and dying if it already
-# exists.
-_NEW_MESSAGE_FLAGS = os.O_WRONLY+os.O_CREAT+os.O_EXCL
-# On windows or mac, binary != text.
-_NEW_MESSAGE_FLAGS += getattr(os, 'O_BINARY', 0)
-
-# Any inp_* files older than INPUT_TIMEOUT seconds old are assumed to be
-# trash.
-INPUT_TIMEOUT = 6000
 
 class _DeliveryState:
     """Helper class: holds the state needed to schedule delivery or
@@ -62,23 +51,25 @@ class _DeliveryState:
         self.pending = None
         self.nextAttempt = None
         self.remove = 0
-
+        
     def isPending(self):
-        """DOCDOC"""
+        """Return true iff we are currently trying to deliver this message."""
         return self.pending is not None
 
     def setPending(self, now=None):
-        """DOCDOC"""
+        """Note that we are now trying to deliver this message, so that we
+           don't try to deliver it twice at the same time."""
         if now is None:
             now = time.time()
         self.pending = now
 
     def setNonPending(self):
-        """DOCDOC"""
+        """Note that we are no longer trying to deliver this message, so that
+           we can try it again later."""
         self.pending = None
 
     def isRemovable(self):
-        """DOCDOC"""
+        """Return true iff this message is old enough to be removed."""
         return self.remove
     
     def __getstate__(self):
@@ -263,7 +254,9 @@ class DeliveryQueue:
 
     def _rescan(self, now=None):
         """Helper: Rebuild the internal state of this queue from the
-           underlying directory. DOCDOC trashes .pending and .sendable."""
+           underlying directory.  After calling 'rescan',
+           _rebuildNextAttempt must be called to recalculate our
+           delivery schedule."""
         try:
             self._lock.acquire()
             self.store.loadAllMetadata(lambda h: _DeliveryState())
@@ -273,11 +266,11 @@ class DeliveryQueue:
             self._lock.release()
 
     def getAllMessages(self):
-        """DOCDOC"""
+        """Return handles for all messages in the store."""
         return self.store.getAllMessages()
 
     def count(self):
-        """DOCDOC"""
+        """Return the number of messages in the store."""
         return self.store.count()
 
     def _rebuildNextAttempt(self, now=None):

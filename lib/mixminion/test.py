@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.147 2003/08/21 21:34:03 nickm Exp $
+# $Id: test.py,v 1.148 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.tests
 
@@ -117,7 +117,7 @@ def floatEq(f1,f2):
         return abs(f1-f2) < .00001
 
 def fileURL(fname):
-    """DOCDOC"""
+    """Return a file url suitable for a file named 'fname'"""
     fname = os.path.abspath(fname)
     return "file:%s"%fname
 
@@ -165,29 +165,38 @@ if not USE_SLOW_MODE:
 # Add some helpful functions to unittest.TestCase
 
 class TestCase(unittest.TestCase):
-    """DOCDOC"""
+    """Extended version of unittest.TestCase with a few extra
+       'assertFoo' functions."""
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
     def assertFloatEq(self, f1, f2):
+        """Fail unless f1 and f2 are very close to one another."""
         if not floatEq(f1, f2):
             self.fail("%s != %s" % (f1, f2))
     def assertLongStringEq(self, s1, s2):
+        """Fail unless the string s1 equals the string s2.  If they aren't 
+           equal, give a failure message that highlights the first point at
+           which they differ."""
         if s1 != s2:
             d = findFirstDiff(s1, s2)
             self.fail("Strings unequal.  First difference at %s: %r vs %r"
                       % (d, s1[d:+10], s2[d:d+10]))
     def assertUnorderedEq(self, l1, l2):
+        """Fail unless the lists l1 and l2 have the same elements.  The
+           order of elements in the two lists need not be the same."""
         l1 = list(l1)[:]
         l2 = list(l2)[:]
         l1.sort()
         l2.sort()
         self.assertEquals(l1, l2)
     def assertStartsWith(self, s1, s2):
+        """Fail unless string s1 begins with string s2."""
         if not s1.startswith(s2):
             if len(s1) > min(40, len(s2)+5):
                 s1 = s1[:len(s2)+5]+"..."
             self.fail("%r does not start with %r"%(s1,s2))
     def assertEndsWith(self, s1, s2):
+        """Fail unless string s1 ends with string s2."""
         if not s1.endswith(s2):
             if len(s1) > min(40, len(s2)+5):
                 s1 = "..."+s1[-(len(s2)+5):]
@@ -6446,28 +6455,24 @@ class FragmentTests(TestCase):
         self.assertEquals([], pool.listReadyMessages())
         pool.unchunkMessages()
 
-        #DOCDOC comment this rats' nets
-
         ####
         # Reconstruct: simple case.
         ####
-        pool.addFragment(pkts1[2])
-        self.assertEquals(1, pool.store.count())
-        self.assertEquals([], pool.listReadyMessages())
-        pool.addFragment(pkts1[0])
-        self.assertEquals(2, pool.store.count())
-        pool.addFragment(pkts1[1]) # should be 'unnneedeed'
-        self.assertEquals(2, pool.store.count())
-        self.assertEquals([], pool.listReadyMessages())
-        pool.unchunkMessages()
-        self.assertEquals([pkts1[0].msgID], pool.listReadyMessages())
-        mid = pool.listReadyMessages()[0]
-        #print len(M1), len(pool.getReadyMessage(mid))
+        pool.addFragment(pkts1[2]) # Add a single packet.
+        self.assertEquals(1, pool.store.count()) # Is it there?
+        self.assertEquals([], pool.listReadyMessages()) # Message isn't ready.
+        pool.addFragment(pkts1[0]) # Add another packet.
+        self.assertEquals(2, pool.store.count()) # Two packets waiting.
+        pool.addFragment(pkts1[1]) # duplicate; should be 'unnneeded'
+        self.assertEquals(2, pool.store.count()) # Still two waiting.
+        self.assertEquals([], pool.listReadyMessages()) # Still not ready.
+        pool.unchunkMessages() # Now try to unchunk the message.
+        self.assertEquals([pkts1[0].msgID], pool.listReadyMessages()) # Ready!
+        mid = pool.listReadyMessages()[0] # Get the message; is it right?
         self.assertLongStringEq(M1, uncompressData(pool.getReadyMessage(mid)))
-        self.assertLongStringEq(M1, uncompressData(pool.getReadyMessage(mid)))
-        pool.markMessageCompleted(mid)
-        self.assertEquals([], pool.listReadyMessages())
-        pool.addFragment(pkts1[1])
+        pool.markMessageCompleted(mid) # Mark it as done.
+        self.assertEquals([], pool.listReadyMessages()) # Not there any more.
+        pool.addFragment(pkts1[1]) # Adding more fragments to it doesn't work.
         self.assertEquals([], pool.store.getAllMessages())
 
         ####

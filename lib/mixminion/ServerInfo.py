@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.53 2003/08/21 21:34:02 nickm Exp $
+# $Id: ServerInfo.py,v 1.54 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -105,6 +105,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Configuration": ("ALLOW", None, None),
                      },
         }
+    expected_versions = {
+         "Server" : ( "Descriptor-Version", "0.2"),
+         "Incoming/MMTP" : ("Version", "0.1"),
+         "Outgoing/MMTP" : ("Version", "0.1"),
+         "Delivery/Fragmented" : ("Version", "0.1"),
+         "Delivery/MBOX" : ("Version", "0.1"),
+         "Delivery/SMTP" : ("Version", "0.1"),
+         }
 
     def __init__(self, fname=None, string=None, assumeValid=0,
                  validatedDigests=None):
@@ -129,10 +137,25 @@ class ServerInfo(mixminion.Config._ConfigFile):
                     if k == 'Descriptor-Version' and v.strip() != '0.2':
                         raise ConfigError("Unrecognized descriptor version: %s"
                                           % v.strip())
-            # FFFF005 Remove sections with unrecognized versions.
+        
+        
+        # Remove any sections with unrecognized versions.
+        revisedContents = []
+        for name, ents in contents:
+            v = self.expected_versions.get(name)
+            if not v: 
+                revisedContents.append((name, ents))
+                continue
+            versionkey, versionval = v
+            for k,v,_ in ents:
+                if k == versionkey and v.strip() != versionval:
+                    LOG.warn("Skipping %s section with unrecognized version %s"
+                             , name, v.strip())
+                    break
+            else:
+                revisedContents.append((name, ents))
 
-        return contents
-
+        return revisedContents
 
     def validate(self, lines, contents):
         ####

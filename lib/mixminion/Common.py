@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.105 2003/08/21 21:34:02 nickm Exp $
+# $Id: Common.py,v 1.106 2003/08/25 21:05:33 nickm Exp $
 
 """mixminion.Common
 
@@ -486,14 +486,22 @@ def configureFileParanoia(config):
 # File helpers
 
 
-#DOCDOC
+# On windows, rename(f1,f2) fails if f2 already exists.  These wrappers
+# handle replacing files.
 if sys.platform == 'win32':
     def replaceFile(f1, f2):
+        """Move the file named 'f1' to a new name 'f2'.  Replace any file
+           already named 'f2'."""
+        # WWWW This isn't atomic.  Later versions of the windows API add
+        # WWWW functions named MoveFileEx and ReplaceFile that may do the
+        # WWWW right thing, but those don't exist in Windows Me/98/95.
         if os.path.exists(f2):
             os.unlink(f2)
         os.rename(f1, f2) 
 else:
     def replaceFile(f1, f2):
+        """Move the file named 'f1' to a new name 'f2'.  Replace any file
+           already named 'f2'."""
         os.rename(f1, f2)
 
 class AtomicFile:

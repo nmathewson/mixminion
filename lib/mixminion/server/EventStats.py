@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.8 2003/07/15 04:41:18 nickm Exp $
+# $Id: EventStats.py,v 1.9 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -56,17 +56,17 @@ class NilEventLog:
         """Called whenever a packet is received via MMTP."""
         self._log("ReceivedPacket", arg)
     def receivedConnection(self, arg=None):
-        """DOCDOC"""
+        """Called whenever we get an incoming MMTP connection."""
         self._log("ReceivedConnection", arg)
 
     def attemptedConnect(self, arg=None):
-        """DOCDOC"""
+        """Called whenever we try to connect to an MMTP server."""
         self._log("AttemptedConnect", arg)
     def successfulConnect(self, arg=None):
-        """DOCDOC"""
+        """Called whenever we successfully connect to an MMTP server."""
         self._log("SuccessfulConnect", arg)
     def failedConnect(self, arg=None):
-        """DOCDOC"""
+        """Called whenever we fail to connect to an MMTP server."""
         self._log("FailedConnect", arg)
 
     def attemptedRelay(self, arg=None):

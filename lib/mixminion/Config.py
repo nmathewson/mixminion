@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.54 2003/08/21 21:34:02 nickm Exp $
+# $Id: Config.py,v 1.55 2003/08/25 21:05:33 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -552,6 +552,8 @@ class _ConfigFile:
     #         we insist on a tight data format?
     #     _restrictKeys is 1/0: do we raise a ConfigError when we see an
     #         unrecognized key, or do we simply generate a warning?
+    #     _restrictSections is 1/0: do we raise a ConfigError when we see an
+    #         unrecognized section, or do we simply generate a warning?
 
     ## Validation rules:
     # A key without a corresponding entry in _syntax gives an error.
@@ -568,7 +570,6 @@ class _ConfigFile:
     _syntax = None
     _restrictFormat = 0
     _restrictKeys = 1
-    #DOCDOC
     _restrictSections = 1
 
     def __init__(self, filename=None, string=None, assumeValid=0):
@@ -739,7 +740,8 @@ class _ConfigFile:
         return self._sections[sec]
 
     def get(self, sec, val="---"):
-        """DOCDOC"""
+        """Return a section named sec, if any such section exists.  Otherwise
+           return an empty dict, or 'val' if provided."""
         if val == "---": val = {}
         return self._sections.get(sec, val)
 

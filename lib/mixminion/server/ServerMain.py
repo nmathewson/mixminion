@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.88 2003/08/21 21:34:03 nickm Exp $
+# $Id: ServerMain.py,v 1.89 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -848,6 +848,7 @@ The original error message was '%s'."""%e)
         LOG.info("Checking for key rotation")
         self.keyring.checkKeys()
         self.generateKeys()
+        self.moduleManager.sync()
 
     def doMix(self):
         """Called when the server's mix is about to fire.  Picks some
@@ -900,8 +901,9 @@ The original error message was '%s'."""%e)
         self.cleaningThread.join()
         self.processingThread.join()
         self.moduleManager.join()
-
+        
         self.packetHandler.close()
+        self.moduleManager.close()
 
         EventStats.log.save()
 

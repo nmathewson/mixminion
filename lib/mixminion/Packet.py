@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.56 2003/08/21 21:34:02 nickm Exp $
+# $Id: Packet.py,v 1.57 2003/08/25 21:05:34 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -86,7 +86,7 @@ NEWS_TYPE      = 0x0102  # Post the message to some ngs, and maybe mail it too
 FRAGMENT_TYPE  = 0x0103  # Find the actual deliver info in the message payload 
 MAX_EXIT_TYPE  = 0xFFFF
 
-#DOCDOC
+# Set of exit types that don't get tag fields.
 _TYPES_WITHOUT_TAGS = { FRAGMENT_TYPE : 1 }
 
 class ParseError(MixError):
@@ -312,7 +312,8 @@ class SingletonPayload(_Payload):
         self.data = data
 
     def computeHash(self):
-        """DOCDOC"""
+        """Update the hash field of this payload to correspond to the hash
+           of the data."""
         self.hash = sha1(self.data)
 
     def isSingleton(self):
@@ -359,7 +360,8 @@ class FragmentPayload(_Payload):
         self.data = data
 
     def computeHash(self):
-        """DOCDOC"""
+        """Update the hash field of this payload to correspond to the hash
+           of the data."""
         self.hash = "X"*DIGEST_LEN
         p = self.pack()
         self.hash = sha1(p[23:])
@@ -386,7 +388,12 @@ class FragmentPayload(_Payload):
         return PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)
 
 #----------------------------------------------------------------------
-#DOCDOC
+# Encoding of messages fragmented for reassembly by the exit server.
+#
+# Such messages are encoded by adding routing-type, routing-len, and
+# routing-info fields at the start of the payload before fragmentation,
+# so that the server doesn't recover the delivery address before it's time
+# to deliver the message.
 
 SSF_UNPACK_PATTERN = "!HH"
 SSF_PREFIX_LEN = 4
@@ -403,7 +410,6 @@ def parseServerSideFragmentedMessage(s):
     return ServerSideFragmentedMessage(rt, ri, comp)
 
 class ServerSideFragmentedMessage:
-    """DOCDOC"""
     def __init__(self, routingtype, routinginfo, compressedContents):
         self.routingtype = routingtype
         self.routinginfo = routinginfo
@@ -694,9 +700,8 @@ class TextEncodedMessage:
        over a text-based medium."""
     def __init__(self, contents, messageType, tag=None):
         """Create a new TextEncodedMessage given a set of contents, a
-           messageType ('TXT', 'ENC', 'LONG', or 'BIN'), and optionally
+           messageType ('TXT', 'ENC', 'LONG', 'FRAG' or 'BIN'), and optionally
            a tag.
-           DOCDOC FRAG
            """
         assert messageType in ('TXT', 'ENC', 'LONG', 'BIN', 'FRAG')
         assert tag is None or (messageType == 'ENC' and len(tag) == 20)
@@ -716,7 +721,7 @@ class TextEncodedMessage:
         """Return true iff this is an overcompressed plaintext packet."""
         return self.messageType == 'LONG'
     def isFragment(self):
-        """DOCDOC"""
+        """Return true iff this is a fragment packet."""
         return self.messageType == 'FRAG'
     def getContents(self):
         """Return the (unencoded) contents of this packet."""
@@ -744,12 +749,14 @@ class TextEncodedMessage:
 #----------------------------------------------------------------------
 # Header encoding
 
-#DOCDOC
+# Longest allowed length of a single header.
 MAX_HEADER_LEN = 900
 
 def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
                       references=None):
-    """DOCDOC.  Raise MixError on failure."""
+    """Given (optionally) any of the headers permissible for email
+       messages, return a string to be prepended to a message before
+       encoding.  Raise MixError on failure."""
     headers = {}
     if subject:
         headers['SUBJECT'] = subject
@@ -766,9 +773,10 @@ def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
     return encodeMessageHeaders(headers)
 
 def encodeMessageHeaders(headers):
-    """DOCDOC dict, max size
-
-       Requires that headers are in acceptable format.
+    """Given a dictionary of (header,header-value) entries, encode the
+       entries and return a string to be prepended to a message before
+       encoding.  Requires that headers are in acceptable format.
+       Raises MixError on failure.
     """
     items = []
     hitems = headers.items()
@@ -786,7 +794,9 @@ def encodeMessageHeaders(headers):
 HEADER_RE = re.compile(r'^([!-9;-~]+):([ -~]*)\n')
 
 def parseMessageAndHeaders(message):
-    """DOCDOC -> message, {header : value}"""
+    """Given a message with encoded headers, return a 2-tuple containing
+       the message, and a dictionary mapping header names to header values.
+       Skips improperly formatted headers."""
     headers = {}
     msg = message
     while 1:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.21 2003/08/21 21:34:03 nickm Exp $
+# $Id: PacketHandler.py,v 1.22 2003/08/25 21:05:34 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -262,8 +262,12 @@ class DeliveryPacket:
     # type -- until decode is called, None.  After decode is called,
     #     one of 'plain' (plaintext message), 'long' (overcompressed message),
     #     'enc' (encrypted message), or 'err' (malformed message).
-    # isfrag -- DOCDOC
-    # dPayload -- DOCDOC
+    # headers -- a map from key to value for the delivery headers in
+    #     this message's payload.  In the case of a fragment, or a
+    #     non-plaintext message, the map is empty.
+    # isfrag -- Is this packet a fragment of a complete message?  If so, the
+    #     type must be 'plain'.
+    # dPayload -- An instance of mixminion.Packet.Payload for this object.
     def __init__(self, routingType, routingInfo, applicationKey,
                  tag, payload):
         """Construct a new DeliveryPacket."""
@@ -278,7 +282,7 @@ class DeliveryPacket:
         self.payload = payload
         self.contents = None
         self.type = None
-        self.headers = None#DOCDOC
+        self.headers = None
         self.isfrag = 0
         self.dPayload = None
 
@@ -298,7 +302,7 @@ class DeliveryPacket:
         return self.contents
 
     def getDecodedPayload(self):
-        """DOCDOC"""
+        """Return an instance of mixminion.Packet.Payload for this packet."""
         if self.type is None: self.decode()
         return self.dPayload
 
@@ -314,7 +318,7 @@ class DeliveryPacket:
         return self.type == 'long'
 
     def isFragment(self):
-        """DOCDOC"""
+        """Return true iff this packet is part of a fragmented message."""
         if self.type is None: self.decode()
         return self.isfrag
 
@@ -384,7 +388,7 @@ class DeliveryPacket:
             return encodeBase64(self.contents)
 
     def getHeaders(self):
-        """DOCDOC"""
+        """Return a dict containing the headers for this message."""
         if self.type is None:
             self.decode()
         assert self.headers is not None
@@ -413,4 +417,3 @@ class DeliveryPacket:
             tp = 'BIN'
 
         return Packet.TextEncodedMessage(self.contents, tp, tag)
-
