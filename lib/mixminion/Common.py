@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.34 2002/12/15 05:55:30 nickm Exp $
+# $Id: Common.py,v 1.35 2002/12/16 01:37:19 nickm Exp $
 
 """mixminion.Common
 
@@ -382,7 +382,8 @@ class Log:
 		    self.addHandler(_FileLogHandler(logfile))
 		except MixError, e:
 		    self.error(str(e))
-            if logfile and not config['Server'].get('EchoMessages',0):
+            if logfile and not (config['Server'].get('EchoMessages',0) and
+				config['Server'].get('NoDaemon',0)):
 		del self.handlers[0]
 
     def setMinSeverity(self, minSeverity):

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.4 2002/12/15 05:55:30 nickm Exp $
+# $Id: ServerMain.py,v 1.5 2002/12/16 01:37:21 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -264,7 +264,7 @@ class MixminionServer:
 	f.close()
 
 	now = time.time()
-	MIX_INTERVAL = 20  # FFFF Configurable!
+	MIX_INTERVAL = 600  # FFFF Configurable!
 	nextMix = now + MIX_INTERVAL
 	nextShred = now + 6000
 	#FFFF Unused
@@ -359,11 +359,10 @@ def runServer(cmd, args):
 	mixminion.Crypto.init_crypto(config)
 
 	server = MixminionServer(config)
-	
     except:
-	LOG.fatal_exc(sys.exc_info(),"Exception while configuring server")
-	print >>sys.stderr, "Shutting down because of exception"
-	#XXXX001 Print the exception, too.
+	info = sys.exc_info()
+	LOG.fatal_exc(info,"Exception while configuring server")
+	print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
 	sys.exit(1)
 
     if not config['Server'].get("NoDaemon",0):
@@ -384,8 +383,9 @@ def runServer(cmd, args):
     except KeyboardInterrupt:
 	pass
     except:
-	LOG.fatal_exc(sys.exc_info(),"Exception while running server")
-	#XXXX001 Print the exception, too.
+	info = sys.exc_info()
+	LOG.fatal_exc(info,"Exception while running server")
+	print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
     LOG.info("Server shutting down")
     server.close()
     LOG.info("Server is shut down")
