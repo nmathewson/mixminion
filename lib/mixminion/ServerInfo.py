@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.41 2003/04/26 14:39:58 nickm Exp $
+# $Id: ServerInfo.py,v 1.42 2003/05/23 07:54:11 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -341,9 +341,13 @@ class ServerDirectory:
         servercontents = [ "[Server]\n%s"%s for s in sections[1:] ]
 
         self.header = _DirectoryHeader(headercontents, digest)
-        self.servers = [ ServerInfo(string=s,
-                                    validatedDigests=validatedDigests)
-                         for s in servercontents ]
+        goodServers = [name.strip().lower() for name in
+                   self.header['Directory']['Recommended-Servers'].split(",")]
+        servers = [ ServerInfo(string=s,
+                               validatedDigests=validatedDigests)
+                    for s in servercontents ]
+        self.servers = [ s for s in servers
+                         if s.getNickname().lower() in goodServers ]
 
     def getServers(self):
         """Return a list of ServerInfo objects in this directory"""
@@ -370,7 +374,7 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
                        "Published": ("REQUIRE", C._parseTime, None),
                        "Valid-After": ("REQUIRE", C._parseDate, None),
                        "Valid-Until": ("REQUIRE", C._parseDate, None),
-                       "Recommended-Software": (None, None, None),
+                       "Recommended-Servers": ("REQUIRE", None, None),
                        },
         'Signature': {"__SECTION__": ("REQUIRE", None, None),
                  "DirectoryIdentity": ("REQUIRE", C._parsePublicKey, None),
@@ -392,14 +396,14 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
         for name, ents in contents:
             if name == 'Directory':
                 for k,v,_ in ents:
-                    if k == 'Version' and v.strip() != '0.1':
+                    if k == 'Version' and v.strip() != '0.2':
                         raise ConfigError("Unrecognized directory version")
 
         return contents
 
     def validate(self, lines, contents):
         direc = self['Directory']
-        if direc['Version'] != "0.1":
+        if direc['Version'] != "0.2":
             raise ConfigError("Unrecognized directory version")
         if direc['Published'] > time.time() + 600:
             raise ConfigError("Directory published in the future")

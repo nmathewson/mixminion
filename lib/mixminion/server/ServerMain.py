@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.52 2003/05/17 00:08:45 nickm Exp $
+# $Id: ServerMain.py,v 1.53 2003/05/23 07:54:12 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -538,13 +538,7 @@ class MixminionServer(_Scheduler):
         #XXXX004 Catch ConfigError for bad serverinfo.
         #XXXX004 Check whether config matches serverinfo
         self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
-        if not self.keyring.getLiveKeys():
-            LOG.info("Generating a month's worth of keys.")
-            LOG.info("(Don't count on this feature in future versions.)")
-            # We might not be able to do this, if we password-encrypt keys
-            keylife = config['Server']['PublicKeyLifetime'].getSeconds()
-            nKeys = ceilDiv(30*24*60*60, keylife)
-            self.keyring.createKeys(nKeys)
+        self.keyring.createKeysAsNeeded()
 
         LOG.debug("Initializing packet handler")
         self.packetHandler = mixminion.server.PacketHandler.PacketHandler()
@@ -603,7 +597,32 @@ class MixminionServer(_Scheduler):
 
     def updateKeys(self):
         """DOCDOC"""
-        self.keyring.updateKeys(self.packetHandler, self.mmtpServer)
+        # We don't dare to block here -- we could block the main thread for 
+        # as long as it takes to generate several new RSA keys, which would
+        # stomp responsiveness on slow computers.
+        # ???? Could there be a more elegant approach to this?
+        if not self.keyring.lock(1):
+            LOG.warn("generateKeys in progress:"
+                     " updateKeys delaying for 2 minutes")
+            # This will cause getNextKeyRotation to return 2 minutes later
+            # than now.
+            self.keyring.nextUpdate = time.time() += 120
+            return
+
+        try:
+            self.keyring.updateKeys(self.packetHandler, self.mmtpServer)
+        finally:
+            self.keyring.unlock()
+
+    def generateKeys(self):
+        """DOCDOC"""
+        def c(self=self):
+            self.keyring.lock()
+            try:
+                self.keyring.createKeysAsNeeded
+            finally:
+                self.keyring.unlock()
+        self.processingThread.addJob(c)
 
     def run(self):
         """Run the server; don't return unless we hit an exception."""
@@ -634,7 +653,12 @@ class MixminionServer(_Scheduler):
         self.scheduleRecurringComplex(self.keyring.getNextKeyRotation(),
                                       self.updateKeys,
                                       "KEY_ROTATE",
-                                      self.keyring.getKeyRotation)
+                                      self.keyring.getNextKeyRotation)
+
+        self.scheduleRecurringComplex(self.keyring.getNextKeygen(),
+                                      self.generateKeys,
+                                      "KEY_GEN",
+                                      self.keyring.getNextKeygen)
 
         nextMix = self.mixPool.getNextMixTime(now)
         LOG.debug("First mix at %s", formatTime(nextMix,1))

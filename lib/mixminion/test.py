@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.105 2003/05/21 18:03:33 nickm Exp $
+# $Id: test.py,v 1.106 2003/05/23 07:54:11 nickm Exp $
 
 """mixminion.tests
 
@@ -3859,12 +3859,12 @@ ReturnAddress: X@Y.Z
         finally:
             resumeLog()
 
-        inf3 = generateServerDescriptorAndKeys(conf,
-                                               identity,
-                                               d,
-                                               "key2",
-                                               d,
-                                               useServerKeys=1)
+        _ = generateServerDescriptorAndKeys(conf,
+                                            identity,
+                                            d,
+                                            "key2",
+                                            d,
+                                            useServerKeys=1)
 
         key3 = mixminion.server.ServerKeys.ServerKeyset(d, "key2", d)
         key3.load()
@@ -3918,7 +3918,7 @@ ReturnAddress: X@Y.Z
         # Validate the directory, and check that values are as expected.
         sd = ServerDirectory(d)
         eq(len(sd.getServers()), 3)
-        eq(sd["Directory"]["Version"], "0.1")
+        eq(sd["Directory"]["Version"], "0.2")
         eq(sd["Directory"]["Published"], int(now))
         eq(sd["Directory"]["Valid-After"], previousMidnight(now))
         eq(sd["Directory"]["Valid-Until"], previousMidnight(dayLater+1))
@@ -3940,7 +3940,7 @@ ReturnAddress: X@Y.Z
         # Can we use messed-up spaces and line-endings?
         ServerDirectory(d.replace("\n", "\r\n"))
         ServerDirectory(d.replace("\n", "\r"))
-        ServerDirectory(d.replace("Fred", "Fred  "))
+        ServerDirectory(re.sub(r"Fred$", "Fred  ", d))
 
         ### Now, try rescanning the directory.
         lst = ServerList(baseDir)
@@ -3968,24 +3968,22 @@ ReturnAddress: X@Y.Z
         archiveDir = os.path.join(baseDir, "archive")
         serverDir = os.path.join(baseDir, "servers")
         lst = ServerList(baseDir)
-        # Make sure that we don't remove the last of a given server.
+        # Make sure that when we remove the last of a given server, we
+        # still know its ID.
         lst.importServerInfo(examples["Lisa"][1]) # Valid for 2 days.
         lst.clean(now=now+60*60*24*100) # Very far in the future
-        eq(1, len(lst.servers))
-        eq(0, len(os.listdir(archiveDir)))
+        eq(0, len(lst.servers))
+        eq(1, len(os.listdir(archiveDir)))
+        lst.rescan()
+        eq(0, len(lst.servers))
+        self.assertNotEquals(None, lst.serverIDs.get('lisa'))
         # But we _do_ remove expired servers if others exist.
         lst.importServerInfo(examples["Lisa"][2]) # Valid from 5...7.
-        eq(2, len(lst.servers))
-        eq(2, len(lst.serversByNickname["lisa"]))
-        lst.clean(now=now+60*60*24*100) # Very far in the future.
         eq(1, len(lst.servers))
         eq(1, len(lst.serversByNickname["lisa"]))
-        eq(readFile(os.path.join(serverDir, lst.serversByNickname["lisa"][0])),
-           examples["Lisa"][2])
-        eq(1, len(os.listdir(archiveDir)))
-        eq(1, len(os.listdir(serverDir)))
-        eq(readFile(os.path.join(archiveDir, os.listdir(archiveDir)[0])),
-           examples["Lisa"][1])
+        lst.clean(now=now+60*60*24*100) # Very far in the future.
+        eq(0, len(lst.servers))
+        eq(0, len(lst.serversByNickname.get("lisa",[])))
 
         # (Make sure that knownOnly works: failing case.)
         self.failUnlessRaises(MixError, lst.importServerInfo,
@@ -3993,26 +3991,27 @@ ReturnAddress: X@Y.Z
 
         ### Now test the removal of superceded servers.
         # Clean out archiveDir first so we can see what gets removed.
-        os.unlink(os.path.join(archiveDir, os.listdir(archiveDir)[0]))
+        for a in os.listdir(archiveDir):
+            os.unlink(os.path.join(archiveDir, a))
+
         # Add a bunch of unconflicting Bobs.
         lst.importServerInfo(examples["Bob"][0]) # From -2 to 1
         # (Make sure that knownOnly works: succeeding case.
         lst.importServerInfo(examples["Bob"][1], 1) # From  2 to 5
         lst.importServerInfo(examples["Bob"][2]) # From  6 to 9
         lst.importServerInfo(examples["Bob"][3]) # Newer, from 0 to 3
-        eq(5, len(lst.servers))
+        eq(4, len(lst.servers))
         # Right now, nothing is superceded or expired
         lst.clean()
-        eq(5, len(os.listdir(serverDir)))
+        eq(4, len(os.listdir(serverDir)))
         eq(4, len(lst.serversByNickname["bob"]))
         lst.importServerInfo(examples["Bob"][4]) # Newer, from 4 to 7.
         # Now "Bob1" is superseded.
         lst.clean()
         eq(1, len(os.listdir(archiveDir)))
         eq(4, len(lst.serversByNickname["bob"]))
-        eq(5, len(os.listdir(serverDir)))
-        eq(5, len(lst.servers))
-        eq(4, len(lst.serversByNickname["bob"]))
+        eq(4, len(os.listdir(serverDir)))
+        eq(4, len(lst.servers))
         eq(readFile(os.path.join(archiveDir, os.listdir(archiveDir)[0])),
            examples["Bob"][1])
         for fn in lst.serversByNickname["bob"]:
@@ -4020,14 +4019,14 @@ ReturnAddress: X@Y.Z
             self.assertNotEquals(readFile(fn), examples["Bob"][1])
         # Now try rescanning...
         lst = ServerList(baseDir)
-        eq(5, len(lst.servers))
+        eq(4, len(lst.servers))
         eq(4, len(lst.serversByNickname["bob"]))
         # ... adding a new bob...
         lst.importServerInfo(examples["Bob"][5])
-        eq(6, len(lst.servers))
+        eq(5, len(lst.servers))
         # ... and watching another old bob get bonked off.
         lst.clean()
-        eq(5, len(lst.servers))
+        eq(4, len(lst.servers))
         eq(2, len(os.listdir(archiveDir)))
 
 
@@ -4751,7 +4750,7 @@ Free to hide no more.
                 FDP('plain',0xFFFE, "addr91", "This is message 91"))
         queue.queueDeliveryMessage(
                 FDP('plain',0xFFFE, "addr92", "This is message 92"))
-        h3 = queue.queueDeliveryMessage(
+        _ = queue.queueDeliveryMessage(
                 FDP('plain',0xFFFE, "fail", "This is message 93"))
         queue.queueDeliveryMessage(
                 FDP('plain',0xFFFE, "FAIL!", "This is message 94"))
@@ -4839,19 +4838,18 @@ class ServerKeysTests(unittest.TestCase):
         now = time.time()
         keyring.createKeys(1, now)
         # check internal state
-        ivals = keyring.keyIntervals
+        ivals = keyring.keySets
         start = mixminion.Common.previousMidnight(now)
         finish = mixminion.Common.previousMidnight(start+(10*24*60*60)+30)
         self.assertEquals(1, len(ivals))
-        self.assertEquals((start,finish,"0001"), ivals[0])
+        self.assertEquals((start,finish), ivals[0][0:2])
 
         keyring.createKeys(2)
 
         # Check the first key we created
-        va, vu, curKey = keyring._getLiveKeys()[0]
+        va, vu, _ = keyring._getLiveKeys()[0]
         self.assertEquals(va, start)
         self.assertEquals(vu, finish)
-        self.assertEquals(curKey, "0001")
         keyset = keyring.getServerKeysets()[0]
         self.assertEquals(keyset.getHashLogFileName(),
                           os.path.join(home, "work", "hashlogs", "hash_0001"))
@@ -4866,14 +4864,14 @@ class ServerKeysTests(unittest.TestCase):
         # Make a key in the past, to see if it gets scrubbed.
         keyring.createKeys(1, mixminion.Common.previousMidnight(
             start - 10*24*60*60 + 1))
-        self.assertEquals(4, len(keyring.keyIntervals))
+        self.assertEquals(4, len(keyring.keySets))
         waitForChildren() # make sure keys are really gone before we remove
 
         # In case we started very close to midnight, remove keys as if it
         # were a little in the future; otherwise, we won't remove the
         # just-expired keys.
         keyring.removeDeadKeys(now+360)
-        self.assertEquals(3, len(keyring.keyIntervals))
+        self.assertEquals(3, len(keyring.keySets))
 
         if USE_SLOW_MODE:
             # These are slow, since they regenerate the DH params.
@@ -4894,13 +4892,11 @@ class ServerKeysTests(unittest.TestCase):
 class ServerMainTests(unittest.TestCase):
     def testScheduler(self):
         _Scheduler = mixminion.server.ServerMain._Scheduler
-        _RecurringEvent = mixminion.server.ServerMain._RecurringEvent
         lst=[]
         def a(lst=lst): lst.append('a')
         def b(lst=lst): lst.append('b')
         def c(lst=lst): lst.append('c')
         def d(lst=lst): lst.append('d')
-        def e(lst=lst): lst.append('e')
         s = _Scheduler()
         self.assertEquals(s.firstEventTime(), -1)
         tm = time.time()

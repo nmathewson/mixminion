@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.8 2003/01/07 04:49:11 nickm Exp $
+# $Id: DirMain.py,v 1.9 2003/05/23 07:54:11 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -63,6 +63,7 @@ def cmd_import_new(cmd, base, rest):
 def cmd_generate(cmd, base, rest):
     if len(rest) != 0: usageAndExit(cmd)
     lst = ServerList(base)
+    lst.clean()
     key = getIdentity(base)
     # XXXX Until we have support for automatic directory generation, we
     # XXXX set the validity time to be pretty long: 2 months.

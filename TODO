@@ -125,19 +125,20 @@ For 0.0.4:
                         o Ability to change TLS context for new connections.
                         o Ability to delete PK.
                         o Trigger all of the above as timed events occur.
-1-3                     - Generate new SD's as needed, publish as needed
+                        o Generate new SD's as needed
+1-2                     - Publish as needed
 2.5                     - Somehow test the whole business.
-                - Rudimentary directory automation (with trivial pinging)
-                        - CGI to receive server descriptors:
-1-4                             - replace old ones if superceded, 
+                . Rudimentary directory automation (with trivial pinging)
+                        o CGI to receive server descriptors:
+                                o replace old ones if superceded, 
                                   reject them if invalid,
                                   and queue them if unrecognized.
 2                               - Tests for above
 .5-1.5                          - The actual CGI
-1                       - Ability to move servers from queue to good-list.
+                        o Ability to move servers from queue to good-list.
 0.5                             - Tests
 1                       - Code to publish directories
-2-3                     - Code to remember whether descriptors are published,
+2-3                     . Code to remember whether descriptors are published,
                           and republish as needed, and retry if directory
                           is down.
 1                               - Tests
@@ -152,11 +153,11 @@ For 0.0.4:
 2                               - Decide whom to include; make dirgen
                                   include them
 3                               - Tests
-?                       - Design directory liveness format.  Maybe include
+                        o Design directory liveness format.  Maybe include
                           all servers and "live" list for now?
 0.5                     - Code to automatically regenerate directories as
                           needed.
-1       - Make "=== BEGIN" stuff comply with openpgp rfc: why rock
+        o Make "=== BEGIN" stuff comply with openpgp rfc: why rock
           the boat?
 4       - Finish all documentation, resolve all XXXX004s
 3       - Try out all functionality by hand

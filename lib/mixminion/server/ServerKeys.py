@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.21 2003/05/17 00:08:45 nickm Exp $
+# $Id: ServerKeys.py,v 1.22 2003/05/23 07:54:12 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -10,11 +10,11 @@
 __all__ = [ "ServerKeyring", "generateServerDescriptorAndKeys",
             "generateCertChain" ]
 
-import bisect
 import os
 import socket
 import sys
 import time
+import threading
 
 import mixminion._minionlib
 import mixminion.Crypto
@@ -32,6 +32,19 @@ from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
      secureDelete
 
 #----------------------------------------------------------------------
+
+# Seconds before a key becomes live that we want to generate
+# and publish it.
+#
+#FFFF Make this configurable?  (Set to 3 days.)
+PUBLICATION_LATENCY = 3*24*60*60
+
+# Number of seconds worth of keys we want to generate in advance.
+#
+#FFFF Make this configurable?  (Set to 2 weeks).
+PREPUBLICATION_INTERVAL = 14*24*60*60
+
+#----------------------------------------------------------------------
 class ServerKeyring:
     """A ServerKeyring remembers current and future keys, descriptors, and
        hash logs for a mixminion server.
@@ -45,10 +58,12 @@ class ServerKeyring:
     # homeDir: server home directory
     # keyDir: server key directory
     # keyOverlap: How long after a new key begins do we accept the old one?
-    # keyIntervals: list of (start, end, keyset Name)
+    # keySets: sorted list of (start, end, keyset)
     # nextRotation: time_t when this key expires, DOCDOCDOC not so.
     # keyRange: tuple of (firstKey, lastKey) to represent which key names
     #      have keys on disk.
+    #
+    #DOCDOC currentKeys
 
     ## Directory layout:
     #    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
@@ -73,10 +88,11 @@ class ServerKeyring:
 
     def __init__(self, config):
         "Create a ServerKeyring from a config object"
+        self._lock = threading.RLock()
         self.configure(config)
 
     def configure(self, config):
-        "Set up a SeverKeyring from a config object"
+        "Set up a ServerKeyring from a config object"
         self.config = config
         self.homeDir = config['Server']['Homedir']
         self.keyDir = os.path.join(self.homeDir, 'keys')
@@ -88,7 +104,7 @@ class ServerKeyring:
     def checkKeys(self):
         """Internal method: read information about all this server's
            currently-prepared keys from disk."""
-        self.keyIntervals = []
+        self.keySets = []
         firstKey = sys.maxint
         lastKey = 0
 
@@ -98,6 +114,8 @@ class ServerKeyring:
             LOG.info("Creating server keystore at %s", self.keyDir)
             createPrivateDir(self.keyDir)
 
+        unpublished = []
+        
         # Iterate over the entires in HOME/keys
         for dirname in os.listdir(self.keyDir):
             # Skip any that aren't directories named "key_INT"
@@ -119,28 +137,28 @@ class ServerKeyring:
                 continue
 
             # Find the server descriptor...
-            d = os.path.join(self.keyDir, dirname)
-            si = os.path.join(d, "ServerDesc")
-            if os.path.exists(si):
-                inf = ServerInfo(fname=si, assumeValid=1)
-                # And find out when it's valid.
-                t1 = inf['Server']['Valid-After']
-                t2 = inf['Server']['Valid-Until']
-                self.keyIntervals.append( (t1, t2, keysetname) )
-                LOG.debug("Found key %s (valid from %s to %s)",
-                               dirname, formatDate(t1), formatDate(t2))
-            else:
-                LOG.warn("No server descriptor found for key %s"%dirname)
+            keyset = ServerKeyset(self.keyDir, keysetname, self.hashDir)
+            # XXXX004 catch bad/missing serverdescriptor!
+            t1, t2 = keyset.getLiveness()
+            self.keySets.append( (t1, t2, keyset) )
+                
+            LOG.debug("Found key %s (valid from %s to %s)",
+                      dirname, formatDate(t1), formatDate(t2))
+
+            if not keyset.isPublished():
+                unpublished.append(keysetname)
+
+        self.unpublished = unpublished
 
         # Now, sort the key intervals by starting time.
-        self.keyIntervals.sort()
+        self.keySets.sort()
         self.keyRange = (firstKey, lastKey)
 
         # Now we try to see whether we have more or less than 1 key in effect
         # for a given time.
-        for idx in xrange(len(self.keyIntervals)-1):
-            end = self.keyIntervals[idx][1]
-            start = self.keyIntervals[idx+1][0]
+        for idx in xrange(len(self.keySets)-1):
+            end = self.keySets[idx][1]
+            start = self.keySets[idx+1][0]
             if start < end:
                 LOG.warn("Multiple keys for %s.  That's unsupported.",
                               formatDate(end))
@@ -186,6 +204,20 @@ class ServerKeyring:
             LOG.info("Removing diffie-helman parameters file")
             secureDelete([dhfile], blocking=1)
 
+    def createKeysAsNeeded(self,now=None):
+        """DOCDOC"""
+        if now is None:
+            now = time.time()
+
+        if self.getNextKeygen() > now-10: # 10 seconds of leeway
+            return
+
+        lastExpiry = self.keySets[-1][1]
+        lifetime = self.config['Server']['PublicKeyLifetime'].getSeconds()
+        nKeys = ceilDiv(PREPUBLICATION_INTERVAL, lifetime)
+
+        self.createKeys(num=nKeys)
+
     def createKeys(self, num=1, startAt=None):
         """Generate 'num' public keys for this server. If startAt is provided,
            make the first key become valid at 'startAt'.  Otherwise, make the
@@ -195,8 +227,8 @@ class ServerKeyring:
         #password = None
 
         if startAt is None:
-            if self.keyIntervals:
-                startAt = self.keyIntervals[-1][1]+60
+            if self.keySets:
+                startAt = self.keySets[-1][1]+60
             else:
                 startAt = time.time()+60
 
@@ -231,6 +263,24 @@ class ServerKeyring:
 
         self.checkKeys()
 
+    def getNextKeygen(self):
+        """DOCDOC
+
+           -1 => Right now!
+        """
+        if not self.keySets:
+            return -1
+
+        # Our last current key expires at 'lastExpiry'.
+        lastExpiry = self.keySets[-1][1]
+        # We want to have keys in the directory valid for
+        # PREPUBLICATION_INTERVAL seconds after that, and we assume that
+        # a key takes up to PUBLICATION_LATENCY seconds to make it into the
+        # directory.
+        nextKeygen = lastExpiry - PUBLICATION_LATENCY - PREPUBLICATION_INTERVAL
+
+        return nextKeygen
+
     def removeDeadKeys(self, now=None):
         """Remove all keys that have expired"""
         self.checkKeys()
@@ -243,9 +293,10 @@ class ServerKeyring:
 
         cutoff = now - self.keyOverlap
 
-        for va, vu, name in self.keyIntervals:
+        for va, vu, keyset in self.keySets:
             if vu >= cutoff:
                 continue
+            name = keyset.keyname
             LOG.info("Removing%s key %s (valid from %s through %s)",
                      expiryStr, name, formatDate(va), formatDate(vu-3600))
             dirname = os.path.join(self.keyDir, "key_"+name)
@@ -261,21 +312,19 @@ class ServerKeyring:
 
     def _getLiveKeys(self, now=None):
         """Find all keys that are now valid.  Return list of (Valid-after,
-           valid-util, name)."""
-        if not self.keyIntervals:
+           valid-util, keyset)."""
+        if not self.keySets:
             return []
         if now is None:
             now = time.time()
-        if self.nextUpdate and now > self.nextUpdate:
-            self.nextUpdate = None
 
         cutoff = now-self.keyOverlap
         # A key is live if
         #     * it became valid before now, and
         #     * it did not become invalid until keyOverlap seconds ago
 
-        return [ k for k in self.keyIntervals
-                 if k[0] < now and k[1] > cutoff ]
+        return [ (va,vu,k) for (va,vu,k) in self.keySets
+                 if va < now and vu > cutoff ]
 
     def getServerKeysets(self):
         """Return a ServerKeyset object for the currently live key.
@@ -283,10 +332,7 @@ class ServerKeyring:
            DOCDOC"""
         # FFFF Support passwords on keys
         keysets = [ ]
-        for va, vu, name in self._getLiveKeys():
-            ks = ServerKeyset(self.keyDir, name, self.hashDir)
-            ks.validAfter = va
-            ks.validUntil = vu
+        for va, vu, ks in self._getLiveKeys():
             ks.load()
             keysets.append(ks)
 
@@ -323,7 +369,7 @@ class ServerKeyring:
     def updateKeys(self, packetHandler, mmtpServer, when=None):
         """DOCDOC: Return next rotation."""
         self.removeDeadKeys()
-        keys = self.getServerKeysets(when)
+        self.currentKeys = keys = self.getServerKeysets(when)
         LOG.info("Updating keys: %s currently valid", len(keys))
         if mmtpServer is not None:
             context = self._getTLSContext(keys[-1])
@@ -338,12 +384,17 @@ class ServerKeyring:
                     k.getHashLogFileName(), k.getPacketKeyID()))
             packetHandler.setKeys(packetkeys, hashLogs)
 
+        self.nextUpdate = None
         self.getNextKeyRotation(keys)
 
     def getNextKeyRotation(self, keys=None):
+        """DOCDOC"""
         if self.nextUpdate is None:
             if keys is None:
-                keys = self.getServerKeysets()
+                if self.currentKeys is None:
+                    keys = self.getServerKeysets()
+                else:
+                    keys = self.currentKeys
             addKeyEvents = []
             rmKeyEvents = []
             for k in keys:
@@ -361,7 +412,6 @@ class ServerKeyring:
                          formatTime(rm,1))
                 self.nextUpdate = rm
 
-
         return self.nextUpdate
 
     def getAddress(self):
@@ -371,6 +421,12 @@ class ServerKeyring:
         return (desc['Incoming/MMTP']['IP'],
                 desc['Incoming/MMTP']['Port'],
                 desc['Incoming/MMTP']['Key-Digest'])
+
+    def lock(self, blocking=1):
+        return self._lock.acquire(blocking)
+
+    def unlock(self):
+        self._lock.release()
 
 #----------------------------------------------------------------------
 class ServerKeyset:
@@ -393,7 +449,7 @@ class ServerKeyset:
     # descFile: filename of this keyset's server descriptor.
     #
     # packetKey, mmtpKey: This server's actual short-term keys.
-    # DOCDOC serverinfo, validAfter, validUntil
+    # DOCDOC serverinfo, validAfter, validUntil,published(File)?
     def __init__(self, keyroot, keyname, hashroot):
         """Load a set of keys named "keyname" on a server where all keys
            are stored under the directory "keyroot" and hashlogs are stored
@@ -408,9 +464,11 @@ class ServerKeyset:
         self.mmtpKeyFile = os.path.join(keydir, "mmtp.key")
         self.certFile = os.path.join(keydir, "mmtp.cert")
         self.descFile = os.path.join(keydir, "ServerDesc")
+        self.publishedFile = os.path.join(keydir, "published")
         self.serverinfo = None
         self.validAfter = None
         self.validUntil = None
+        self.published = os.path.exists(self.publishedFile)
         if not os.path.exists(keydir):
             createPrivateDir(keydir)
 
@@ -438,20 +496,38 @@ class ServerKeyset:
         "Return the sha1 hash of the asn1 encoding of the packet public key"
         return mixminion.Crypto.sha1(self.packetKey.encode_key(1))
     def getServerDescriptor(self):
+        """DOCDOC"""
         if self.serverinfo is None:
             self.serverinfo = ServerInfo(fname=self.descFile)
         return self.serverinfo
     def getLiveness(self):
+        """DOCDOC"""
         if self.validAfter is None or self.validUntil is None:
             info = self.getServerDescriptor()
             self.validAfter = info['Server']['Valid-After']
             self.validUntil = info['Server']['Valid-Until']
         return self.validAfter, self.validUntil
+    def isPublished(self):
+        """DOCDOC"""
+        return self.published
+    def markAsPublished(self):
+        """DOCDOC"""
+        f = open(self.published, 'w')
+        try:
+            f.write(formatTime(time.time(), 1))
+            f.write("\n")
+        finally:
+            f.close()
+        self.published = 1
     def regenerateServerDescriptor(self, config, identityKey, validAt=None):
         """DOCDOC"""
         self.load()
         if validAt is None:
             validAt = self.getLiveness()[0]
+        try:
+            os.unlink(self.publishedFile)
+        except OSError:
+            pass
         generateServerDescriptorAndKeys(config, identityKey,
                          self.keyroot, self.keyname, self.hashroot,
                          validAt=validAt, useServerKeys=1)
