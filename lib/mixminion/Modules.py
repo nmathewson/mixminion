@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.11 2002/08/31 04:12:36 nickm Exp $
+# $Id: Modules.py,v 1.12 2002/09/10 14:45:30 nickm Exp $
 
 """mixminion.Modules
 
@@ -366,7 +366,7 @@ class MBoxModule(DeliveryModule):
     def getServerInfoBlock(self):
         return """\
                   [Delivery/MBOX]
-                  Version: 1.0
+                  Version: 0.1
                """
     
     def getName(self):

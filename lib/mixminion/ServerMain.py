@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.8 2002/08/31 04:12:36 nickm Exp $
+# $Id: ServerMain.py,v 1.9 2002/09/10 14:45:31 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -439,6 +439,7 @@ class MixminionServer:
 		self.mmtpServer.process(1)
 		self.incomingQueue.sendReadyMessages()
 	    
+	    self.packetHandler.syncLogs()
 	    getLog().trace("Mix interval elapsed")
 	    self.mixPool.mix()
 	    self.outgoingQueue.sendReadyMessages()
@@ -453,6 +454,10 @@ class MixminionServer:
 		self.outgoingQueue.cleanQueue()
 		self.moduleManager.cleanQueues()
 		nextShred = now + 6000
+
+    def close(self):
+	"""Release all resources; close all files."""
+	self.packetHandler.close()
 
 #----------------------------------------------------------------------
 
@@ -510,7 +515,7 @@ def runServer(cmd, args):
     except:
 	getLog().fatal_exc(sys.exc_info(),"Exception while running server")
     getLog().info("Server shutting down")
-    
+    server.close()
     
     sys.exit(0)
 

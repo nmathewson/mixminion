@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.10 2002/08/31 04:12:36 nickm Exp $
+# $Id: HashLog.py,v 1.11 2002/09/10 14:45:30 nickm Exp $
 
 """mixminion.HashLog
 
@@ -12,6 +12,9 @@ from mixminion.Common import MixFatalError, getLog, createPrivateDir
 __all__ = [ 'HashLog' ]
 
 # FFFF Mechanism to force a different default db module.
+
+# FFFF Journaling for dbs that don't recover from catastrophic failure during
+# FFFF writes.
 
 class HashLog:
     """A HashLog is a file containing a list of message digests that we've
@@ -40,7 +43,6 @@ class HashLog:
            'keyid'."""
         parent = os.path.split(filename)[0]
 	createPrivateDir(parent)
-	print filename
         self.log = anydbm.open(filename, 'c')
         if isinstance(self.log, dumbdbm._Database):
             getLog().warn("Warning: logging packet digests to a flat file.")

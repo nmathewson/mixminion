@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.14 2002/08/31 04:12:36 nickm Exp $
+# $Id: Config.py,v 1.15 2002/09/10 14:45:30 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -58,6 +58,11 @@ import mixminion.Common
 from mixminion.Common import MixError, getLog
 import mixminion.Packet
 import mixminion.Crypto
+
+# String with all characters 0..255; used for str.translate
+_ALLCHARS = "".join(map(chr, range(256)))
+# String with all printing ascii characters.
+_GOODCHARS = "".join(map(chr, range(0x07,0x0e)+range(0x20,0x80)))
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -213,11 +218,10 @@ def _parseCommand(command):
 
         raise ConfigError("No match found for command %r" %cmd)
 
-_allChars = "".join(map(chr, range(256)))
 def _parseBase64(s,_hexmode=0):
     """Validation function.  Converts a base-64 encoded config value into
        its original. Raises ConfigError on failure."""
-    s = s.translate(_allChars, " \t\v\n")
+    s = s.translate(_ALLCHARS, " \t\v\n")
     try:
 	if _hexmode:
 	    return binascii.a2b_hex(s)
@@ -327,6 +331,10 @@ def _readConfigFile(contents, restrict=0):
     curSection = None
     lineno = 0
     lastKey = None
+
+    badchars = contents.translate(_ALLCHARS, _GOODCHARS)
+    if badchars:
+	raise ConfigError("Invalid characters in file: %r", badchars)
 
     fileLines = contents.split("\n")
     if fileLines[-1] == '':

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.26 2002/08/31 04:12:36 nickm Exp $
+# $Id: test.py,v 1.27 2002/09/10 14:45:31 nickm Exp $
 
 """mixminion.tests
 
@@ -383,6 +383,12 @@ class CryptoTests(unittest.TestCase):
         decoded = pk_decode_private_key(encoded)
         eq(msg, pk_decrypt(pk_encrypt(msg, pub512),decoded))
 
+	# Test pickling
+	init_crypto()
+	s = cPickle.dumps(k512)
+	self.assertEquals(cPickle.loads(s).get_public_key(), 
+			  k512.get_public_key())
+
     def test_trng(self):
         # Make sure that the true rng is at least superficially ok.
         self.assertNotEquals(trng(40), trng(40))
@@ -632,7 +638,7 @@ class PacketTests(unittest.TestCase):
             self.assertEquals(inf.pack(), ri)
 
     def test_replyblock(self):
-        r = ("SURB\x01\x00"+"\x00\x00\x00\x00"+("Z"*2048)+"\x00\x0A"+"\x00\x01"
+        r = ("SURB\x00\x01"+"\x00\x00\x00\x00"+("Z"*2048)+"\x00\x0A"+"\x00\x01"
              +("F"*10))
         rb = parseReplyBlock(r)
         self.assertEquals(rb.timestamp, 0)
@@ -913,6 +919,9 @@ class BuildMessageTests(unittest.TestCase):
                 payload = lioness_decrypt(payload, pkey)
 
             if path is secrets1:
+		swapkey = mixminion.Crypto.lioness_keys_from_header(head2)
+		payload = lioness_decrypt(payload, swapkey)
+
                 swapkey = mixminion.Crypto.lioness_keys_from_payload(payload)
                 head2 = lioness_decrypt(head2, swapkey)
 
@@ -933,6 +942,10 @@ class BuildMessageTests(unittest.TestCase):
             pkey = ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE)
             head2 = lioness_decrypt(head2, hkey)
             payload = lioness_decrypt(payload, pkey)
+
+        swapkey = mixminion.Crypto.lioness_keys_from_header(head2)
+        payload = lioness_decrypt(payload, swapkey)
+
         swapkey = mixminion.Crypto.lioness_keys_from_payload(payload)
         head2 = lioness_decrypt(head2, swapkey)
 
@@ -961,6 +974,7 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
             h2 = lioness_decrypt(h2,ks.getLionessKeys(HEADER_ENCRYPT_MODE))
+	p = lioness_decrypt(p,mixminion.Crypto.lioness_keys_from_header(h2))
         h2 = lioness_decrypt(h2,mixminion.Crypto.lioness_keys_from_payload(p))
 
         sec = self.do_header_test(h2, *header_info_2)
@@ -2120,6 +2134,7 @@ EncryptIdentityKey: no
 PublicKeyLifetime: 10 days
 EncryptPrivateKey: no
 Mode: relay
+Nickname: fred-the-bunny
 """
 
 _IDENTITY_KEY = None
@@ -2150,7 +2165,7 @@ class ServerInfoTests(unittest.TestCase):
                                                                    d)
         info = mixminion.ServerInfo.ServerInfo(string=inf)
         eq = self.assertEquals
-        eq(info['Server']['Descriptor-Version'], "1.0")
+        eq(info['Server']['Descriptor-Version'], "0.1")
         eq(info['Server']['IP'], "192.168.0.1")
         eq(info['Server']['Nickname'], "The Server")
         self.failUnless(0 <= time.time()-info['Server']['Published'] <= 120)
@@ -2162,11 +2177,11 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Server']['Comments'],
            "This is a test of the emergency broadcast system")
         
-        eq(info['Incoming/MMTP']['Version'], "1.0")
+        eq(info['Incoming/MMTP']['Version'], "0.1")
         eq(info['Incoming/MMTP']['Port'], 48099)
-        eq(info['Incoming/MMTP']['Protocols'], "1.0")
-        eq(info['Outgoing/MMTP']['Version'], "1.0")
-        eq(info['Outgoing/MMTP']['Protocols'], "1.0")
+        eq(info['Incoming/MMTP']['Protocols'], "0.1")
+        eq(info['Outgoing/MMTP']['Version'], "0.1")
+        eq(info['Outgoing/MMTP']['Protocols'], "0.1")
         eq(info['Incoming/MMTP']['Allow'], [("192.168.0.16", "255.255.255.255",
                                             1,1024),
                                            ("0.0.0.0", "0.0.0.0",
@@ -2174,7 +2189,7 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Incoming/MMTP']['Deny'], [("192.168.0.16", "255.255.255.255",
                                             0,65535),
                                            ])
-        eq(info['Delivery/MBOX']['Version'], "1.0")
+        eq(info['Delivery/MBOX']['Version'], "0.1")
 
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
@@ -2402,6 +2417,7 @@ EncryptIdentityKey: No
 PublicKeyLifetime: 10 days
 IdentityKeyBits: 2048
 EncryptPrivateKey: no
+Nickname: mac-the-knife
 """
 
 _FAKE_HOME = None

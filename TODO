@@ -21,10 +21,10 @@ FOR 0.0.1: (The first alpha)
 		o Hardwired code to drop undeliverable messages
 		o Document ServerMain
 		o Unit test for keyset 
-		- Make at least one delivery happen
-			- BUG: Make sure hashlogs get written
-			- BUG: "Unable to handle message with unknown type 65534
-			- BUG: Changing port should make keyid die.
+		o Make at least one delivery happen
+			o BUG: Make sure hashlogs get written
+			o BUG: "Unable to handle message with unknown type...
+		- Use real cottrell mixing again.
 		- Need 'nuke keys' cli.
 		- Unit tests for various queues.
 		*- Better debugging logs
@@ -41,6 +41,10 @@ FOR 0.0.1: (The first alpha)
 		- Send a message
 		- Generate a message
 		- Design directory layout
+		o Storage for serverinfo
+			o Make serverinfo pickleable
+				o Make RSA pickleable
+			- Test
 		- Test CLI client
 	- Config
 		o Infer nickname
@@ -48,6 +52,7 @@ FOR 0.0.1: (The first alpha)
 		o Stub validation function for server
 		o Warn about unimplemented allow/deny
 		o Warn about all unimplemented features
+		o Make all config files reject bogus characters.
 		- Example config
 	. Build
 		. Ability to pull ssl.
@@ -62,7 +67,7 @@ FOR 0.0.1: (The first alpha)
 	. MBox module
 		o Implement
 		- Test
-	- Rename versions to 0.1.
+	o Rename versions to 0.1.
 	- Change output of dates to avoid potential GMT confusion.
 	o Marginally clean shutdown for server
 	- Versioning :)
@@ -87,6 +92,8 @@ Required for "1.0":
 	- Security
 		- Make createPrivateDirs gripe about group-writable parent
 		  dirs
+		- Make hashlog code use journaling if underlying dbs are 
+		  unreliable.
 	- Server core
 		- Clean shutdown
 		- Good reset handling
@@ -115,6 +122,8 @@ Required for "1.0":
 		  module-adjustable
 		- Make 'drop undeliverable' rate configurable.
 		- Implement allow/deny code
+		- Make server gripe loudly when config doesn't match published
+		  serverinfo.
 	- Client support
 		- Generate a reply block
 		- Read message from reply block
@@ -143,7 +152,7 @@ SPEC!!		- Timeout old connections
 		- End-to-end payload encryption, if we ever agree on a spec.
 		- Reading messages sent to reply blocks
 		- Correct implementation of stateless reply blocks
-SPEC		- Patch to address George's 15August attack
+SPEC		o Patch to address George's 15August attack
 	- Test on other (non-redhat, non-linux) systems
 	- Directories
 		- ServerInfo: complete validation rules

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.19 2002/08/29 03:30:21 nickm Exp $
+# $Id: Crypto.py,v 1.20 2002/09/10 14:45:30 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -11,6 +11,7 @@
 import os
 import sys
 import stat
+import copy_reg
 from types import StringType
 
 import mixminion._minionlib as _ml
@@ -47,7 +48,7 @@ def init_crypto(config=None):
     except:
         raise MixFatalError("Error initializing entropy source")
     openssl_seed(40)
-
+    
 def sha1(s):
     """Return the SHA1 hash of its argument"""
     return _ml.sha1(s)
@@ -219,6 +220,14 @@ def pk_PEM_load(filename, password=None):
     f.close()
     return rsa
     
+def _pickle_rsa(rsa):
+    return _ml.rsa_make_public_key, rsa.get_public_key()
+
+# Register this function to make RSA keys pickleable.  Note that we only
+# pickle the public part of an RSA key; for long-term storage of private
+# keys, you should use PEM so we can support encryption.
+copy_reg.pickle(_ml.RSA, _pickle_rsa, _ml.rsa_make_public_key)
+
 #----------------------------------------------------------------------
 # OAEP Functionality
 #
@@ -328,6 +337,9 @@ PAYLOAD_ENCRYPT_MODE = "PAYLOAD ENCRYPT"
 # Used to LIONESS-encrypt the header at the swap point.
 HIDE_HEADER_MODE = "HIDE HEADER"
 
+# Used to LIONESS-encrypt the payload at the swap point.
+HIDE_PAYLOAD_MODE = "HIDE PAYLOAD"
+
 # Used to remember whether we've seen a secret before
 REPLAY_PREVENTION_MODE = "REPLAY PREVENTION"
 
@@ -365,6 +377,12 @@ def lioness_keys_from_payload(payload):
        at the swap point.''' 
     digest = sha1(payload)
     return Keyset(digest).getLionessKeys(HIDE_HEADER_MODE)
+
+def lioness_keys_from_header(header2):
+    '''Given the off-header, returns the LIONESS keys to encrypt the payload
+       at the swap point.''' 
+    digest = sha1(header2)
+    return Keyset(digest).getLionessKeys(HIDE_PAYLOAD_MODE)
 
 #---------------------------------------------------------------------
 # Random number generators

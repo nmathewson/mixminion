@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.16 2002/08/29 03:30:21 nickm Exp $
+# $Id: Queue.py,v 1.17 2002/09/10 14:45:30 nickm Exp $
 
 """mixminion.Queue
 
@@ -382,6 +382,9 @@ class CottrellMixQueue(TimedMixQueue):
 	self.sendRate = 1.0 - retainRate
 
     def getBatch(self):
+	# XXXX This is not the real cottrell algorithm.  Once somebody
+	# XXXX has explained to me what is going on here, I will implement
+	# XXXX the real one. -NM
 	pool = self.count()
 	if pool <= self.threshold:
 	    return []

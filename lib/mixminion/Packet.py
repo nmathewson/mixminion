@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.8 2002/08/21 19:09:48 nickm Exp $
+# $Id: Packet.py,v 1.9 2002/09/10 14:45:30 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -246,8 +246,9 @@ def parseReplyBlock(s):
     if magic != 'SURB':
         raise ParseError("Misformatted reply block")
 
-    if major != 0x01 or minor != 0x00:
-        raise ParseError("Unrecognized version on reply block")
+    if major != 0x00 or minor != 0x01:
+        raise ParseError("Unrecognized version on reply block %s.%s",
+			 major,minor)
 
     ri = s[MIN_RB_LEN:]
     if len(ri) != rlen:
@@ -269,7 +270,7 @@ class ReplyBlock:
     def pack(self):
         """Returns the external representation of this reply block"""
         return struct.pack(RB_UNPACK_PATTERN,
-                           "SURB", 0x01, 0x00, self.timestamp,
+                           "SURB", 0x00, 0x01, self.timestamp,
                            self.header, len(self.routingInfo),
                            self.routingType)+self.routingInfo
 

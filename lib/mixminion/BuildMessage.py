@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.12 2002/08/31 04:12:36 nickm Exp $
+# $Id: BuildMessage.py,v 1.13 2002/09/10 14:45:29 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -275,6 +275,11 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
     # Encrypt header2 with a hash of the payload.
     key = Crypto.lioness_keys_from_payload(payload)
     header2 = Crypto.lioness_encrypt(header2, key)
+
+    # Encrypt payload with a hash of header2.  Now tagging either will make
+    # both unrecoverable.
+    key = Crypto.lioness_keys_from_header(header2)
+    payload = Crypto.lioness_encrypt(payload, key)
 
     # Copy secrets1 so we don't reverse the original.
     secrets1 = secrets1[:]

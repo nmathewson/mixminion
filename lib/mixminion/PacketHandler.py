@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.7 2002/08/31 04:12:36 nickm Exp $
+# $Id: PacketHandler.py,v 1.8 2002/09/10 14:45:30 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -41,6 +41,16 @@ class PacketHandler:
 	    # XXXX Don't do except:; name an exception.
             self.privatekey = (privatekey, )
             self.hashlog = (hashlog, )
+
+    def syncLogs(self):
+	"""Sync all this PacketHandler's hashlogs."""
+	for h in self.hashlog:
+	    h.sync()
+
+    def close(self):
+	"""Close all this PacketHandler's hashlogs."""
+	for h in self.hashlog:
+	    h.close()
 
     def processMessage(self, msg):
         """Given a 32K mixminion message, processes it completely.
@@ -156,11 +166,16 @@ class PacketHandler:
         header2 = Crypto.lioness_decrypt(msg.header2,
                            keys.getLionessKeys(Crypto.HEADER_ENCRYPT_MODE))
 
-        # If we're the swap node, decrypt header2 with a hash of the
-        # payload, and swap the headers.
+        # If we're the swap node, (1) decrypt the payload with a hash of 
+	# header2... (2) decrypt header2 with a hash of the payload...
+	# (3) and swap the headers.
         if rt == Modules.SWAP_FWD_TYPE:
+	    hkey = Crypto.lioness_keys_from_header(header2)
+	    payload = Crypto.lioness_decrypt(payload, hkey)
+
             hkey = Crypto.lioness_keys_from_payload(payload)
             header2 = Crypto.lioness_decrypt(header2, hkey)
+
             header1, header2 = header2, header1
 
         # Build the address object for the next hop

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.13 2002/08/29 03:30:21 nickm Exp $
+# $Id: ServerInfo.py,v 1.14 2002/09/10 14:45:31 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,7 +15,7 @@ import os
 import base64
 import socket
 
-from mixminion.Common import createPrivateDir
+from mixminion.Common import createPrivateDir, getLog
 from mixminion.Modules import SWAP_FWD_TYPE, FWD_TYPE
 from mixminion.Packet import IPV4Info
 import mixminion.Config
@@ -85,8 +85,9 @@ class ServerInfo(mixminion.Config._ConfigFile):
 	####
 	# Check 'Server' section.
 	server = sections['Server']
-	if server['Descriptor-Version'] != '1.0':
-	    raise ConfigError("Unrecognized descriptor version")
+	if server['Descriptor-Version'] != '0.1':
+	    raise ConfigError("Unrecognized descriptor version %r",
+			      server['Descriptor-Version'])
 	if len(server['Nickname']) > MAX_NICKNAME:
 	    raise ConfigError("Nickname too long")
 	identityKey = server['Identity']
@@ -245,6 +246,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         nickname = socket.gethostname()
         if not nickname or nickname.lower().startswith("localhost"):
             nickname = config['Incoming/MMTP'].get('IP', "<Unknown host>")
+	getLog().warn("No nickname given: defaulting to %r", nickname)
     contact = config['Server']['Contact-Email']
     comments = config['Server']['Comments']
     if not validAt:
@@ -280,7 +282,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 	
     info = """\
         [Server]
-	Descriptor-Version: 1.0
+	Descriptor-Version: 0.1
         IP: %(IP)s
         Nickname: %(Nickname)s
 	Identity: %(Identity)s
@@ -299,10 +301,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     if config["Incoming/MMTP"].get("Enabled", 0):
 	info += """\
             [Incoming/MMTP]
-            Version: 1.0
+            Version: 0.1
             Port: %(Port)s
 	    Key-Digest: %(KeyID)s
-	    Protocols: 1.0
+	    Protocols: 0.1
             """ % fields
         for k,v in config.getSectionItems("Incoming/MMTP"):
             if k not in ("Allow", "Deny"):
@@ -312,8 +314,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     if config["Outgoing/MMTP"].get("Enabled", 0):
 	info += """\
             [Outgoing/MMTP]
-	    Version: 1.0
-            Protocols: 1.0
+	    Version: 0.1
+            Protocols: 0.1
             """
         for k,v in config.getSectionItems("Outgoing/MMTP"):
             if k not in ("Allow", "Deny"):
