@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.101 2003/05/05 00:38:45 nickm Exp $
+# $Id: test.py,v 1.102 2003/05/05 00:42:49 nickm Exp $
 
 """mixminion.tests
 
@@ -3136,7 +3136,9 @@ class MMTPTests(unittest.TestCase):
         # Was an exception raised?
         self.assertEquals(1, len(excList))
         # Was it the right exception?
-        self.assert_(isinstance(excList[0][1], _ml.TLSClosed))
+        ex = excList[0][1]
+        self.assert_(isinstance(ex, MixError))
+        self.assert_(isinstance(ex.base, _ml.TLSClosed))
 
         for _ in xrange(3):
             server.process(0.1)
