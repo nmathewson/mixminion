@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.56 2003/08/25 23:44:30 nickm Exp $
+# $Id: Config.py,v 1.57 2003/09/03 15:49:58 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -65,8 +65,9 @@ from cStringIO import StringIO
 
 import mixminion.Common
 import mixminion.Crypto
-from mixminion.Common import MixError, LOG, ceilDiv, isPrintingAscii, \
-   stripSpace, stringContains
+
+from mixminion.Common import MixError, LOG, ceilDiv, englishSequence, \
+   isPrintingAscii, stripSpace, stringContains
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -642,11 +643,18 @@ class _ConfigFile:
                 try:
                     rule, parseFn, default = secConfig[k]
                 except KeyError:
+                    msg = "Unrecognized key %s on line %s"%(k,line)
+                    acceptedIn = [ sn for sn,sc in self._syntax.items()
+                                   if sc.has_key(k) ]
+                    acceptedIn.sort()
+                    if acceptedIn:
+                        msg += ". This key belongs in %s, but appears in %s."%(
+                            englishSequence(acceptedIn, compound="or"),
+                            secName)
                     if self._restrictKeys:
-                        raise ConfigError("Unrecognized key %s on line %s" %
-                                          (k, line))
+                        raise ConfigError(msg)
                     else:
-                        LOG.warn("Unrecognized key %s on line %s", k, line)
+                        LOG.warn(msg)
                         continue
 
                 # Parse and validate the value of this entry.
