@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.48 2003/02/17 16:21:01 nickm Exp $
+# $Id: setup.py,v 1.49 2003/02/20 01:55:13 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -10,13 +10,13 @@ import sys
 #  than 1.3.  I'm okay with that.)
 if not hasattr(sys, 'version_info') or sys.version_info < (2, 0, 0):
     print "Sorry, but I require Python 2.0 or higher."
-    sys.exit(0)
+    sys.exit(1)
 
 try:
     import zlib
 except ImportError:
     print "Zlib support seems to be missing; install python with zlib support."
-    sys.exit(0)
+    sys.exit(1)
 
 import os, re, shutil, string, struct
 
@@ -139,7 +139,7 @@ if USE_OPENSSL:
         v = getOpenSSLVersion("./contrib/openssl/include/openssl/opensslv.h")
         if not v or v < MIN_OPENSSL_VERSION:
             print BAD_OPENSSL_IN_CONTRIB
-            sys.exit(0)
+            sys.exit(1)
     # Otherwise, look in a bunch of standard places for a possible OpenSSL
     # installation.  This logic is adapted from check_ssl.m4 from ac-archive;
     # the list of locations is extended with locations from Python's setup.py.
@@ -173,7 +173,7 @@ if USE_OPENSSL:
                     print "Skipping old version of OpenSSL in %s"%prefix
         if not found:
             print NO_OPENSSL_FOUND
-            sys.exit(0)
+            sys.exit(1)
         
         STATIC_LIBS=[]
         LIBRARIES=['ssl','crypto']
@@ -281,21 +281,41 @@ def _haveCmd(cmdname):
             return 1
     return 0
 
-try:
-    from distutils.core import Command
-except ImportError:
-    print "\nUh oh. You have Python installed, but I didn't find the distutils"
-    print "module, which is supposed to come with the standard library."
+def requirePythonDev(e=None):
     if os.path.exists("/etc/debian_version"):
         v = sys.version[:3]
         print "Debian may expect you to install python%s-dev"%v
     elif os.path.exists("/etc/redhat-release"):
-        print "Redhat may need to install python2-devel"
+        print "Redhat may expect you to install python2-devel"
     else:
         print "You may be missing some 'python development' package for your"
         print "distribution."
-    sys.exit(0)
-        
+
+    if e:
+        print "(Error was: %s)"%e
+
+    sys.exit(1)
+
+try:
+    from distutils.core import Command
+    from distutils.errors import DistutilsPlatformError
+    from distutils.sysconfig import get_makefile_filename
+except ImportError, e:
+    print "\nUh oh. You have Python installed, but I didn't find the distutils"
+    print "module, which is supposed to come with the standard library.\n"
+
+    requirePythonDev()
+
+try:
+    # This catches failures to install python2-dev on some Recent Redhats.
+    mf = get_makefile_filename()
+    print mf
+except IOError:
+    print "\nUh oh. You have Python installed, but distutils can't find the"
+    print "Makefile it needs to build additional Python components.\n"
+
+    requirePythonDev()
+    
 
 class runMMCommand(Command):
     # Based on setup.py from Zooko's pyutil package, which is in turn based on
@@ -372,7 +392,8 @@ extmodule = Extension(
 setup(name='Mixminion',
       version=VERSION,
       license="LGPL",
-      description="Mixminion: Python implementation of the Type III Mix protocol (ALPHA)",
+      description=
+      "Mixminion: Python implementation of the Type III Mix protocol (ALPHA)",
       author="Nick Mathewson",
       author_email="nickm@freehaven.net",
       url="http://www.mixminion.net/",
