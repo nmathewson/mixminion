@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.23 2003/05/29 02:01:34 nickm Exp $
+# $Id: ServerList.py,v 1.24 2003/05/30 02:11:11 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -137,6 +137,12 @@ class ServerList:
             self._lock()
             ident = server.getIdentity()
             nickname = server.getNickname()
+            try:
+                if self.idCache.containsServer(server):
+                    LOG.warn("Server %s already known", nickname)
+            except mixminion.directory.MismatchedID:
+                raise MixFatalError("Mismatched ID for server %s", nickname)
+                
             LOG.info("Learning identity for new server %s", nickname)
             self.idCache.insertServer(server)
             writePickled(os.path.join(self.serverIDDir,

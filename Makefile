@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.43 2003/05/26 20:04:10 nickm Exp $
+# $Id: Makefile,v 1.44 2003/05/30 02:11:11 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -46,11 +46,6 @@ FINDPYTHON = \
 all: do_build
 
 do_build:
-	@if [ ! -e ./contrib/openssl/libcrypto.a ]; then \
-	   echo "I didn't find a prebuilt openssl in ./contrib/openssl." ;\
-	   echo "If this build fails, try "\
-	        "'make download-openssl; make build-openssl'"; \
-	fi
 	@$(FINDPYTHON); \
 	echo $$PYTHON setup.py build; \
 	$$PYTHON setup.py build
@@ -115,6 +110,7 @@ update:
 	elif [ ! -w $$LIB ] ; then                                           \
 	  echo "You don't seem to have write access to $$LIB; bailing.";     \
 	else                                                                 \
+          rm -rf $$LIB;                                                      \
 	  $(MAKE) install;                                                   \
 	fi
 
