@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.8 2002/08/06 16:09:21 nickm Exp $
+# $Id: MMTPServer.py,v 1.9 2002/08/11 07:50:34 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -323,10 +323,7 @@ class SimpleTLSConnection(Connection):
         while len(out):
             r = self.__con.write(out) # may throw
 
-            if r == 0:
-                self.shutdown() #XXXX
-                return
-
+	    assert r > 0
             out = out[r:]
 
         self.__outbuf = out
@@ -359,7 +356,6 @@ class SimpleTLSConnection(Connection):
             self.__server.registerReader(self)
         except _ml.TLSClosed:
             warn("Unexpectedly closed connection")
-
             self.__sock.close()
             self.__server.unregister(self) 
         except _ml.TLSError:
@@ -488,9 +484,20 @@ class MMTPServerConnection(SimpleTLSConnection):
 
 #----------------------------------------------------------------------
         
+# XXXX retry logic.
 class MMTPClientConnection(SimpleTLSConnection):
-    def __init__(self, context, ip, port, keyID, messageList,
+    def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None):
+	"""Create a connection to send messages to an MMTP server.  
+	   ip -- The IP of the destination server.
+	   port -- The port to connect to.
+	   keyID -- None, or the expected SHA1 hash of the server's public key
+	   messageList -- a list of message payloads to send
+	   handleList -- a list of objects corresponding to the messages in
+	      messageList.  Used for callback.
+           sentCallback -- None, or a function of (msg, handle) to be called
+              whenever a message is successfully sent."""
+	
         trace("CLIENT CON")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(0)
@@ -506,6 +513,7 @@ class MMTPClientConnection(SimpleTLSConnection):
 
         SimpleTLSConnection.__init__(self, sock, tls, 0)
         self.messageList = messageList
+	self.handleList = handleList
         self.finished = self.__setupFinished
         self.sentCallback = sentCallback
 
@@ -581,38 +589,44 @@ class MMTPClientConnection(SimpleTLSConnection):
 
        debug("Received valid ACK for message.")
        justSent = self.messageList[0]
+       justSentHandle = self.handleList[0]
        del self.messageList[0]
+       del self.handleList[0]
        if self.sentCallback is not None:
-           self.sentCallback(justSent)
-
+           self.sentCallback(justSent, justSetHandle)
+	   
        self.beginNextMessage()
 
+LISTEN_BACKLOG = 10 # ???? Is something else more reasonable
 class MMTPServer(AsyncServer):
-    "XXXX"
+    """A helper class to invoke AsyncServer, MMTPServerConnection, and
+       MMTPClientConnection"""
     def __init__(self, config):
         self.context = config.getTLSContext(server=1)
         self.listener = ListenConnection("127.0.0.1",
-                                         config['Outgoing/MMTP']['Port']
-                                         10, self._newMMTPConnection)
+                                         config['Outgoing/MMTP']['Port'],
+					 LISTEN_BACKLOG,
+                                         self._newMMTPConnection)
         self.config = config
         self.listener.register(self)
 
     def _newMMTPConnection(self, sock):
-        "XXXX"
+	"""helper method.  Creates and registers a new server connection when
+	   the listener socket gets a hit."""
         # XXXX Check whether incoming IP is valid XXXX
         tls = self.context.sock(sock, serverMode=1)
         sock.setblocking(0)
         con = MMTPServerConnection(sock, tls, self.onMessageReceived)
         con.register(self)
         
-    def sendMessages(self, ip, port, keyID, messages):
-        con = MMTPClientConnection(ip, port, keyID, messages,
+    def sendMessages(self, ip, port, keyID, messages, handles):
+	"""Send a set of messages to a given server."""
+        con = MMTPClientConnection(ip, port, keyID, messages, handles,
                                    self.onMessageSent)
         con.register(self)
 
     def onMessageReceived(self, msg):
         pass
 
-    def onMessageSent(self, msg):
+    def onMessageSent(self, msg, handle):
         pass
-    

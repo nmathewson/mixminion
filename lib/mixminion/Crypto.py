@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.11 2002/07/28 22:42:33 nickm Exp $
+# $Id: Crypto.py,v 1.12 2002/08/11 07:50:34 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -9,6 +9,7 @@
    functionality themselves."""
 
 import os
+import sys
 import stat
 from types import StringType
 
@@ -35,14 +36,17 @@ AES_KEY_LEN = 128 >> 3
 # Number of bytes in a SHA1 digest
 DIGEST_LEN = 160 >> 3
 
-def init_crypto():
+def init_crypto(config=None):
     """Initialize the crypto subsystem."""
+    configure_trng(config)
     trng(1)
     try:
         # Try to read /dev/urandom
         trng(1)
+    except MixFatalError, e:
+	raise
     except:
-        raise MixFatalError("Couldn't initialize entropy source")
+        raise MixFatalError("Error initializing entropy source")
     openssl_seed(40)
 
 def sha1(s):
@@ -453,40 +457,72 @@ def getCommonPRNG():
         _theSharedPRNG = AESCounterPRNG()
     return _theSharedPRNG
 
+#----------------------------------------------------------------------
+# TRNG implementation
+
+# Here, we pick default files.
+#
+# This is a tricky point.  We want a device that gives securely-seeded
+# numbers from a really strong entropy source, but we don't need it to
+# block.  On Linux, this is /dev/urandom.  On BSD-ish things, this
+# MAY be /dev/srandom (the man page only says that urandom 'is not
+# guaranteed to be secure).  On Darwin, neither one seems to block.
+# On commercial Unices, your guess is as good as mine.
+PLATFORM_TRNG_DEFAULTS = {
+    'darwin' : [ "/dev/urandom", "/dev/random" ],
+    'linux2' : [ "/dev/urandom" ],
+    '***' : [ "/dev/urandom", "/dev/srandom", "/dev/random" ],
+    }
+
 _TRNG_FILENAME = None
-def _trng_set_filename():
+def configure_trng(config):
+    """Initialize the true entropy source from a given Config object.  If
+       none is provided, tries some sane defaults.""" 
     global _TRNG_FILENAME
-    config = mixminion.Config.getConfig()
     if config is not None:
-        file = config['Host'].get('EntropySource', "/dev/urandom")
+        requestedFile = config['Host'].get('EntropySource', None)
     else:
-        file = "/dev/urandom"
+	requestedFile = None
 
-    if not os.path.exists(file):
-        getLog().error("No such file as %s", file)
-        file = None
-    else:
-        st = os.stat(file)
-        if not (st[stat.ST_MODE] & stat.S_IFCHR):
-            getLog().error("Entropy source %s isn't a character device", file)
-            file = None
+    defaults = 	PLATFORM_TRNG_DEFAULTS.get(sys.platform,
+				   PLATFORM_TRNG_DEFAULTS['***'])
+    files = [ requestedFile ] + defaults
 
-    if file is None and _TRNG_FILENAME is None:
+    randFile = None
+    for file in files:
+	if file is None: 
+	    continue
+
+	verbose = 1#(file == requestedFile)
+	if not os.path.exists(file):
+	    if verbose:
+		getLog().error("No such file as %s", file)
+	else:
+	    st = os.stat(file)
+	    if not (st[stat.ST_MODE] & stat.S_IFCHR):
+		if verbose:
+		    getLog().error("Entropy source %s isn't a character device",
+				   file)
+	    else:
+		randFile = file
+		break
+
+    if randFile is None and _TRNG_FILENAME is None:
         getLog().fatal("No entropy source available")
         raise MixFatalError("No entropy source available")
-    elif file is None:
+    elif randFile is None:
         getLog().warn("Falling back to previous entropy source %s",
                       _TRNG_FILENAME)
     else:
-        _TRNG_FILENAME = file
+	getLog().info("Setting entropy source to %r", randFile)
+        _TRNG_FILENAME = randFile
     
 def _trng_uncached(n):
     '''Underlying access to our true entropy source.'''
     if _TRNG_FILENAME is None:
-        _trng_set_filename()
-        mixminion.Config.addHook(_trng_set_filename)
+        configure_trng(None)
         
-    f = open(_TRNG_FILENAME)
+    f = open(_TRNG_FILENAME, 'rb')
     d = f.read(n)
     f.close()
     return d

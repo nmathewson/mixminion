@@ -1,11 +1,13 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.1 2002/08/06 16:09:21 nickm Exp $
+# $Id: ServerMain.py,v 1.2 2002/08/11 07:50:34 nickm Exp $
 
 """mixminion.ServerMain
 
    The main loop and related functionality for a Mixminion server
 
-   BUG: No support for public key encryption"""
+   BUG: No support for encrypting private keys.n"""
+
+import cPickle
 
 from mixminion.Common import getLog, MixFatalError, MixError
 
@@ -43,6 +45,7 @@ def createDir(d):
             raise MixFatalError()
 
 class ServerState:
+    # XXXX This should be refactored.  keys should be separated from queues.
     # config
     # log
     # homedir
@@ -153,7 +156,6 @@ class ServerState:
 
     def getDeliverMBOXQueue(self, which):
         return self.deliverMBOXQueue
-        
 
 class _Server(MMTPServer):
     def __init__(self, config, serverState):
@@ -164,27 +166,96 @@ class _Server(MMTPServer):
     def onMessageReceived(self, msg):
         self.incomingQueue.queueMessage(msg)
 
-    def onMessageSent(self, msg):
-        self.outgoingQueue.remove
-    
+    def onMessageSent(self, msg, handle):
+        self.outgoingQueue.remove(handle)
 
 def runServer(config):
     s = ServerState(config)
+    log = getLog()
     packetHandler = s.getPacketHandler()
     context = s.getTLSContext()
 
-    shouldProcess = len(os.listdir(s.incomingDir))
-    shouldSend = len(os.listdir(s.outgoingDir))
-    shouldMBox = len(os.listdir(s.deliverMBOXDir))
     # XXXX Make these configurable; make mixing OO.
     mixInterval = 60
     mixPoolMinSize = 5
-    mixPoolMaxRate = 5 
+    mixPoolMaxRate = 0.5 
 
     nextMixTime = time.time() + mixInterval
 
-    server = mixminion.MMTPServer.MMTPServer(config)
+    server = _Server(config, s)
 
-    while 1:
-        
-        
+    incomingQueue = s.getIncomingQueue()
+    outgoingQueue = s.getOutgoingQueue()
+    mixQueue = s.getMixQueue()
+    deliverMBOXQueue = s.getDeliverMBOXQueue()
+    while 1:  # Add shutdown mechanism XXXX
+        server.process(1)
+
+	# Possible timing attack here????? XXXXX ????
+	if incomingQueue.count():
+	    for h in incomingQueue.getAllMessages():
+		msg = incomingQueue.messageContents(h)
+		res = None
+		try:
+		    res = packetHandler.processHandler(msg)
+		    if res is None: log.info("Padding message dropped")
+		except miximinion.Packet.ParseError, e:
+		    log.warn("Malformed message dropped:"+str(e))
+		except miximinion.Crypto.CryptoError, e:
+		    log.warn("Invalid PK or misencrypted packet header:"+str(e))
+		except mixminion.PacketHandler.ContentError, e:
+		    log.warn("Discarding bad packet:"+str(e))
+
+		if res is not None:
+		    f, newHandle = mixQueue.openNewMessage()
+		    cPickle.dump(res, f, 1)
+		    mixQueue.finishMessage(f, newHandle)
+		    log.info("Message added to mix queue")
+		
+		incomingQueue.removeMessage(h)
+	
+	if time.time() > nextMixTime:
+	    nextMixTime = time.time() + mixInterval
+	    
+	    poolSize = mixQueue.count()
+	    if poolSize > mixPoolMinSize:
+		beginSending = {}
+		n = min(poolSize-mixPoolMinSize, int(poolSize*mixPoolMaxRate))
+		handles = mixQueue.pickRandom(n)
+		for h in handles:
+		    f = mixQueue.openMessage(h)
+		    type, data = cPickle.load(f)
+		    f.close()
+		    if type == 'QUEUE':
+			newHandle = mixQueue.moveMessage(h, outgoingQueue)
+			ipv4info, payload = data
+			beginSending.setdefault(ipv4info,[]).append(
+			    (newHandle, payload))
+		    else:
+			assert type == 'EXIT'
+			# XXXX Use modulemanager for this.
+			rt, ri, appKey, payload = data
+			if rt == Modules.DROP_TYPE:
+			    mixQueue.removeMessage(h)
+			elif rt == Moddules.MBOX_TYPE:
+			    mixQueue.moveMessage(h, deliverMBOXQueue)
+			else:
+			    # XXXX Shouldn't we drop stuff as early as possible,
+			    # XXXX so that we don't wind up with only a single
+			    # XXXX message sent out of the server?
+			    log.warn("Dropping unhandled type 0x%04x",rt)
+			    mixQueue.removeMessage(h)
+
+		if beginSending:
+		    # XXXX Handle timeouts; handle if we're already sending
+		    # XXXX to a server.
+		    for addr, messages in beginSending.items():
+			handles, payloads = zip(*messages)
+			server.sendMessages(addr.ip, addr.port, addr.keyinfo,
+					    payloads, handles)
+		    
+	    # XXXX Retry and resend after failure.
+	    # XXXX Scan for messages we should begin sending after restart.
+	    # XXXX Remove long-undeliverable messages
+	    # XXXX Deliver MBOX messages.
+

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.6 2002/08/06 16:09:21 nickm Exp $
+# $Id: Packet.py,v 1.7 2002/08/11 07:50:34 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -324,6 +324,13 @@ class IPV4Info:
         """Return the routing info for this address"""
         assert len(self.keyinfo) == DIGEST_LEN
         return struct.pack(IPV4_PAT, _packIP(self.ip), self.port, self.keyinfo)
+    
+    def __hash__(self):
+	return hash(self.pack())
+
+    def __eq__(self, other):
+	return (type(self) == type(other) and self.ip == other.ip and
+		self.port == other.port and self.keyinfo == other.keyinfo)
 
 def parseSMTPInfo(s):
     """Convert the encoding of an SMTP routinginfo into an SMTPInfo object."""

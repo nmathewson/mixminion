@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.16 2002/08/06 16:09:21 nickm Exp $
+# $Id: test.py,v 1.17 2002/08/11 07:50:34 nickm Exp $
 
 """mixminion.tests
 
@@ -1347,17 +1347,18 @@ class QueueTests(unittest.TestCase):
         queue1.cleanQueue()    
         queue2.cleanQueue()
 
-#----------------------------------------------------------------------
+#---------------------------------------------------------------------
 # LOGGING
 class LogTests(unittest.TestCase):
     def testLogging(self):
         import cStringIO
-        from mixminion.Common import Log, FileLogTarget, ConsoleLogTarget
+        from mixminion.Common import Log, _FileLogHandler, _ConsoleLogHandler
         log = Log("INFO")
         self.assertEquals(log.getMinSeverity(), "INFO")
+	log.handlers = []
         log.log("WARN", "This message should not appear")
         buf = cStringIO.StringIO()
-        log.addHandler(ConsoleLogTarget(buf))
+        log.addHandler(_ConsoleLogHandler(buf))
         log.trace("Foo")
         self.assertEquals(buf.getvalue(), "")
         log.log("WARN", "Hello%sworld", ", ")
@@ -1371,7 +1372,7 @@ class LogTests(unittest.TestCase):
         t = tempfile.mktemp("log")
         t1 = t+"1"
         unlink_on_exit(t, t1)
-        log.addHandler(FileLogTarget(t))
+        log.addHandler(_FileLogHandler(t))
         log.info("Abc")
         log.info("Def")
         os.rename(t,t1)
@@ -1514,7 +1515,8 @@ class MMTPTests(unittest.TestCase):
         messages = ["helloxxx"*4096, "helloyyy"*4096]
         async = mixminion.MMTPServer.AsyncServer()
         clientcon = mixminion.MMTPServer.MMTPClientConnection(
-           _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid, messages[:], None)
+           _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid, messages[:], 
+	   [None, None], None)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():
@@ -1536,7 +1538,7 @@ class MMTPTests(unittest.TestCase):
         # Again, with bad keyid.
         clientcon = mixminion.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, "Z"*20,
-           messages[:], None)
+           messages[:], [None, None], None)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():

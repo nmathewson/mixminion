@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.7 2002/08/06 16:09:21 nickm Exp $
+# $Id: Config.py,v 1.8 2002/08/11 07:50:34 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -46,7 +46,7 @@
    The restricted format is used for server descriptors.   
    """
 
-__all__ = [ 'getConfig', 'loadConfig', 'addHook' ]
+__all__ = [ 'getConfig', 'loadConfig' ]
 
 import os
 import re
@@ -80,24 +80,10 @@ def loadConfig(fname,server=0):
         assert fname is not None
         _theConfiguration = ClientConfig(fname)
 
-    mixminion.Common.onReset(_theConfiguration.reload)
-
 def getConfig():
     """Return the configuration object for this process, or None if we haven't
        been configured yet."""
     return _theConfiguration
-#----------------------------------------------------------------------
-
-_CONFIG_HOOKS = []
-def addHook(hook):
-    '''Add 'hook' (a 0-argument function) to the list of configuration
-       hooks.  Whenever the configuration file is reloaded (as on a
-       SIGHUP), it invokes each of the configuration hooks in the
-       order it was added to the list.'''
-    # This isn't a method of _Config, since we want to be able to call
-    # it before we read the configuration file.
-    _CONFIG_HOOKS.append(hook)
-
 #----------------------------------------------------------------------
 
 class ConfigError(MixError):
@@ -233,7 +219,7 @@ def _parseCommand(command):
     cmd, opts = c[0], c[1:]
     if os.path.isabs(cmd):
         if not os.path.exists(cmd):
-            raise ConfigError("File not found: %s" % cmd)
+            raise ConfigError("Executable file not found: %s" % cmd)
         else:
             return cmd, opts
     else:
@@ -299,7 +285,6 @@ def _parseDate(s,_timeMode=0):
 	    (1970 <= yyyy)  and (0 <= hh < 24) and
 	    (0 <= mm < 60)  and (0 <= ss <= 61)):
 	raise ConfigError("Invalid %s %r" % (("date","time")[_timeMode],s))
-
 
     # we set the DST flag to zero so that subtracting time.timezone always
     # gives us gmt.
@@ -422,7 +407,10 @@ class _ConfigFile:
     #  _sections: A map from secname->key->value.
     #  _sectionEntries: A  map from secname->[ (key, value) ] inorder.
     #  _sectionNames: An inorder list of secnames.
-    #  _callbacks: XXXX DOC
+    #  _callbacks: A map from section name to a callback function that should 
+    #      be invoked with (section,sectionEntries) after each section is
+    #      read.  This shouldn't be used for validation; it's for code that
+    #      needs to change the semantics of the parser.
     #
     # Fields to be set by a subclass:
     #     _syntax is map from sec->{key:
@@ -483,8 +471,6 @@ class _ConfigFile:
         f = open(self.fname, 'r')
         try:
             self.__reload(f)
-            for hook in _CONFIG_HOOKS:
-                hook()
         finally:
             f.close()
 
@@ -604,6 +590,7 @@ class _ConfigFile:
         self._sectionNames = self_sectionNames
 
     def _addCallback(self, section, cb):
+	"""For use by subclasses.  Adds a callback for a section"""
         if not hasattr(self, '_callbacks'):
             self._callbacks = {}
         self._callbacks[section] = cb
@@ -701,15 +688,20 @@ SERVER_SYNTAX =  {
         }
 
 class ServerConfig(_ConfigFile):
+    ##
+    # Fields: 
+    #   moduleManager
+    #
     _restrictFormat = 0
     # XXXX Missing: Queue-Size / Queue config options
     # XXXX         timeout options
+    # XXXX       listen timeout??
     def __init__(self, fname=None, string=None):
         self._syntax = SERVER_SYNTAX.copy()
 
         import mixminion.Modules
         self.moduleManager = mixminion.Modules.ModuleManager()
-        self._addCallback("Server", self.loadModules)    
+        self._addCallback("Server", self.__loadModules)    
 
         _ConfigFile.__init__(self, fname, string)
 
@@ -717,19 +709,19 @@ class ServerConfig(_ConfigFile):
         #XXXX write this.
         self.moduleManager.validate(sections, entries, lines, contents)
 
-    def loadModules(self, section, sectionEntries):
+    def __loadModules(self, section, sectionEntries):
+	"""Callback from the [Server] section of a config file.  Parses
+	   the module options, and adds new sections to the syntax 
+	   accordingly."""
         self.moduleManager.setPath(section.get('ModulePath', None))
         for mod in section.get('Module', []):
+	    info("Loading module %s", mod)
             self.moduleManager.loadExtModule(mod)
 
         self._syntax.update(self.moduleManager.getConfigSyntax())
-    
-        
     
 ##         if sections['Server']['PublicKeyLifeTime'][2] < 24*60*60:
 ##             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
 ##         elif sections['Server']['PublicKeyLifeTime'][2] % (24*60*60) > 30:
 ##             getLog().warn("PublicKeyLifetime rounded to the nearest day")
 ##             nDays = sections[60*60*24]
-
-

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.7 2002/08/06 16:09:21 nickm Exp $
+# $Id: Queue.py,v 1.8 2002/08/11 07:50:34 nickm Exp $
 
 """mixminion.Queue
 
@@ -56,6 +56,8 @@ class Queue:
     # Fields:   rng--a random number generator for creating new messages
     #                and getting a random slice of the queue.
     #           dir--the location of the queue.
+    #           n_entries: the number of complete messages in the queue.
+    #                 <0 if we haven't counted yet.  
     def __init__(self, location, create=0, scrub=0):
         """Creates a queue object for a given directory, 'location'.  If
            'create' is true, creates the directory if necessary.  If 'scrub'
@@ -89,6 +91,9 @@ class Queue:
         if scrub:
             self.cleanQueue(1)
 
+	# Count messages on first time through.
+	self.n_entries = -1
+
     def queueMessage(self, contents):
         """Creates a new message in the queue whose contents are 'contents',
            and returns a handle to that message."""
@@ -97,13 +102,17 @@ class Queue:
         self.finishMessage(f, handle)
         return handle
 
-    def count(self):
+    def count(self, recount=0):
         """Returns the number of complete messages in the queue."""
-        res = 0
-        for fn in os.listdir(self.dir):
-            if fn.startswith("msg_"):
-                res += 1
-        return res
+	if self.n_entries >= 0 and not recount:
+	    return self.n_entries
+	else:
+	    res = 0
+	    for fn in os.listdir(self.dir):
+		if fn.startswith("msg_"):
+		    res += 1
+	    self.n_entries = res
+	    return res
 
     def pickRandom(self, count=None):
         """Returns a list of 'count' handles to messages in this queue.
@@ -111,7 +120,6 @@ class Queue:
 
            If there are fewer than 'count' messages in the queue, all the
            messages will be retained."""
-
         messages = [fn for fn in os.listdir(self.dir) if fn.startswith("msg_")]
 
         n = len(messages)
@@ -130,6 +138,11 @@ class Queue:
 
         return [m[4:] for m in messages[:count]]
 
+    def getAllMessages(self):
+	"""Returns handles for all messages currently in the queue.
+           Note: this ordering is not guaranteed to be random"""
+        return [fn[4:] for fn in os.listdir(self.dir) if fn.startswith("msg_")]
+
     def removeMessage(self, handle):
         """Given a handle, removes the corresponding message from the queue."""
         self.__changeState(handle, "msg", "rmv")
@@ -140,9 +153,7 @@ class Queue:
         for m in os.listdir(self.dir):
             if m[:4] in ('inp_', 'msg_'):
                 self.__changeState(m[4:], m[:3], "rmv")
-                #removed.append(os.path.join(self.dir, "rmv_"+m[4:]))
-        #    elif m[:4] == 'rmv_':
-        #        removed.append(self.dir)
+	self.n_entries = 0
         self.cleanQueue()
 
     def moveMessage(self, handle, queue):
@@ -175,7 +186,7 @@ class Queue:
         handle = self.__newHandle()
         fname = os.path.join(self.dir, "inp_"+handle)
         fd = os.open(fname, _NEW_MESSAGE_MODE, 0600)
-        return os.fdopen(fd, 'w'), handle
+        return os.fdopen(fd, 'wb'), handle
 
     def finishMessage(self, f, handle):
         """Given a file and a corresponding handle, closes the file
@@ -227,9 +238,15 @@ class Queue:
 
     def __changeState(self, handle, s1, s2):
         """Helper method: changes the state of message 'handle' from 's1'
-           to 's2'."""
+           to 's2', and changes the internal count."""
         os.rename(os.path.join(self.dir, s1+"_"+handle),
                   os.path.join(self.dir, s2+"_"+handle))
+	if self.n_entries < 0:
+	    return
+	if s1 == 'msg' and s2 != 'msg':
+	    self.n_entries -= 1
+	elif s1 != 'msg' and s2 == 'msg':
+	    self.n_entries += 1
 
     def __newHandle(self):
         """Helper method: creates a new random handle."""

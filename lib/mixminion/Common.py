@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.10 2002/07/26 15:47:20 nickm Exp $
+# $Id: Common.py,v 1.11 2002/08/11 07:50:34 nickm Exp $
 
 """mixminion.Common
 
@@ -57,11 +57,11 @@ def ceilDiv(a,b):
 _SHRED_CMD = "---"
 _SHRED_OPTS = None
     
-def _shredConfigHook():
+def configureShredCommand(conf):
+    """Initialize the secure delete command from a given Config object.
+       If no object is provided, try some sane defaults."""
     global _SHRED_CMD
     global _SHRED_OPTS
-    import mixminion.Config as Config
-    conf = Config.getConfig()
     cmd, opts = None, None
     if conf is not None:
         val = conf['Host'].get('ShredCommand', None)
@@ -98,9 +98,7 @@ def secureDelete(fnames, blocking=0):
        XXXX let's try to avoid that, to be on the safe side. 
     """
     if _SHRED_CMD == "---":
-        import mixminion.Config as Config
-        _shredConfigHook()
-        Config.addHook(_shredConfigHook)
+        configureShredCommand(None)
 
     if fnames == []:
         return
@@ -125,13 +123,17 @@ def secureDelete(fnames, blocking=0):
 # I'm trying to make this interface look like a subset of the one in
 # the draft PEP-0282 (http://www.python.org/peps/pep-0282.html).
 
-#XXXX XXXX DOC DOC DOCDOC
-
 def _logtime():
-    #XXXX Is this guaranteed to work?
+    'Helper function.  Returns current local time formatted for log.'
+
+    # Note: Python strftime is implemented using that platform libc's
+    # strftime, so in theory, this might barf.  All of the format
+    # elements below are (I think) standard, so we should be ok.
     return time.strftime("%b %d %H:%m:%S")
 
-class FileLogTarget:
+class _FileLogHandler:
+    """Helper class for logging.  Represents a file on disk, and allows the
+       usual close-and-open gimmick for log rotation."""
     def __init__(self, fname):
         self.file = None
         self.fname = fname
@@ -139,21 +141,25 @@ class FileLogTarget:
     def reset(self):
         if self.file is not None:
             self.file.close()
-        # XXXX Fail sanely. :)
-        self.file = open(self.fname, 'a')
+	try: 
+	    self.file = open(self.fname, 'a')
+	except OSError, e:
+	    self.file = None
+	    raise MixError("Unable to open log file %r"%self.fname)
     def close(self):
         self.file.close()
     def write(self, severity, message):
+	if self.file is None:
+	    return
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
         
-class ConsoleLogTarget: 
+class _ConsoleLogHandler: 
     def __init__(self, file):
         self.file = file 
     def reset(self): pass
     def close(self): pass
     def write(self, severity, message):
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
-
 
 _SEVERITIES = { 'TRACE' : -2,
                 'DEBUG' : -1,
@@ -164,19 +170,17 @@ _SEVERITIES = { 'TRACE' : -2,
                 'NEVER' : 100}
 
 class Log:
+    """A Log is a set of destinations for system messages, along with the
+       means to filter them to a desired verbosity."""
     def __init__(self, minSeverity):
-        self.handlers = []
-        self.setMinSeverity(minSeverity)
-        onReset(self.reset)
-        onTerminate(self.close)
+	self.configure(None)
+	self.setMinSeverity(minSeverity)
 
-    def _configure(self):
-        import mixminion.Config as Config
-        config = Config.getConfig()
+    def configure(self, config):
         self.handlers = []
         if config == None or not config.has_section("Server"):
             self.setMinSeverity("WARN")
-            self.addHandler(ConsoleLogTarget(sys.stderr))
+            self.addHandler(_ConsoleLogHandler(sys.stderr))
         else:
             self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
             logfile = config['Server'].get('LogFile',None)
@@ -184,10 +188,14 @@ class Log:
                 homedir = config['Server']['Homedir']
                 if homedir:
                     logfile = os.path.join(homedir, "log")
-            if not logfile or config['Server'].get('EchoMessages',0):
-                self.addHandler(ConsoleLogTarget(sys.stderr))
+	    self.addHandler(_ConsoleLogHandler(sys.stderr))
             if logfile:
-                self.addHandler(FileLogTarget(logfile))
+		try:
+		    self.addHandler(_FileLogHandler(logfile))
+		except MixError, e:
+		    self.error(str(e))
+            if logfile and not config['Server'].get('EchoMessages',0):
+		del self.handlers[0]
             
     def setMinSeverity(self, minSeverity):
         self.severity = _SEVERITIES.get(minSeverity, 1)
@@ -202,9 +210,14 @@ class Log:
         self.handlers.append(handler)
 
     def reset(self):
-        # FFFF reload configuration information here?
         for h in self.handlers:
-            h.reset()
+	    try:
+		h.reset()
+	    except MixError, e:
+		if len(self.handlers) > 1:
+		    self.error(str(e))
+		else:
+		    print >>sys.stderr, "Unable to reset log system"
 
     def close(self):
         for h in self.handlers:
@@ -230,18 +243,14 @@ class Log:
     def fatal(self, message, *args):
         self.log("FATAL", message, *args)
 
-_theLog = None
-
+_THE_LOG = None
 def getLog():
     """Return the MixMinion log object."""
-    global _theLog
-    if _theLog is None:
-        import mixminion.Config as Config
-        _theLog = Log('DEBUG')
-        _theLog._configure()
-        Config.addHook(_theLog._configure)
-        
-    return _theLog
+    global _THE_LOG
+    if _THE_LOG is None:
+        _THE_LOG = Log('WARN')
+
+    return _THE_LOG
 
 #----------------------------------------------------------------------
 # Signal handling
