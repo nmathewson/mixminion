@@ -1,6 +1,6 @@
-$Id: README,v 1.48 2003/06/09 21:24:54 nickm Exp $
+$Id: README,v 1.49 2003/06/10 14:28:17 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.4, final release.
+This is Mixminion version 0.0.4, release candidate 4.
 
  WARNING!  Mixminion 0.0.4 breaks backward compatibility with version 0.0.3.
  Versions older than 0.0.3 are no longer supported; you should upgrade now.
@@ -41,9 +41,13 @@ to trace your message through the system.
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
-NEW IN VERSION 0.0.4 final:
+NEW IN VERSION 0.0.4rc4:
   BUGFIXES:
   - Improved error message on nonexistent directory.
+  - Fixed a bug (found by Mike Gurski) that could kill a server if a message
+    was received for an old key in between deleting the old key's replay cache,
+    and deleting the old key itself.
+  - Fixed a bug in setting up server directories.
 
 NEW IN VERSION 0.0.4rc3:
    BUGFIXES:
@@ -215,9 +219,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4rc4.tar.gz>
 
-  % cd Mixminion-0.0.4
+  % cd Mixminion-0.0.4rc4
   % make download-openssl
   % make build-openssl
   % make
