@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.76 2003/06/06 06:12:54 nickm Exp $
+# $Id: ServerMain.py,v 1.77 2003/06/10 14:12:31 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -623,7 +623,7 @@ class MixminionServer(_Scheduler):
         self.config = config
         homeDir = config['Server']['Homedir']
 
-        exists = checkHomedirVersion(config)
+        exists = getHomedirVersion(config)
 
         createPrivateDir(homeDir)
         if not exists:
@@ -1022,6 +1022,7 @@ def runServer(cmd, args):
         print "Obsolete command. Use 'mixminion server-start' instead."
 
     config = configFromServerArgs(cmd, args, _SERVER_START_USAGE)
+    checkHomedirVersion(config)    
     try:
         # Configure the log, but delay disabling stderr until the last
         # possible minute; we want to keep echoing to the terminal until
