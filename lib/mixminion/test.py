@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.55 2003/01/03 08:47:27 nickm Exp $
+# $Id: test.py,v 1.56 2003/01/04 04:12:51 nickm Exp $
 
 """mixminion.tests
 
@@ -15,6 +15,7 @@ __pychecker__ = 'no-funcdoc maxlocals=100'
 import base64
 import cPickle
 import cStringIO
+import gzip
 import os
 import re
 import stat
@@ -204,6 +205,11 @@ class MiscTests(unittest.TestCase):
             # 3. That previousMidnight is idempotent
             self.assertEquals(previousMidnight(pm), pm)
 
+        now = time.time()
+        ft = formatFnameTime(now)
+        tm = time.localtime(now)
+        self.assertEquals(ft, "%04d%02d%02d%02d%02d%02d" % tm[:6])
+
     def test_isSMTPMailbox(self):
         # Do we accept good addresses?
         for addr in "Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z":
@@ -387,6 +393,25 @@ class MiscTests(unittest.TestCase):
         t(35 in fromSquareToSquare)
         t(36 not in fromSquareToSquare)
         t(100 not in fromSquareToSquare)
+
+    def test_openUnique(self):
+        d = mix_mktemp()
+        os.mkdir(d)
+        dX = os.path.join(d,"X")
+        f, fn = openUnique(dX)
+        f.write("X")
+        f.close()
+        self.assertEquals(fn, dX)
+
+        f, fn = openUnique(dX)
+        f.write("X")
+        f.close()
+        self.assertEquals(fn, dX+".1")
+
+        f, fn = openUnique(dX)
+        f.write("X")
+        f.close()
+        self.assertEquals(fn, dX+".2")
 
     def _intervalEq(self, a, *others):
         eq = self.assertEquals
@@ -4124,81 +4149,462 @@ def getExampleServerDescriptors():
     sys.stdout.flush()
     return _EXAMPLE_DESCRIPTORS
 
+def getDirectory(servers, identity):
+    """Return the filename of a newly created server directory, containing
+       the server descriptors provided as literal strings in <servers>,
+       signed with the RSA key <identity>"""
+    SL = mixminion.directory.ServerList.ServerList(mix_mktemp())
+    active = IntervalSet()
+    for s in servers:
+        SL.importServerInfo(s)
+        s = mixminion.ServerInfo.ServerInfo(fname=s, assumeValid=1)
+        active += s.getIntervalSet()
+    start, end = active.start(), active.end()
+    SL.generateDirectory(start, end, 0, identity)
+    return SL.getDirectoryFilename()
+
 # variable to hold the latest instance of FakeBCC.
 BCC_INSTANCE = None
 
 class ClientMainTests(unittest.TestCase):
-    def testTrivialKeystore(self):
+    def testClientKeystore(self):
         """Check out ClientMain's keystore implementation"""
         eq = self.assertEquals
-        raises = self.failUnlessRaises
-
+        neq = self.assertNotEquals
         ServerInfo = mixminion.ServerInfo.ServerInfo
 
         dirname = mix_mktemp()
-        ks = mixminion.ClientMain.TrivialKeystore(dirname)
+        ks = mixminion.ClientMain.ClientKeystore(dirname)
 
+        ## Write the descriptors to disk.
         edesc = getExampleServerDescriptors()
+        impdirname = mix_mktemp()
+        createPrivateDir(impdirname)
+        for server, descriptors in edesc.items():
+            for idx in xrange(len(descriptors)):
+                fname = os.path.join(impdirname, "%s%s" % (server,idx))
+                writeFile(fname, descriptors[idx])
+                f = gzip.GzipFile(fname+".gz", 'w')
+                f.write(descriptors[idx])
+                f.close()
 
-        # Test empty keystore
+        ## Test empty keystore
         eq(None, ks.getServerInfo("Fred"))
-        try:
-            suspendLog()
-            raises(MixError, ks.getPath, ["Fred"])
-        finally:
-            resumeLog()
-        fred = ServerInfo(string=edesc["Fred"][0])
-        eq(1, len(ks.getPath([fred])))
-        self.failUnless(ks.getPath([fred])[0] is fred)
+        self.assertRaises(MixError, ks.getServerInfo, "Fred", strict=1)
+        fred = ks.getServerInfo(os.path.join(impdirname, "fred2"))
+        self.assertEquals("Fred", fred.getNickname())
+        self.assertSameSD(edesc["Fred"][2],fred)
 
         ## Test importing.
-        for sname, servers in edesc.items():
-            for idx, sdesc in zip(range(len(servers)), servers):
-                writeFile(os.path.join(dirname, "%s%02d"%(sname,idx)), sdesc)
+        ks.importFromFile(os.path.join(impdirname, "Joe0"))
+        ks.importFromFile(os.path.join(impdirname, "Joe1.gz"))
+        ks.importFromFile(os.path.join(impdirname, "Lola1"))
 
-        suspendLog()
-        try:
-            ks = mixminion.ClientMain.TrivialKeystore(dirname)
-        finally:
-            resumeLog()
+        now = time.time()
+        oneDay=24*60*60
+        for i in 0,1,2,3:
+            self.assertSameSD(edesc["Joe"][0], ks.getServerInfo("Joe"))
+            self.assertSameSD(edesc["Lola"][1], ks.getServerInfo("Lola"))
+            self.assertSameSD(edesc["Joe"][1],
+                              ks.getServerInfo("Joe", startAt=now+10*oneDay))
+            self.assertRaises(MixError, ks.getServerInfo, "Joe",
+                              startAt=now+30*oneDay)
+            self.assertRaises(MixError, ks.getServerInfo, "Joe", startAt=now,
+                              endAt=now+6*oneDay)
+            if i in (0,1,2):
+                ks = mixminion.ClientMain.ClientKeystore(dirname)
+            if i == 1:
+                ks.rescan()
+            if i == 2:
+                ks.rescan(force=1)
+
+        # Refuse to import a server with a modified identity
+        writeFile(os.path.join(impdirname, "Notjoe"),
+                  edesc["Lola"][0].replace("Nickname: Lola", "Nickname: Joe"))
+        self.assertRaises(MixError,
+                          ks.importFromFile,
+                          os.path.join(impdirname, "Notjoe"))
 
         # Try getServerInfo(ServerInfo)
-        si = ServerInfo(string=edesc['Lisa'][0])
-        self.assert_(si is ks.getServerInfo(si))
-
-        # 'Bob' and 'Fred' are dangerous with regspect to the 'almost-expired'
-        # check; don't use them here
-        for (s,i) in [("Lola",0), ("Joe",0),("Alice",0),("Lisa",1)]:
-            self.assert_(self.isSameServerDesc(edesc[s][i],
-                                      ks.getServerInfo(s)))
-            self.assert_(self.isSameServerDesc(edesc[s][i],
-                                      ks.getServerInfo("%s%02d"%(s,i))))
-
-        # Check a nonexistant server.
-        self.assertEquals(None, ks.getServerInfo("Foob"))
-
-        # Try getPath()
-        x = mix_mktemp()
-        writeFile(x, edesc["Fred"][1])
-        p = ks.getPath(("Lola", "Joe", "Lola00", ks.getServerInfo("Lisa"), x))
-        self.assert_(self.isSameServerDesc(ks.getServerInfo("Lola"), p[0]))
-        self.assert_(self.isSameServerDesc(ks.getServerInfo("Joe"), p[1]))
-        self.assert_(self.isSameServerDesc(ks.getServerInfo("Lola"), p[2]))
-        self.assert_(self.isSameServerDesc(ks.getServerInfo("Lisa"), p[3]))
-        self.assert_(self.isSameServerDesc(edesc["Fred"][1], p[4]))
-
-        # We fail on nonexistant files.
-        self.failUnlessRaises(MixError, ks.getPath, ["Lola", mix_mktemp()])
-
-        # We warn on unparseable files.
-        fn = os.path.join(dirname, "xyzzy")
-        writeFile(fn, "this file is not a server descriptor\n")
+        si = ServerInfo(string=edesc['Lisa'][1],assumeValid=1)
+        self.assert_(ks.getServerInfo(si) is si)
         try:
             suspendLog()
-            _ = mixminion.ClientMain.TrivialKeystore(dirname)
+            si = ServerInfo(string=edesc['Lisa'][0],assumeValid=1)
+            self.assert_(ks.getServerInfo(si) is None)
         finally:
-            msg = resumeLog()
-            self.assert_(stringContains(msg,"Invalid server descriptor %s"%fn))
+            s = resumeLog()
+            self.assert_(stringContains(s, "Server is not currently"))
+
+        ##
+        # Now try out the directory.  This is tricky; we add the other
+        # descriptors here.
+        identity = getRSAKey(0,2048)
+        fingerprint = Crypto.pk_fingerprint(identity)
+        fname = getDirectory(
+            [os.path.join(impdirname, s) for s in
+             ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
+              "Bob3", "Bob4", "Lisa1") ], identity)
+        
+        # Replace the real URL and fingerprint with the ones we have; for
+        # unit testing purposes, we can't rely on an http server.
+        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = "file://%s"%fname
+        mixminion.ClientMain.MIXMINION_DIRECTORY_FINGERPRINT = fingerprint
+
+        # Reload the directory.
+        ks.updateDirectory(now=now)
+
+        for i in 0,1,2,3:
+            self.assertSameSD(ks.getServerInfo("Alice"), edesc["Alice"][0])
+            self.assertSameSD(ks.getServerInfo("Bob"), edesc["Bob"][3])
+            self.assertSameSD(ks.getServerInfo("Bob", startAt=now+oneDay*5),
+                              edesc["Bob"][4])
+
+            if i in (0,1,2):
+                ks = mixminion.ClientMain.ClientKeystore(dirname)
+            if i == 1:
+                ks.rescan()
+            if i == 2:
+                ks.rescan(force=1)
+
+        replaceFunction(ks, 'downloadDirectory')
+
+        # Now make sure that update is properly zealous.
+        ks.updateDirectory(now=now)
+        self.assertEquals([], getReplacedFunctionCallLog())
+        ks.updateDirectory(now=now, forceDownload=1)
+        self.assertEquals(1, len(getReplacedFunctionCallLog()))
+        ks.updateDirectory(now=now+oneDay+60)
+        self.assertEquals(2, len(getReplacedFunctionCallLog()))
+        undoReplacedAttributes()
+        clearReplacedFunctionCallLog()
+
+        ## Now make sure we can really update the directory.
+        # (this is the same as before, but with 'Lisa2'.)
+        fname = getDirectory(
+            [os.path.join(impdirname, s) for s in
+             ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
+              "Bob3", "Bob4", "Lisa1", "Lisa2") ], identity)
+        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = "file://%s"%fname
+        ks.updateDirectory(forceDownload=1)
+        # Previous entries.
+        self.assertSameSD(ks.getServerInfo("Alice"), edesc["Alice"][0])
+        self.assertSameSD(ks.getServerInfo("Bob"), edesc["Bob"][3])
+        # New entry
+        self.assertSameSD(ks.getServerInfo("Lisa",startAt=now+6*oneDay),
+                          edesc["Lisa"][2])
+        # Entry from server info
+        self.assertSameSD(edesc["Joe"][0], ks.getServerInfo("Joe"))
+
+        def nRuns(lst):
+            n = 0
+            for idx in xrange(len(lst)-1):
+                if lst[idx] == lst[idx+1]:
+                    n += 1
+            return n
+
+        def allUnique(lst):
+            d = {}
+            for item in lst:
+                d[item] = 1
+            return len(d) == len(lst)
+
+        suspendLog()
+        joe = edesc["Joe"]
+        lisa = edesc["Lisa"]
+        alice = edesc["Alice"]
+        lola = edesc["Lola"]
+        fred = edesc["Fred"]
+        bob = edesc["Bob"]
+        try:
+            ### Try out getPath.
+            # 1. Fully-specified paths.
+            p = ks.getPath(startServers=("Joe", "Lisa"),
+                           endServers=("Alice", "Joe"))
+            p = ks.getPath(startServers=("Joe", "Lisa", "Alice", "Joe"))
+            p = ks.getPath(endServers=("Joe", "Lisa", "Alice", "Joe"))
+
+            # 2. Partly-specified paths...
+            # 2a. With plenty of servers
+            p = ks.getPath(length=2)
+            eq(2, len(p))
+            neq(p[0].getNickname(), p[1].getNickname())
+
+            p = ks.getPath(startServers=("Joe",), length=3)
+            eq(3, len(p))
+            self.assertSameSD(p[0], joe[0])
+            self.assert_(allUnique([s.getNickname() for s in p]))
+            neq(p[1].getNickname(), "Joe")
+            neq(p[2].getNickname(), "Joe")
+            neq(p[1].getNickname(), p[2].getNickname())
+
+            p = ks.getPath(endServers=("Joe",), length=3)
+            eq(3, len(p))
+            self.assertSameSD(joe[0], p[2])
+            self.assert_(allUnique([s.getNickname() for s in p]))
+
+            p = ks.getPath(startServers=("Alice",),endServers=("Joe",),
+                           length=4)
+            eq(4, len(p))
+            self.assertSameSD(alice[0], p[0])
+            self.assertSameSD(joe[0], p[3])
+            nicks = [ s.getNickname() for s in p ]
+            eq(1, nicks.count("Alice"))
+            eq(1, nicks.count("Joe"))
+            neq(nicks[1],nicks[2])
+            self.assert_(allUnique([s.getNickname() for s in p]))
+
+            p = ks.getPath(startServers=("Joe",),endServers=("Alice","Joe"),
+                           length=4)
+            eq(4, len(p))
+            self.assertSameSD(alice[0], p[2])
+            self.assertSameSD(joe[0], p[0])
+            self.assertSameSD(joe[0], p[3])
+            neq(p[1].getNickname(), "Alice")
+            neq(p[1].getNickname(), "Joe")
+            # 2b. With 3 <= servers < length
+            p = ks.getPath(length=9)
+            eq(9, len(p))
+            self.failIf(nRuns([s.getNickname() for s in p]))
+
+            p = ks.getPath(startServers=("Joe",),endServers=("Joe",),length=8)
+            self.failIf(nRuns([s.getNickname() for s in p]))
+            eq(8, len(p))
+            self.assertSameSD(joe[0], p[0])
+            self.assertSameSD(joe[0], p[-1])
+
+            p = ks.getPath(startServers=("Joe",),length=7)
+            self.failIf(nRuns([s.getNickname() for s in p]))
+            eq(7, len(p))
+            self.assertSameSD(joe[0], p[0])
+
+            p = ks.getPath(endServers=("Joe",),length=7)
+            self.failIf(nRuns([s.getNickname() for s in p]))
+            eq(7, len(p))
+            self.assertSameSD(joe[0], p[-1])
+
+            # 2c. With 2 servers
+            p = ks.getPath(length=4, startAt=now-9*oneDay)
+            self.failIf(nRuns([s.getNickname() for s in p]) > 1)
+
+            p = ks.getPath(length=4,startServers=("Joe",),startAt=now-9*oneDay)
+            self.failIf(nRuns([s.getNickname() for s in p]) > 2)
+
+            p = ks.getPath(length=4, endServers=("Joe",), startAt=now-9*oneDay)
+            self.failIf(nRuns([s.getNickname() for s in p]) > 1)
+
+            p = ks.getPath(length=6, endServers=("Joe",), startAt=now-9*oneDay)
+            self.failIf(nRuns([s.getNickname() for s in p]) > 1)
+
+            # 2d. With only 1.
+            p = ks.getPath(length=4, startAt=now-11*oneDay)
+            eq(len(p), 2)
+            p = ks.getPath(length=4,
+                           startServers=("Joe",),startAt=now-11*oneDay)
+            eq(len(p), 3)
+            p = ks.getPath(length=4, endServers=("Joe",),startAt=now-11*oneDay)
+            eq(len(p), 2)
+
+            # 2e. With 0
+            self.assertRaises(MixError, ks.getPath,
+                              length=4, startAt=now+100*oneDay)            
+        finally:
+            s = resumeLog()
+            self.assertEquals(4, s.count("Not enough servers for distinct"))
+            self.assertEquals(4, s.count("to avoid same-server hops"))
+            self.assertEquals(3, s.count("Only one relay known"))
+
+        # 3. With capabilities.
+        p = ks.getPath(length=5, endCap="smtp", midCap="relay")
+        eq(5, len(p))
+        self.assertSameSD(p[-1], joe[0]) # Only Joe has SMTP
+
+        p = ks.getPath(length=4, endCap="mbox", midCap="relay")
+        eq(4, len(p))
+        self.assertSameSD(p[-1], lola[1]) # Only Lola has MBOX
+
+        p = ks.getPath(length=5, endCap="mbox", midCap="relay",
+                       startServers=("Alice",))
+        eq(5, len(p))
+        self.assertSameSD(p[-1], lola[1]) # Only Lola has MBOX
+        self.assertSameSD(p[0], alice[0])
+        
+        p = ks.getPath(length=5, endCap="mbox", midCap="relay",
+                       endServers=("Alice",))
+        eq(5, len(p))
+        self.assertSameSD(p[-1], alice[0]) # We ignore endCap with endServers 
+
+        ### Now try parsePath.  This should exercise resolvePath as well.
+        ppath = mixminion.ClientMain.parsePath
+        paddr = mixminion.ClientMain.parseAddress
+        email = paddr("smtp:lloyd@dobler.com")
+        mboxWithServer = paddr("mbox:Granola@Lola")
+        mboxWithoutServer = paddr("mbox:Granola")
+        
+        alice = ks.getServerInfo("Alice")
+        fred = ks.getServerInfo("Fred")
+        bob = ks.getServerInfo("Bob")
+        joe = ks.getServerInfo("Joe")
+        lola = ks.getServerInfo("Lola")
+        lisa = ks.getServerInfo("Lisa")
+
+        def pathIs(p, exp, self=self):
+            if isinstance(p[0],mixminion.ServerInfo.ServerInfo):
+                p1, p2 = p, ()
+                exp1, exp2 = exp, ()
+            else:
+                p1, p2 = p
+                exp1, exp2 = exp
+            try:
+                self.assertEquals(len(p1),len(exp1))
+                self.assertEquals(len(p2),len(exp2))
+                for a, b in zip(p1, exp1):
+                    self.assertSameSD(a,b)
+                for a, b in zip(p2, exp2):
+                    self.assertSameSD(a,b)
+            except:
+                print [s.getNickname() for s in p1], \
+                      [s.getNickname() for s in p2]
+                raise
+
+        # 1. Successful cases
+        # 1a. No colon, no star
+        fredfile = os.path.join(impdirname, "Fred1")
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Joe", email)
+        pathIs((p1,p2), ((alice,fred),(bob,joe)))
+        fredfile = os.path.join(impdirname, "Fred1")
+        p1,p2 = ppath(ks, None, "Alice,%s,Bob,Joe"%fredfile, email)
+        pathIs((p1,p2), ((alice,fred),(bob,joe)))
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Joe", email, nHops=4, nSwap=1)
+        pathIs((p1,p2), ((alice,fred),(bob,joe)))
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola,Joe", email, nHops=5,
+                      nSwap=1)
+        pathIs((p1,p2), ((alice,fred),(bob,lola,joe)))
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola,Joe", email, nHops=5)
+        pathIs((p1,p2), ((alice,fred,bob),(lola,joe)))
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob", mboxWithServer)
+        pathIs((p1,p2), ((alice,fred),(bob,lola)))
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola", mboxWithoutServer)
+        pathIs((p1,p2), ((alice,fred),(bob,lola)))
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob", mboxWithServer, nSwap=0)
+        pathIs((p1,p2), ((alice,),(fred,bob,lola)))
+                      
+        # 1b. Colon, no star
+        p1,p2 = ppath(ks, None, "Alice:Fred,Joe", email)
+        pathIs((p1,p2), ((alice,),(fred,joe)))
+        p1,p2 = ppath(ks, None, "Alice:Bob,Fred,Joe", email)
+        pathIs((p1,p2), ((alice,),(bob,fred,joe)))
+        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email)
+        pathIs((p1,p2), ((alice,bob,fred),(joe,)))
+        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email, nHops=4)
+        pathIs((p1,p2), ((alice,bob,fred),(joe,)))
+        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email, nSwap=2)
+        pathIs((p1,p2), ((alice,bob,fred),(joe,)))
+        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", mboxWithServer)
+        pathIs((p1,p2), ((alice,bob,fred),(joe,lola)))
+        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Lola", mboxWithoutServer)
+        pathIs((p1,p2), ((alice,bob,fred),(lola,)))
+        
+        # 1c. Star, no colon
+        p1,p2 = ppath(ks, None, 'Alice,*,Joe', email, nHops=5)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p2[-1]), (alice, joe))
+        eq((len(p1),len(p2)), (3,2))
+
+        p1,p2 = ppath(ks, None, 'Alice,Bob,*,Joe', email, nHops=6)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p1[1],p2[-1]), (alice, bob, joe))
+        eq((len(p1),len(p2)), (3,3))
+
+        p1,p2 = ppath(ks, None, 'Alice,Bob,*', email, nHops=6)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p1[1],p2[-1]), (alice, bob, joe))
+        eq((len(p1),len(p2)), (3,3))
+        
+        p1,p2 = ppath(ks, None, '*,Bob,Joe', email) #default nHops=6
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p2[-2],p2[-1]), (bob, joe))
+        eq((len(p1),len(p2)), (3,3))
+
+        p1,p2 = ppath(ks, None, 'Bob,*,Alice', mboxWithServer) #default nHops=6
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
+        eq((len(p1),len(p2)), (3,3))
+
+        p1,p2 = ppath(ks, None, 'Bob,*,Alice,Lola', mboxWithoutServer)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
+        eq((len(p1),len(p2)), (3,3))
+        
+        # 1d. Star and colon
+        p1,p2 = ppath(ks, None, 'Bob:*,Alice', mboxWithServer)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
+        eq((len(p1),len(p2)), (1,5))
+        
+        p1,p2 = ppath(ks, None, 'Bob,*:Alice', mboxWithServer)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
+        eq((len(p1),len(p2)), (4,2))
+        
+        p1,p2 = ppath(ks, None, 'Bob,*,Joe:Alice', mboxWithServer)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p1[-1],p2[-2],p2[-1]), (bob, joe, alice, lola))
+        eq((len(p1),len(p2)), (4,2))
+
+        p1,p2 = ppath(ks, None, 'Bob,*,Lola:Alice,Joe', email)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p1[-1],p2[-2],p2[-1]), (bob, lola, alice, joe))
+        eq((len(p1),len(p2)), (4,2))
+
+        p1,p2 = ppath(ks, None, '*,Lola:Alice,Joe', email)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[-1],p2[-2],p2[-1]), (lola, alice, joe))
+        eq((len(p1),len(p2)), (4,2))
+
+        p1,p2 = ppath(ks, None, 'Lola:Alice,*', email)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p2[0],p2[-1]), (lola, alice, joe))
+        eq((len(p1),len(p2)), (1,5))
+
+        p1,p2 = ppath(ks, None, 'Bob:Alice,*', mboxWithServer)
+        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        pathIs((p1[0],p2[0],p2[-1]), (bob, alice, lola))
+        eq((len(p1),len(p2)), (1,5))
+
+        # 2. Failing cases
+        raises = self.assertRaises
+        # Nonexistant server
+        raises(MixError, ppath, ks, None, "Pierre:Alice,*", email)
+        # Two swap points
+        raises(MixError, ppath, ks, None, "Alice:Bob:Joe", email)
+        # Last hop doesn't support exit type
+        raises(MixError, ppath, ks, None, "Alice:Bob,Fred", email)
+        raises(MixError, ppath, ks, None, "Alice:Bob,Fred", mboxWithoutServer)
+        # Two stars.
+        raises(MixError, ppath, ks, None, "Alice,*,Bob,*,Joe", email)
+        # Swap point mismatch
+        raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nSwap=1)
+        # NHops mismatch
+        raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=2)
+        raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=4)
+        # Nonexistant file
+        raises(MixError, ppath, ks, None, "./Pierre:Alice,*", email)
+        
+        ## Try 'expungeByNickname'.
+        # Zapping 'Lisa' does nothing, since she's in the directory...
+        ks.expungeByNickname("Lisa")
+        self.assertSameSD(ks.getServerInfo("Lisa",startAt=now+6*oneDay),
+                          edesc["Lisa"][2])
+        # But Joe can be removed.
+        ks.expungeByNickname("Joe")
+        eq(None, ks.getServerInfo("Joe"))
+
+        ## Now try clean()
+        ks.clean() # Should do nothing.
+        ks = mixminion.ClientMain.ClientKeystore(dirname)
+        ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
+        raises(MixError, ks.getServerInfo, "Lola")
 
     def testAddress(self):
         def parseEq(s, tp, addr, server, eq=self.assertEquals):
@@ -4258,9 +4664,10 @@ class ClientMainTests(unittest.TestCase):
 
         # Now try with some servers...
         edesc = getExampleServerDescriptors()
-        writeFile(os.path.join(serverdir,"lola1"), edesc["Lola"][1])
-        writeFile(os.path.join(serverdir,"joe1"), edesc["Joe"][0])
-        writeFile(os.path.join(serverdir,"alice1"), edesc["Alice"][0])
+        ServerInfo = mixminion.ServerInfo.ServerInfo
+        Lola = ServerInfo(string=edesc["Lola"][1], assumeValid=1)
+        Joe = ServerInfo(string=edesc["Joe"][0], assumeValid=1)
+        Alice = ServerInfo(string=edesc["Alice"][1], assumeValid=1)
 
         # ... and for now, we need to restart the client.
         client = mixminion.ClientMain.MixminionClient(usercfg)
@@ -4278,11 +4685,11 @@ class ClientMainTests(unittest.TestCase):
             client.generateForwardMessage(
                 parseAddress("joe@cledonism.net"),
                 payload,
-                path1=["Lola", "Joe"], path2=["Alice", "Joe"])
+                servers1=[Lola, Joe], servers2=[Alice, Joe])
             client.generateForwardMessage(
                 parseAddress("smtp:joe@cledonism.net"),
                 "Hey Joe, where you goin' with that gun in your hand?",
-                path1=["Lola", "Joe"], path2=["Alice", "Joe"])
+                servers1=[Lola, Joe], servers2=[Alice, Joe])
 
             for fn, args, kwargs in getCalls():
                 self.assertEquals(fn, "buildForwardMessage")
@@ -4298,12 +4705,12 @@ class ClientMainTests(unittest.TestCase):
             client.generateForwardMessage(
                 parseAddress("mbox:granola"),
                 payload,
-                path1=["Lola", "Joe"], path2=["Alice", "Lola"])
+                servers1=[Lola, Joe], servers2=[Alice, Lola])
             # And an mbox message with a last hop implicit in the address
             client.generateForwardMessage(
                 parseAddress("mbox:granola@Lola"),
                 payload,
-                path1=["Lola", "Joe"], path2=["Alice"])
+                servers1=[Lola, Joe], servers2=[Alice, Lola])
 
             for fn, args, kwargs in getCalls():
                 self.assertEquals(fn, "buildForwardMessage")
@@ -4311,7 +4718,7 @@ class ClientMainTests(unittest.TestCase):
                                   (payload, MBOX_TYPE, "granola"))
                 self.assert_(len(args[3]) == len(args[4]) == 2)
                 self.assertEquals(["Lola", "Joe", "Alice", "Lola"],
-                     [x['Server']['Nickname'] for x in args[3]+args[4]])
+                     [x.getNickname() for x in args[3]+args[4]])
             clearCalls()
         finally:
             undoReplacedAttributes()
@@ -4322,23 +4729,7 @@ class ClientMainTests(unittest.TestCase):
         self.assertRaises(MixError,
                           client.generateForwardMessage,
                           parseAddress("0xFFFF:zed"),
-                          "Z", [], ["Alice"])
-        # Nonexistant servers...
-        self.assertRaises(MixError,
-                          client.generateForwardMessage,
-                          parseAddress("0xFFFF:zed"),
-                          "Z", ["Marvin"], ["Fred"])
-        # Lola doesn't support SMTP...
-        self.assertRaises(MixError,
-                          client.generateForwardMessage,
-                          parseAddress("smtp:joe@cledonism.net"),
-                          "Z", ["Joe"], ["Lola"])
-        # Joe doesn't support MBOX...
-        self.assertRaises(MixError,
-                          client.generateForwardMessage,
-                          parseAddress("mbox:wahoo"),
-                          "Z", ["Lola"], ["Joe"])
-
+                          "Z", [], [Alice])
 
         # Temporarily replace BlockingClientConnection so we can try the client
         # without hitting the network.
@@ -4365,7 +4756,7 @@ class ClientMainTests(unittest.TestCase):
             client.sendForwardMessage(
                 parseAddress("mbox:granola@Lola"),
                 "You only give me your information.",
-                ["Alice", "Lola", "Joe", "Alice"], ["Joe", "Alice"])
+                [Alice, Lola, Joe, Alice], [Joe, Alice])
             bcc = BCC_INSTANCE
             # first hop is alice
             self.assertEquals(bcc.addr, "10.0.0.9")
@@ -4378,6 +4769,9 @@ class ClientMainTests(unittest.TestCase):
             undoReplacedAttributes()
             clearCalls()
 
+    def assertSameSD(self, s1, s2):
+        self.assert_(self.isSameServerDesc(s1,s2))
+
     def isSameServerDesc(self, s1, s2):
         """s1 and s2 are either ServerInfo objects or strings containing server
            descriptors. Returns 1 iff their digest fields match"""
@@ -4387,8 +4781,10 @@ class ClientMainTests(unittest.TestCase):
                 m = re.search(r"^Digest: (\S+)\n", s, re.M)
                 assert m
                 ds.append(base64.decodestring(m.group(1)))
+            elif isinstance(s, mixminion.ServerInfo.ServerInfo):
+                ds.append(s.getDigest())
             else:
-                ds.append(s['Server']['Digest'])
+                return 0
         return ds[0] == ds[1]
 
 #----------------------------------------------------------------------

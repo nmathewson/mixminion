@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.4 2003/01/03 08:47:28 nickm Exp $
+# $Id: ServerList.py,v 1.5 2003/01/04 04:12:51 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -20,8 +20,8 @@ import time
 
 from mixminion.Crypto import pk_encode_public_key, pk_same_public_key
 from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
-     formatBase64, formatDate, formatFnameTime, formatTime, previousMidnight, \
-     readPossiblyGzippedFile, stringContains
+     formatBase64, formatDate, formatFnameTime, formatTime, openUnique, \
+     previousMidnight, readPossiblyGzippedFile, stringContains     
 from mixminion.Config import ConfigError
 from mixminion.ServerInfo import ServerDirectory, ServerInfo, \
      _getDirectoryDigestImpl
@@ -121,7 +121,7 @@ class ServerList:
                 raise MixError("Server descriptor is superseded")
         
         newFile = nickname+"-"+formatFnameTime()
-        f, newFile = _openUnique(os.path.join(self.serverDir, newFile))
+        f, newFile = openUnique(os.path.join(self.serverDir, newFile))
         newFile = os.path.split(newFile)[1]
         f.write(contents)
         f.close()
@@ -208,7 +208,7 @@ class ServerList:
         f.write(directory)
         f.close()
 
-        f, _ = _openUnique(os.path.join(self.dirArchiveDir,
+        f, _ = openUnique(os.path.join(self.dirArchiveDir,
                                         "dir-"+formatFnameTime()))
         f.write(directory)
         f.close()
@@ -297,21 +297,3 @@ class ServerList:
         for fn, server in self.servers.items():
             nickname = server.getNickname()
             self.serversByNickname.setdefault(nickname, []).append(fn)
-
-def _openUnique(fname, mode='w'):
-    """Helper function. Returns a file open for writing into the file named
-       'fname'.  If fname already exists, opens 'fname.1' or 'fname.2' or
-       'fname.3' or so on."""
-    # ???? Should this go into common?
-    base, rest = os.path.split(fname)
-    idx = 0
-    while 1:
-        try:
-            fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0600)
-            return os.fdopen(fd, mode), fname
-        except OSError:
-            pass
-        idx += 1
-        fname = os.path.join(base, "%s.%s"%(rest,idx))
-
-        

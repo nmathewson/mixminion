@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.30 2003/01/03 08:25:47 nickm Exp $
+# $Id: ServerInfo.py,v 1.31 2003/01/04 04:12:51 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -38,6 +38,9 @@ C = mixminion.Config
 class ServerInfo(mixminion.Config._ConfigFile):
     ## Fields: (as in ConfigFile, plus)
     # _isValidated: flag.  Has this serverInfo been fully validated?
+    # _validatedDigests: a dict whose keys are already-validated server
+    #    digests.  Optional.  Only valid while 'validate' is being called.
+
     """A ServerInfo object holds a parsed server descriptor."""
     _restrictFormat = 1
     _syntax = {
@@ -77,20 +80,46 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      }
         }
 
-    def __init__(self, fname=None, string=None, assumeValid=0):
+    def __init__(self, fname=None, string=None, assumeValid=0,
+                 validatedDigests=None):
+        """Read a server descriptor from a file named <fname>, or from
+             <string>.
+
+           If assumeValid is true, don't bother to validate it.
+           
+           If the (computed) digest of this descriptor is a key of the dict
+              validatedDigests, assume we have already validated it, and
+              pass it along.
+        """
         self._isValidated = 0
+        self._validatedDigests = validatedDigests
         mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
+        del self._validatedDigests
         LOG.trace("Reading server descriptor %s from %s",
                        self['Server']['Nickname'],
                        fname or "<string>")
 
     def validate(self, sections, entries, lines, contents):
         ####
-        # Check 'Server' section.
+        # Check 'Server' section.               
         server = sections['Server']
         if server['Descriptor-Version'] != '0.1':
             raise ConfigError("Unrecognized descriptor version %r",
                               server['Descriptor-Version'])
+
+        ####
+        # Check the igest of file
+        digest = getServerInfoDigest(contents)
+        if digest != server['Digest']:
+            raise ConfigError("Invalid digest")
+
+        # Have we already validated this particular ServerInfo?
+        if (self._validatedDigests and
+            self._validatedDigests.has_key(digest)):
+            self._isValidated = 1
+            return
+
+        # Validate the rest of the server section.
         identityKey = server['Identity']
         identityBytes = identityKey.get_modulus_bytes()
         if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):
@@ -107,12 +136,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         if packetKeyBytes != PACKET_KEY_BYTES:
             raise ConfigError("Invalid length on packet key")
 
-        ####
-        # Check Digest of file
-        digest = getServerInfoDigest(contents)
-        if digest != server['Digest']:
-            raise ConfigError("Invalid digest")
 
+        ####
         # Check signature
         try:
             signedDigest = pk_check_signature(server['Signature'], identityKey)
@@ -148,6 +173,11 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """Returns this server's nickname"""
         return self['Server']['Nickname']
 
+    def getDigest(self):
+        """Returns the declared (not computed) digest of this server
+           descriptor."""
+        return self['Server']['Digest']
+    
     def getAddr(self):
         """Returns this server's IP address"""
         return self['Server']['IP']
@@ -256,9 +286,14 @@ class ServerDirectory:
     # servers: list of validated ServerInfo objects, in no particular order.
     # header: a _DirectoryHeader object for the non-serverinfo part of this
     #    directory.
-    def __init__(self, string=None, fname=None):
+    def __init__(self, string=None, fname=None, validatedDigests=None):
         """Create a new ServerDirectory object, either from a literal <string>
            (if specified) or a filename [possibly gzipped].
+
+           If validatedDigests is provided, it must be a dict whose keys
+           are the digests of already-validated descriptors.  Any descriptor
+           whose (calculated) digest matches doesn't need to be validated
+           again.           
         """
         if string:
             contents = string
@@ -277,7 +312,9 @@ class ServerDirectory:
         servercontents = [ "[Server]\n%s"%s for s in sections[1:] ]
 
         self.header = _DirectoryHeader(headercontents, digest)
-        self.servers = [ ServerInfo(string=s) for s in servercontents ]
+        self.servers = [ ServerInfo(string=s,
+                                    validatedDigests=validatedDigests)
+                         for s in servercontents ]
 
     def getServers(self):
         """Return a list of ServerInfo objects in this directory"""

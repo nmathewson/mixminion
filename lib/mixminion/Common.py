@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.40 2003/01/03 08:25:47 nickm Exp $
+# $Id: Common.py,v 1.41 2003/01/04 04:12:51 nickm Exp $
 
 """mixminion.Common
 
@@ -9,9 +9,9 @@ __all__ = [ 'IntervalSet', 'LOG', 'LogStream', 'MixError', 'MixFatalError',
             'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
             'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
             'formatFnameTime', 'formatTime', 'installSignalHandlers',
-            'isSMTPMailbox', 'onReset', 'onTerminate', 'previousMidnight',
-            'readPossiblyGzippedFile',
-            'secureDelete', 'stringContains', 'waitForChildren' ]
+            'isSMTPMailbox', 'onReset', 'onTerminate', 'openUnique',
+            'previousMidnight', 'readPossiblyGzippedFile', 'secureDelete',
+            'stringContains', 'waitForChildren' ]
 
 import base64
 import bisect
@@ -542,7 +542,6 @@ def formatDate(when):
 def formatFnameTime(when=None):
     """Given a time in seconds since the epoch, returns a date value suitable
        for use as part of a fileame.  Defaults to the current time."""
-    # XXXX002 test
     if when is None:
         when = time.time()
     return time.strftime("%Y%m%d%H%M%S", time.localtime(when))
@@ -690,6 +689,14 @@ class IntervalSet:
     def __cmp__(self, other):
         """A == B iff A and B contain exactly the same intervals."""
         return cmp(self.edges, other.edges)
+
+    def start(self):
+        """Return the first point contained in this inverval."""
+        return self.edges[0][0]
+
+    def end(self):
+        """Return the last point contained in this interval."""
+        return self.edges[-1][0]
         
 #----------------------------------------------------------------------
 # SMTP address functionality
@@ -786,7 +793,7 @@ def installSignalHandlers(child=1,hup=1,term=1):
         signal.signal(signal.SIGTERM, _sigHandler)
 
 #----------------------------------------------------------------------
-# Gzip helpers
+# File helpers.
 
 def readPossiblyGzippedFile(fname, mode='r'):
     """Read the contents of the file <fname>.  If <fname> ends with ".gz", 
@@ -802,4 +809,17 @@ def readPossiblyGzippedFile(fname, mode='r'):
         if f is not None:
             f.close()
 
-
+def openUnique(fname, mode='w'):
+    """Helper function. Returns a file open for writing into the file named
+       'fname'.  If fname already exists, opens 'fname.1' or 'fname.2' or
+       'fname.3' or so on."""
+    base, rest = os.path.split(fname)
+    idx = 0
+    while 1:
+        try:
+            fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0600)
+            return os.fdopen(fd, mode), fname
+        except OSError:
+            pass
+        idx += 1
+        fname = os.path.join(base, "%s.%s"%(rest,idx))

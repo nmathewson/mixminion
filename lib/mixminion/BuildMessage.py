@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.28 2003/01/03 08:47:27 nickm Exp $
+# $Id: BuildMessage.py,v 1.29 2003/01/04 04:12:50 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -31,11 +31,14 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
             paddingPRNG: random number generator used to generate padding.
                   If None, a new PRNG is initialized.
 
-        Neither path1 nor path2 may be empty.
+        Neither path1 nor path2 may be empty.  If one is, MixError is raised.
     """
     if paddingPRNG is None: 
         paddingPRNG = Crypto.getCommonPRNG()
-    assert path1 and path2
+    if not path1:
+        raise MixError("First leg of path is empty")
+    if not path2:
+        raise MixError("Second leg of path is empty")
 
     LOG.debug("Encoding forward message for %s-byte payload",len(payload))
     LOG.debug("  Using path %s/%s",

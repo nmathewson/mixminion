@@ -27,11 +27,12 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Backend
 			o Integrated server list management
 			o Tests for backend
-			. CLI support
-				!- Import support
-				!- Actually invoke 'downloadDirectory'
-			!- Tests for new server lists
-			!- Tests for CLI
+			o CLI support
+				- Import support
+				o Actually invoke 'downloadDirectory'
+			o Tests for new server lists
+			o Tests for CLI support
+			- Test CLI
 		o Server-side directory generation (not automated;
 	          still no automatic rotation.)	
 		  	o Backend
@@ -40,8 +41,9 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Test CLI
 	. Path selection
 		o Implement
-		!- Test backend
-		!- Test CLI
+		o Test backend
+		o Test CLI code
+		- Test CLI
 	. Minimal DOS prevention
 		!- SMTP-address blacklisting (for SMTP module)
 		o Prevent bogus nicknames from bombing server.
@@ -105,7 +107,7 @@ Required for "1.0":
 			- Use async or threading to cope with blocking MTAs
 			- Full config validation
 			- Full boilerplate text
-		- Use ESMTP
+		- Use ESMTP as available
 		- Move boilerplate into outside files.  Add a generic
 		  'Boilerplate' functionality.
 		- Tell ModuleManager about async code
