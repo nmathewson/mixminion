@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.28 2003/02/09 22:30:58 nickm Exp $
+# $Id: Main.py,v 1.29 2003/02/11 22:18:13 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -117,6 +117,7 @@ _COMMANDS = {
     "benchmarks" :     ( 'mixminion.benchmark',  'timeAll' ),
     "send" :           ( 'mixminion.ClientMain', 'runClient' ),
     "client" :         ( 'mixminion.ClientMain', 'runClient' ),
+    "pool" :           ( 'mixminion.ClientMain', 'runClient' ),
     "import-server" :  ( 'mixminion.ClientMain', 'importServer' ),
     "list-servers" :   ( 'mixminion.ClientMain', 'listServers' ),
     "update-servers" : ( 'mixminion.ClientMain', 'updateServers' ),

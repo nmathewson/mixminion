@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.39 2003/02/05 05:34:55 nickm Exp $
+# $Id: Crypto.py,v 1.40 2003/02/11 22:18:10 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -591,6 +591,7 @@ class RNG:
                 # If the file exists (a rare event!) we pass through, and
                 # try again.  This paranoia is brought to you by user
                 # request. :)
+        raise MixFatalError("Unreachable") # appease pychecker.
 
     def _prng(self, n):
         """Abstract method: Must be overridden to return n bytes of fresh

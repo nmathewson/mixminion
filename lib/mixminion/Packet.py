@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.29 2003/02/09 22:30:58 nickm Exp $
+# $Id: Packet.py,v 1.30 2003/02/11 22:18:13 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -556,11 +556,15 @@ class IPV4Info:
         return "%s:%s (keyid=%s)"%(self.ip, self.port,
                                    binascii.b2a_hex(self.keyinfo))
 
+
     def pack(self):
         """Return the routing info for this address"""
         assert len(self.keyinfo) == DIGEST_LEN
         return struct.pack(IPV4_PAT, inet_aton(self.ip),
                            self.port, self.keyinfo)
+
+    def __repr__(self):
+        return "IPV4Info(%r, %r, %r)"%(self.ip, self.port, self.keyinfo)
 
     def __hash__(self):
         return hash(self.pack())

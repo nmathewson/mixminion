@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.82 2003/02/09 22:30:58 nickm Exp $
+# $Id: test.py,v 1.83 2003/02/11 22:18:16 nickm Exp $
 
 """mixminion.tests
 
@@ -2855,9 +2855,10 @@ class MMTPTests(unittest.TestCase):
 
         # Send m1, then junk, then renegotiate, then m2.
         server.process(0.1)
+        routing = IPV4Info("127.0.0.1", TEST_PORT, keyid)
         t = threading.Thread(None,
                              mixminion.MMTPClient.sendMessages,
-                             args=("127.0.0.1", TEST_PORT, keyid,
+                             args=(routing,
                              [messages[0],"JUNK","RENEGOTIATE",messages[1]]))
         t.start()
         while len(messagesIn) < 2:
@@ -2871,11 +2872,12 @@ class MMTPTests(unittest.TestCase):
         self.assertEquals(1, server.nJunkPackets)
 
         # Now, with bad keyid.
+        routing = IPV4Info("127.0.0.1", TEST_PORT, "Z"*20)
         t = threading.Thread(None,
                              self.failUnlessRaises,
                              args=(MixProtocolError,
                                    mixminion.MMTPClient.sendMessages,
-                                   "127.0.0.1", TEST_PORT, "Z"*20, messages))
+                                   routing, messages))
         t.start()
         while t.isAlive():
             server.process(0.1)
@@ -2904,9 +2906,9 @@ class MMTPTests(unittest.TestCase):
         timedout = 0
         try:
             try:
-                mixminion.MMTPClient.sendMessages("127.0.0.1",
-                                                  TEST_PORT, "Z"*20, ["JUNK"],
-                                                  connectTimeout=1)
+                routing = IPV4Info("127.0.0.1", TEST_PORT, "Z"*20)
+                mixminion.MMTPClient.sendMessages(routing, ["JUNK"],
+                                                   connectTimeout=1)
                 timedout = 0
             except mixminion.MMTPClient.TimeoutError:
                 timedout = 1

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.50 2003/02/09 22:30:58 nickm Exp $
+# $Id: ClientMain.py,v 1.51 2003/02/11 22:18:03 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -15,7 +15,6 @@ import cPickle
 import getopt
 import getpass
 import os
-import socket
 import stat
 import sys
 import time
@@ -26,11 +25,11 @@ import mixminion.BuildMessage
 import mixminion.Crypto
 import mixminion.MMTPClient
 from mixminion.Common import IntervalSet, LOG, floorDiv, MixError, \
-     MixFatalError, ceilDiv, createPrivateDir, isSMTPMailbox, formatDate, \
-     formatFnameTime, formatTime, Lockfile, openUnique, previousMidnight, \
-     readPossiblyGzippedFile, secureDelete, stringContains, succeedingMidnight
+     MixFatalError, MixProtocolError, ceilDiv, createPrivateDir, \
+     isSMTPMailbox, formatDate, formatFnameTime, formatTime, Lockfile, \
+     openUnique, previousMidnight, readPossiblyGzippedFile, secureDelete, \
+     stringContains, succeedingMidnight
 from mixminion.Crypto import sha1, ctr_crypt, trng
-
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
 from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
@@ -1035,16 +1034,16 @@ class ClientPool:
         handles = self.getHandles()
         timesByServer = {}
         for h in handles:
-            _, server, when = self.getPacket(h)
-            timesByServer.setdefault(server, []).append(when)
+            _, routing, when = self.getPacket(h)
+            timesByServer.setdefault(routing, []).append(when)
         for s in timesByServer.keys():
             count = len(timesByServer[s])
             oldest = min(timesByServer[s])
-            days = (now - oldest) / (24*60*60)
+            days = floorDiv(now - oldest, 24*60*60)
             if days < 1:
                 days = "<1"
-            print "%2d messages for server %s:%s (oldest is %s days old)"%(
-                count, s.getAddr(), s.getPort(), days)
+            print "%2d messages for server at %s:%s (oldest is %s days old)"%(
+                count, s.ip, s.port, days)
 
 class MixminionClient:
     """Access point for client functionality.  Currently, this is limited
@@ -1083,10 +1082,12 @@ class MixminionClient:
                  self.generateForwardMessage(address, payload,
                                              servers1, servers2)
 
+        routing = firstHop.getRoutingInfo()
+
         if forcePool:
-            self.poolMessages([message], firstHop)
+            self.poolMessages([message], routing)
         else:
-            self.sendMessages([message], firstHop, noPool=forceNoPool)
+            self.sendMessages([message], routing, noPool=forceNoPool)
 
     def sendReplyMessage(self, payload, servers, surbList, forcePool=0,
                          forceNoPool=0):
@@ -1096,11 +1097,13 @@ class MixminionClient:
         #XXXX003 testme
         message, firstHop = \
                  self.generateReplyMessage(payload, servers, surbList)
+
+        routing = firstHop.getRoutingInfo()
         
         if forcePool:
-            self.poolMessages([message], firstHop)
+            self.poolMessages([message], routing)
         else:
-            self.sendMessages([message], firstHop, noPool=forceNoPool)
+            self.sendMessages([message], routing, noPool=forceNoPool)
 
 
     def generateReplyBlock(self, address, servers, expiryTime=0):
@@ -1170,10 +1173,13 @@ class MixminionClient:
             surbLog.close()
             clientUnlock()
 
-    def sendMessages(self, msgList, server, noPool=0, lazyPool=0,
+    def sendMessages(self, msgList, routingInfo, noPool=0, lazyPool=0,
                      warnIfLost=1):
         """Given a list of packets and a ServerInfo object, sends the
-           packets to the server via MMTP"""
+           packets to the server via MMTP
+
+           DOCDOC ServerInfo or IPV4Info...
+           """
         #XXXX003 testme
         LOG.info("Connecting...")
         timeout = self.config['Network'].get('ConnectionTimeout')
@@ -1183,21 +1189,23 @@ class MixminionClient:
         if noPool or lazyPool: 
             handles = []
         else:
-            handles = self.poolMessages(msgList, server)
+            handles = self.poolMessages(msgList, routingInfo)
 
         try:
             try:
                 # May raise TimeoutError
-                mixminion.MMTPClient.sendMessages(server.getAddr(),
-                                                  server.getPort(),
-                                                  server.getKeyID(),
+                mixminion.MMTPClient.sendMessages(routingInfo,
                                                   msgList,
                                                   timeout)
             except:
                 if noPool and warnIfLost:
                     LOG.error("Error with pooling disabled: message lost")
                 elif lazyPool:
-                    self.poolMessages(msgList, server)
+                    self.poolMessages(msgList, routingInfo)
+                    #XXXX003 Log that error occurred, but is okay.
+                else:
+                    #XXXX003 Log that error occurred, but is okay.
+                    pass
                 raise
             try:
                 clientLock()
@@ -1206,8 +1214,8 @@ class MixminionClient:
                         self.pool.removePacket(h)
             finally:
                 clientUnlock()
-        except socket.error, e:
-            raise MixError("Error sending packets: %s" % e)
+        except MixProtocolError, e:
+            raise UIError(str(e))
             
     def flushPool(self):
         """
@@ -1222,19 +1230,19 @@ class MixminionClient:
             LOG.info("Found %s pending messages", len(handles))
             messagesByServer = {}
             for h in handles:
-                message, server, _ = self.pool.getPacket(h)
-                messagesByServer.setdefault(server, []).append((message, h))
+                message, routing, _ = self.pool.getPacket(h)
+                messagesByServer.setdefault(routing, []).append((message, h))
         finally:
             clientUnlock()
             
-        for server in messagesByServer.keys():
-            LOG.debug("Sending %s messages to %s...",
-                      len(messagesByServer[server]), server.getAddr())
-            msgs = [ m for m, _ in messagesByServer[server] ]
-            handles = [ h for _, h in messagesByServer[server] ] 
+        for routing in messagesByServer.keys():
+            LOG.info("Sending %s messages to %s:%s...",
+                     len(messagesByServer[routing]), routing.ip, routing.port)
+            msgs = [ m for m, _ in messagesByServer[routing] ]
+            handles = [ h for _, h in messagesByServer[routing] ] 
             try:
-                self.sendMessages(msgs, server, noPool=1, warnIfLost=0)
-                LOG.debug("... messages sent.")
+                self.sendMessages(msgs, routing, noPool=1, warnIfLost=0)
+                LOG.info("... messages sent.")
                 try:
                     clientLock()
                     for h in handles:
@@ -1244,10 +1252,10 @@ class MixminionClient:
                     clientUnlock()
             except MixError:
                 LOG.error("Can't deliver messages to %s:%s; leaving in pool",
-                          server.getAddr(), server.getPort())
+                          routing.ip, routing.port)
         LOG.info("Pool flushed")
 
-    def poolMessages(self, msgList, server):
+    def poolMessages(self, msgList, routing):
         """
         DOCDOC
         """
@@ -1257,11 +1265,14 @@ class MixminionClient:
         try:
             clientLock()
             for msg in msgList:
-                h = self.pool.poolPacket(msg, server)
+                h = self.pool.poolPacket(msg, routing)
                 handles.append(h)
         finally:
             clientUnlock()
-        LOG.trace("Messages pooled")
+        if len(msgList) > 1:
+            LOG.info("Messages pooled")
+        else:
+            LOG.info("Message pooled")
         return handles
 
     def decodeMessage(self, s, force=0):
@@ -1486,7 +1497,15 @@ class CLIArgumentParser:
                 else:
                     LOG.setMinSeverity("INFO")
             mixminion.Common.configureShredCommand(self.config)
-            mixminion.Crypto.init_crypto(self.config)
+            if not self.verbose:
+                try:
+                    LOG.setMinSeverity("WARN")
+                    mixminion.Crypto.init_crypto(self.config)
+                finally:
+                    LOG.setMinSeverity("INFO")
+            else:
+                mixminion.Crypto.init_crypto(self.config)
+                
             userdir = os.path.expanduser(self.config['User']['UserDir'])
             configureClientLock(os.path.join(userdir, "lock"))
         else:
@@ -1725,8 +1744,6 @@ def runClient(cmd, args):
     else:
         client.sendForwardMessage(address, payload, path1, path2,
                                   forcePool, forceNoPool)
-
-    LOG.info("Message sent")
 
 _IMPORT_SERVER_USAGE = """\
 Usage: %s [options] <filename> ...

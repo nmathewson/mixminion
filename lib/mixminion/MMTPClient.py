@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.21 2003/02/09 22:30:58 nickm Exp $
+# $Id: MMTPClient.py,v 1.22 2003/02/11 22:18:13 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -16,6 +16,8 @@
    FFFF: Also unsupported: timeouts."""
 
 __all__ = [ "BlockingClientConnection", "sendMessages" ]
+
+#DOCDOC MixProtocolError pattern
 
 import errno
 import signal
@@ -57,6 +59,23 @@ class BlockingClientConnection:
         self.sock = None
 
     def connect(self, connectTimeout=None):
+        "DOCDOC"
+        try:
+            self._connect(connectTimeout)
+        except (socket.error, _ml.TLSError), e:
+            self._raise(e, "connecting")
+
+    def _raise(self, err, action):
+        if isinstance(err, socket.error):
+            tp = "Socket"
+        elif isinstance(err, _ml.TLSError):
+            tp = "TLS"
+        else:
+            tp = str(type(err))
+        raise MixProtocolError("%s error while %s to %s:%s: %s",
+             tp, action, self.targetIP, self.targetPort, err)
+
+    def _connect(self, connectTimeout=None):
         """Negotiate the handshake and protocol."""
         #DOCDOC connectTimeout
         # FFFF There should be a way to specify timeout for communication.
@@ -80,7 +99,7 @@ class BlockingClientConnection:
                 if e[0] == errno.EINTR:
                     raise TimeoutError("Connection timed out")
                 else:
-                    raise e
+                    raise MixProtocolError("Error connecting: %s" % e)
         finally:
             if connectTimeout:
                 signal.alarm(0)
@@ -122,8 +141,11 @@ class BlockingClientConnection:
         LOG.debug("MMTP protocol negotated: version %s", self.protocol)
 
     def renegotiate(self):
-        self.tls.renegotiate()
-        self.tls.do_handshake()
+        try:
+            self.tls.renegotiate()
+            self.tls.do_handshake()
+        except (socket.error, _ml.TLSError), e:
+            self._raise(e, "renegotiating connection")
 
     def sendPacket(self, packet,
                    control="SEND\r\n", serverControl="RECEIVED\r\n",
@@ -131,19 +153,22 @@ class BlockingClientConnection:
         """Send a single packet to a server."""
         assert len(packet) == 1<<15
         LOG.debug("Sending packet")
-        ##
-        # We write: "SEND\r\n", 28KB of data, and sha1(packet|"SEND").
-        self.tls.write(control)
-        self.tls.write(packet)
-        self.tls.write(sha1(packet+hashExtra))
-        LOG.debug("Packet sent; waiting for ACK")
+        try:
+            ##
+            # We write: "SEND\r\n", 28KB of data, and sha1(packet|"SEND").
+            self.tls.write(control)
+            self.tls.write(packet)
+            self.tls.write(sha1(packet+hashExtra))
+            LOG.debug("Packet sent; waiting for ACK")
 
-        # And we expect, "RECEIVED\r\n", and sha1(packet|"RECEIVED")
-        inp = self.tls.read(len(serverControl)+20)
-        if inp != serverControl+sha1(packet+serverHashExtra):
-            raise MixProtocolError("Bad ACK received")
-        LOG.debug("ACK received; packet successfully delivered")
-
+            # And we expect, "RECEIVED\r\n", and sha1(packet|"RECEIVED")
+            inp = self.tls.read(len(serverControl)+20)
+            if inp != serverControl+sha1(packet+serverHashExtra):
+                raise MixProtocolError("Bad ACK received")
+            LOG.debug("ACK received; packet successfully delivered")
+        except (socket.error, _ml.TLSError), e:
+            self._raise(e, "sending packet")
+            
     def sendJunkPacket(self, packet):
         if self.protocol == '0.1':
             LOG.debug("Not sending junk to a v0.1 server")
@@ -156,14 +181,16 @@ class BlockingClientConnection:
         """Close this connection."""
         LOG.debug("Shutting down connection to %s:%s",
                        self.targetIP, self.targetPort)
-        if self.tls is not None:
-            self.tls.shutdown()
-        if self.sock is not None:
-            self.sock.close()
+        try:
+            if self.tls is not None:
+                self.tls.shutdown()
+            if self.sock is not None:
+                self.sock.close()
+        except (socket.error, _ml.TLSError), e:
+            self._raise(e, "closing connection")
         LOG.debug("Connection closed")
 
-def sendMessages(targetIP, targetPort, targetKeyID, packetList,
-                 connectTimeout=None):
+def sendMessages(routing, packetList, connectTimeout=None, callback=None):
     """Sends a list of messages to a server.
 
        targetIP -- the address to connect to, in dotted-quad format.
@@ -173,6 +200,8 @@ def sendMessages(targetIP, targetPort, targetKeyID, packetList,
        packetList -- a list of 32KB packets and control strings.  Control
            strings must be one of "JUNK" to send a 32KB padding chunk,
            or "RENEGOTIATE" to renegotiate the connection key.
+
+       DOCDOC args are wrong
     """
     # Generate junk before opening connection to avoid timing attacks
     packets = []
@@ -183,16 +212,19 @@ def sendMessages(targetIP, targetPort, targetKeyID, packetList,
             packets.append(("RENEGOTIATE", None))
         else:
             packets.append(("MSG", p))
-    
-    con = BlockingClientConnection(targetIP, targetPort, targetKeyID)
+
+    con = BlockingClientConnection(routing.ip,routing.port,routing.keyinfo)
     try:
         con.connect(connectTimeout=connectTimeout)
-        for t,p in packets:
+        for idx in xrange(len(packets)):
+            t,p = packets[idx]
             if t == "JUNK":
                 con.sendJunkPacket(p)
             elif t == "RENEGOTIATE":
                 con.renegotiate()
             else:
                 con.sendPacket(p)
+            if callback is not None:
+                callback(idx)
     finally:
         con.shutdown()
