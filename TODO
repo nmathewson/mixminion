@@ -36,7 +36,7 @@ Reach goals for 0.0.8:
                 - SIGHUP should check whether serverinfo should be
                   regenerated.
                 - Add SIGUSR1 to do rotate-and-dump only.
-        - Integrator help
+        . Integrator help
                 - RFC822 interface to help integrators.
                 - "-o" option for queue
                 - "-i" option for flush.
@@ -51,8 +51,10 @@ Reach goals for 0.0.8:
                         - Implement trivial client side of client API
                         - Specify pluggable modules better.
                         - Consider server APIs
-                - Use a 'sendmail'-like program instead of a SMTP server,
+                . Use a 'sendmail'-like program instead of a SMTP server,
                   optionally.
+                        o Implement
+                        - Test
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   [Release criteria: Workable replacement for type II.  At least as

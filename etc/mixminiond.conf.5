@@ -1,4 +1,4 @@
-.\" $Id: mixminiond.conf.5,v 1.2 2004/04/04 21:26:54 weasel Exp $
+.\" $Id: mixminiond.conf.5,v 1.3 2004/04/19 03:47:16 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -297,6 +297,12 @@ you have your ISP's permission to run a remailer.  Defaults to "no".
 .It Cm Retry
 RetrySchedule: How often, and for how long, should the server attempt to
 send failed SMTP messages?  Defaults to "every 7 hours for 6 days".
+.It Cm SendmailCommand
+A command (possibly with options) to use for delivering outgoing messages.
+When invoked, the command must accept an RFC822-encoded message from
+standard input, terminated by an end of file.  It must learn the destination
+and origin addresses from the message headers.  (If using sendmail, remember
+to give the command as "sendmail -i -t".)
 .It Cm SMTPServer
 Hostname of the SMTP server that should be used to deliver outgoing
 messages.  Defaults to "localhost".
@@ -357,8 +363,8 @@ format is line-based.  Blank lines and lines starting with '#' are ignored.
 All other lines must be of the format "mboxname: emailaddress@example.com".
 .It Cm RemoveContact
 A contact address that users can email to be removed from the address file.
-.It Cm Retry, SMTPServer, MaximumSize, AllowFromAddress, X-Abuse, \
-Comments, Message, FromTag, ReturnAddress
+.It Cm Retry, SendmailCommand, SMTPServer, MaximumSize, AllowFromAddress, \
+X-Abuse, Comments, Message, FromTag, ReturnAddress
 See the corresponding entries in the [Delivery/SMTP] section.
 .El
 .Ss The [Delivery/SMTP-Via-Mixmaster] Section

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.193 2004/04/13 04:00:59 nickm Exp $
+# $Id: test.py,v 1.194 2004/04/19 03:47:16 nickm Exp $
 
 """mixminion.tests
 
@@ -5609,10 +5609,9 @@ MaximumSize: 35K
             fn, args, _ = calls[0]
             self.assertEquals("sendSMTPMessage", fn)
             #server, toList, fromAddr, message
-            self.assertEquals(('nowhere',
-                               ['users@everywhere'],
+            self.assertEquals((['users@everywhere'],
                                'yo.ho.ho@bottle.of.rum'),
-                              args[:3])
+                              args[1:3])
             EXPECTED_SMTP_PACKET = """\
 To: users@everywhere
 From: yo.ho.ho@bottle.of.rum
@@ -5644,10 +5643,9 @@ Free to hide no more.
             fn, args, _ = calls[0]
             self.assertEquals("sendSMTPMessage", fn)
             #server, toList, fromAddr, message
-            self.assertEquals(('nowhere',
-                               ['users@everywhere'],
+            self.assertEquals((['users@everywhere'],
                                'yo.ho.ho@bottle.of.rum'),
-                              args[:3])
+                              args[1:3])
             EXPECTED_SMTP_PACKET = '''\
 To: users@everywhere
 From: "[Anon] Captain Nick" <yo.ho.ho@bottle.of.rum>
@@ -5756,10 +5754,9 @@ Free to hide no more.
             self.assertEquals(1, len(getReplacedFunctionCallLog()))
             fn, args, _ = getReplacedFunctionCallLog()[0]
             self.assertEquals('sendSMTPMessage', fn)
-            self.assertEquals(('foo.bar.baz',
-                               ['mixminion@theotherhost'],
+            self.assertEquals((['mixminion@theotherhost'],
                                'returnaddress@x'),
-                              args[:3])
+                              args[1:3])
             self.assertLongStringEq(MBOX_EXPECTED_MESSAGE, args[3])
         finally:
             undoReplacedAttributes()
@@ -5884,8 +5881,8 @@ MaximumSize: 1M
             self.assertEquals(1, len(calls))
             fn, args, _ = calls[0]
             self.assertEquals(fn, "sendSMTPMessage")
-            self.assertEquals(("nowhere", ["pirates@sea"],
-                               "yo.ho.ho@bottle.of.rum"), args[:3])
+            self.assertEquals((["pirates@sea"],
+                               "yo.ho.ho@bottle.of.rum"), args[1:3])
             self.assertLongStringEq(args[3], """\
 To: pirates@sea
 From: yo.ho.ho@bottle.of.rum
@@ -7517,7 +7514,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 1:
+    if 0:
         suite.addTest(tc(MMTPTests))
         return suite
     testClasses = [MiscTests,

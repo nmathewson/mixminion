@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.73 2004/03/06 00:04:38 nickm Exp $
+# $Id: Modules.py,v 1.74 2004/04/19 03:47:17 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -1076,7 +1076,8 @@ class MBoxModule(DeliveryModule, MailBase):
                           "7 hours for 6 days"),
                 'AddressFile' : ('ALLOW', "filename", None),
                 'RemoveContact' : ('ALLOW', None, None),
-                'SMTPServer' : ('ALLOW', None, 'localhost'),
+                'SMTPServer' : ('ALLOW', None, None),
+                'SendmailCommand' : ('ALLOW', "command", None),
                 }
         cfg.update(MailBase.COMMON_OPTIONS)
         return { "Delivery/MBOX" : cfg }
@@ -1085,8 +1086,7 @@ class MBoxModule(DeliveryModule, MailBase):
         sec = config['Delivery/MBOX']
         if not sec.get('Enabled'):
             return
-        for field in ['AddressFile', 'ReturnAddress', 'RemoveContact',
-                      'SMTPServer']:
+        for field in ['AddressFile', 'ReturnAddress', 'RemoveContact']:
             if not sec.get(field):
                 raise ConfigError("Missing field %s in [Delivery/MBOX]"%field)
         if not os.path.exists(sec['AddressFile']):
@@ -1096,6 +1096,9 @@ class MBoxModule(DeliveryModule, MailBase):
             if not isSMTPMailbox(sec[field]):
                 LOG.warn("Value of %s (%s) doesn't look like an email address",
                          field, sec[field])
+        if (sec['SMTPServer'] is not None and
+            sec['SendmailCommand'] is not None):
+            raise ConfigError("Cannot specify both SMTPServer and SendmailCommand")
 
         config.validateRetrySchedule("Delivery/MBOX")
 
@@ -1105,15 +1108,14 @@ class MBoxModule(DeliveryModule, MailBase):
             return
 
         sec = config['Delivery/MBOX']
-        self.server = sec['SMTPServer']
+        self.cfgSection = sec.copy() #DOCDOC
         self.addressFile = sec['AddressFile']
         self.returnAddress = sec['ReturnAddress']
         self.contact = sec['RemoveContact']
         self.retrySchedule = sec['Retry']
         self.allowFromAddr = sec['AllowFromAddress']
         # validate should have caught these.
-        assert (self.server and self.addressFile and self.returnAddress
-                and self.contact)
+        assert (self.addressFile and self.returnAddress and self.contact)
 
         self.nickname = config['Server']['Nickname']
         if not self.nickname:
@@ -1187,7 +1189,7 @@ class MBoxModule(DeliveryModule, MailBase):
             return DELIVER_FAIL_NORETRY
 
         # Deliver the message
-        return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
+        return sendSMTPMessage(self.cfgSection, [address], self.returnAddress, msg)
 
 #----------------------------------------------------------------------
 class SMTPModule(DeliveryModule, MailBase):
@@ -1222,7 +1224,6 @@ class DirectSMTPModule(SMTPModule):
     def __init__(self):
         SMTPModule.__init__(self)
 
-
     def getRetrySchedule(self):
         return self.retrySchedule
 
@@ -1231,7 +1232,8 @@ class DirectSMTPModule(SMTPModule):
                 'Retry': ('ALLOW', "intervalList",
                           "7 hours for 6 days"),
                 'BlacklistFile' : ('ALLOW', "filename", None),
-                'SMTPServer' : ('ALLOW', None, 'localhost'),
+                'SMTPServer' : ('ALLOW', None, None),
+                'SendmailCommand' : ('ALLOW', "command", None),
                 }
         cfg.update(MailBase.COMMON_OPTIONS)
         return { "Delivery/SMTP" : cfg }
@@ -1240,7 +1242,7 @@ class DirectSMTPModule(SMTPModule):
         sec = config['Delivery/SMTP']
         if not sec.get('Enabled'):
             return
-        for field in 'SMTPServer', 'ReturnAddress':
+        for field in ('ReturnAddress',):
             if not sec.get(field):
                 raise ConfigError("Missing field %s in [Delivery/SMTP]"%field)
         fn = sec.get('BlacklistFile')
@@ -1249,6 +1251,9 @@ class DirectSMTPModule(SMTPModule):
         if not isSMTPMailbox(sec['ReturnAddress']):
             LOG.warn("Return address (%s) doesn't look like an email address",
                      sec['ReturnAddress'])
+        if (sec['SMTPServer'] is not None and
+            sec['SendmailCommand'] is not None):
+            raise ConfigError("Cannot specify both SMTPServer and SendmailCommand")
 
         config.validateRetrySchedule("Delivery/SMTP")
 
@@ -1258,7 +1263,7 @@ class DirectSMTPModule(SMTPModule):
             manager.disableModule(self)
             return
 
-        self.server = sec['SMTPServer']
+        self.cfgSection = sec.copy() #DOCDOC
         self.retrySchedule = sec['Retry']
         if sec['BlacklistFile']:
             self.blacklist = EmailAddressSet(fname=sec['BlacklistFile'])
@@ -1296,7 +1301,7 @@ class DirectSMTPModule(SMTPModule):
             return DELIVER_FAIL_NORETRY
 
         # Send the message.
-        return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
+        return sendSMTPMessage(self.cfgSection, [address], self.returnAddress, msg)
 
 class MixmasterSMTPModule(SMTPModule):
     """Implements SMTP by relaying messages via Mixmaster nodes.  This
@@ -1433,27 +1438,37 @@ def checkMailHeaders(headers):
 
 #----------------------------------------------------------------------
 
-def sendSMTPMessage(server, toList, fromAddr, message):
+def sendSMTPMessage(cfgSection, toList, fromAddr, message):
     """Send a single SMTP message.  The message will be delivered to
        toList, and seem to originate from fromAddr.  We use 'server' as an
-       MTA."""
+       MTA.
+       DOCDOC
+    """
     # FFFF This implementation can stall badly if we don't have a fast
     # FFFF local MTA.
 
     # FFFF We should leave the connection open if we're going to send many
     # FFFF messages in a row.
-    LOG.debug("Sending message via SMTP host %s to %s", server, toList)
-    con = smtplib.SMTP(server)
-    try:
-        con.sendmail(fromAddr, toList, message)
-        res = DELIVER_OK
-    except (smtplib.SMTPException, socket.error), e:
-        LOG.warn("Unsuccessful SMTP connection to %s: %s",
-                 server, str(e))
-        res = DELIVER_FAIL_RETRY
+    if cfgSection['SendmailCommand'] is not None:
+        cmd, opts = cfgSection['SendmailCommand']
+        command = cmd + (" ".join(opts))
+        f = os.popen(command, 'w')
+        f.write(message)
+        f.close()
+    else:
+        server = cfgSection.get('SMTPServer','localhost')
+        LOG.debug("Sending message via SMTP host %s to %s", server, toList)
+        con = smtplib.SMTP(server)
+        try:
+            con.sendmail(fromAddr, toList, message)
+            res = DELIVER_OK
+        except (smtplib.SMTPException, socket.error), e:
+            LOG.warn("Unsuccessful SMTP connection to %s: %s",
+                     server, str(e))
+            res = DELIVER_FAIL_RETRY
 
-    con.quit()
-    con.close()
+        con.quit()
+        con.close()
 
     return res
 
