@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.120 2004/03/06 00:04:38 nickm Exp $
+# $Id: ServerMain.py,v 1.121 2004/03/07 06:31:46 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -897,7 +897,7 @@ class MixminionServer(_Scheduler):
             now = time.time()
             timeLeft = nextEventTime - now
             tickInterval = self.mmtpServer.TICK_INTERVAL
-            nexttick = now+tickInterval
+            nextTick = now+tickInterval
             while timeLeft > 0:
                 # Handle pending network events
                 self.mmtpServer.process(tickInterval)
@@ -918,7 +918,7 @@ class MixminionServer(_Scheduler):
 
                 # Calculate remaining time until the next event.
                 now = time.time()
-                if now > nexttick:
+                if now > nextTick:
                     self.mmtpServer.tick()
                     nextTick = now+tickInterval
                 timeLeft = nextEventTime - now

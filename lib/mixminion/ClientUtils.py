@@ -905,7 +905,7 @@ class ClientFragmentPool:
         if isinstance(fragment, types.StringType):
             try:
                 fragment = mixminion.Packet.parsePayload(fragment)
-            except ParseError, s:
+            except mixminion.Packet.ParseError, s:
                 raise UIError("Corrupted fragment payload: %s"%s)
             if fragment.isSingleton():
                 raise UIError("Non-fragment payload marked as a fragment.")

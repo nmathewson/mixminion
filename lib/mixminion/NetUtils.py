@@ -86,7 +86,6 @@ def getIP(name, preferIP4=PREFER_INET4):
        found.
     """
     _,haveIP6 = getProtocolSupport()
-    if not haveIP6: haveIP4 = 1
     try:
         r = getIPs(name)
         inet4 = [ addr for addr in r if addr[0] == AF_INET ]

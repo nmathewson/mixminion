@@ -1,11 +1,10 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.10 2004/02/02 07:05:50 nickm Exp $
+# $Id: DNSFarm.py,v 1.11 2004/03/07 06:31:46 nickm Exp $
 
 """mixminion.server.DNSFarm: code to implement asynchronous DNS resolves with
    background threads and cachhe the results.
    """
 
-import socket
 import threading
 import time
 import sys

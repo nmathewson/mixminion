@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.82 2004/03/06 00:04:38 nickm Exp $
+# $Id: ServerInfo.py,v 1.83 2004/03/07 06:31:46 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -12,7 +12,6 @@ __all__ = [ 'ServerInfo', 'ServerDirectory', 'displayServerByRouting' ]
 
 import re
 import time
-import types
 
 import mixminion.Config
 import mixminion.MMTPClient

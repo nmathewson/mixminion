@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.37 2004/03/06 00:04:38 nickm Exp $
+# $Id: PacketHandler.py,v 1.38 2004/03/07 06:31:46 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -314,7 +314,7 @@ class DeliveryPacket:
         x = self.tag+self.address
         if tagged:
             if len(x)<Packet.TAG_LEN:
-                raise ParseError("Missing decoding handle for exit type")
+                raise Packet.ParseError("Missing decoding handle for exit type")
             self.tag = x[:Packet.TAG_LEN]
             self.address = x[Packet.TAG_LEN:]
         else:

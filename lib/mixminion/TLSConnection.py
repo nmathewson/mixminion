@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.14 2004/03/06 00:04:38 nickm Exp $
+# $Id: TLSConnection.py,v 1.15 2004/03/07 06:31:46 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -315,6 +315,8 @@ class TLSConnection:
                 self.__bytesReadOnShutdown = 0
                 self.wantRead = 1
                 return 1
+
+        raise AssertionError() # unreached; appease pychecker
 
     def __closedFn(self,r,w, cap):
         """state function: called when the connection is closed"""

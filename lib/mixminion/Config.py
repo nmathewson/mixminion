@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.79 2004/03/06 00:04:37 nickm Exp $
+# $Id: Config.py,v 1.80 2004/03/07 06:31:46 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -1009,8 +1009,6 @@ class ClientConfig(_ConfigFile):
 
     def validate(self, lines, contents):
         _validateHostSection(self['Host'])
-
-        security = self['Security']
 
         t = self['Network'].get('ConnectionTimeout')
         if t:

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.52 2004/03/06 00:04:38 nickm Exp $
+# $Id: ServerConfig.py,v 1.53 2004/03/07 06:31:46 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -9,7 +9,6 @@ __all__ = [ "ServerConfig" ]
 
 import operator
 import os
-import sys
 
 import mixminion.Config
 import mixminion.server.Modules

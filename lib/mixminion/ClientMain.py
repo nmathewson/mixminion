@@ -24,8 +24,9 @@ import mixminion.MMTPClient
 
 from mixminion.Common import LOG, Lockfile, LockfileLocked, MixError, \
      MixFatalError, MixProtocolBadAuth, MixProtocolError, UIError, \
-     UsageError, createPrivateDir, englishSequence, isPrintingAscii, isSMTPMailbox, readFile, \
-     stringContains, succeedingMidnight, writeFile, previousMidnight, floorDiv
+     UsageError, createPrivateDir, englishSequence, floorDiv, isPrintingAscii,\
+     isSMTPMailbox, readFile, stringContains, succeedingMidnight, writeFile, \
+     previousMidnight
 from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
      parseTextReplyBlocks, ReplyBlock, parseMessageAndHeaders
