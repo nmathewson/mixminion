@@ -493,8 +493,8 @@ class MixminionClient:
         nGood = len(packetsSentByIndex)
         nBad = len(pktList)-nGood
 
+        clientLock()
         try:
-            clientLock()
             if nGood:
                 LOG.info("... %s sent", nGood)
                 LOG.trace("Removing %s successful packets from queue", nGood)
@@ -533,7 +533,7 @@ class MixminionClient:
             if exc:
                 LOG.info("Error was: %s", exc[1])
         finally:
-                clientUnlock()
+            clientUnlock()
 
         return nGood
 
@@ -603,8 +603,8 @@ class MixminionClient:
     def cleanQueue(self, handles):
         """Remove all packets older than maxAge seconds from the
            client queue."""
+        clientLock()
         try:
-            clientLock()
             byRouting = self._sortPackets(
                 [ (h, self.queue.getRouting(h)) for h in handles ],
                 shuffle = 0)
@@ -629,8 +629,8 @@ class MixminionClient:
         #XXXX write unit tests
         LOG.trace("Queueing packets")
         handles = []
+        clientLock()
         try:
-            clientLock()
             for pkt in pktList:
                 h = self.queue.queuePacket(str(pkt), routing)
                 handles.append(h)
@@ -957,8 +957,8 @@ class CLIArgumentParser:
             assert self.wantClientDirectory
             timeout = int(self.config['DirectoryServers']['DirectoryTimeout'])
             if self.download != 0:
+                clientLock()
                 try:
-                    clientLock()
                     self.directory.updateDirectory(forceDownload=self.download,
                                                    timeout=timeout)
                 finally:
@@ -1340,8 +1340,8 @@ def importServer(cmd, args):
     parser.init()
     directory = parser.directory
 
+    clientLock()
     try:
-        clientLock()
         for filename in args:
             print "Importing from", filename
             try:
@@ -1519,8 +1519,8 @@ def updateServers(cmd, args):
     directory = parser.directory
     config = parser.config
     timeout = int(config['DirectoryServers']['DirectoryTimeout'])
+    clientLock()
     try:
-        clientLock()
         directory.updateDirectory(forceDownload=1, timeout=timeout)
     finally:
         clientUnlock()
@@ -1883,8 +1883,8 @@ def listQueue(cmd, args):
     parser.init()
     client = parser.client
 
+    clientLock()
     try:
-        clientLock()
         res = client.queue.inspectQueue()
     finally:
         clientUnlock()
@@ -1931,8 +1931,8 @@ def listFragments(cmd, args):
     parser.init()
     client = parser.client
 
+    clientLock()
     try:
-        clientLock()
         res = client.pool.formatMessageList()
     finally:
         clientUnlock()
@@ -1994,8 +1994,8 @@ def reassemble(cmd, args):
             out = open(outfilename, 'wb')
             closeoutfile = 1
 
+    clientLock()
     try:
-        clientLock()
         removed = []
         for msgid in args:
             if reassemble:
@@ -2006,6 +2006,6 @@ def reassemble(cmd, args):
         if reassemble:
             out.write(msg)
     finally:
-        clientUnlock()
         if reassemble and closeoutfile:
             out.close()
+        clientUnlock()

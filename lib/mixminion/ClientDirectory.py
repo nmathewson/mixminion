@@ -110,8 +110,9 @@ class ClientDirectory:
             self._diskLock = threading.RLock()
         else:
             self._diskLock = diskLock
+
+        self._diskLock.acquire()
         try:
-            self._diskLock.acquire()
             self.__load()
             self.clean()
         finally:
@@ -236,17 +237,19 @@ class ClientDirectory:
         if fp and mixminion.Crypto.pk_fingerprint(identity) != fp:
             raise MixFatalError("Bad identity key on directory")
 
+        self._lock.write_in()
         try:
-            self._lock.write_in()
             self._diskLock.acquire()
-            # Install the new directory
-            tryUnlink(os.path.join(self.dir, "cache"))
-            if gz:
-                replaceFile(fname, os.path.join(self.dir, "dir.gz"))
-            else:
-                replaceFile(fname, os.path.join(self.dir, "dir"))
+            try:
+                # Install the new directory
+                tryUnlink(os.path.join(self.dir, "cache"))
+                if gz:
+                    replaceFile(fname, os.path.join(self.dir, "dir.gz"))
+                else:
+                    replaceFile(fname, os.path.join(self.dir, "dir"))
+            finally:
+                self._diskLock.release()
         finally:
-            self._diskLock.release()
             self._lock.write_out()
 
         # And regenerate the cache.
@@ -278,7 +281,7 @@ class ClientDirectory:
         dirFile = os.path.join(self.dir, "dir")
         for fname in gzipFile, dirFile:
             self._diskLock.acquire()
-            if not os.path.exists(fname): 
+            if not os.path.exists(fname):
                 self._diskLock.release()
                 continue
             try:
