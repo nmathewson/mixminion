@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.10 2002/12/12 19:56:46 nickm Exp $
+# $Id: __init__.py,v 1.11 2002/12/15 03:44:40 nickm Exp $
 
 """mixminion
 
@@ -16,5 +16,12 @@ __all__ = [ 'server' ]
 ## import mixminion.MMTPClient
 ## import mixminion.Packet
 ## import mixminion.ServerInfo
-## import mixminion.ClientMain
-## import mixminion.server
+
+## This next segment keeps pychecker from making spurious complaints.
+import sys
+if sys.modules.has_key("pychecker"):
+    import mixminion.ClientMain
+    import mixminion.server
+    import mixminion.test
+    import mixminion.testSupport
+del sys
