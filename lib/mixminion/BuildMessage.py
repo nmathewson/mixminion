@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.49 2003/07/13 03:45:33 nickm Exp $
+# $Id: BuildMessage.py,v 1.50 2003/07/13 16:43:35 arma Exp $
 
 """mixminion.BuildMessage
 
@@ -352,7 +352,7 @@ def _decodeEncryptedForwardPayload(payload, tag, key):
 
 def _decodeReplyPayload(payload, secrets, check=0):
     """Helper function: decode a reply payload, given a known list of packet
-         master secrets. If 'check' is true, then 'secerts' may be overlong.
+         master secrets. If 'check' is true, then 'secrets' may be overlong.
          Return values are the same as decodePayload.
       [secrets must be in _reverse_ order]
     """
