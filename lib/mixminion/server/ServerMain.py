@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.130 2004/05/17 21:25:27 nickm Exp $
+# $Id: ServerMain.py,v 1.131 2004/07/27 04:33:20 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -21,6 +21,7 @@
 #                          ...
 #               stats.tmp         [Cache of stats from latest period]
 #               dir/...           [Directory dowloaded from directory server.]
+#               pinger/log/       [DOCDOC]
 #
 #    QUEUEDIR defaults to ${WORKDIR}/queues
 #    ${QUEUEDIR}/incoming/        [Queue of received,unprocessed pkts]
@@ -64,6 +65,7 @@ import mixminion.server.DNSFarm
 import mixminion.server.MMTPServer
 import mixminion.server.Modules
 import mixminion.server.PacketHandler
+import mixminion.server.Pinger
 import mixminion.server.ServerQueue
 import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
@@ -156,6 +158,7 @@ class IncomingQueue(mixminion.Filestore.StringStore):
         mixminion.Filestore.StringStore.__init__(self, location, create=1)
         self.packetHandler = packetHandler
         self.mixPool = None
+        self.pingLog = None#DOCDOC
 
     def connectQueues(self, mixPool, processingThread):
         """Sets the target mix queue"""
@@ -165,6 +168,10 @@ class IncomingQueue(mixminion.Filestore.StringStore):
             assert h is not None
             self.processingThread.addJob(
                 lambda self=self, h=h: self.__deliverPacket(h))
+
+    def setPingLog(self, pingLog):
+        "DOCDOC"
+        self.pingLog = pingLog
 
     def queuePacket(self, pkt):
         """Add a packet for delivery"""
@@ -192,7 +199,17 @@ class IncomingQueue(mixminion.Filestore.StringStore):
                 self.removeMessage(handle)
             else:
                 if res.isDelivery():
-                    res.decode()
+                    if res.getExitType() == mixminion.Packet.PING_TYPE:
+                        LOG.debug("Ping packet IN:%s decoded", handle)
+                        if self.pingLog is not None:
+                            self.pingLog.processPing(res)
+                        else:
+                            LOG.debug("Pinging not enabled; discarding packet")
+                        self.removeMessage(handle)
+                        return
+                    else:
+                        #XXXX008 defer decoding to module; don't do it here.
+                        res.decode()
 
                 self.mixPool.queueObject(res)
                 self.removeMessage(handle)
@@ -325,6 +342,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
         mixminion.server.ServerQueue.PerAddressDeliveryQueue.__init__(self, location)
         self.server = None
         self.incomingQueue = None
+        self.pingGenerator = None
         self.keyID = keyid
 
     def configure(self, config):
@@ -332,12 +350,13 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
         retry = config['Outgoing/MMTP']['Retry']
         self.setRetrySchedule(retry)
 
-    def connectQueues(self, server, incoming):
+    def connectQueues(self, server, incoming, pingGenerator):
         """Set the MMTPServer and IncomingQueue that this
            OutgoingQueue informs of its deliverable packets."""
 
         self.server = server
         self.incomingQueue = incoming
+        self.pingGenerator = pingGenerator#DOCDOC
 
     def _deliverMessages(self, msgList):
         "Implementation of abstract method from DeliveryQueue."
@@ -351,6 +370,8 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
             except mixminion.Filestore.CorruptedFile:
                 continue
             pkts.setdefault(addr, []).append(pending)
+
+        deliverable = {}
         for routing, packets in pkts.items():
             if self.keyID == routing.keyinfo:
                 for pending in packets:
@@ -361,13 +382,18 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
                     pending.succeeded()
                 continue
 
-            deliverable = [
+            deliverable[routing] = [
                 mixminion.server.MMTPServer.DeliverablePacket(pending)
                 for pending in packets ]
             LOG.trace("Delivering packets OUT:[%s] to %s",
                       " ".join([p.getHandle() for p in packets]),
                       mixminion.ServerInfo.displayServerByRouting(routing))
-            self.server.sendPacketsByRouting(routing, deliverable)
+
+        if self.pingGenerator is not None:
+            self.pingGenerator.addLinkPadding(deliverable)
+
+        for routing, packets in deliverable.items():
+            self.server.sendPacketsByRouting(routing, packets)
 
 class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     """Implementation of mixminion.server.MMTPServer that knows about
@@ -519,112 +545,190 @@ def installSignalHandlers():
     signal.signal(signal.SIGTERM, _sigTermHandler)
 
 #----------------------------------------------------------------------
+# Functions to schedule periodic events.  Invocation times are approximate,
+# and not accurate to within more than a minute or two.
+
+class ScheduledEvent:
+    """Abstract base class for a scheduleable event."""
+    def getNextTime(self):
+        """Return the next time when this event should be called.  Return
+           -1 for 'never' and 'None' for 'currently unknown'.
+        """
+        raise NotImplementedError("getNextTime")
+    def __call__(self):
+        """Invoke this event."""
+        raise NotImplementedError("__call__")
+
+class OneTimeEvent:
+    """An event that will be called exactly once."""
+    def __init__(self, when, func):
+        """Create an event to call func() at the time 'when'."""
+        self.when = when
+        self.func = func
+    def getNextTime(self):
+        return self.when
+    def __call__(self):
+        self.func()
+        self.when = -1
+
+class RecurringEvent:
+    """An event that will be called at regular intervals."""
+    def __init__(self, when, func, repeat):
+        """Create an event to call func() at the time 'when', and every
+           'repeat' seconds thereafter."""
+        self.when = when
+        self.func = func
+        self.repeat = repeat
+    def getNextTime(self):
+        return self.when
+    def __call__(self):
+        try:
+            self.func()
+        finally:
+            self.when += self.repeat
+
+class RecurringComplexEvent(RecurringEvent):
+    """An event that will be called at irregular intervals."""
+    def __init__(self, when, func):
+        """Create an event to invoke func() at time 'when'.  func() must
+           return -1 for 'do not call again', or a time when it should next
+           be called."""
+        RecurringEvent.__init__(self, when, func, None)
+    def __call__(self):
+        self.when = self.func()
+
+class RecurringBackgroundEvent:
+    """An event that will be called at regular intervals, and scheduled
+       as a background job.  Does not reschedule the event while it is
+       already in progress."""
+    def __init__(self, when, scheduleJob, func, repeat):
+        """Create an event to invoke 'func' at time 'when' and every
+           'repeat' seconds thereafter.   The function 'scheduleJob' will
+           be invoked with a single callable object in order to run that
+           callable in the background.
+        """
+        self.when = when
+        self.scheduleJob = scheduleJob
+        self.func = func
+        self.repeat = repeat
+        self.running = 0
+        self.lock = threading.Lock()
+    def getNextTime(self):
+        self.lock.acquire()
+        try:
+            if self.running:
+                return None
+            else:
+                return self.when
+        finally:
+            self.lock.release()
+    def __call__(self):
+        self.lock.acquire()
+        try:
+            if self.running:
+                return
+            self.running = 1
+        finally:
+            self.lock.release()
+
+        self.scheduleJob(self._background)
+    def _background(self):
+        """Helper function: this one is actually invoked by the background
+           thread."""
+        self.func()
+        self.lock.acquire()
+        try:
+            now = time.time()
+            while self.when < now:
+                self.when += self.repeat
+            self.running = 0
+        finally:
+            self.lock.release()
+
+class RecurringComplexBackgroundEvent(RecurringBackgroundEvent):
+    """An event to run a job at irregular intervals in the background."""
+    def __init__(self, when, scheduleJob, func):
+        """Create an event to invoke 'func' at time 'when'.  func() must
+           return -1 for 'do not call again', or a time when it should next
+           be called.
+
+           The function 'scheduleJob' will be invoked with a single
+           callable object in order to run that callable in the
+           background.
+        """
+        RecurringBackgroundEvent.__init__(self, when, scheduleJob, func, None)
+    def _background(self):
+        next = self.func()
+        self.lock.acquire()
+        try:
+            self.when = next
+            self.running = 0
+        finally:
+            self.lock.release()
 
 class _Scheduler:
-    """Mixin class for server.  Implements a priority queue of ongoing,
-       scheduled tasks with a loose (few seconds) granularity.
-    """
-    # Fields:
-    #   scheduledEvents: list of (time, identifying-string, callable)
-    #       Sorted by time.  We could use a heap here instead, but
-    #       that doesn't turn into a net benefit until we have a hundred
-    #       events or so.
+    """Base class: used to run a bunch of events periodically."""
+    ##Fields:
+    # scheduledEvents: a list of ScheduledEvent objects.
+    # schedLock: a threading.RLock object to protect the list scheduledEvents
+    #   (but not the events themselves).
+    #XXXX008 needs more tests
     def __init__(self):
-        """Create a new _Scheduler"""
+        """Create a new scheduler."""
         self.scheduledEvents = []
         self.schedLock = threading.RLock()
-
     def firstEventTime(self):
-        """Return the time at which the earliest-scheduled event is
-           supposed to occur.  Returns -1 if no events.
-        """
+        """Return the time at which an event will first occur."""
         self.schedLock.acquire()
         try:
-            if self.scheduledEvents:
-                return self.scheduledEvents[0][0]
-            else:
+            if not self.scheduledEvents:
                 return -1
+            first = 0
+            for e in self.scheduledEvents:
+                t = e.getNextTime()
+                if t in (-1,None): continue
+                if not first or t < first:
+                    first = t
+            return first
         finally:
             self.schedLock.release()
 
-    def scheduleOnce(self, when, name, cb):
-        """Schedule a callback function, 'cb', to be invoked at time 'when.'
-        """
-        assert type(name) is StringType
-        assert type(when) in (IntType, LongType, FloatType)
+    def scheduleEvent(self, event):
+        """Add a ScheduledEvent to this scheduler"""
+        when = event.getNextTime()
+        if when == -1:
+            return
+        self.schedLock.acquire()
         try:
-            self.schedLock.acquire()
-            insort(self.scheduledEvents, (when, name, cb))
+            self.scheduledEvents.append(event)
         finally:
-            self.schedLock.release()
+            self.schedLock.acquire()
+
+    #XXXX008 -- these are only used for testing.
+    def scheduleOnce(self, when, name, cb):
+        self.scheduleEvent(OneTimeEvent(when,cb))
 
     def scheduleRecurring(self, first, interval, name, cb):
-        """Schedule a callback function 'cb' to be invoked at time 'first,'
-           and every 'interval' seconds thereafter.
-        """
-        assert type(name) is StringType
-        assert type(first) in (IntType, LongType, FloatType)
-        assert type(interval) in (IntType, LongType, FloatType)
-        def cbWrapper(cb=cb, interval=interval):
-            cb()
-            return time.time()+interval
-        self.scheduleRecurringComplex(first,name,cbWrapper)
+        self.scheduleEvent(RecurringEvent(first, cb, interval))
 
     def scheduleRecurringComplex(self, first, name, cb):
-        """Schedule a callback function 'cb' to be invoked at time 'first,'
-           and thereafter at times returned by 'cb'.
-
-           (Every time the callback is invoked, if it returns a non-None value,
-           the event is rescheduled for the time it returns.)
-        """
-        assert type(name) is StringType
-        assert type(first) in (IntType, LongType, FloatType)
-        self.scheduleOnce(first, name, _RecurringEvent(name, cb, self))
+        self.scheduleEvent(RecurringComplexEvent(first, cb))
 
     def processEvents(self, now=None):
-        """Run all events that are scheduled to occur before 'now'.
-
-           Note: if an event reschedules itself for a time _before_ now,
-           it will only be run once per invocation of processEvents.
-
-           The right way to run this class is something like:
-               while 1:
-                   interval = time.time() - scheduler.firstEventTime()
-                   if interval > 0:
-                       time.sleep(interval)
-                       # or maybe, select.select(...,...,...,interval)
-                   scheduler.processEvents()
-        """
-        if now is None: now = time.time()
+        """Run all events that need to get called at the time 'now'."""
+        if now is None:
+            now = time.time()
         self.schedLock.acquire()
         try:
-            se = self.scheduledEvents
-            cbs = []
-            while se and se[0][0] <= now:
-                cbs.append(se[0][2])
-                del se[0]
+            events = [(e.getNextTime(),e) for e in self.scheduledEvents]
+            self.scheduledEvents = [e for t,e in events if t != -1]
+            runnable = [(t,e) for t,e in events
+                        if t not in (-1,None) and t <= now]
         finally:
             self.schedLock.release()
-        for cb in cbs:
-            cb()
-
-class _RecurringEvent:
-    """helper for _Scheduler. Calls a callback, then reschedules it."""
-    def __init__(self, name, cb, scheduler):
-        self.name = name
-        self.cb = cb
-        self.scheduler = scheduler
-
-    def __call__(self):
-        nextTime = self.cb()
-        if nextTime is None:
-            LOG.warn("Not rescheduling %s", self.name)
-            return
-        elif nextTime < time.time():
-            raise MixFatalError("Tried to schedule event %s in the past! (%s)"
-                                %(self.name, formatTime(nextTime,1)))
-
-        self.scheduler.scheduleOnce(nextTime, self.name, self)
+        runnable.sort()
+        for _,e in runnable:
+            e()
 
 class MixminionServer(_Scheduler):
     """Wraps and drives all the queues, and the async net server.  Handles
@@ -654,6 +758,7 @@ class MixminionServer(_Scheduler):
     #    running in the same directory.  The filename for this lock is
     #    stored in self.pidFile.
     # pidFile: Filename in which we store the pid of the running server.
+    # pingLog: DOCDOC
     def __init__(self, config):
         """Create a new server from a ServerConfig."""
         _Scheduler.__init__(self)
@@ -720,8 +825,9 @@ class MixminionServer(_Scheduler):
         self.mmtpServer = _MMTPServer(config, None)
         LOG.debug("Initializing keys")
         self.descriptorFile = os.path.join(homeDir, "current-desc")
-        self.keyring.updateKeys(self.packetHandler, self.mmtpServer,
+        self.keyring.updateKeys(self.packetHandler,
                                 self.descriptorFile)
+        self.keyring.updateMMTPServerTLSContext(self.mmtpServer)
         LOG.debug("Initializing directory client")
         self.dirClient = mixminion.ClientDirectory.ClientDirectory(config)
         try:
@@ -766,6 +872,22 @@ class MixminionServer(_Scheduler):
         LOG.debug("Found %d pending packets in outgoing queue",
                        self.outgoingQueue.count())
 
+        pingerEnabled = config['Pinging'].get("Enabled")
+        if pingerEnabled:
+            #FFFF Later, enable this stuff anyway, to make R-G-B mixing work.
+            LOG.debug("Initializing ping log")
+            pingerDir = os.path.join(config.getWorkDir(), "pinger")
+            pingerLogDir = os.path.join(pingerDir, "log")
+            self.pingLog = mixminion.server.Pinger.PingLog(pingerLogDir)
+            self.pingLog.startup()
+
+            LOG.debug("Initializing ping generator")
+
+            self.pingGenerator=mixminion.server.Pinger.getPingGenerator(config)
+        else:
+            self.pingLog = None
+            self.pingGenerator = None
+
         self.cleaningThread = CleaningThread()
         self.processingThread = ProcessingThread()
 
@@ -777,10 +899,22 @@ class MixminionServer(_Scheduler):
         self.mixPool.connectQueues(outgoing=self.outgoingQueue,
                                    manager=self.moduleManager)
         self.outgoingQueue.connectQueues(server=self.mmtpServer,
-                                         incoming=self.incomingQueue)
+                                         incoming=self.incomingQueue,
+                                         pingGenerator=self.pingGenerator)
         self.mmtpServer.connectQueues(incoming=self.incomingQueue,
                                       outgoing=self.outgoingQueue)
         self.mmtpServer.connectDNSCache(self.dnsCache)
+        if self.pingGenerator is not None:
+            assert self.pingLog
+            self.pingGenerator.connect(directory=self.dirClient,
+                                       outgoingQueue=self.outgoingQueue,
+                                       pingLog=self.pingLog,
+                                       keyring=self.keyring)
+            self.pingGenerator.scheduleAllPings(time.time())
+
+        if self.pingLog is not None:
+            self.incomingQueue.setPingLog(self.pingLog)
+            self.mmtpServer.connectPingLog(self.pingLog)
 
         self.cleaningThread.start()
         self.processingThread.start()
@@ -802,7 +936,7 @@ class MixminionServer(_Scheduler):
             return time.time() + 120
 
         try:
-            self.keyring.updateKeys(self.packetHandler, self.mmtpServer,
+            self.keyring.updateKeys(self.packetHandler,
                                     self.descriptorFile)
             return self.keyring.getNextKeyRotation()
         finally:
@@ -810,49 +944,35 @@ class MixminionServer(_Scheduler):
 
     def generateKeys(self):
         """Callback used to schedule key-generation"""
-
-        # We generate and publish keys in the processing thread, so we don't
-        # slow down the server.  We also reschedule from the processing thread,
-        # so that we can take the new keyset into account when calculating
-        # when keys are next needed.
-
-        def c(self=self):
-            try:
-                self.keyring.lock()
-                self.keyring.createKeysAsNeeded()
-                self.updateKeys(lock=0)
-                if self.config['DirectoryServers'].get('Publish'):
-                    self.keyring.publishKeys()
-                self.scheduleOnce(self.keyring.getNextKeygen(),
-                                  "KEY_GEN",
-                                  self.generateKeys)
-            finally:
-                self.keyring.unlock()
-
-        self.processingThread.addJob(c)
+        try:
+            self.keyring.lock()
+            self.keyring.createKeysAsNeeded()
+            self.updateKeys(lock=0)
+            if self.config['DirectoryServers'].get('Publish'):
+                self.keyring.publishKeys()
+            return self.keyring.getNextKeygen()
+        finally:
+            self.keyring.unlock()
 
     def updateDirectoryClient(self):
-        def c(self=self):
-            try:
-                self.dirClient.update()
-                nextUpdate = succeedingMidnight(time.time()+30)
-                prng = mixminion.Crypto.getCommonPRNG()
-                # Randomly retrieve the directory within an hour after
-                # midnight, to avoid hosing the server.
-                nextUpdate += prng.getInt(60)*60
-            except mixminion.ClientDirectory.GotInvalidDirectoryError, e:
-                LOG.warn(str(e))
-                LOG.warn("    I'll try again in an hour.")
-                nextUpdate = min(succeedingMidnight(time.time()+30),
-                                 time.time()+3600)
-            except UIError, e:#XXXX008 This should really be a new exception
-                LOG.warn(str(e))
-                LOG.warn("    I'll try again in an hour.")
-                nextUpdate = min(succeedingMidnight(time.time()+30),
-                                 time.time()+3600)
-            self.scheduleOnce(nextUpdate, "UPDATE_DIR_CLIENT",
-                              self.updateDirectoryClient)
-        self.processingThread.addJob(c)
+        try:
+            self.dirClient.update()
+            nextUpdate = succeedingMidnight(time.time()+30)
+            prng = mixminion.Crypto.getCommonPRNG()
+            # Randomly retrieve the directory within an hour after
+            # midnight, to avoid hosing the server.
+            nextUpdate += prng.getInt(60)*60
+        except mixminion.ClientDirectory.GotInvalidDirectoryError, e:
+            LOG.warn(str(e))
+            LOG.warn("    I'll try again in an hour.")
+            nextUpdate = min(succeedingMidnight(time.time()+30),
+                             time.time()+3600)
+        except UIError, e:#XXXX008 This should really be a new exception
+            LOG.warn(str(e))
+            LOG.warn("    I'll try again in an hour.")
+            nextUpdate = min(succeedingMidnight(time.time()+30),
+                             time.time()+3600)
+        return nextUpdate
 
     def run(self):
         """Run the server; don't return unless we hit an exception."""
@@ -864,43 +984,68 @@ class MixminionServer(_Scheduler):
         self.cleanQueues()
 
         now = time.time()
-        self.scheduleRecurring(now+600, 600, "SHRED", self.cleanQueues)
-        self.scheduleRecurring(now+180, 180, "WAIT",
-                               lambda: waitForChildren(blocking=0))
+        self.scheduleEvent(RecurringEvent(now+600, self.cleanQueues, 600))
+        self.scheduleEvent(RecurringEvent(now+180,
+                                     lambda: waitForChildren(blocking=0),
+                                     180))
         if EventStats.log.getNextRotation():
-            self.scheduleRecurring(now+300, 300, "ES_SAVE",
-                                   lambda: EventStats.log.save)
             def _rotateStats():
                 EventStats.log.rotate()
                 return EventStats.log.getNextRotation()
-            self.scheduleRecurringComplex(EventStats.log.getNextRotation(),
-                                          "ES_ROTATE",
-                                          _rotateStats)
+            self.scheduleEvent(RecurringEvent(now+300,
+                                           lambda: EventStats.log.save, 300))
+            self.scheduleEvent(RecurringComplexEvent(
+                EventStats.log.getNextRotation(),
+                _rotateStats))
 
         def _tryTimeout(self=self):
             self.mmtpServer.tryTimeout()
             self.dnsCache.cleanCache()
             return self.mmtpServer.getNextTimeoutTime()
 
-        self.scheduleRecurringComplex(self.mmtpServer.getNextTimeoutTime(now),
-                                      "TIMEOUT",
-                                      _tryTimeout)
+        self.scheduleEvent(RecurringComplexEvent(
+            self.mmtpServer.getNextTimeoutTime(now),
+            _tryTimeout))
 
-        self.scheduleRecurringComplex(self.keyring.getNextKeyRotation(),
-                                      "KEY_ROTATE",
-                                      self.updateKeys)
+        self.scheduleEvent(RecurringComplexEvent(
+            self.keyring.getNextKeyRotation(),
+            self.updateKeys))
 
-        self.scheduleOnce(self.keyring.getNextKeygen(),
-                          "KEY_GEN",
-                          self.generateKeys)
+        self.scheduleEvent(RecurringBackgroundEvent(
+            self.keyring._tlsContextExpires,
+            self.processingThread.addJob,
+            lambda self=self: self.keyring.updateMMTPServerTLSContext(
+                                                self.mmtpServer,
+                                                force=1),
+            mixminion.server.ServerKeys.CERTIFICATE_LIFETIME))
+
+        self.scheduleEvent(RecurringComplexBackgroundEvent(
+            self.keyring.getNextKeygen(),
+            self.processingThread.addJob,
+            self.generateKeys))
+
+        if self.pingGenerator is not None:
+            self.scheduleEvent(RecurringComplexBackgroundEvent(
+                self.pingGenerator.getFirstPingTime(),
+                self.processingThread.addJob,
+                self.pingGenerator.sendPings))
+        if self.pingLog is not None:
+            self.scheduleEvent(RecurringEvent(
+                now+self.pingLog.HEARTBEAT_INTERVAL,
+                self.pingLog.heartbeat,
+                self.pingLog.HEARTBEAT_INTERVAL))
 
         # Makes next update get scheduled.
-        self.updateDirectoryClient()
+        nextUpdate = self.updateDirectoryClient()
+        self.scheduleEvent(RecurringComplexBackgroundEvent(
+            nextUpdate,
+            self.processingThread.addJob,
+            self.updateDirectoryClient))
 
         nextMix = self.mixPool.getNextMixTime(now)
         LOG.debug("First mix at %s", formatTime(nextMix,1))
-        self.scheduleRecurringComplex(self.mixPool.getNextMixTime(now),
-                                      "MIX", self.doMix)
+        self.scheduleEvent(RecurringComplexEvent(
+            self.mixPool.getNextMixTime(now), self.doMix))
 
         LOG.info("Entering main loop: Mixminion %s", mixminion.__version__)
 
@@ -910,15 +1055,16 @@ class MixminionServer(_Scheduler):
         if self.config['Server'].get("Daemon",1):
             closeUnusedFDs()
 
+        SCHEDULE_INTERVAL = 60
+        TICK_INTERVAL = self.mmtpServer.TICK_INTERVAL
         while 1:
-            nextEventTime = self.firstEventTime()
             now = time.time()
-            timeLeft = nextEventTime - now
-            tickInterval = self.mmtpServer.TICK_INTERVAL
-            nextTick = now+tickInterval
+            nextEvent = now + SCHEDULE_INTERVAL
+            timeLeft = SCHEDULE_INTERVAL
+            nextTick = now+TICK_INTERVAL
             while timeLeft > 0:
                 # Handle pending network events
-                self.mmtpServer.process(tickInterval)
+                self.mmtpServer.process(TICK_INTERVAL)
                 # Check for signals
                 if STOPPING:
                     LOG.info("Caught SIGTERM; shutting down.")
@@ -938,8 +1084,8 @@ class MixminionServer(_Scheduler):
                 now = time.time()
                 if now > nextTick:
                     self.mmtpServer.tick()
-                    nextTick = now+tickInterval
-                timeLeft = nextEventTime - now
+                    nextTick = now+TICK_INTERVAL
+                timeLeft = nextEvent - now
 
             # An event has fired.
             self.processEvents()
@@ -999,9 +1145,13 @@ class MixminionServer(_Scheduler):
         self.mixPool.queue.cleanQueue(df)
         self.outgoingQueue.cleanQueue(df)
         self.moduleManager.cleanQueues(df)
+        if self.pingLog:
+            self.pingLog.clean()
 
     def close(self):
         """Release all resources; close all files."""
+        if self.pingLog is not None:
+            self.pingLog.shutdown()
         self.cleaningThread.shutdown()
         self.processingThread.shutdown()
         self.moduleManager.shutdown()

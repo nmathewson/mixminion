@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.56 2004/05/02 18:45:16 nickm Exp $
+# $Id: ServerConfig.py,v 1.57 2004/07/27 04:33:20 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -357,6 +357,7 @@ SERVER_SYNTAX =  {
                      'MaxBandwidth' : ('ALLOW', "size", None),
                      'MaxBandwidthSpike' : ('ALLOW', "size", None),
                      },
+        'Pinging' : { 'Enabled' : ('ALLOW', 'boolean', 'yes') },
         'DirectoryServers' : { # '__SECTION__' : ('REQUIRE', None, None),
                                'ServerURL' : ('ALLOW*', None, None),
                                'PublishURL' : ('ALLOW*', None, None),

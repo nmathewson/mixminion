@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.66 2004/03/06 00:04:38 nickm Exp $
+# $Id: ServerKeys.py,v 1.67 2004/07/27 04:33:20 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -33,7 +33,7 @@ from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
 from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
      ceilDiv, createPrivateDir, checkPrivateFile, englishSequence, \
      formatBase64, formatDate, formatTime, previousMidnight, readFile, \
-     secureDelete, tryUnlink, UIError, writeFile
+     replaceFile, secureDelete, tryUnlink, UIError, writeFile
 from mixminion.Config import ConfigError
 
 #----------------------------------------------------------------------
@@ -53,6 +53,16 @@ PREPUBLICATION_INTERVAL = 14*24*60*60
 #
 #FFFF Make this configurable
 DIRECTORY_UPLOAD_URL = "http://mixminion.net/minion-cgi/publish"
+
+
+# We have our X509 certificate set to expire a bit after public key does,
+# so that slightly-skewed clients don't incorrectly give up while trying to
+# connect to us.  (And so that we don't mess up the world while being
+# slightly skewed.)
+CERTIFICATE_EXPIRY_SLOPPINESS = 2*60*60
+
+# DOCDOC
+CERTIFICATE_LIFETIME = 24*60*60
 
 #----------------------------------------------------------------------
 class ServerKeyring:
@@ -86,9 +96,13 @@ class ServerKeyring:
         self.keyDir = config.getKeyDir()
         self.hashDir = os.path.join(config.getWorkDir(), 'hashlogs')
         self.dhFile = os.path.join(config.getWorkDir(), 'tls', 'dhparam')
+        self.certFile = os.path.join(config.getWorkDir(), "cert_chain")
         self.keyOverlap = config['Server']['PublicKeyOverlap'].getSeconds()
+        self.nickname = config['Server']['Nickname'] #DOCDOC
         self.nextUpdate = None
         self.currentKeys = None
+        self._tlsContext = None #DOCDOC
+        self._tlsContextExpires = -1 #DOCDOC
         self.checkKeys()
 
     def checkKeys(self):
@@ -452,16 +466,44 @@ class ServerKeyring:
 
         return self.dhFile
 
-    def _getTLSContext(self, keys=None):
-        """Create and return a TLS context from the currently live key."""
-        if keys is None:
-            keys = self.getServerKeysets()[-1]
-        return mixminion._minionlib.TLSContext_new(keys.getCertFileName(),
-                                                   keys.getMMTPKey(),
-                                                   self._getDHFile())
+    def _newTLSContext(self, now=None):
+        """Create and return a TLS context."""
+        if now is None:
+            now = time.time()
+        mmtpKey = mixminion.Crypto.pk_generate(MMTP_KEY_BYTES*8)
 
-    def updateKeys(self, packetHandler, mmtpServer, statusFile=None,when=None):
-        """Update the keys and certificates stored in a PacketHandler and an
+        certStarts = now - CERTIFICATE_EXPIRY_SLOPPINESS
+        expires = now + CERTIFICATE_LIFETIME
+        certEnds = now + CERTIFICATE_LIFETIME + CERTIFICATE_EXPIRY_SLOPPINESS
+
+        tmpName = self.certFile + "_tmp"
+        generateCertChain(tmpName, mmtpKey, self.getIdentityKey(),
+                          self.nickname, certStarts, certEnds)
+        replaceFile(tmpName, self.certFile)
+
+        self._tlsContext = (
+                    mixminion._minionlib.TLSContext_new(self.certFile,
+                                                        mmtpKey,
+                                                        self._getDHFile()))
+        self._tlsContextExpires = expires
+        return self._tlsContext
+
+    def _getTLSContext(self, force=0, now=None):
+        if now is None:
+            now = time.time()
+        if force or self._tlsContext is None or self._tlsContextExpires < now:
+            return self._newTLSContext(now=now)
+        else:
+            return self._tlsContext
+
+    def updateMMTPServerTLSContext(self,mmtpServer,force=0,now=None):
+        """DOCDOC"""
+        context = self._getTLSContext(force=force,now=now)
+        mmtpServer.setServerContext(context)
+        return self._tlsContextExpires
+
+    def updateKeys(self, packetHandler, statusFile=None,when=None):
+        """Update the keys stored in a PacketHandler,
            MMTPServer object, so that they contain the currently correct
            keys.  Also removes any dead keys.
 
@@ -475,12 +517,6 @@ class ServerKeyring:
         LOG.info("Updating keys: %s currently valid (%s); %s expired (%s)",
                  len(keys), " ".join(keyNames),
                  len(deadKeys), " ".join(deadKeyNames))
-        if mmtpServer is not None:
-            LOG.trace("Using TLS cert from %s: good from %s to %s",
-                      keyNames[-1], formatDate(keys[-1].validAfter),
-                      formatDate(keys[-1].validUntil))
-            context = self._getTLSContext(keys[-1])
-            mmtpServer.setServerContext(context)
         if packetHandler is not None:
             packetKeys = []
             hashLogs = []
@@ -547,11 +583,27 @@ class ServerKeyring:
 
     def getAddress(self):
         """Return out current ip/port/keyid tuple"""
-        keys = self.getServerKeysets()[0]
-        desc = keys.getServerDescriptor()
+        desc = self.getCurrentDescriptor()
         return (desc['Incoming/MMTP']['IP'],
                 desc['Incoming/MMTP']['Port'],
                 desc.getKeyDigest())
+
+    def getCurrentDescriptor(self, now=None):
+        """DOCDOC"""
+        self._lock.acquire()
+        if now is None:
+            now = time.time()
+        try:
+            keysets = self.getServerKeysets()
+            for k in keysets:
+                va,vu = k.getLiveness()
+                if va <= now <= vu:
+                    return k.getServerDescriptor()
+
+            LOG.warn("getCurrentDescriptor: no live keysets??")
+            return self.getServerKeysets()[-1].getServerDescriptor()
+        finally:
+            self._lock.release()
 
     def lock(self, blocking=1):
         return self._lock.acquire(blocking)
@@ -577,7 +629,6 @@ class ServerKeyset:
     # keydir: Directory to store this keyset's data.
     # hashlogFile: filename of this keyset's hashlog.
     # packetKeyFile, mmtpKeyFile: filename of this keyset's short-term keys
-    # certFile: filename of this keyset's X509 certificate
     # descFile: filename of this keyset's server descriptor.
     # publishedFile: filename to store this server's publication time.
     #
@@ -599,6 +650,10 @@ class ServerKeyset:
         self.packetKeyFile = os.path.join(keydir, "mix.key")
         self.mmtpKeyFile = os.path.join(keydir, "mmtp.key")
         self.certFile = os.path.join(keydir, "mmtp.cert")
+        if os.path.exists(self.mmtpKeyFile):
+            secureDelete(self.mmtpKeyFile)
+        if os.path.exists(self.certFile):
+            secureDelete(self.certFile)
         self.descFile = os.path.join(keydir, "ServerDesc")
         self.publishedFile = os.path.join(keydir, "published")
         self.serverinfo = None
@@ -611,9 +666,6 @@ class ServerKeyset:
     def delete(self):
         """Remove this keyset from disk."""
         files = [self.packetKeyFile,
-                 self.mmtpKeyFile,
-                 self.certFile,
-                 self.certFile+"_tmp",
                  self.descFile,
                  self.publishedFile,
                  self.hashlogFile ]
@@ -625,7 +677,6 @@ class ServerKeyset:
     def checkKeys(self):
         """Check whether all the required keys exist and are private."""
         checkPrivateFile(self.packetKeyFile)
-        checkPrivateFile(self.mmtpKeyFile)
 
     def load(self, password=None):
         """Read the short-term keys from disk.  Must be called before
@@ -633,24 +684,18 @@ class ServerKeyset:
         self.checkKeys()
         self.packetKey = mixminion.Crypto.pk_PEM_load(self.packetKeyFile,
                                                       password)
-        self.mmtpKey = mixminion.Crypto.pk_PEM_load(self.mmtpKeyFile,
-                                                    password)
     def save(self, password=None):
         """Save this set of keys to disk."""
         mixminion.Crypto.pk_PEM_save(self.packetKey, self.packetKeyFile,
                                      password)
-        mixminion.Crypto.pk_PEM_save(self.mmtpKey, self.mmtpKeyFile,
-                                     password)
 
     def clear(self):
         """Stop holding the keys in memory."""
-        self.packetKey = self.mmtpKey = None
+        self.packetKey = None
 
-    def getCertFileName(self): return self.certFile
     def getHashLogFileName(self): return self.hashlogFile
     def getDescriptorFileName(self): return self.descFile
     def getPacketKey(self): return self.packetKey
-    def getMMTPKey(self): return self.mmtpKey
     def getPacketKeyID(self):
         "Return the sha1 hash of the asn1 encoding of the packet public key"
         return mixminion.Crypto.sha1(self.packetKey.encode_key(1))
@@ -889,11 +934,6 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
 #----------------------------------------------------------------------
 # Functionality to generate keys and server descriptors
 
-# We have our X509 certificate set to expire a bit after public key does,
-# so that slightly-skewed clients don't incorrectly give up while trying to
-# connect to us.
-CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
-
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                                     hashdir, validAt=None, now=None,
                                     useServerKeys=0, validUntil=None):
@@ -915,17 +955,14 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         serverKeys = ServerKeyset(keydir, keyname, hashdir)
         serverKeys.load()
         packetKey = serverKeys.packetKey
-        mmtpKey = serverKeys.mmtpKey # not used
     else:
         # First, we generate both of our short-term keys...
         packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
-        mmtpKey = mixminion.Crypto.pk_generate(MMTP_KEY_BYTES*8)
 
         # ...and save them to disk, setting up our directory structure while
         # we're at it.
         serverKeys = ServerKeyset(keydir, keyname, hashdir)
         serverKeys.packetKey = packetKey
-        serverKeys.mmtpKey = mmtpKey
         serverKeys.save()
 
     # FFFF unused
@@ -952,13 +989,6 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     if not validUntil:
         keyLifetime = config['Server']['PublicKeyLifetime'].getSeconds()
         validUntil = previousMidnight(validAt + keyLifetime + 30)
-    certStarts = validAt - CERTIFICATE_EXPIRY_SLOPPINESS
-    certEnds = validUntil + CERTIFICATE_EXPIRY_SLOPPINESS
-
-    # Create the X509 certificates in any case, in case one of the parameters
-    # has changed.
-    generateCertChain(serverKeys.getCertFileName(),
-                      mmtpKey, identityKey, nickname, certStarts, certEnds)
 
     mmtpProtocolsIn = mixminion.server.MMTPServer.MMTPServerConnection \
                       .PROTOCOL_VERSIONS[:]
@@ -1249,3 +1279,4 @@ def getPlatformSummary():
 
     return "Mixminion %s; Python %r on %r" % (
         mixminion.__version__, sys.version, uname)
+

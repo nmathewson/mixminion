@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.84 2004/03/23 00:09:24 nickm Exp $
+# $Id: MMTPServer.py,v 1.85 2004/07/27 04:33:20 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -41,8 +41,7 @@ import mixminion.server.EventStats as EventStats
 from mixminion.Filestore import CorruptedFile
 from mixminion.ThreadUtils import MessageQueue, QueueEmpty
 
-__all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
-            'MMTPClientConnection' ]
+__all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection' ]
 
 class SelectAsyncServer:
     """AsyncServer is the core of a general-purpose asynchronous
@@ -499,6 +498,32 @@ class DeliverablePacket(mixminion.MMTPClient.DeliverableMessage):
     def isJunk(self):
         return 0
 
+class LinkPadding(mixminion.MMTPClient.DeliverableMessage):
+    """DOCDOC"""
+    def __init__(self):
+        self.contents = getCommonPRNG().getBytes(1<<15)
+    def succeeded(self): pass
+    def failed(self,retriable=0): pass
+    def getContents(self): return self.contents
+    def isJunk(self): return 1
+
+class _ClientCon(MMTPClientConnection):
+    """DOCDOC"""
+    def configurePingLog(self, pingLog, nickname):
+        self._pingLog = pingLog
+        self._nickname = nickname
+        self._wasOnceConnected = 0
+    def onProtocolRead(self):
+        MMTPClientConnection.onProtocolRead(self)
+        if self._isConnected:
+            if self._pingLog:
+                self._pingLog.connected(self._nickname)
+            self._wasOnceConnected = 1
+    def _failPendingPackets(self):
+        if not self._wasOnceConnected and self._pingLog:
+            self._pingLog.connectFailed(self._nickname)
+        MMTPClientConnection._failPendingPackets(self)
+
 LISTEN_BACKLOG = 128
 class MMTPAsyncServer(AsyncServer):
     """A helper class to invoke AsyncServer, MMTPServerConnection, and
@@ -574,12 +599,16 @@ class MMTPAsyncServer(AsyncServer):
         self.dnsCache = None
         self.msgQueue = MessageQueue()
         self.pendingPackets = []
+        self.pingLog = None
 
     def connectDNSCache(self, dnsCache):
         """Use the DNSCache object 'DNSCache' to resolve DNS queries for
            this server.
         """
         self.dnsCache = dnsCache
+
+    def connectPingLog(self, pingLog):
+        self.pingLog = pingLog
 
     def setServerContext(self, servercontext):
         """Change the TLS context used for newly received connections.
@@ -723,9 +752,13 @@ class MMTPAsyncServer(AsyncServer):
             # There isn't any connection to the right server. Open one...
             addr = (ip, port, keyID)
             finished = lambda addr=addr, self=self: self.__clientFinished(addr)
-            con = MMTPClientConnection(
+            con = _ClientCon(
                 family, ip, port, keyID, serverName=serverName,
                 context=self.clientContext, certCache=self.certificateCache)
+            nickname = mixminion.ServerInfo.getNicknameByKeyID(keyID)
+            if nickname is None:
+                nickname = "<unknown>"
+            con.configurePingLog(self.pingLog, nickname)
             #con.allPacketsSent = finished #XXXX007 wrong!
             con.onClosed = finished
         except (socket.error, MixProtocolError), e:
