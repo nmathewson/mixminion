@@ -8,7 +8,8 @@ CONTENTS:
         V.    How to send messages
         VI.   How to run a server
         VII.  How to report bugs and suggestions.
-        VIII. How to contribute
+	VIII. Future interoperability
+        IX.   How to contribute
 
 I. OVERVIEW
 ===========
@@ -244,8 +245,21 @@ For help in debugging, please try to send a copy of:
 If your error occurred on a running server, please make a copy of your
 log--it might be helpful.
 
-VIII. HOW TO CONTRIBUTE
-=======================
+VIII. FUTURE INTEROPERABILITY
+==========================
+
+Mixminion is not yet feature complete.  As the software moves closer to
+official release, backwards-incompatible changes *WILL* be introduced.
+Future versions of Mixminion, including future versions in the 0.x track, may
+reject messages from older versions as additional security features are
+added.
+
+Furthermore, the present preview versions include necessary diagnostic
+features that potentially compromise anonymity and would be inappropriate in
+a production system; these features will be removed or disabled by 1.0.
+
+IX. HOW TO CONTRIBUTE
+========================
 
 Send patches to <nickm@freehaven.net>.  If you can, please submit unified
 diffs against the latest version of the code in CVS.
