@@ -498,7 +498,12 @@ class MixminionClient:
                     for h in handles:
                         if self.queue.packetExists(h):
                             self.queue.removePacket(h)
-                    if handles:
+                    removed = 0
+                    for p in pktList:
+                        if hasattr(p, 'remove'):
+                            p.remove()
+                            removed = 1
+                    if handles or removed:
                         self.queue.cleanQueue()
                 finally:
                     clientUnlock()
@@ -519,6 +524,8 @@ class MixminionClient:
                 return self.queue.getPacket(self.h)[0]
             def __cmp__(self,other):
                 return cmp(id(self),id(other))
+            def remove(self):
+                self.queue.removePacket(self.h)
 
         LOG.info("Flushing packet queue")
         clientLock()
