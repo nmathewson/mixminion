@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.158 2003/10/19 03:12:02 nickm Exp $
+# $Id: test.py,v 1.159 2003/11/07 05:44:40 nickm Exp $
 
 """mixminion.tests
 
@@ -32,6 +32,12 @@ try:
     import unittest
 except ImportError:
     import mixminion._unittest as unittest
+
+#DOCDOC
+if os.environ.get("MM_COVERAGE"):
+    import coverage
+    coverage.erase()
+    coverage.start()
 
 import mixminion.testSupport
 from mixminion.testSupport import mix_mktemp, suspendLog, resumeLog, \
@@ -6937,3 +6943,11 @@ def testSuite():
 def testAll(name, args):
     initializeGlobals()
     unittest.TextTestRunner(verbosity=1).run(testSuite())
+
+    #DOCDOC
+    if os.environ.get("MM_COVERAGE"):
+        allmods = [ mod for name, mod in sys.modules.items() 
+                    if (mod is not None and 
+                        name.startswith("mixminion") and
+                        name != 'mixminion._minionlib') ]
+        coverage.report(allmods)
