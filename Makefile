@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.48 2003/06/09 21:24:54 nickm Exp $
+# $Id: Makefile,v 1.49 2003/06/21 07:18:26 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -201,7 +201,7 @@ $(OPENSSL_SRC)/libcrypto.a: $(OPENSSL_SRC)/config
 #           2) whether contrib/openssl is a real file or directory
 unpack-openssl:
 	@cd ./contrib;                                                      \
-	if [ -e ./openssl -a ! -L ./openssl ]; then                         \
+	if [ -d ./openssl -a ! -h ./openssl ]; then                         \
 	    echo "Ouch. contrib/openssl seems not to be a symlink: "        \
 	         "I'm afraid to delete it." ;                               \
 	    exit;                                                           \
@@ -222,7 +222,7 @@ unpack-openssl:
 	UNPACKED=`echo $$TGZ | sed -e s/.tar.gz$$//`;                       \
 	echo "Unpacking $$TGZ...";                                          \
 	gunzip -c $$TGZ | tar xf -;                                         \
-	if [ ! -e $$UNPACKED ]; then                                        \
+	if [ ! -d $$UNPACKED ]; then                                        \
 	    echo "Oops.  I unpacked $$TGZ, but didn't find $$UNPACKED.";    \
 	fi;                                                                 \
 	rm -f ./openssl;                                                    \
