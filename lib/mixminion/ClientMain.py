@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.58 2003/02/13 18:45:07 nickm Exp $
+# $Id: ClientMain.py,v 1.59 2003/02/14 03:51:24 arma Exp $
 
 """mixminion.ClientMain
 
@@ -1991,7 +1991,7 @@ EXAMPLES:
       %(cmd)s -t user@domain
   Force a fresh directory download
       %(cmd)s -D yes
-  %(Send)s a message without dowloading a new directory, even if the current
+  %(Send)s a message without downloading a new directory, even if the current
   directory is out of date.
       %(cmd)s -D no -t user@domain -i data
 """.strip()
@@ -2328,7 +2328,7 @@ EXAMPLES:
       %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar' -o MyBlocks -b -n 100
   Specify an explicit path.
       %(cmd)s -P 'Foo,Bar,Baz,Quux'
-  Generate 10 reply blocks without dowloading a new directory, even if the
+  Generate 10 reply blocks without downloading a new directory, even if the
   current directory is out of date.
       %(cmd)s -D no -n 10
 """.strip()

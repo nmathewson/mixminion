@@ -1,4 +1,4 @@
-$Id: README,v 1.30 2003/02/13 11:34:15 nickm Exp $
+$Id: README,v 1.31 2003/02/14 03:51:20 arma Exp $
 ======================================================================
 This is Mixminion version 0.0.3rc1.
 
@@ -45,9 +45,9 @@ NEW IN VERSION 0.0.3rc1:
 
    CLIENT:   
       - Single-use reply blocks (SURBs) are fully supported and available.
-      - You can use client-side pooling holds messages until you're ready to 
-        send them.  Pooling also prevents you from losing messages when the
-        first hop in your path is down.
+      - You can use client-side pooling: it holds messages until you're
+        ready to send them.  Pooling also prevents you from losing
+        messages when the first hop in your path is temporarily down.
       - You can now decode binary messages or reply messages from the command
         line.
       - We now time out faster when servers are down.
