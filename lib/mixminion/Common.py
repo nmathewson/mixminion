@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.84 2003/05/30 03:07:56 nickm Exp $
+# $Id: Common.py,v 1.85 2003/05/30 03:11:46 nickm Exp $
 
 """mixminion.Common
 
@@ -366,7 +366,6 @@ def checkPrivateDir(d, recurse=1):
             _WARNED_DIRECTORIES[d] = 1
 
 def configureTrustedUsers(config):
-    #XXXX004 call this
     users = config['Host']['TrustedUser']
     if not users:
         return
