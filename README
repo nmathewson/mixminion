@@ -1,28 +1,32 @@
 This is Mixminion version 0.0.1.
 
-Mixminion is the standard implementation for the Type-III anonymous Mix
-protocol, which lets you send very anonymous email.
-
-XXXX MORE TEXT HERE!
+Mixminion is the standard implementation for the Type-III anonymous
+Mix protocol (MMTP), which lets you send very anonymous email. MMTP
+is a best-of-breed remailer protocol that uses conservative design
+approaches to provide security against most known attacks. We chose
+a simple extensible design so we can provide a robust core system,
+and then go on to experiment with new research features such as dummy
+policies, directory servers, and reputation systems.
 
 IN THIS VERSION: 
-   - You can run a rudimentary server that uses Mixmaster to deliver SMTP, or
-     that sends SMTP directly to a preconfigured set of addresses.
-   - You can send anonymous email.
+   - You can run a rudimentary server that can deliver to other Mixminion
+     servers, that can use Mixmaster to deliver to any external address,
+     or that sends SMTP directly to a preconfigured set of addresses.
+   - You can send anonymous email via these servers.
 
-NOT IN THIS VERSION: (XXXX Be more verbose)
+NOT IN THIS VERSION:
    - There is no client interface for sending replies or generating reply
-     blocks.
-   - There are some ways to DOS the server.
+     blocks (the code is written but not exposed).
+   - There are still some ways to DoS the server.
    - IP-based restrictions don't work.
    - There is no exit module for servers that want to send SMTP directly to
      unrestricted addresses.
    - There is no integrated directory support yet.
    - No automatic key generation.
    - No automatic path selection.
-   - MMTP is not exactly as specified.
-   - Cottrell batching is disabled; the mix interval is set to a ridiculously
-     low 5 minutes for testing.
+   - MMTP does not exactly follow the specification yet.
+   - Cottrell batching is disabled; instead we use a simple timed mix. The
+     mix interval is set to a ridiculously low 5 minutes for testing.
 
 HOW TO BUILD, TEST, AND INSTALL MIXMINION: The quick version.
   <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.1.tar.gz>
@@ -55,15 +59,15 @@ HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
      OpenSSL build.
 
   5) Run "make build".  If you get any errors, please report them to 
-     <mixminion-devel@freehaven.net>.
+     <nickm@freehaven.net>.
 
   6) Run "make test" to run Mixminion's unit tests.  If you get any errors,
-     please replort them to <mixminion-devel@freehaven.net>.
+     please report them to <nickm@freehaven.net>.
 
   7) Run "make install" to install Mixminion.  You may need to be root to
      execute this command.  By default, Mixminion will install itself relative
      to your python distribution.  If you want to install somewhere else (e.g.
-     /home/mixminiond/), run "make install PREFIX=/home/mixminiond".
+     /home/miniond/), run "make install PREFIX=/home/miniond".
 
      A script called "mixminion" will be created in the 'bin' directory
      relative to your prefix, or in the same directory as the python
@@ -79,15 +83,15 @@ HOW TO SEND AN EMAIL MESSAGE VIA MIXMINION:
 
  [All subsequent times. The first two steps won't be necessary once v0.0.2 is
     out.]
-   1) Check out your list of servers: run 'mixminon list-servers'.
+   1) Check out your list of servers: run 'mixminion list-servers'.
    2) Decide on a two-part path.  Each part of the path must be a comma-
       separated list of servers.  The last server in the second part of the
       path must support smtp.  All intermediate servers must support 'relay'.
    3) Run (type this as a single line):
          mixminion client -t <email address> 
               --path1=<first part of your path>
-	      --path2=<second part of your path>
-	      -i <filename to send, or - to read from stdin>.
+              --path2=<second part of your path>
+              -i <filename to send, or - to read from stdin>.
 
       Example:
          mixminion client -t nosuchuser@mixminion.net --path1=server1,server9 \
@@ -112,5 +116,7 @@ HOW TO RUN YOUR OWN MIXMINION SERVER:
       Clients should place a copy of this file, named whatever you like,
       in their "~/.mixminion/servers" directory.
 
-      To get your server advertised to the rest of the world, please
-      send the file to XXXXemail.
+      Since v0.0.1 is just a working alpha release, we're going to wait
+      until we have directories working before we ask people to give us
+      their server descriptors. Stay tuned.
+
