@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.8 2002/08/19 20:27:02 nickm Exp $ */
+/* $Id: tls.c,v 1.9 2002/12/02 03:18:23 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -43,19 +43,25 @@ PyObject *mm_TLSClosed = NULL;
 /* 
  * Checks for an outstanding error on a given SSL object that has just
  * returned the value 'r'.  Returns NO_ERROR, ERROR, or ZERO_RETURN.
- * On ERROR, a Python error is set.  On ZERO_RETURN, a Python error is
- * set if 'zeroReturnIsError'.
+ * On ERROR, a Python error is set.  
+ *
+ * On SSL_ERROR_ZERO_RETURN, a Python error is set if !(flags &
+ * IGNORE_ZERO_RETURN).  On SSL_ERROR_SYSCALL, an error condition is
+ * set if !(flags & IGNORE_SYSCALL).
  */
+#define IGNORE_ZERO_RETURN 1
+#define IGNORE_SYSCALL 2
 static int 
-tls_error(SSL *ssl, int r, int zeroReturnIsError) 
+tls_error(SSL *ssl, int r, int flags)
 {
 	int err = SSL_get_error(ssl,r);
 	switch (err) {
  	  case SSL_ERROR_NONE:
 		  return NO_ERROR;
 	  case SSL_ERROR_ZERO_RETURN:
-		  if (zeroReturnIsError)
-			  mm_SSL_ERR(0);
+		  if (flags & IGNORE_ZERO_RETURN)
+			  return ZERO_RETURN;
+                  mm_SSL_ERR(0);
 		  return ZERO_RETURN;
  	  case SSL_ERROR_WANT_READ:
 		  PyErr_SetNone(mm_TLSWantRead);
@@ -64,6 +70,8 @@ tls_error(SSL *ssl, int r, int zeroReturnIsError)
 		  PyErr_SetNone(mm_TLSWantWrite);
 		  return ERROR;
  	  case SSL_ERROR_SYSCALL:
+		  if (flags & IGNORE_SYSCALL)
+			  return NO_ERROR;
 		  PyErr_SetNone(mm_TLSClosed);
 		  return ERROR;
  	  default:
@@ -295,7 +303,7 @@ mm_TLSSock_accept(PyObject *self, PyObject *args, PyObject *kwargs)
 	r = SSL_accept(ssl);
 	Py_END_ALLOW_THREADS
 	
-	if (tls_error(ssl, r, 1))
+	if (tls_error(ssl, r, 0))
 		return NULL;
 	
 	Py_INCREF(Py_None);
@@ -322,7 +330,7 @@ mm_TLSSock_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 	r = SSL_connect(ssl);
 	Py_END_ALLOW_THREADS
 	err = SSL_get_error(ssl,r);
-	if (tls_error(ssl, r, 1))
+	if (tls_error(ssl, r, 0))
 		return NULL;
 
 	Py_INCREF(Py_None);
@@ -383,7 +391,7 @@ mm_TLSSock_read(PyObject *self, PyObject *args, PyObject *kwargs)
 		return res;
 	}
 	Py_DECREF(res);
-	switch (tls_error(ssl, r, 0)) {
+	switch (tls_error(ssl, r, IGNORE_ZERO_RETURN)) {
 	    case NO_ERROR:
 		    Py_INCREF(Py_None);
 		    return Py_None;
@@ -423,7 +431,7 @@ mm_TLSSock_write(PyObject *self, PyObject *args, PyObject *kwargs)
 	r = SSL_write(ssl, string, stringlen);
 	Py_END_ALLOW_THREADS
 	
-	switch(tls_error(ssl, r, 0)) {
+	switch(tls_error(ssl, r, IGNORE_ZERO_RETURN)) {
 	    case NO_ERROR:	    
 		    return PyInt_FromLong(r);
 	    case ZERO_RETURN:
@@ -455,10 +463,10 @@ mm_TLSSock_shutdown(PyObject *self, PyObject *args, PyObject *kwargs)
 	Py_BEGIN_ALLOW_THREADS
 	r = SSL_shutdown(ssl);
 	Py_END_ALLOW_THREADS
-	if (r == 0) return PyInt_FromLong(0);
 	if (r == 1) return PyInt_FromLong(1);
-	if (tls_error(ssl,r,1))
+	if (tls_error(ssl, r, IGNORE_SYSCALL))
 		return NULL;
+	if (r == 0) return PyInt_FromLong(0);
 
 	Py_INCREF(Py_None);
 	return Py_None;
