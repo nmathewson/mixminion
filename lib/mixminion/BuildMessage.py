@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.35 2003/01/12 04:25:27 nickm Exp $
+# $Id: BuildMessage.py,v 1.36 2003/01/13 06:13:33 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -20,7 +20,7 @@ __all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
            'buildReplyBlock', 'decodePayload' ]
 
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
-                        paddingPRNG=None, suppressTag=0):
+                        paddingPRNG=None):
     """Construct a forward message.
             payload: The payload to deliver.  Must compress to under 28K-22b.
                   If it does not, MixError is raised.  If the payload is
@@ -40,6 +40,11 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
         raise MixError("First leg of path is empty")
     if not path2:
         raise MixError("Second leg of path is empty")
+
+    suppressTag = 0
+    if exitType == DROP_TYPE:
+        suppressTag = 1
+        payload = None
 
     # Compress, pad, and checksum the payload.
     if payload is not None:
@@ -606,7 +611,7 @@ def _decodePayloadImpl(payload):
     # FFFF - We should make this rule configurable.
     maxLen = max(20*1024, 20*len(contents))
 
-    return uncompressData(payload.getContents(), maxLength=maxLen)
+    return uncompressData(contents, maxLength=maxLen)
 
 def _checkPayload(payload):
     'Return true iff the hash on the given payload seems valid'

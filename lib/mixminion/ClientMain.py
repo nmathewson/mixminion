@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.42 2003/01/12 04:25:27 nickm Exp $
+# $Id: ClientMain.py,v 1.43 2003/01/13 06:13:33 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -835,12 +835,9 @@ class MixminionClient:
 
         routingType, routingInfo, _ = address.getRouting()
         LOG.info("Generating payload...")
-        suppressTag = 0
-        if payload is None:
-            suppressTag = 1
         msg = mixminion.BuildMessage.buildForwardMessage(
             payload, routingType, routingInfo, servers1, servers2,
-            self.prng, suppressTag=suppressTag)
+            self.prng)
         return msg, servers1[0]
 
     def sendMessages(self, msgList, server):
