@@ -14,27 +14,7 @@ NEEDS TO BE WRITTEN:
 
 For 0.0.3:
         o Write a list of good introductory projects
-        - Client
-                - Add "don't use me for anonymity" boilerplate.
-                - Client support for reply blocks.
-                        - Recheck spec on external reply block format
-                        - Implement and test external reply block format
-                        - Generate a reply block
-                        - Send message to reply block
-                        - Remember used reply blocks??
-                        - Read message from reply block
-                        - Examine reply block
-                - Read Base64-encoded messages and zbomb messages.
-                o Faster (adjustable?) timeout on client connect
-                  failure.
-                        o Implement client timeout (sigalrm?)
-                        o Add configuration options and reasonable default.
-                        o Unit tests
-                - Client-side pooling.
-                - Make client code multiprocess-safe: locking on
-                  cache (if needed!); locking on pool.
-                        - Move lock functionality into Common.
-        . Multithreaded server for better network behavior (no 10ms
+        o Multithreaded server for better network behavior (no 10ms
           hiccups when receiving; no pauses to shred files or deliver
           messages.)
                 o Make all C functions use Py_BEGIN_ALLOW_THREADS and
@@ -55,7 +35,7 @@ For 0.0.3:
                 o Make delivery happen in a separate thread.
                 o Make packet processing happen in a separate thread. 
                 o Move message decoding into packet handler thread.
-                - Document
+                o Document
                 o Refactor until sane -- possibly along with
                   DeliveryQueue refactoring.
                 	o Refactor
@@ -70,20 +50,15 @@ For 0.0.3:
                   down explicitly so they can't die halfway.
                 o Processing thread should be thunk-based so it can
                   do more than handle packets.
-                . Test like crazy
-        . Signals
+        o Signals
                 o Cleaner shutdown on TERM.
                         o Implement
                         o Test
-                . Good reset handling for HUP.
+                o Good reset handling for HUP.
 			o Don't die
                         o Reset logs
-                        - Check configuration file for changeable
-                          things.  (First, decide what's changeable on
-                          the fly.)
         X Support maybe (for the alpha cycle only!) to get the mixminion
           version remotely ????
-        . Directories include an "allowable version" section.
         o Saner retry logic: right now we retry once at each of the 10
           next Mix intervals, regardless of interval length.  (Have a 
           separate retry timer that gets rounded to the nearest mix
@@ -99,37 +74,7 @@ For 0.0.3:
                 o Validation code for retry intervals.
                 o Test for validation code
                 o Test for module configuration
-        - Statistics of some kind (with a server: count messages
-          received, errors, etc.)
         o Tests for stdout/stderr replacement
-        - Separate error/other log files. ????
-        . UI
-                - Good user error reporting strategy.
-                - Better error message when path+routinginfo won't fit 
-                  into header.
-                - Better concept of too-short paths.
-                - Beautify list-servers output.
-                o Make path parsing accept space around the commas and colon.
-                o Make paths print more cleanly.
-                o Better command breakdown for pulling directories.
-        - Key management:
-                . Ability to generate new serverdesc with old keys.
-                - Ability to notice discrepancies between SD and
-                  server configuration.
-                - Consider linewrap protection on server descriptors, 
-                  if demand warrants.
-        - Build/install:
-                . Uninstall support?
-                o Perhaps 'make install' should nuke dead files. (Queue.py)
-                - Support people who _do_ have OpenSSL 0.9.7 installed.
-        - Security:
-        	- Password-protect dirserver keys
-                - Code to generate dummy packets. ????
-        - Configurability
-                - Put pid and lock and key and queues in different
-                  places; coalesce pid and lock.
-                - Make all filenames in server config relative to
-                  server home, if not absolute.
         o MMTP
                 o Code to send junk (connection padding)
                         o Implement for client
@@ -154,12 +99,69 @@ For 0.0.3:
                   be random, and there should be no tag.
                         o Implement
                         o Test
-        - SMTP
-                - Add an extra "this is anonymous" header.
+        . Client
+                o Faster (adjustable?) timeout on client connect
+                  failure.
+                        o Implement client timeout (sigalrm?)
+                        o Add configuration options and reasonable default.
+                        o Unit tests
+                . Add "don't use me for anonymity" boilerplate.
+                . Client support for reply blocks.
+                        o Recheck spec on external reply block format
+                        o Implement external reply block format
+                        o Test external reply block format
+                        . Generate a reply block
+                        - Send message to reply block
+                        - Remember used reply blocks??
+                        - Read message from reply block
+                        - Examine reply block
+                . Read Base64-encoded messages and zbomb messages.
+                        o Implement backend
+                        - Test backend
+                        - Implement frontend
+                        - Refactor until clean
+                - Client-side pooling.
+                - Make client code multiprocess-safe: locking on
+                  cache (if needed!); locking on pool.
+                        - Move lock functionality into Common.
+        . Directories include an "allowable version" section.
+        . UI
+                o Make path parsing accept space around the commas and colon.
+                o Make paths print more cleanly.
+                o Better command breakdown for pulling directories.
+                - Good user error reporting strategy.
+                - Better error message when path+routinginfo won't fit 
+                  into header.
+                - Better concept of too-short paths.
+                - Beautify list-servers output.
+        . Build/install:
+                o Uninstall support? (Right now, we take a cowardly
+                  approach that may be good enough.)
+                o Perhaps 'make install' should nuke dead files. (Queue.py)
+                - Support people who _do_ have OpenSSL 0.9.7 installed.
         . Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.
                 o Support unrecognized keys
+        - Statistics of some kind (with a server: count messages
+          received, errors, etc.)
+        - Separate error/other log files. ????
+        - Key management:
+                . Ability to generate new serverdesc with old keys.
+                - Ability to notice discrepancies between SD and
+                  server configuration.
+                - Consider linewrap protection on server descriptors, 
+                  if demand warrants.  (None yet.)
+        - Security:
+        	- Password-protect dirserver keys
+                - Code to generate dummy packets. ????
+        - Configurability
+                - Put pid and lock and key and queues in different
+                  places; coalesce pid and lock.
+                - Make all filenames in server config relative to
+                  server home, if not absolute.
+        - SMTP
+                - Add an extra "this is anonymous" header.
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
            CLI'S AND MULTI-SERVER SITUATIONS.
         - Tests for packet addressed to server with bogus IP.
@@ -171,7 +173,6 @@ For 0.0.3:
                 - Add fields to serverinfo, server directory.
                 - Make client check 'Recommended-Software' against
                   current version.
-                
         - ????
 
 Required for "1.0":
@@ -221,6 +222,7 @@ Required for "1.0":
         - Configurability
                 - Better, documented support for http proxies for
                   downloading directories.
+                - Reload configuration on SIGHUP
                 - Support for one-side-only MMTP configurations.
                 - Add 'ALLOW' lines to blacklist.
                 . Freak out properly on missing/unpublishable IP.
@@ -262,7 +264,8 @@ Required for "1.0":
                         - Bad recipients
                         - Hunt down leaks
         - Build and install process
-                . Well-tested 'make install'
+                o Well-tested 'make install'
+                - A well-tested 'make uninstall'
                 - RPMS, debs, and so on
                 . Make sure we run on solaris and *BSD.
                 - "Somebody" should do a Windows port of the client code
