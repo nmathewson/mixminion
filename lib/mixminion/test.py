@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.151 2003/09/03 15:54:18 nickm Exp $
+# $Id: test.py,v 1.152 2003/09/05 00:46:24 nickm Exp $
 
 """mixminion.tests
 
@@ -3328,7 +3328,7 @@ class FileParanoiaTests(TestCase):
             private = permissive = public = 0777
         else:
             private, permissive, public = 0700, 0777, 0755
-	
+
         # Okay.  Now we try createPrivateDir a couple of times...
         old_mask = None
         try:
@@ -4389,6 +4389,12 @@ class ServerInfoTests(TestCase):
         eq(info['Server']['Published'], loaded['Server']['Published'])
         eq(info.isValidated(), loaded.isValidated())
 
+
+        #XXXX006 this is a workaround to deal with the fact that we've
+        #XXXX006 opened a fragment DB just to configure the server. Not
+        #XXXX006 cool.
+        conf.getModuleManager().close()
+
         # Now with a shorter configuration
         try:
             suspendLog()
@@ -4913,6 +4919,7 @@ IP: 1.0.0.1
             self.failUnless(stringContains(info,"\n[Example]\nFoo: 99\n"))
         finally:
             resumeLog()
+        manager.close()
 
         # Try again, this time with the test module disabled.
         #
@@ -4945,6 +4952,7 @@ Foo: 100
 """ % (mod_dir)
 
         # FFFF Add tests for catching exceptions from buggy modules
+        manager.close()
 
     def testDecoding(self):
         'test decoding and test encapsulation.'
@@ -5185,6 +5193,7 @@ This is the message
         finally:
             undoReplacedAttributes()
             clearReplacedFunctionCallLog()
+        manager.close()
 
     def testDirectSMTP(self):
         """Check out the SMTP module.  (We temporarily replace sendSMTPMessage
@@ -5530,6 +5539,7 @@ Message-type: binary
         finally:
             undoReplacedAttributes()
             clearReplacedFunctionCallLog()
+        manager.close()
 
     def getManager(self, extraConfig=None):
         d = mix_mktemp()
@@ -6744,6 +6754,7 @@ class FragmentTests(TestCase):
         # Force pkts2 to rejected by expiring it.
         pool.expireMessages(time.time()+48*60*60)
         self.assertEquals(pool.listReadyMessages(), [])
+        pool.close()
         
 #----------------------------------------------------------------------
 def testSuite():
@@ -6753,7 +6764,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ModuleTests))
+        suite.addTest(tc(ServerInfoTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -6770,8 +6781,8 @@ def testSuite():
                    FragmentTests,
                    QueueTests,
                    EventStatsTests,
+           
                    ModuleTests,
-
                    ClientMainTests,
                    ServerKeysTests,
                    ServerMainTests,
@@ -6779,7 +6790,8 @@ def testSuite():
                    # These tests are slowest, so we do them last.
                    ModuleManagerTests,
                    ServerInfoTests,
-                   MMTPTests]
+                   MMTPTests
+                  ]
 
     for cl in testClasses:
         suite.addTest(tc(cl))
