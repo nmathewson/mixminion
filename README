@@ -1,4 +1,4 @@
-$Id: README,v 1.61 2003/11/28 04:14:03 nickm Exp $
+$Id: README,v 1.62 2003/12/08 02:20:00 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.6alpha, from the Mixminion CVS repository.
 
@@ -38,6 +38,73 @@ to trace your message through the system.
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
+NEW IN VERSION 0.0.6rc1:
+   - Windows support
+       - The Mixminion command-line interface now works on MS Windows, at
+         least for me.  It has been tested on Windows 2000, and should work
+         on any platform running Windows 98 or later.  There are probably
+         some lingering bugs, especially when running a server.
+
+   - Improved security
+       - SURB keys are now rotated periodically.
+
+       - The client now _always_ shuffles packets before delivery, and sends
+         them in a random order.
+
+   - Improved robustness
+       - Servers are now addressed by hostname rather than IP.  It is now
+         feasible to run a Mixminion server with a dynamic IP address.
+         Support for old-style routing will be deprecated in 0.0.7.
+         (Servers use a DNS-farm abstraction to avoid blocking on slow
+         DNS lookups.  MMTP connections are still authenticated, so attacks
+         against DNS can at worst delay packets from arriving.)
+
+       - The path generation logic has been largely rewritten to use the
+         optimal routing method for each server-to-server pair.
+
+       - The path generation code now chooses good paths for fragmented
+         messages and messages with specific requirements on their exit
+         nodes.
+
+       - Client queues are generally less buggy.
+
+       - Consistency enforcement between fragmentation and other modules.
+
+       - Better spec compliance.
+
+   - Improved performance
+       - When flushing messages from the client queue, it is no longer
+         necessary to load them all into RAM at once.
+
+   - User interface tweaks
+       - When running as a client, Mixminion now displays servers by nickname
+         in addition to IP:port whenever possible.  Servers will gain this
+         behavior in a later version, once they begin downloading
+         directories.
+
+       - The behavior of 'mixminion list-servers' has been changed: its
+         default output is far terser and easier to parse than before, though
+         output _even more_ verbose than previous can be selected.  Also,
+         whereas the old implementation only listed servers by their
+         lifetime, capabilities, and status, it is now possible to list
+         arbitrary 'features' of the servers in the directory.
+
+       - Error messages for timeouts are more reasonable; timeouts themselves
+         should now work a little better than before.
+
+       - A longstanding typo in the MMTP server's logging code has been
+         resolved: running at DEBUG should be far terser and more reasonable
+         than before.
+
+       - Users can now send fragmented messages for reassembly by their
+         recipients rather than exit servers.  (Client side reassembly is
+         not yet implemented, however.)
+
+       - Many error messages have been cleaned up, including a few related to
+         SSL errors, Windows internals, corrupt databases, unsupported
+         databases.
+
+   - Other bugfixes too numerous to mention.
 
 <See HISTORY file for changes in earlier versions.>
 
@@ -48,39 +115,39 @@ STILL NOT IN THIS VERSION:
    - No support for distributed directories.
    - Other stuff too numerous to mention; see TODO.
 
-III. HOW TO UPGRADE FROM MIXMINION 0.0.4
+III. HOW TO UPGRADE FROM MIXMINION 0.0.5
 ========================================
 
 First, follow the installation instructions from section IV to install the
 new version of the software.
 
+If you aren't running a server, you are done.  (Compatibility note: SURB
+keyrings used by version 0.0.5 are _not_ compatible with keyrings used by
+0.0.6!)
+
 If you're running a server, you may need to upgrade your configuration file.
 Follow these steps:
 
-    1. Your configuration file may be out of date.  The following options
-       are new (but not required):
-          "FileParanoia"
-          "TrusedUser"
-          "MaximumSize"
-          "FromTag"
+    1. Your configuration file may be out of date.  You will need to add
+        a 'Hostname' entry to the 'Incoming/MMTP' section of your
+        configuration.  It _must_ contain a valid DNS name for your server.
+        (You can use a static IP instead, if your server's IP will never
+        change.)
 
-       There is a new configuration section "[Delivery/Fragmented]"; add this
-       section if you want your server to unfragment and deliver large
-       messages.
-
-       See etc/mixminiond.conf for an example.
+        The 'IP' configuration entry is still required, too, in order to
+        support older clients.
 
     2. Start your server as usual ('mixminion server-start') and try sending
-       some messages through it.
+       some messages through it.  Check your configuration log for warnings.
 
 IV. HOW TO INSTALL MIXMINION
 ============================
 
-The quick version.
-------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5.tar.gz>
+The quick version: For Unix-clones, Mac OS X, or Windows with Cygwin
+---------------------------------------------------------------------
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.6rc1.tar.gz>
 
-  % cd Mixminion-0.0.5
+  % cd Mixminion-0.0.6rc1
   % make download-openssl
   % make build-openssl
   % make
@@ -92,8 +159,8 @@ The quick version.
  OR:
     % make install PREFIX=~
 
-The verbose version.
---------------------
+The verbose version: For Unix-clones, Max OS X, or Windows with Cygwin
+-----------------------------------------------------------------------
 
   1) You must have Python version 2.0 or later installed on your system.  The
      binary may be called "python", "python2", "python2.X", or something else.
@@ -142,6 +209,83 @@ The verbose version.
      executable if no prefix is provided.  To make sure that everything was
      installed correctly, you can run "mixminion unittests".
 
+The very easy version: For Windows
+----------------------------------
+
+   First, make sure that you're running Win98 or later.
+
+   Download XXXX, and unpack it anywhere you like.  It will create a
+   directory named 'XXXX'.
+
+   Use mixminion.exe as your command-line client.
+
+   NOTE TO ALL WINDOWS USERS:  This is the first version of Mixminion to
+   support native Win32 operations.  As such, you should consider it even
+   more experimental than usual.  If you find any bugs, or any places where
+   its behavior is stupid for a Windows environment, please let me know.
+   (See section VII below for information on how to report bugs.)
+
+The slightly harder version: For Windows with Python 2.3
+--------------------------------------------------------
+
+   First, make sure that you have the latest official release of Python 2.3
+   installed.  As of 5 Dec 2003, this is 2.3.2.
+
+   Download and run XXXX.  It will unpack its files into your Python
+   directory.
+
+   The script to invoke Mixminion will be stored in the 'Scripts'
+   subdirectory of your Python directory.  Whenever the instructions below
+   tell you to run 'mixminion', run "python Scripts\mixminion.py' instead,
+   from the python directory.  (Future releases may include a batch file
+   to make this easier, especially if somebody else contributes one.)
+
+   Be sure to read the "NOTE TO ALL WINDOWS USERS" above.
+
+The verbose version: How to build on Windows
+--------------------------------------------
+
+   (I have only tried this with Visual Studio 6 and Python 2.3.  Let me know
+   if you succeed with any other compilers.  Also, let me know if these
+   instructions don't work.)
+
+   First, install Python version 2.0 or later, either from the official
+   binary or by building it yourself.  When you build Mixminion, you will
+   need to use the same compiler as was used to build Python: the standard
+   distribution uses Visual Studio 6.
+
+   Second, download an unpack the Mixminion source distribution.
+
+   Third, get a compiled copy of OpenSSL version 0.9.7 or later (as of 5 Dec
+   2003, the latest stable version is 0.9.7c).  You can either compile it
+   yourself, or use a set of precompiled binaries (such as are available from
+   XXXX).  Place the compiled libraries under the "contrib" directory in the
+   Mixminion source directory, so that the include files are in
+   "contrib\OpenSSL\include" and the libraries are in
+   "contrib\OpenSSL\lib\VC".
+
+   Now you are ready to build Mixminion!  Make sure that python.exe is on
+   your path, then run:
+
+         python setup.py build
+         python setup.py run --subcommand=unittests
+
+   If all the unit tests pass, you can either install the software locally
+   and use it as described in 'the slightly harder version' above:
+
+         python setup.py install
+
+   Or you can make a windows installer for users with Python:
+
+         python setup.py bdist_windows
+
+   Or, if you have the py2exe package installed, you can make a standalone
+   binary that people can run without installing Python:
+
+         python setup.py py2exe
+
+   Finally, be sure to read the "NOTE TO ALL WINDOWS USERS" above.
+
 V. HOW TO SEND MESSAGES VIA MIXMINION
 =====================================
 
@@ -177,6 +321,9 @@ To specify headers, use any of the following options:
 To see a list of currently known servers, type:
 
       mixminion list-servers
+
+      You can change the format and contents of this listing.  For more
+      information, run 'mixminion list-servers --help'.
 
 To force a reload of the server directory, type:
 
