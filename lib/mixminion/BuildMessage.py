@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.29 2003/01/04 04:12:50 nickm Exp $
+# $Id: BuildMessage.py,v 1.30 2003/01/05 01:27:12 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -562,13 +562,8 @@ def _encodePayload(payload, overhead, paddingPRNG):
     payload = compressData(payload)
     length = len(payload)
     
-    # FFFF This is an ugly workaround for too-compressable data, so we don't
-    # FFFF create messages that will necessarily be dropped.  We should be
-    # FFFF more sensible on the output side.
     if length > 1024 and length*20 <= origLength:
-        LOG.warn("Double-compressing message so it won't look like a z-bomb")
-        payload = compressData(payload)
-        length = len(payload)
+        LOG.warn("Message is very compressible and will look like a zlib bomb")
 
     paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
 
@@ -603,9 +598,7 @@ def _decodePayloadImpl(payload):
     contents = payload.getContents()
     # FFFF - We should make this rule configurable.
     maxLen = max(20*1024, 20*len(contents))
-    # FFFF - On encountering an overcompressed piece of data, we should
-    # FFFF   deliver it, still compressed, with a warning -- not merely
-    # FFFF   drop it as a _definite_ bomb.
+
     return uncompressData(payload.getContents(), maxLength=maxLen)
 
 def _checkPayload(payload):
