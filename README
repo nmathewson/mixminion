@@ -1,4 +1,4 @@
-$Id: README,v 1.78 2004/04/04 17:58:28 nickm Exp $
+$Id: README,v 1.79 2004/05/14 22:50:05 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.7, from the Mixminion CVS repository.
 
@@ -38,70 +38,8 @@ to trace your message through the system.
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
-NEW IN VERSION 0.0.7:
-   - New version number; nothing else has changed since 0.0.7rc2.
+NEW IN VERSION 0.0.8alpha:
 
-NEW IN VERSION 0.0.7rc2:
-   - BUGFIXES
-     - Provide more helpful error messages when directory download fails.
-     - Fix a possible crash during message delivery
-     - Fix a race condition with multiple simultaneous processes.
-     - Don't create empty output files when there is no data to write.
-     - Many bugfixes for client-side message reassembly.
-
-   - UI FIXES
-     - All options that asked for a number of hops are now deprecated (with
-       warnings) or disabled (with errors); use -P instead.
-     - Server bandwith spikiness is now configurable.
-     - ConnectionTimout has been renamed (more accurately) to Timeout.
-     - The -i and -o flags are now optional whereever possible, and
-       default to stdin and stdout.
-
-   - DOCUMENTATION
-     - Mixminion now ships with man pages for mixminion(1), mixminiond(8),
-       mixminionrc(5), and mixminiond.conf(5).
-
-NEW IN VERSION 0.0.7rc1:
-   - USER FUNCTIONALITY
-     - Ability to delete or transmit queued messages to selected mixes,
-       instead of all mixes.
-     - Configuration options to block servers from path generation.
-     - New "mixminiond FOO" script as alternate starting point for
-       "mixminion server-FOO" functions.
-     - CLI interface for client-side fragment reassembly.
-     - Command shell (on Windows) supports filenames with spaces much
-       better.
-
-   - INFRASTRUCTURE
-     - Allow servers to download and use directories (necessary for
-       dummy/pinging work in future versions.)
-     - Display server nicknames in log instead of just IP addresses.
-     - Servers check recommended-version, complain when server is obsolete.
-     - Put timezones in log.
-     - Refactor RFC822 header generation logic (original patch from
-       bfordham).
-
-   - NETWORKING
-     - Rewrite MMTP logic to implement protocol correctly and transfer
-       packets more quickly, without waiting for round-trip acknowledgments
-       after each before sending the next.
-     - Unify client and server MMTP sending implementations.
-     - Use IP TOS flags where available to request optimization for
-       bandwidth.
-     - Configurable limits for bandwidth.
-     - Configurable limits on number of outgoing network connections.
-     - New --reply-block-fd option to read reply-blocks from a file
-       descriptor.
-     - New --passphrase-fd option to read passphrase from a file
-       descriptor.
-     - The --quiet option works for clients as well as servers.
-     - "mixminion ping" supports addr:port syntax as well as nicknames.
-
-   - MISC
-     - Call shred more efficiently when calling shred
-     - Other bugfixes too numerous to mention
-     - Remove some deprecated functionality
-     - Better windows build
 
 <See HISTORY file for changes in earlier versions.>
 

@@ -22,6 +22,8 @@ For 0.0.8:
         . Bugs
                 o Make tests pass with bizarre umasks.  (Try 0077, 0000,
                   etc.)
+                - Specify acceptable versions in config file for directory,
+                  not in ServerList.py
                 - Make build process mention where to download openssl if
                   neither wget nor curl is found.
                 - Make client run and unittests not die when there is no
