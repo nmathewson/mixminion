@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.15 2003/01/10 18:15:49 nickm Exp $
+# $Id: MMTPServer.py,v 1.16 2003/01/10 19:29:29 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -523,11 +523,13 @@ class MMTPServerConnection(SimpleTLSConnection):
         if not m:
             warn("Bad protocol list.  Closing connection to %s", self.address)
             self.shutdown(err=1)
+            return
         protocols = m.group(1).split(",")
         if "0.1" not in protocols:
             warn("Unsupported protocol list.  Closing connection to %s",
                  self.address)
-            self.shutdown(err=1); return
+            self.shutdown(err=1)
+            return
         else:
             trace("protocol ok (fd %s)", self.fd)
             self.finished = self.__sentProtocol
