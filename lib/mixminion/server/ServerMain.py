@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.46 2003/03/27 10:31:00 nickm Exp $
+# $Id: ServerMain.py,v 1.47 2003/03/28 15:36:23 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -207,21 +207,26 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
     """
     ## Fields:
     # server -- an instance of _MMTPServer
-    def __init__(self, location):
+    # addr -- (publishedIP, publishedPort, publishedKeyID)
+    # incomingQueue -- DOCDOC
+    def __init__(self, location, (ip,port,keyid)):
         """Create a new OutgoingQueue that stores its messages in a given
            location."""
         mixminion.server.ServerQueue.DeliveryQueue.__init__(self, location)
         self.server = None
+        self.incomingQueue = None
+        self.addr = (ip,port,keyid)
 
     def configure(self, config):
         """Set up this queue according to a ServerConfig object."""
         retry = config['Outgoing/MMTP']['Retry']
         self.setRetrySchedule(retry)
 
-    def connectQueues(self, server):
+    def connectQueues(self, server, incoming):
         """Set the MMTPServer that this OutgoingQueue informs of its
            deliverable messages."""
         self.server = server
+        self.incomingQueue = incoming
 
     def _deliverMessages(self, msgList):
         "Implementation of abstract method from DeliveryQueue."
@@ -237,6 +242,16 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
             message = packet.getPacket()
             msgs.setdefault(addr, []).append( (handle, message) )
         for addr, messages in msgs.items():
+            if self.addr[:2] == (addr.ip, addr.port):
+                if self.addr[2] != addr.keyinfo:
+                    LOG.warn("Delivering messages to myself with bad KeyID")
+                for h,m in messages:
+                    LOG.trace("Delivering message %s to myself.",
+                              formatBase64(m[:8]))
+                    self.incomingQueue.queueMessage(m)
+                    self.deliverySucceeded(h)
+                continue
+
             handles, messages = zip(*messages)
             self.server.sendMessages(addr.ip, addr.port, addr.keyinfo,
                                      list(messages), list(handles))
@@ -445,6 +460,8 @@ class MixminionServer:
         LOG.debug("Initializing MMTP server")
         self.mmtpServer = _MMTPServer(config, tlsContext)
 
+        publishedIP, publishedPort, publishedKeyID = self.keyring.getAddress()
+
         # FFFF Modulemanager should know about async so it can patch in if it
         # FFFF needs to.
         LOG.debug("Initializing delivery module")
@@ -468,7 +485,8 @@ class MixminionServer:
 
         outgoingDir = os.path.join(queueDir, "outgoing")
         LOG.debug("Initializing outgoing queue")
-        self.outgoingQueue = OutgoingQueue(outgoingDir)
+        self.outgoingQueue = OutgoingQueue(outgoingDir,
+                               (publishedIP, publishedPort, publishedKeyID))
         self.outgoingQueue.configure(config)
         LOG.debug("Found %d pending messages in outgoing queue",
                        self.outgoingQueue.count())
@@ -481,7 +499,8 @@ class MixminionServer:
                                        processingThread=self.processingThread)
         self.mixPool.connectQueues(outgoing=self.outgoingQueue,
                                    manager=self.moduleManager)
-        self.outgoingQueue.connectQueues(server=self.mmtpServer)
+        self.outgoingQueue.connectQueues(server=self.mmtpServer,
+                                         incoming=self.incomingQueue)
         self.mmtpServer.connectQueues(incoming=self.incomingQueue,
                                       outgoing=self.outgoingQueue)
 

@@ -1,6 +1,9 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.18 2003/02/20 16:57:40 nickm Exp $ */
+/* $Id: tls.c,v 1.19 2003/03/28 15:36:23 nickm Exp $ */
 #include "_minionlib.h"
+
+/* XXXX REMOVE*/
+#include <stdio.h>
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/ssl.h>
@@ -32,6 +35,9 @@ PyObject *mm_TLSClosed = NULL;
 
 /* Convenience macro to set a type error with a given string. */
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)
+
+/* Convenience macro to set a tls error with a given string. */
+#define MM_TLS_ERR(s) PyErr_SetString(mm_TLSError, s)
 
 /* Convenience macro to set an error and quit if a 0-argument function
    was called with arguments.  (We can't just use 'METH_NOARGS', since
@@ -142,7 +148,7 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
                                        TLS1_TXT_DHE_RSA_WITH_AES_128_SHA))
                 err = 1;
         if (!err && certfile &&
-            !SSL_CTX_use_certificate_file(ctx,certfile,SSL_FILETYPE_PEM))
+            !SSL_CTX_use_certificate_chain_file(ctx,certfile))
                 err = 1;
         if (!err && rsa) {
                 if (!(_rsa = RSAPrivateKey_dup(rsa->rsa)) ||
@@ -154,7 +160,12 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
                         err = 1;
                 if (pkey)
                         EVP_PKEY_free(pkey);
+                if (!err && certfile) {
+                        if (!SSL_CTX_check_private_key(ctx))
+                                err = 1;
+                }
         }
+
 
         if (!err && dhfile) {
                 if ( !(bio = BIO_new_file(dhfile, "r")))
@@ -544,6 +555,66 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
         return (PyObject*) result;
 }
 
+static char mm_TLSSock_verify_cert_and_get_identity_pk__doc__[] = 
+    "DOCDOC";
+
+static PyObject*
+mm_TLSSock_verify_cert_and_get_identity_pk(
+                        PyObject *self, PyObject *args, PyObject *kwargs)
+{
+        STACK_OF(X509) *chain = NULL;
+        X509 *cert = NULL;
+        X509 *id_cert = NULL;
+        SSL *ssl = NULL;
+        RSA *rsa = NULL;
+        EVP_PKEY *pkey = NULL;
+        mm_RSA *result;
+        int i;
+
+        assert(mm_TLSSock_Check(self));
+        FAIL_IF_ARGS();
+        
+        ssl = ((mm_TLSSock*)self)->ssl;
+        if (!(chain = SSL_get_peer_cert_chain(ssl))) {
+                mm_SSL_ERR(0); return NULL;
+        }
+        if (!(cert = SSL_get_peer_certificate(ssl))) {
+                mm_SSL_ERR(0); return NULL;
+        }
+        if (sk_X509_num(chain) != 2) {
+                MM_TLS_ERR("Wrong number of certificates in peer chain.");
+                return NULL;
+        }
+        for (i = 0; i < 2; ++i) {
+                id_cert = sk_X509_value(chain, i);
+                assert(id_cert);
+                if (X509_cmp(id_cert, cert) != 0)
+                        break;
+        }
+        if (!id_cert) {
+                MM_TLS_ERR("No distinct identity certificate found.");
+                return NULL;
+        }
+        if (!(pkey = X509_get_pubkey(id_cert))) {
+                mm_SSL_ERR(0); return NULL;
+        }
+        /* Is the signature correct? */
+        if (X509_verify(cert, pkey) <= 0) {
+                EVP_PKEY_free(pkey); mm_SSL_ERR(0); return NULL;
+        }
+        rsa = EVP_PKEY_get1_RSA(pkey);
+        EVP_PKEY_free(pkey);
+        if (!rsa) {
+                mm_SSL_ERR(0); return NULL;
+        }
+        if (!(result = PyObject_New(mm_RSA, &mm_RSA_Type))) {
+                RSA_free(rsa); PyErr_NoMemory(); return NULL;
+        }
+        result->rsa = rsa;
+
+        return (PyObject*) result;
+}
+
 static char mm_TLSSock_renegotiate__doc__[] =
     "tlssock.renegotate()\n\n"
     "Mark this connection as requiring renegotiation.  No renegotiation is\n"
@@ -624,6 +695,7 @@ static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, write),
         METHOD(mm_TLSSock, shutdown),
         METHOD(mm_TLSSock, get_peer_cert_pk),
+        METHOD(mm_TLSSock, verify_cert_and_get_identity_pk),
         METHOD(mm_TLSSock, fileno),
         METHOD(mm_TLSSock, do_handshake),
         METHOD(mm_TLSSock, renegotiate),

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.96 2003/03/27 10:30:59 nickm Exp $
+# $Id: test.py,v 1.97 2003/03/28 15:36:22 nickm Exp $
 
 """mixminion.tests
 
@@ -62,7 +62,8 @@ from mixminion.server.HashLog import HashLog
 from mixminion.server.Modules import *
 from mixminion.server.PacketHandler import *
 from mixminion.server.ServerQueue import *
-from mixminion.server.ServerKeys import generateServerDescriptorAndKeys
+from mixminion.server.ServerKeys import generateServerDescriptorAndKeys, \
+     generateCertChain
 
 # Set this flag to 1 in order to have all RSA keys and diffie-hellman params
 # generated independently.  Otherwise, we cache diffie-hellman parameters
@@ -2879,8 +2880,10 @@ def _getTLSContext(isServer):
                 sys.stdout.flush()
             pk = getRSAKey(3,1024)
             pk.PEM_write_key(open(pkfile, 'w'), 0)
-            _ml.generate_cert(certfile, pk, "Testing certificate",
+            ident = getRSAKey(0,2048)
+            generateCertChain(certfile, pk, ident, "<testing>",
                               time.time(), time.time()+365*24*60*60)
+            
 
         pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), 0)
         return _ml.TLSContext_new(certfile, pk, dhfile)
@@ -3624,7 +3627,7 @@ class ServerInfoTests(unittest.TestCase):
            info['Server']['Packet-Key'].get_public_key())
         mmtpKey = Crypto.pk_PEM_load(
             os.path.join(keydir, "mmtp.key"))
-        eq(Crypto.sha1(mmtpKey.encode_key(1)),
+        eq(Crypto.sha1(identity.encode_key(1)),
            info['Incoming/MMTP']['Key-Digest'])
 
         # Now check the digest and signature
@@ -5428,7 +5431,8 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MiscTests))
+        suite.addTest(tc(MMTPTests))
+        #suite.addTest(tc(MiscTests))
         return suite
 
     suite.addTest(tc(MiscTests))

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.24 2003/02/20 16:57:39 nickm Exp $
+# $Id: MMTPClient.py,v 1.25 2003/03/28 15:36:22 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -56,6 +56,7 @@ class BlockingClientConnection:
         self.context = _ml.TLSContext_new()
         self.tls = None
         self.sock = None
+        self.certCache = PeerCertificateCache()
 
     def connect(self, connectTimeout=None):
         """Connect to the server, perform the TLS handshake, check the server
@@ -119,11 +120,8 @@ class BlockingClientConnection:
 
         # Check the public key of the server to prevent man-in-the-middle
         # attacks.
-        peer_pk = self.tls.get_peer_cert_pk()
-        keyID = sha1(peer_pk.encode_key(public=1))
-        if self.targetKeyID is not None and (keyID != self.targetKeyID):
-            raise MixProtocolError("Bad Key ID: Expected %r but got %r" % (
-                self.targetKeyID, keyID))
+        self.certCache.check(self.tls, self.targetKeyID,
+                             "%s:%s"%(self.targetIP,self.targetPort))
 
         ####
         # Protocol negotiation
@@ -253,3 +251,42 @@ def sendMessages(routing, packetList, connectTimeout=None, callback=None):
                 callback(idx)
     finally:
         con.shutdown()
+
+class PeerCertificateCache:
+    #XXXX004 use this properly; flush it to disk.
+    "DOCDOC"
+    def __init__(self):
+        self.cache = {} # hashed peer pk -> identity keyid that it is valid for
+
+    def check(self, tls, targetKeyID, address):
+        "DOCDOC"
+        if targetKeyID is None:
+            return
+
+        peer_pk = tls.get_peer_cert_pk()
+        hashed_peer_pk = sha1(peer_pk.encode_key(public=1))
+        #XXXX Remove this option
+        if targetKeyID == hashed_peer_pk:
+            LOG.warn("Non-rotatable keyid from server at %s", address)
+            return # raise MixProtocolError
+
+        try:
+            if self.cache[hashed_peer_pk] == targetKeyID:
+                return # All is well.
+            else:
+                raise MixProtocolError("Mismatch between expected and actual key id")
+        except KeyError:
+            # We haven't found an identity for this pk yet.
+            pass
+
+        try:
+            identity = tls.verify_cert_and_get_identity_pk()
+        except _ml.TLSError, e:
+            raise MixProtocolError("Invalid KeyID from server at %s: %s"
+                                   %(address, e))
+
+        hashed_identity = sha1(peer_pk.encode_key(public=1))
+        self.cache[hashed_peer_pk] = hashed_identity
+        if hashed_identity != targetKeyID:
+            raise MixProtocolError("Invalid KeyID for server at %s", address)
+

@@ -54,9 +54,18 @@ For 0.0.4:
         - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.
-        - MMTP
-                - KEYID should be hash of signing key==hash of
+        - Add new fields to ServerInfo:
+                - Stub Secure-Configuration support
+                - Stub Contact-Fingerprint support
+        . MMTP
+                o self->self packets shouldn't hit the network.
+                        - Implement
+                        - Test
+                o Don't have multiple connections to same server.
+                o KEYID should be hash of signing key==hash of
                   identity key.  (Spec may be incorrect.)
+                - Make MMTP bursty
+                - Add support for "REJECTED" reply.
         - Key management:
                 . Ability to generate new serverdesc with old keys.
                 . Ability to notice discrepancies between SD and
@@ -83,14 +92,6 @@ Deferred from 0.0.4:
                 - Client queues should be locked, and have
                   max-packets-to-send option.
         
-New in spec: (27Mar2003)
-        - "SecureConfiguration" flag in serverdesc
-        - Self->self shouldn't hit the network
-        - Dummies in outgoing batch (??)
-        - MMTP: "REJECTED" reply
-        - MMTP: bursting
-        - Contact fingerprint
-
 Required for "1.0":
          [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and

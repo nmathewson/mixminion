@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.20 2003/02/16 18:46:31 nickm Exp $ */
+/* $Id: crypt.c,v 1.21 2003/03/28 15:36:23 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -963,15 +963,16 @@ const char mm_generate_cert__doc__[] =
   "=private= key <rsa>.  The certificate\'s commonName field will be set to\n"
   "<cn>.  The key will be valid from <start_time> until <end_time>.\n"
   "All other fields will be given reasonable defaults.\n";
-
+/* DOCDOC new arguments */
 PyObject *
 mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
         /* ???? should be threadified? */
-        static char *kwlist[] = { "filename", "rsa", "cn",
+        static char *kwlist[] = { "filename", "rsa", "rsa_sign",
+                                  "cn", "cn_issuer",
                                   "start_time", "end_time", NULL };
-        char *filename, *cn;
-        PyObject *_rsa;
+        char *filename, *cn, *cn_issuer;
+        PyObject *_rsa, *_rsa_sign;
 
         /*
          * Python wants time to be a double. OpenSSL wants time_t.
@@ -982,17 +983,23 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
         double start_time, end_time;
 
         RSA *rsa = NULL;
+        RSA *rsa_sign = NULL;
         EVP_PKEY *pkey = NULL;
+        EVP_PKEY *pkey_sign = NULL;
         BIO *out = NULL;
         X509 *x509 = NULL;
         X509_NAME *name = NULL;
+        X509_NAME *name_issuer = NULL;
         int nid;
         PyObject *retval;
         time_t time;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO!sdd:generate_cert",
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
+                                         "sO!O!ssdd:generate_cert",
                                          kwlist, &filename,
-                                         &mm_RSA_Type, &_rsa, &cn,
+                                         &mm_RSA_Type, &_rsa, 
+                                         &mm_RSA_Type, &_rsa_sign, 
+                                         &cn, &cn_issuer,
                                          &start_time, &end_time))
                 return NULL;
 
@@ -1004,25 +1011,41 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
                 goto error;
         rsa = NULL;
 
+        if (!(rsa_sign = RSAPrivateKey_dup(((mm_RSA*)_rsa_sign)->rsa)))
+                goto error;
+        if (!(pkey_sign = EVP_PKEY_new()))
+                goto error;
+        if (!(EVP_PKEY_assign_RSA(pkey_sign, rsa_sign)))
+                goto error;
+        rsa_sign = NULL;
+
         if (!(x509 = X509_new()))
                 goto error;
         if (!(X509_set_version(x509, 2)))
                 goto error;
         if (!(ASN1_INTEGER_set(X509_get_serialNumber(x509),0L)))
                 goto error;
-        if (!(name = X509_NAME_new()))
-                goto error;
 
-#define SET_PART(part, val)                                     \
-        if ((nid = OBJ_txt2nid(part)) == NID_undef) goto error; \
-        if (!X509_NAME_add_entry_by_NID(name, nid, MBSTRING_ASC,\
+#define SET_PART(n, part, val)                                   \
+        if ((nid = OBJ_txt2nid(part)) == NID_undef) goto error;  \
+        if (!X509_NAME_add_entry_by_NID(n, nid, MBSTRING_ASC,    \
                                         val, -1, -1, 0)) goto error;
 
-        SET_PART("countryName", "US");
-        SET_PART("organizationName", "Mixminion network");
-        SET_PART("commonName", cn);
+        if (!(name = X509_NAME_new()))
+                goto error;
+        SET_PART(name, "countryName", "US");
+        SET_PART(name, "organizationName", "Mixminion network");
+        SET_PART(name, "commonName", cn);
 
-        if (!(X509_set_issuer_name(x509, name)))
+        if (!(name_issuer = X509_NAME_new()))
+                goto error;
+        SET_PART(name_issuer, "countryName", "US");
+        SET_PART(name_issuer, "organizationName", "Mixminion network");
+        SET_PART(name_issuer, "commonName", cn_issuer);
+
+        if (!(X509_set_issuer_name(x509, name_issuer)))
+                goto error;
+        if (!(X509_set_subject_name(x509, name)))
                 goto error;
 
         time = (time_t) start_time;
@@ -1033,7 +1056,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
                 goto error;
         if (!(X509_set_pubkey(x509, pkey)))
                 goto error;
-        if (!(X509_sign(x509, pkey, EVP_md5())))
+        if (!(X509_sign(x509, pkey_sign, EVP_sha1())))
                 goto error;
 
         if (!(out = BIO_new_file(filename, "w")))
@@ -1053,12 +1076,18 @@ error:
                 BIO_free(out);
         if (name)
                 X509_NAME_free(name);
+        if (name_issuer)
+                X509_NAME_free(name_issuer);
         if (x509)
                 X509_free(x509);
         if (rsa)
                 RSA_free(rsa);
+        if (rsa_sign)
+                RSA_free(rsa_sign);
         if (pkey)
                 EVP_PKEY_free(pkey);
+        if (pkey_sign)
+                EVP_PKEY_free(pkey_sign);
 
         return retval;
 }

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.20 2003/02/20 16:57:40 nickm Exp $
+# $Id: MMTPServer.py,v 1.21 2003/03/28 15:36:23 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -29,9 +29,11 @@ import time
 from types import StringType
 
 import mixminion._minionlib as _ml
-from mixminion.Common import MixError, MixFatalError, LOG, stringContains
+from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
+     LOG, stringContains
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN
+from mixminion.MMTPClient import PeerCertificateCache
 
 __all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
             'MMTPClientConnection' ]
@@ -457,8 +459,9 @@ class SimpleTLSConnection(Connection):
                 warn("Error while shutting down: closing connection to %s",
                      self.address)
                 self.__server.unregister(self)
+                self.handleFail(1)
         else:
-            # We are in no state at all.
+            # We are in no state at all; disconnect
             self.__server.unregister(self)
 
     def finished(self):
@@ -467,6 +470,11 @@ class SimpleTLSConnection(Connection):
 
     def shutdownFinished(self):
         """Called when this connection is successfully shut down."""
+        pass
+
+    def shutdownFailed(self):
+        """Called when this connection goes down hard."""
+        #DOCDOc
         pass
 
     def shutdown(self, err=0, retriable=0):
@@ -482,8 +490,8 @@ class SimpleTLSConnection(Connection):
         """Returns the current contents of the input buffer."""
         return "".join(self.__inbuf)
 
-    def getPeerPK(self):
-        return self.__con.get_peer_cert_pk()
+    def getTLSConnection(self):
+        return self.__con
 
     def handleFail(self, retriable=0):
         """Called when we shutdown with an error."""
@@ -638,7 +646,8 @@ class MMTPClientConnection(SimpleTLSConnection):
     #     in the order we offer them.
     PROTOCOL_VERSIONS = [ '0.1', '0.2' ]
     def __init__(self, context, ip, port, keyID, messageList, handleList,
-                 sentCallback=None, failCallback=None):
+                 sentCallback=None, failCallback=None, finishedCallback=None,
+                 certCache=None):
         """Create a connection to send messages to an MMTP server.
            Raises socket.error if the connection fails.
         
@@ -661,10 +670,15 @@ class MMTPClientConnection(SimpleTLSConnection):
             if m == 'JUNK':
                 self.junk.append(getCommonPRNG().getBytes(MESSAGE_LEN))
 
+        if certCache is None:
+            certCache = PeerCertificateCache()
+        self.certCache = certCache
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(0)
         self.keyID = keyID
         self.ip = ip
+        self.port = port
         try:
             sock.connect((ip, port))
         except socket.error, e:
@@ -676,31 +690,41 @@ class MMTPClientConnection(SimpleTLSConnection):
         tls = context.sock(sock)
 
         SimpleTLSConnection.__init__(self, sock, tls, 0, "%s:%s"%(ip,port))
-        self.messageList = messageList
-        self.handleList = handleList
+        self.messageList = messageList[:]
+        self.handleList = handleList[:]
         self.finished = self.__setupFinished
         self.sentCallback = sentCallback
         self.failCallback = failCallback
+        self.finishedCallback = finishedCallback #DOCDOC
         self.protocol = None
 
         debug("Opening client connection (fd %s)", self.fd)
+
+    def addMessages(self, messages, handles):
+        "DOCDOC"
+        for m in messages:
+            if m == "JUNK":
+                self.junk.append(getCommonPRNG().getBytes(MESSAGE_LEN))
+        self.messageList.extend(messages)
+        self.handleList.extend(handles)
+
+    def getAddr(self):
+        "DOCDOC"
+        return self.ip, self.port, self.keyID
 
     def __setupFinished(self):
         """Called when we're done with the client side negotations.
            Begins sending the protocol string.
         """
-        keyID = sha1(self.getPeerPK().encode_key(public=1))
-        if self.keyID is not None:
-            if self.keyID == NULL_KEYID:
-                trace("Ignoring Key ID from %s", self.address)
-            elif keyID != self.keyID:
-                warn("Got unexpected Key ID from %s; shutting down connection",
-                     self.address)
-                # The keyid may start being good in a while.
-                self.shutdown(err=1,retriable=1)
-                return
-            else:
-                debug("KeyID from %s is valid", self.address)
+        try:
+            self.certCache.check(self.getTLSConnection(), self.keyID,
+                                 self.address)
+        except MixProtocolError, e:
+            warn("%s.  Shutting down connection",e)
+            self.shutdown(err=1,retriable=1)
+            return
+        else:
+            debug("KeyID from %s is valid", self.address)
 
         self.beginWrite("MMTP %s\r\n"%(",".join(self.PROTOCOL_VERSIONS)))
         self.finished = self.__sentProtocol
@@ -804,6 +828,14 @@ class MMTPClientConnection(SimpleTLSConnection):
         if self.failCallback is not None:
             for msg, handle in zip(self.messageList, self.handleList):
                 self.failCallback(msg,handle,retriable)
+        if self.finishedCallback is not None:
+            self.finishedCallback()
+            
+    def shutdownFinished(self):
+        if self.finishedCallback is not None:
+            self.finishedCallback()
+
+
 
 LISTEN_BACKLOG = 128
 class MMTPAsyncServer(AsyncServer):
@@ -811,6 +843,7 @@ class MMTPAsyncServer(AsyncServer):
        MMTPClientConnection, with a function to add new connections, and
        callbacks for message success and failure."""
     ##
+    # clientConByAddr
     def __init__(self, config, tls):
         AsyncServer.__init__(self)
 
@@ -834,6 +867,7 @@ class MMTPAsyncServer(AsyncServer):
         #self.config = config
         self.listener.register(self)
         self._timeout = config['Server']['Timeout'][2]
+        self.clientConByAddr = {}
 
     def getNextTimeoutTime(self, now):
         """Return the time at which we next purge connections, if we have
@@ -861,16 +895,35 @@ class MMTPAsyncServer(AsyncServer):
             assert len(h) < 32
 
         try:
+            #DOCDOC 
+            con = self.clientConByAddr[(ip,port,keyID)]
+            LOG.debug("Queueing %s messages on open connection to %s:%s",
+                      len(messages), ip, port)
+            con.addMessages(messages, handles)
+            return
+        except KeyError:
+            pass
+
+        try:
             con = MMTPClientConnection(self.context,
                                        ip, port, keyID, messages, handles,
                                        self.onMessageSent,
                                        self.onMessageUndeliverable)
+            #XXXX004
+            con.finishedCallback = lambda con=con: self.__clientFinished(con)
             con.register(self)
+            self.clientConByAddr[con.getAddr()] = con
         except socket.error, e:
             LOG.error("Unexpected socket error connecting to %s:%s: %s",
                       ip, port, e)
             for m,h in zip(messages, handles):
                 self.onMessageUndeliverable(m,h,1)
+
+    def __clientFinished(self, con):
+        try:
+            del self.clientConByAddr[con.getAddr()]
+        except KeyError:
+            LOG.warn("Didn't find client connection in address map")
 
     def onMessageReceived(self, msg):
         pass

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.14 2003/03/26 16:34:08 nickm Exp $
+# $Id: ServerKeys.py,v 1.15 2003/03/28 15:36:23 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -7,7 +7,8 @@
    """
 #FFFF We need support for encrypting private keys.
 
-__all__ = [ "ServerKeyring", "generateServerDescriptorAndKeys" ]
+__all__ = [ "ServerKeyring", "generateServerDescriptorAndKeys",
+            "generateCertChain" ]
 
 import bisect
 import os
@@ -316,6 +317,13 @@ class ServerKeyring:
         return mixminion.server.PacketHandler.PacketHandler(packetKey,
                                                      hashlog)
 
+    def getAddress(self):
+        """Return out current ip/port/keyid tuple"""
+        keys = self.getServerKeyset()
+        desc = keys.getServerDescriptor()
+        return (desc['Server']['IP'],
+                desc['Incoming/MMTP']['Port'],
+                desc['Incoming/MMTP']['Key-Digest'])
 
 #----------------------------------------------------------------------
 class ServerKeyset:
@@ -502,11 +510,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                config['Server']['PublicKeySloppiness'][2]
 
     if useServerKeys is None:
-        # Create the X509 certificate.
-        mixminion.Crypto.generate_cert(serverKeys.getCertFileName(),
-                                       mmtpKey,
-                                       "MMTP certificate for %s" %nickname,
-                                       certStarts, certEnds)
+        # Create the X509 certificates
+        generateCertChain(serverKeys.getCertFileName(),
+                          mmtpKey, identityKey, nickname, certStarts, certEnds)
 
     mmtpProtocolsIn = mixminion.server.MMTPServer.MMTPServerConnection \
                       .PROTOCOL_VERSIONS[:]
@@ -516,6 +522,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     mmtpProtocolsOut.sort()
     mmtpProtocolsIn = ",".join(mmtpProtocolsIn)
     mmtpProtocolsOut = ",".join(mmtpProtocolsOut)
+
+    identityKeyID = formatBase64(
+                      mixminion.Crypto.sha1(
+                          mixminion.Crypto.pk_encode_public_key(identityKey)))
 
     fields = {
         "IP": config['Incoming/MMTP'].get('IP', "0.0.0.0"),
@@ -528,8 +538,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "ValidUntil": formatDate(validUntil),
         "PacketKey":
            formatBase64(mixminion.Crypto.pk_encode_public_key(packetKey)),
-        "KeyID":
-           formatBase64(serverKeys.getMMTPKeyID()),
+        "KeyID": identityKeyID,        
         "MMTPProtocolsIn" : mmtpProtocolsIn,
         "MMTPProtocolsOut" : mmtpProtocolsOut,
         }
@@ -697,3 +706,34 @@ def _guessLocalIP():
                     ", ".join(ip_set.keys())))
 
     return ip_set.keys()[0]
+
+def generateCertChain(filename, mmtpKey, identityKey, nickname,
+                      certStarts, certEnds):
+    "DOCDOC"
+    fname = filename+"_tmp"
+    mixminion.Crypto.generate_cert(fname,
+                                   mmtpKey, identityKey,
+                                   "%s<MMTP>" %nickname,
+                                   nickname,
+                                   certStarts, certEnds)
+    try:
+        f = open(fname)
+        certText = f.read()
+    finally:
+        f.close()
+    os.unlink(fname)
+    mixminion.Crypto.generate_cert(fname,
+                                   identityKey, identityKey,
+                                   nickname, nickname,
+                                   certStarts, certEnds)
+    try:
+        f = open(fname)
+        identityCertText = f.read()
+        f.close()
+        os.unlink(fname)
+        f = open(filename, 'w')
+        f.write(certText)
+        f.write(identityCertText)
+    finally:
+        f.close()
+
