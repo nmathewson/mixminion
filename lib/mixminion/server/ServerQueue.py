@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.42 2004/05/31 01:03:49 nickm Exp $
+# $Id: ServerQueue.py,v 1.43 2004/07/27 03:20:31 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -372,13 +372,13 @@ class DeliveryQueue:
                 except CorruptedFile:
                     continue
                 if state.isPending():
-                    LOG.trace("     [%s] is pending delivery", h)
+                    #LOG.trace("     [%s] is pending delivery", h)
                     continue
                 elif state.isRemovable():
-                    LOG.trace("     [%s] is expired", h)
+                    #LOG.trace("     [%s] is expired", h)
                     self.removeMessage(h)
                 elif state.nextAttempt <= now:
-                    LOG.trace("     [%s] is ready for delivery", h)
+                    #LOG.trace("     [%s] is ready for delivery", h)
                     if state is None:
                         addr = None
                     else:
@@ -386,12 +386,12 @@ class DeliveryQueue:
                     messages.append(PendingMessage(h,self,addr))
                     state.setPending(now)
                 else:
-                    LOG.trace("     [%s] is not yet ready for redelivery", h)
+                    #LOG.trace("     [%s] is not yet ready for redelivery", h)
+                    continue
         finally:
             self._lock.release()
 
-        if messages:
-            self._deliverMessages(messages)
+        self._deliverMessages(messages)
         self._repOK()
 
     def _deliverMessages(self, msgList):
@@ -680,25 +680,25 @@ class PerAddressDeliveryQueue(DeliveryQueue):
                 except CorruptedFile:
                     continue
                 if state.isPending():
-                    LOG.trace("     [%s] is pending delivery", h)
+                    #LOG.trace("     [%s] is pending delivery", h)
                     continue
                 elif state.queuedTime + self.totalLifetime < now:
-                    LOG.trace("     [%s] is expired", h)
+                    #LOG.trace("     [%s] is expired", h)
                     self.removeMessage(h)
                     continue
                 addressState = self._getAddressState(state.address, now)
                 if addressState.nextAttempt <= now:
-                    LOG.trace("     [%s] is ready for next attempt on %s", h,
-                              state.address)
+                    #LOG.trace("     [%s] is ready for next attempt on %s", h,
+                    #          state.address)
                     messages.append(PendingMessage(h,self,state.address))
                     state.setPending(now)
                 else:
-                    LOG.trace("     [%s] will wait for next attempt on %s",h,
-                              state.address)
+                    #LOG.trace("     [%s] will wait for next attempt on %s",h,
+                    #          state.address)
+                    continue
         finally:
             self._lock.release()
 
-        if messages:
             self._deliverMessages(messages)
 
     def cleanQueue(self, secureDeleteFn=None):
@@ -723,7 +723,7 @@ class PerAddressDeliveryQueue(DeliveryQueue):
                 mState = None
             if mState:
                 aState = self._getAddressState(mState.address, now)
-                changed = aState.succeeded(now=now)
+                aState.succeeded(now=now)
                 aState.setNextAttempt(self.retrySchedule, now)
                 self.addressStateDB[str(mState.address)] = aState
 
