@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.31 2003/02/20 16:50:42 nickm Exp $
+# $Id: benchmark.py,v 1.32 2003/04/10 03:03:16 nickm Exp $
 
 """mixminion.benchmark
 
@@ -16,7 +16,9 @@ __all__ = [ 'timeAll', 'testLeaks1', 'testLeaks2' ]
 import os
 import stat
 import cPickle
+import threading
 from time import time
+
 
 import mixminion._minionlib as _ml
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
@@ -26,7 +28,7 @@ from mixminion.Common import secureDelete, installSIGCHLDHandler, \
 from mixminion.Crypto import *
 from mixminion.Crypto import OAEP_PARAMETER
 from mixminion.Crypto import _add_oaep_padding, _check_oaep_padding
-from mixminion.Packet import SMTP_TYPE, CompressedDataTooLong
+from mixminion.Packet import SMTP_TYPE, CompressedDataTooLong, IPV4Info
 from mixminion.ServerInfo import ServerInfo
 from mixminion.server.HashLog import HashLog
 from mixminion.server.PacketHandler import PacketHandler
@@ -652,6 +654,7 @@ def testLeaks1():
     keytxt="a"*16
     key = _ml.aes_key(keytxt)
     while 1:
+        _ml.aes_key(keytxt)
         _ml.sha1(s20k)
         _ml.aes_ctr128_crypt(key,s20k,0)
         _ml.aes_ctr128_crypt(key,s20k,2000)
@@ -690,17 +693,139 @@ def testLeaks2():
     p = pk_generate(512)
     n,e = p.get_public_key()
 
+    f = open("/dev/null", 'w')
     while 1:
-        if 1:
+        if 0:
             p = pk_generate(512)
+        if 1:
             pk_decrypt(pk_encrypt(s20,p),p)
             for public in (0,1):
                 x = p.encode_key(public)
                 _ml.rsa_decode_key(x,public)
             p.get_public_key()
             _ml.rsa_make_public_key(n,e)
+            p.get_modulus_bytes()
+            p.get_exponent()
+        if 1:
+            p.PEM_write_key(f, 1)
+            p.PEM_write_key(f, 0)
+            p.PEM_write_key(f, 0, "Z")
+        if 1:
+            x = p.crypt("A"*64, 1, 1)
+            p.crypt(x, 0, 0)
+
+def testLeaks3():
+    print "Trying to leak (certgen)"
+    p = pk_generate(512)
+    p2 = pk_generate(512)
+    fn = mix_mktemp()
+    while 1:
+        _ml.generate_cert(fn, p, p2, "A", "B", 100, 10000)
+
+def testLeaks4():
+    print "Trying to leak (SSL)"
+
+    p = pk_generate(512)
+    p2 = pk_generate(512)
+    fn = mix_mktemp()
+    dh = mix_mktemp()
+    _ml.generate_cert(fn, p, p2, "A", "B", 100, 10000)
+    dh_fname = os.environ.get("MM_TEST_DHPARAMS", None)
+    if dh_fname and os.path.exists(dh_fname):
+        dh = dh_fname
+    elif dh_fname:
+        _ml.generate_dh_parameters(dh_fname, 1, 512)
+        dh = dh_fname
+    else:
+        _ml.generate_dh_parameters(dh, 1, 512)
+    print "OK"
+    context = _ml.TLSContext_new(fn, p, dh)
+    while 1:
+        if 1:
+            context = _ml.TLSContext_new(fn, p, dh)
+            s1 = context.sock(0, 0)
+            s2 = context.sock(0, 1)
+            
+def testLeaks5():
+    from mixminion.test import _getMMTPServer
+    server, listener, messagesIn, keyid = _getMMTPServer(1)
+    #t = threading.Thread(None, testLeaks5_send,
+    #                     args=(keyid,))
+    #t.start()
+        
+    while 1:
+        server.process(0.5)
+        #if messagesIn:
+        #    print "Connections"
+        del messagesIn[:]
+    #t.join()
+
+def testLeaks5_send():
+    from mixminion.test import TEST_PORT
+    import mixminion.MMTPClient
+    routing = IPV4Info("127.0.0.1", TEST_PORT, None)
+
+    msg = "X" * 32 * 1024
+    n = 0
+    while 1:
+        mixminion.MMTPClient.sendMessages(routing, [])
+        n += 1
+        print n, "sent"
+
+def testLeaks6():
+    import socket
+    p = pk_generate(512)
+    p2 = pk_generate(512)
+    fn = mix_mktemp()
+    dh = mix_mktemp()
+    _ml.generate_cert(fn, p, p2, "A", "B", 100, 10000)
+    dh_fname = os.environ.get("MM_TEST_DHPARAMS", None)
+    if dh_fname and os.path.exists(dh_fname):
+        dh = dh_fname
+    elif dh_fname:
+        _ml.generate_dh_parameters(dh_fname, 1, 512)
+        dh = dh_fname
+    else:
+        _ml.generate_dh_parameters(dh, 1, 512)
+    print "OK"
+    context = _ml.TLSContext_new(fn, p)#XXXX, dh)
+    
+    listenSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listenSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listenSock.bind(("127.0.0.1", 48999))
+    listenSock.listen(5)
+    while 1:
+        con, address = listenSock.accept()
+        tls = context.sock(con, serverMode=1)
+        tls.accept()
+        while 1:
+            r = tls.read(50)
+            if r == 0:
+                break
+        while 1:
+            r = tls.shutdown()
+            if r == 1:
+                break
+        con.close()
+
+def testLeaks6_2():
+    import socket
+    context = _ml.TLSContext_new()
+    m = "X"*99*1024
+    while 1:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(("127.0.0.1", 48999))
+        tls = context.sock(sock)
+        tls.connect()
+        tls.write(m)
+        while 1:
+            r = tls.shutdown()
+            if r: break
+        tls.shutdown()
+        sock.close()
 
 #----------------------------------------------------------------------
+
 
 def timeAll(name, args):
     cryptoTiming()
@@ -713,3 +838,6 @@ def timeAll(name, args):
     timeEfficiency()
     #import profile
     #profile.run("import mixminion.benchmark; mixminion.benchmark.directoryTiming()")
+
+def timeAll(name,args):
+    testLeaks6_2()

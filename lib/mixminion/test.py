@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.97 2003/03/28 15:36:22 nickm Exp $
+# $Id: test.py,v 1.98 2003/04/10 03:03:16 nickm Exp $
 
 """mixminion.tests
 
@@ -2890,7 +2890,7 @@ def _getTLSContext(isServer):
     else:
         return _ml.TLSContext_new()
 
-def _getMMTPServer():
+def _getMMTPServer(minimal=0):
     """Helper function: create a new MMTP server with a listener connection
        Return a tuple of AsyncServer, ListenerConnection, list of received
        messages, and keyid."""
@@ -2908,6 +2908,15 @@ def _getMMTPServer():
                                                                receiveMessage)
         con.junkCallback = junkCallback
         return con
+    def conFactoryMin(sock, context=_getTLSContext(1)):
+        tls = context.sock(sock, serverMode=1)
+        sock.setblocking(0)
+        con = mixminion.server.MMTPServer.MMTPServerConnection(sock,tls,
+                                                               lambda m:None)
+        con.junkCallback = lambda:None
+        return con
+    if minimal:
+        conFactory = conFactoryMin
     listener = mixminion.server.MMTPServer.ListenConnection("127.0.0.1",
                                                  TEST_PORT, 5, conFactory)
     listener.register(server)
