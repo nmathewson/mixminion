@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.72 2004/03/06 00:04:37 nickm Exp $
+# $Id: BuildMessage.py,v 1.73 2004/03/23 00:07:02 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -344,7 +344,8 @@ def decodePayload(payload, tag, key=None, userKeys=(), retNym=None):
                 None (no SURBs known), a dict (from name to key), or a single
                 key (implied identity is "").
            retNym: If present, and if the payload was a reply, we call
-                retNym.append(pseudonym)
+                retNym.append(pseudonym).  (For the default SURB identity,
+                we append the empty string.)
 
        If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,
