@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.36 2003/02/20 16:57:39 nickm Exp $
+# $Id: Main.py,v 1.37 2003/03/26 16:36:46 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -128,16 +128,14 @@ _COMMANDS = {
     "inspect-surbs" :  ( 'mixminion.ClientMain', 'inspectSURBs' ),
     "flush" :          ( 'mixminion.ClientMain', 'flushPool' ),
     "inspect-pool" :   ( 'mixminion.ClientMain', 'listPool' ),
+    # XXXX Obsolete; use "server-start"; remove in 0.0.5
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
-    "start-server" :   ( 'mixminion.server.ServerMain', 'runServer' ),
-    # obsolete; use server-stop #XXXX004 remove.
-    "stop-server" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
-    # obsolete; use server-reload #XXXX004 remove.
-    "reload-server" :  ( 'mixminion.server.ServerMain', 'signalServer' ),
+    "server-start" :   ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-stop" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
     "server-reload" :  ( 'mixminion.server.ServerMain', 'signalServer' ),
     "server-keygen" :  ( 'mixminion.server.ServerMain', 'runKeygen'),
     "server-DELKEYS" : ( 'mixminion.server.ServerMain', 'removeKeys'),
+    "server-stats" :   ( 'mixminion.server.ServerMain', 'printServerStats' ),
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
 }
 
@@ -157,12 +155,13 @@ _USAGE = (
   "       generate-surb  [Generate a single-use reply block]\n"+
   "       inspect-surbs  [Describe a single-use reply block]\n"+
   "                               (For Servers)\n"+
-  "       server         [Begin running a Mixminion server]\n"+
+  "       server-start   [Begin running a Mixminion server]\n"+
   "       server-stop    [Halt a running Mixminion server]\n"+
   "       server-reload  [Make running Mixminion server reload its config\n"+
   "                        (Not implemented yet; only restarts logging.)]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
   "       server-DELKEYS [Remove generated keys for a Mixminion server]\n"+
+  "       server-stats   [XXXX]\n"+
   "                             (For Developers)\n"+
   "       dir            [Administration for server directories]\n"+
   "       unittests      [Run the mixminion unit tests]\n"+
@@ -220,6 +219,8 @@ def main(args):
         func(commandStr, ["--help"])
     except uiErrorClass, e:
         e.dumpAndExit()
+    except KeyboardInterrupt:
+        print "Interrupted."
 
 if __name__ == '__main__':
     main(sys.argv)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.66 2003/02/20 16:57:38 nickm Exp $
+# $Id: ClientMain.py,v 1.67 2003/03/26 16:36:46 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -26,7 +26,8 @@ import mixminion.Crypto
 import mixminion.MMTPClient
 from mixminion.Common import IntervalSet, LOG, floorDiv, MixError, \
      MixFatalError, MixProtocolError, UIError, UsageError, ceilDiv, \
-     createPrivateDir, isSMTPMailbox, formatDate, formatFnameTime, formatTime,\
+     createPrivateDir, isPrintingAscii, \
+     isSMTPMailbox, formatDate, formatFnameTime, formatTime,\
      Lockfile, openUnique, previousMidnight, readPossiblyGzippedFile, \
      secureDelete, stringContains, succeedingMidnight
 from mixminion.Crypto import sha1, ctr_crypt, trng
@@ -37,7 +38,7 @@ from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
-MIXMINION_DIRECTORY_URL = "http://www.mixminion.net/directory/directory.gz"
+MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/directory.gz"
 MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 
 #----------------------------------------------------------------------
@@ -393,15 +394,15 @@ class ClientDirectory:
             return [ "No servers known" ]
         longestnamelen = max(map(len, nicknames))
         fmtlen = min(longestnamelen, 20)
-        format = "%"+str(fmtlen)+"s:"
+        nnFormat = "%"+str(fmtlen)+"s:"
         for n in nicknames:
             nnreal = self.byNickname[n][0][0].getNickname()
-            lines.append(format%nnreal)
+            lines.append(nnFormat%nnreal)
             for info, where in self.byNickname[n]:
                 caps = info.getCaps()
                 va = formatDate(info['Server']['Valid-After'])
                 vu = formatDate(info['Server']['Valid-Until'])
-                line = "   %15s (valid %s to %s)"%(" ".join(caps),va,vu)
+                line = "      [%s to %s] %s"%(va,vu," ".join(caps))
                 lines.append(line)
         return lines
 
@@ -704,12 +705,14 @@ def resolvePath(directory, address, enterPath, exitPath,
        the path except that it support relay.
        """
     assert (not halfPath) or (nSwap==-1)
+    explicitSwap = nSwap is not None
     # First, find out what the exit node needs to be (or support).
     if address is None:
         routingType = None
+        routingInfo = None
         exitNode = None
     else:
-        routingType, _, exitNode = address.getRouting()
+        routingType, routingInfo, exitNode = address.getRouting()
         
     if exitNode:
         exitNode = directory.getServerInfo(exitNode, startAt, endAt)
@@ -750,8 +753,15 @@ def resolvePath(directory, address, enterPath, exitPath,
         nSwap = ceilDiv(len(path),2)-1
 
     path1, path2 = path[:nSwap+1], path[nSwap+1:]
+    if not halfPath and len(path1)+len(path2) < 2:
+        raise UIError("Path is too short")
     if not halfPath and (not path1 or not path2):
         raise UIError("Each leg of the path must have at least 1 hop")
+
+    mixminion.BuildMessage.checkPathLength(path1, path2,
+                                           routingType, routingInfo,
+                                           explicitSwap)
+
     return path1, path2
 
 def parsePath(directory, config, path, address, nHops=None,
@@ -899,49 +909,54 @@ def parsePathLeg(directory, config, path, nHops, address=None,
     return path2
     
 class ClientKeyring:
+    # XXXX004 testme
     """Class to manage storing encrypted keys for a client.  Right now, this
        is limited to a single SURB decryption key.  In the future, we may
        include more SURB keys, as well as end-to-end encryption keys.
     """
     ## Fields:
     # keyDir: The directory where we store our keys.
-    # surbKey: a 20-byte key for SURBs.
+    # keyring: DICT XXXX
+    # keyringPassword: The password for our encrypted keyfile
     ## Format:
     # We store keys in a file holding:
-    #  variable         [Key specific magic]        "SURBKEY0"
-    #   8               [8 bytes of salt]
-    #  keylen+20 bytes  ENCRYPTED DATA:KEY=sha1(salt+password+salt)[:16]
-    #                                  DATA=encrypted_key+sha1(data+salt+magic)
+    #  variable         [File specific magic]       "KEYRING1"
+    #  8                [8 bytes of salt]
+    #  variable         ENCRYPTED DATA:KEY=sha1(salt+password+salt)
+    #                                  DATA=encrypted_pickled_data+
+    #                                                   sha1(data+salt+magic)
+
     def __init__(self, keyDir):
         """Create a new ClientKeyring to store data in keyDir"""
         self.keyDir = keyDir
         createPrivateDir(self.keyDir)
-        self.surbKey = None
+        self.keyring = None
+        self.keyringPassword = None
 
-    # XXXX support multiple pseudoidentities.
-    def getSURBKey(self, create=0):
-        """Return the 20-byte SURB key.  If it has not already been loaded,
-           load it, asking the user for a password if needed.  If 'create' is
-           true and the key doesn't exist, ask the user for a new password
-           and create a new SURB key.  If 'create' is false and the key
-           doesn't exist, return None."""
-        if self.surbKey is not None:
-            return self.surbKey
-        fn = os.path.join(self.keyDir, "SURBKey")
-        self.surbKey = self._getKey(fn, magic="SURBKEY0", which="reply block",
-                                    create=create)
-        return self.surbKey
+    def getKey(self, keyid, create=0, createFn=None):
+        if self.keyring is None:
+            self.getKeyring(create=create)
+            if self.keyring is None:
+                return None
+        try:
+            return self.keyring[keyid]
+        except KeyError:
+            if not create:
+                return None
+            else:
+                LOG.info("Creating new key for identity %r", keyid)
+                key = createFn()
+                self.keyring[keyid] = key
+                self._saveKeyring()
+                return key
 
-    def _getKey(self, fn, magic, which, bytes=20, create=0):
-        """Helper: Load an arbitrary key from the keystore, from file 'fn'.
-           We expect the magic to be 'magic'; Error messages will describe the
-           key as the "'which' key" .  If create is true, and the key doesn't
-           exist, generate a new 'bytes'-byte key.  Else if the key doesn't
-           exist, return None.
-        """
-        
+    def getKeyring(self, create=0):
+        if self.keyring is not None:
+            return self.keyring
+        fn = os.path.join(self.keyDir, "keyring")
+        magic = "KEYRING1"
         if os.path.exists(fn):
-            # If the key exists, make sure the magic is correct.
+            # If the keyring exists, make sure the magic is correct.
             self._checkMagic(fn, magic)
             # ...then see if we can load it without a password...
             try:
@@ -950,20 +965,47 @@ class ClientKeyring:
                 pass
             # ...then ask the user for a password 'till it loads.
             while 1:
-                p = self._getPassword("Enter password for %s key:"%which)
+                p = self._getPassword("Enter password for keyring:")
                 try:
-                    return self._load(fn, magic, p)
-                except MixError, e:
-                    LOG.error("Cannot load %s key: %s", which, e)
+                    data = self._load(fn, magic, p)
+                    self.keyring = cPickle.loads(data)
+                    self.keyringPassword = p
+                    return self.keyring
+                except (MixError, cPickle.UnpicklingError), e:
+                    LOG.error("Cannot load keyring: %s", e)
         elif create:
             # If the key file doesn't exist, and 'create' is set, create it.
-            LOG.warn("No %s key found; generating.", which)
-            key = trng(bytes)
-            p = self._getNewPassword(which)
-            self._save(fn, key, magic, p)
-            return key
+            LOG.warn("No keyring found; generating.")
+            self.keyringPassword = self._getNewPassword("keyring")
+            self.keyring = {}
+            self._saveKeyring()
+            return self.keyring
         else:
-            return None
+            return {}
+
+    def _saveKeyring(self):
+        assert self.keyringPassword
+        fn = os.path.join(self.keyDir, "keyring")
+        LOG.trace("Saving keyring to %s", fn)
+        self._save(fn,
+                   cPickle.dumps(self.keyring,1),
+                   "KEYRING1", self.keyringPassword)
+
+    def getSURBKey(self, name="", create=0):
+        k = self.getKey("SURB-"+name,
+                        create=create, createFn=lambda: trng(20))
+        if len(k) != 20:
+            raise MixError("Bad length on SURB key")
+        return k
+
+    def getSURBKeys(self):
+        self.getKeyring(create=0)
+        if not self.keyring: return {}
+        r = {}
+        for k in self.keyring.keys():
+            if k.startswith("SURB-"):
+                r[k[5:]] = self.keyring[k]
+        return r
 
     def _checkMagic(self, fn, magic):
         """Make sure that the magic string on a given key file %s starts with
@@ -1021,10 +1063,12 @@ class ClientKeyring:
             nl = 1
         f.write(message)
         f.flush()
-        p = getpass.getpass("")
-        if nl:
-            f.write("\n")
-            f.flush()
+        try:
+            p = getpass.getpass("")
+        except KeyboardInterrupt:
+            if nl: print >>f
+            raise UIError("Interrupted")
+        if nl: print >>f
         return p
 
     def _getNewPassword(self, which):
@@ -1353,7 +1397,7 @@ class MixminionClient:
             self.sendMessages([message], routing, noPool=forceNoPool)
 
 
-    def generateReplyBlock(self, address, servers, expiryTime=0):
+    def generateReplyBlock(self, address, servers, name="", expiryTime=0):
         """Generate an return a new ReplyBlock object.
             address -- the results of a parseAddress call
             servers -- lists of ServerInfos for the reply leg of the path.
@@ -1361,7 +1405,7 @@ class MixminionClient:
                still be valid, and after which it should not be used.
         """
         #XXXX004 write unit tests
-        key = self.keys.getSURBKey(create=1)
+        key = self.keys.getSURBKey(name=name, create=1)
         exitType, exitInfo, _ = address.getRouting()
 
         block = mixminion.BuildMessage.buildReplyBlock(
@@ -1538,7 +1582,7 @@ class MixminionClient:
             LOG.info("Message pooled")
         return handles
 
-    def decodeMessage(self, s, force=0):
+    def decodeMessage(self, s, force=0, isatty=0):
         """Given a string 's' containing one or more text-encoed messages,
            return a list containing the decoded messages.
            
@@ -1557,14 +1601,18 @@ class MixminionClient:
             if not msg.isEncrypted():
                 results.append(msg.getContents())
             else:
-                surbKey = self.keys.getSURBKey(create=0)
+                surbKeys = self.keys.getSURBKeys()
                 p = mixminion.BuildMessage.decodePayload(msg.getContents(),
                                                          tag=msg.getTag(),
-                                                         userKey=surbKey)
+                                                         userKeys=surbKeys)
                 if p:
                     results.append(p)
                 else:
                     raise UIError("Unable to decode message")
+        if isatty and not force:
+            for p in results:
+                if not isPrintingAscii(p,allowISO=1):
+                    raise UIError("Not writing binary message to terminal: Use -F to do it anyway.")
         return results
 
 def parseAddress(s):
@@ -2298,6 +2346,8 @@ def clientDecode(cmd, args):
         # ???? Should we sometimes open this in text mode?
         out = open(outputFile, 'wb')
 
+    tty = os.isatty(out.fileno())
+
     if inputFile == '-':
         s = sys.stdin.read()
     else:
@@ -2308,7 +2358,7 @@ def clientDecode(cmd, args):
         except OSError, e:
             LOG.error("Could not read file %s: %s", inputFile, e)
     try:
-        res = client.decodeMessage(s, force=force)
+        res = client.decodeMessage(s, force=force, isatty=tty)
     except ParseError, e:
         raise UIError("Couldn't parse message: %s"%e)
         
@@ -2364,11 +2414,12 @@ def generateSURB(cmd, args):
     options, args = getopt.getopt(args, "hvf:D:t:H:P:o:bn:",
           ['help', 'verbose', 'config=', 'download-directory=',
            'to=', 'hops=', 'path=', 'lifetime=',
-           'output=', 'binary', 'count='])
+           'output=', 'binary', 'count=', 'identity='])
            
     outputFile = '-'
     binary = 0
     count = 1
+    identity = ""
     for o,v in options:
         if o in ('-o', '--output'):
             outputFile = v
@@ -2380,7 +2431,8 @@ def generateSURB(cmd, args):
             except ValueError:
                 print "ERROR: %s expects an integer" % o
                 sys.exit(1)
-            
+        elif o in ('--identity',):
+            identity = v
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantClient=1,
                                    wantLog=1, wantClientDirectory=1,
@@ -2412,7 +2464,8 @@ def generateSURB(cmd, args):
         out = open(outputFile, 'w')
 
     for i in xrange(count):
-        surb = client.generateReplyBlock(address, path1, parser.endTime)
+        surb = client.generateReplyBlock(address, path1, name=identity,
+                                         expiryTime=parser.endTime)
         if binary:
             out.write(surb.pack())
         else:

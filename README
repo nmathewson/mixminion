@@ -1,4 +1,4 @@
-$Id: README,v 1.37 2003/02/20 16:57:38 nickm Exp $
+$Id: README,v 1.38 2003/03/26 16:36:46 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3
 
@@ -417,7 +417,7 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
 3) Run your server for the first time:
 
-        "mixminion server -f <path to mixminiond.conf>"
+        "mixminion server-start -f <path to mixminiond.conf>"
 
     (The -f flag and path is only necessary if you placed the
     configuration file somehwere other than ~/.mixminiond.conf,

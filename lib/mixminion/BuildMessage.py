@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.40 2003/03/05 21:21:20 nickm Exp $
+# $Id: BuildMessage.py,v 1.41 2003/03/26 16:36:46 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -10,13 +10,13 @@ import sys
 import operator
 import mixminion.Crypto as Crypto
 from mixminion.Packet import *
-from mixminion.Common import MixError, MixFatalError, LOG
+from mixminion.Common import MixError, MixFatalError, LOG, UIError
 
 if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
 
 __all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
-           'buildReplyBlock', 'decodePayload' ]
+           'buildReplyBlock', 'checkPathLength', 'decodePayload' ]
 
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
                         paddingPRNG=None):
@@ -241,12 +241,35 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
     return _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime, prng,
                                 seed)[0]
 
+def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
+    "XXXX DOCDOC"
+    err = 0
+    if path1 is not None:
+        try:
+            _getRouting(path1, SWAP_FWD_TYPE, path2[0].getRoutingInfo().pack())
+        except MixError:
+            err = 1
+    if exitType != DROP_TYPE and exitInfo is not None:
+        exitInfo += "X"*20
+    else:
+        exitInfo = ""
+    if err == 0:
+        try:
+            _getRouting(path2, exitType, exitInfo)
+        except MixError:
+            err = 2
+    if err and not explicitSwap:
+        raise UIError("Address and path will not fit in one header")
+    elif err:
+        raise UIError("Address and %s leg of path will not fit in one header",
+                      ["first", "second"][err-1])
+    
 #----------------------------------------------------------------------
 # MESSAGE DECODING
 
 def decodePayload(payload, tag, key=None,
-                  #storedKeys=None, # 'Stateful' reply blocks are disabled.
-                  userKey=None):
+                  userKey=None,
+                  userKeys={}):
     """Given a 28K payload and a 20-byte decoding tag, attempt to decode and
        decompress the original message.
 
@@ -256,8 +279,12 @@ def decodePayload(payload, tag, key=None,
        If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,
        we return None.  If the payload is corrupt, we raise MixError.
+
+       DOCDOC userKeys
     """
     # FFFF Take a list of keys?
+    if userKey and not userKeys:
+        userKeys = { "" : userKey }
 
     if len(payload) != PAYLOAD_LEN or len(tag) != TAG_LEN:
         raise MixError("Wrong payload or tag length")
@@ -267,26 +294,19 @@ def decodePayload(payload, tag, key=None,
     if _checkPayload(payload):
         return _decodeForwardPayload(payload)
 
-    # ('Stateful' reply blocks are disabled.)
-
-##    # If we have a list of keys associated with the tag, it's a reply message
-##    # using those keys.
-
-##     if storedKeys is not None:
-##      secrets = storedKeys.get(tag)
-##      if secrets is not None:
-##          del storedKeys[tag]
-##          return _decodeReplyPayload(payload, secrets)
-
     # If H(tag|userKey|"Validate") ends with 0, then the message _might_
     # be a reply message using H(tag|userKey|"Generate") as the seed for
     # its master secrets.  (There's a 1-in-256 chance that it isn't.)
-    if userKey is not None:
-        if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00':
-            try:
-                return _decodeStatelessReplyPayload(payload, tag, userKey)
-            except MixError:
-                pass
+    if userKeys:
+        for name,userKey in userKeys.items():
+            if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00':
+                try:
+                    p = _decodeStatelessReplyPayload(payload, tag, userKey)
+                    if name:
+                        LOG.info("Decoded reply message to identity: %r", name)
+                    return p
+                except MixError:
+                    pass
 
     # If we have an RSA key, and none of the above steps get us a good
     # payload, then we may as well try to decrypt the start of tag+key with
@@ -447,18 +467,7 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     if len(path) * ENC_SUBHEADER_LEN > HEADER_LEN:
         raise MixError("Too many nodes in path")
 
-    # Construct a list 'routing' of exitType, exitInfo.
-    routing = [ (FWD_TYPE, node.getRoutingInfo().pack()) for
-                node in path[1:] ]
-    routing.append((exitType, exitInfo))
-
-    # sizes[i] is size, in blocks, of subheaders for i.
-    sizes =[ getTotalBlocksForRoutingInfoLen(len(ri)) for _, ri in routing]
-
-    # totalSize is the total number of blocks.
-    totalSize = reduce(operator.add, sizes)
-    if totalSize * ENC_SUBHEADER_LEN > HEADER_LEN:
-        raise MixError("Routing info won't fit in header")
+    routing, sizes, totalSize = _getRouting(path, exitType, exitInfo)
 
     # headerKey[i]==the AES key object node i will use to decrypt the header
     headerKeys = [ Crypto.Keyset(secret).get(Crypto.HEADER_SECRET_MODE)
@@ -620,3 +629,19 @@ def _checkPayload(payload):
     'Return true iff the hash on the given payload seems valid'
     return payload[2:22] == Crypto.sha1(payload[22:])
 
+def _getRouting(path, exitType, exitInfo):
+    "XXXX DOCDOC"
+    # Construct a list 'routing' of exitType, exitInfo.
+    routing = [ (FWD_TYPE, node.getRoutingInfo().pack()) for
+                node in path[1:] ]
+    routing.append((exitType, exitInfo))
+
+    # sizes[i] is size, in blocks, of subheaders for i.
+    sizes =[ getTotalBlocksForRoutingInfoLen(len(ri)) for _, ri in routing]
+
+    # totalSize is the total number of blocks.
+    totalSize = reduce(operator.add, sizes)
+    if totalSize * ENC_SUBHEADER_LEN > HEADER_LEN:
+        raise MixError("Routing info won't fit in header")
+
+    return routing, sizes, totalSize

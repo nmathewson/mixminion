@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.94 2003/02/20 16:57:40 nickm Exp $
+# $Id: test.py,v 1.95 2003/03/26 16:36:46 nickm Exp $
 
 """mixminion.tests
 
@@ -5260,6 +5260,10 @@ class ClientMainTests(unittest.TestCase):
         parseFails("0xZZ") # Bad hex literal, no data.
         parseFails("0x9999") # No data
         parseFails("0xFEEEF:zymurgy") # Hex literal out of range
+
+    def testClientKeyring(self):
+        keydir = mix_mktemp()
+        keyring = mixminion.ClientMain.ClientKeyring(keyring)
 
     def testMixminionClient(self):
         # Create and configure a MixminionClient object...

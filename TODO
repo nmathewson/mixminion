@@ -13,47 +13,71 @@ For a list of good beginner projects, check out HACKING.
 NEEDS TO BE WRITTEN:
 
 For 0.0.4:
-        - UI
-                . Good user error reporting strategy.
-                - The error on '-P foo' should be 'path too short',
+        . UI
+                o The error on '-P foo' should be 'path too short',
                   and not mention legs. (neruaL)
-                - Beautify list-servers output.
-                - Better error message when path+routinginfo won't fit
-                  into header.
-                - Better concept of too-short paths.
-                - Change behavior on binary messages; don't dump 'em
-                  to terminals.
-                - DELKEYS should work. (neruaL)
-                - Rename 'server' to server-start; keep 'server', but
+                o Better concept of too-short paths.
+                o Beautify list-servers output
+                o Rename 'server' to server-start; keep 'server', but
                   deprecated.
+                o Better error message when path+routinginfo won't fit
+                  into header.
+                o Ctrl-C should just print "interrupted."
+                o Change behavior on binary messages; don't dump 'em
+                  to terminals.
+                        o Implement
+                        o Test
+                - DELKEYS should work. (neruaL)
+        . Internal statistics
+        	o Event log module
+                o Create and use event log
+                o Event log configurability
+                o server-stats command
+                - Test event log
+                - Document log and events
+                - Test use of event log
+                - Full statistics (ask Len what the list is.)
+        - Security:
+                - Increase key length to 2048 bits
+                . Support multiple SURB keys
+                        o Better keyrings: implement
+                        - Better keyrings: test
+                        o Backend support: implement
+                        - Backend support: test
+                        o CLI support for identities
+                        o Test CLI support
+                        - Specify behavior
+                        - Document in --help and README
         - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.
-        - Statistics of some kind (with a server: count messages
-          received, errors, etc.)
-        - Separate error/other log files. ????
         - MMTP
                 - KEYID should be hash of signing key==hash of
                   identity key.  (Spec may be incorrect.)
         - Key management:
                 . Ability to generate new serverdesc with old keys.
-                - Ability to notice discrepancies between SD and
+                . Ability to notice discrepancies between SD and
                   server configuration.
+                - Online key rotation
                 - Consider linewrap protection on server descriptors,
                   if demand warrants.  (None yet.)
-               
-        - Security:
-        	- Password-protect dirserver keys
-                - Code to generate dummy packets. ????
-                - Support multiple SURB keys.
+
+Deferred from 0.0.4:
+        . UI
+                . Good user error reporting strategy; use UIError uniformly.
+        - Separate error/other log files. ????
+        - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
+           CLI'S AND MULTI-SERVER SITUATIONS.
+        - Tests for packet addressed to server with bogus IP.
+        - Finish port to Cygwin
         - Configurability
                 - Put pid and lock and key and queues in different
                   places; coalesce pid and lock.
                 - Make all filenames in server config relative to
                   server home, if not absolute.
-        - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
-           CLI'S AND MULTI-SERVER SITUATIONS.
-        - Tests for packet addressed to server with bogus IP.
+        - Security:
+        	- Password-protect dirserver keys
+                - Code to generate dummy packets. ????
 
 Required for "1.0":
          [These features must be in place before we can take the system out
@@ -61,7 +85,7 @@ Required for "1.0":
           the first beta.]
 
         - Better CLIs
-                - Add another level of CLI commands. (E.g., mixminion server
+                X Add another level of CLI commands. (E.g., mixminion server
                   keygen, etc.)
                 - Add a --status-fd option similar to GPG's so that
                   we can be more easily embedded.

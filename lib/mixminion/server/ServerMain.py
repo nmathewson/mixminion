@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.44 2003/02/20 16:57:40 nickm Exp $
+# $Id: ServerMain.py,v 1.45 2003/03/26 16:36:46 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -30,6 +30,7 @@ import mixminion.server.PacketHandler
 import mixminion.server.ServerQueue
 import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
+import mixminion.server.EventStats as EventStats
 
 from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
@@ -258,12 +259,20 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
 
     def onMessageReceived(self, msg):
         self.incomingQueue.queueMessage(msg)
+        EventStats.log("ReceivedPacket", None) # XXXX Replace with server.
 
     def onMessageSent(self, msg, handle):
         self.outgoingQueue.deliverySucceeded(handle)
+        EventStats.log("AttemptedRelay", None) # XXXX replace with addr
+        EventStats.log("SuccessfulRelay", None) # XXXX replace with addr
 
     def onMessageUndeliverable(self, msg, handle, retriable):
         self.outgoingQueue.deliveryFailed(handle, retriable)
+        EventStats.log("AttemptedRelay", None) # XXXX replace with addr
+        if retriable:
+            EventStats.log("FailedRelay", None) # XXXX replace with addr
+        else:
+            EventStats.log("UnretriableRelay", None) # XXXX replace with addr
         
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
@@ -526,6 +535,7 @@ class MixminionServer:
                     LOG.info("Caught sighup")
                     LOG.info("Resetting logs")
                     LOG.reset()
+                    EventStats.save()
                     GOT_HUP = 0
                 # Make sure that our worker threads are still running.
                 if not (self.cleaningThread.isAlive() and
@@ -599,8 +609,11 @@ class MixminionServer:
         self.cleaningThread.join()
         self.processingThread.join()
         self.moduleManager.join()
-        
+
         self.packetHandler.close()
+
+        EventStats.save()
+
         try:
             self.lockFile.release()
             os.unlink(self.pidFile)
@@ -659,6 +672,7 @@ def usageAndExit(cmd):
     sys.exit(0)
 
 def configFromServerArgs(cmd, args):
+    #XXXX
     options, args = getopt.getopt(args, "hf:", ["help", "config="])
     if args:
         usageAndExit(cmd)
@@ -672,6 +686,7 @@ def configFromServerArgs(cmd, args):
     return readConfigFile(configFile)
 
 def readConfigFile(configFile):
+    #XXXX
     if configFile is None:
         if os.path.exists(os.path.expanduser("~/.mixminiond.conf")):
             configFile = os.path.expanduser("~/.mixminiond.conf")
@@ -698,6 +713,9 @@ def readConfigFile(configFile):
 
 #----------------------------------------------------------------------
 def runServer(cmd, args):
+    if cmd.endswith(" server"):
+        print "Obsolete command. Use 'mixminion server-start' instead."
+    
     config = configFromServerArgs(cmd, args)
     try:
         # Configure the log, but delay disabling stderr until the last
@@ -717,10 +735,16 @@ def runServer(cmd, args):
         try:
             daemonize()
         except:
-            info = sys.exc_info()
-            LOG.fatal_exc(info,
+            LOG.fatal_exc(sys.exc_info(),
                           "Exception while starting server in the background")
             os._exit(0)
+
+    # Configure event log
+    try:
+        EventStats.configureLog(config)
+    except:
+        LOG.fatal_exc(sys.exc_info(), "")
+        os._exit(0)
 
     installSIGCHLDHandler()
     installSignalHandlers()
@@ -752,7 +776,23 @@ def runServer(cmd, args):
     server.close()
     LOG.info("Server is shut down")
 
+    LOG.close()
     sys.exit(0)
+
+#----------------------------------------------------------------------
+_PRINT_STATS_USAGE = """\
+Usage: mixminion server-stats [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than the default.
+""".strip()
+
+def printServerStats(cmd, args):
+    #XXXX
+    config = configFromServerArgs(cmd, args)
+    _signalServer(config, 1)
+    EventStats.configureLog(config)
+    EventStats.THE_EVENT_LOG.dump(sys.stdout)
 
 #----------------------------------------------------------------------
 _SIGNAL_SERVER_USAGE = """\
@@ -793,6 +833,10 @@ def signalServer(cmd, args):
         print _SIGNAL_SERVER_USAGE % { 'cmd' : cmd }
         return
 
+    _signalServer(config, reload)
+
+def _signalServer(config, reload):
+    """DOCDOC"""
     homeDir = config['Server']['Homedir']
     pidFile = os.path.join(homeDir, "pid")
     if not os.path.exists(pidFile):
