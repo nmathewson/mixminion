@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.27 2002/12/02 20:18:08 nickm Exp $
+# $Id: Common.py,v 1.28 2002/12/03 00:39:51 nickm Exp $
 
 """mixminion.Common
 
@@ -165,7 +165,10 @@ def _overwriteFile(f):
     if not _BLKSIZE:
 	#???? this assumes that all filesystems we are using have the same
 	#??? block size.
-	_BLKSIZE = os.statvfs(f)[statvfs.F_BSIZE]
+	if hasattr(os, 'statvfs'):
+	    _BLKSIZE = os.statvfs(f)[statvfs.F_BSIZE]
+	else:
+	    _BLKSIZE = 8192 # ???? Safe guess?
 	_NILSTR = '\x00' * _BLKSIZE
     fd = os.open(f, os.O_WRONLY)
     try:
