@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.84 2003/12/08 06:45:28 nickm Exp $
+# $Id: setup.py,v 1.85 2003/12/08 16:18:11 nickm Exp $
 import sys
 
 #
@@ -15,6 +15,10 @@ VERSION_INFO = (0,0,6,99,1)
 #
 # (Because of syntax issues, this file won't even parse for any python older
 #  than 1.3.  I'm okay with that.)
+if getattr(sys, 'platform', None) == 'win32':
+    if not hasattr(sys, 'version_info') or sys.version_info < (2,3,0):
+        print "Sorry, but I require Python 2.3 or higher on Windows."
+        sys.exit(1)
 if not hasattr(sys, 'version_info') or sys.version_info < (2, 0, 0):
     print "Sorry, but I require Python 2.0 or higher."
     sys.exit(1)
@@ -354,6 +358,10 @@ if 1 == 0:
     import mixminion.ClientMain
     import mixminion.server.ServerMain
     import mixminion.directory.DirMain
+    # The 'anydbm' module uses __import__ to conditionally load bsddb.
+    # We need to be sure that it gets included, or else we'll get stuck
+    # using the dumbdbm module.
+    import bsddb, dbhash
 """)
 if sys.platform == 'win32':
     f.write("# On win32, we default to shell mode.\n")
