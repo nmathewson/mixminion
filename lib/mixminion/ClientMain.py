@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.87 2003/06/05 05:24:23 nickm Exp $
+# $Id: ClientMain.py,v 1.88 2003/06/05 05:48:38 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -880,7 +880,7 @@ class ClientKeyring:
     """
     ## Fields:
     # keyDir: The directory where we store our keys.
-    # keyring: DICT XXXX DOCDOC
+    # keyring: DICT DOCDOC
     # keyringPassword: The password for our encrypted keyfile
     ## Format:
     # We store keys in a file holding:
@@ -1314,7 +1314,7 @@ class MixminionClient:
         self.config = conf
 
         # Make directories
-        userdir = os.path.expanduser(self.config['User']['UserDir'])
+        userdir = self.config['User']['UserDir']
         createPrivateDir(userdir)
         keyDir = os.path.join(userdir, "keys")
         self.keys = ClientKeyring(keyDir)
@@ -1903,7 +1903,7 @@ class CLIArgumentParser:
             else:
                 mixminion.Crypto.init_crypto(self.config)
 
-            userdir = os.path.expanduser(self.config['User']['UserDir'])
+            userdir = self.config['User']['UserDir']
             configureClientLock(os.path.join(userdir, "lock"))
         else:
             if self.wantLog:

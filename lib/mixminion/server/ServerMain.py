@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.71 2003/06/05 05:34:56 nickm Exp $
+# $Id: ServerMain.py,v 1.72 2003/06/05 05:48:39 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -977,13 +977,13 @@ def configFromServerArgs(cmd, args, usage=None):
 def readConfigFile(configFile):
     #XXXX
     if configFile is None:
-        if os.path.exists(os.path.expanduser("~/.mixminiond.conf")):
-            configFile = os.path.expanduser("~/.mixminiond.conf")
-        elif os.path.exists(os.path.expanduser("~/etc/mixminiond.conf")):
-            configFile = os.path.expanduser("~/etc/mixminiond.conf")
-        elif os.path.exists("/etc/mixminiond.conf"):
-            configFile = "/etc/mixminiond.conf"
-        else:
+        configFile = None
+        for p in ["~/.mixminiond.conf", "~/etc/mixminiond.conf",
+                  "/etc/mixminiond.conf"]:
+            p = os.path.expanduser(p)
+            if os.path.exists(p):
+                configFile = p
+        if not p:
             print >>sys.stderr, "No config file found or specified."
             sys.exit(1)
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.45 2003/05/30 03:07:56 nickm Exp $
+# $Id: Config.py,v 1.46 2003/06/05 05:48:38 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -339,9 +339,8 @@ def _parseNickname(s):
     return s
 
 def _parseFilename(s):
-    """DOCDOC"""
-    #XXXX004 testme
-    #XXXX004 use this more.
+    """Validation function.  Matches a filename, expanding tildes as
+       appropriate"""
     s = s.strip()
     if s[0] in "\"'":
         if s[-1] != s[0]:
@@ -705,14 +704,14 @@ class ClientConfig(_ConfigFile):
     _syntax = {
         'Host' : { '__SECTION__' : ('ALLOW', None, None),
                    'ShredCommand': ('ALLOW', _parseCommand, None),
-                   'EntropySource': ('ALLOW', None, "/dev/urandom"),
+                   'EntropySource': ('ALLOW', _parseFilename, "/dev/urandom"),
                    'TrustedUser': ('ALLOW*', None, None),
                    },
         'DirectoryServers' :
                    { '__SECTION__' : ('REQUIRE', None, None),
                      'ServerURL' : ('ALLOW*', None, None),
                      'MaxSkew' : ('ALLOW', _parseInterval, "10 minutes") },
-        'User' : { 'UserDir' : ('ALLOW', None, "~/.mixminion" ) },
+        'User' : { 'UserDir' : ('ALLOW', _parseFilename, "~/.mixminion" ) },
         'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
                        'SURBAddress' : ('ALLOW', None, None),
                        'SURBPathLength' : ('ALLOW', _parseInt, "4"),

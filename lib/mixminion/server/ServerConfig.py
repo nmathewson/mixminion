@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.31 2003/06/05 02:18:11 nickm Exp $
+# $Id: ServerConfig.py,v 1.32 2003/06/05 05:48:39 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -231,7 +231,8 @@ C = mixminion.Config
 SERVER_SYNTAX =  {
         'Host' : C.ClientConfig._syntax['Host'],
         'Server' : { '__SECTION__' : ('REQUIRE', None, None),
-                     'Homedir' : ('ALLOW', None, "/var/spool/minion"),
+                     'Homedir' :
+                         ('ALLOW', C._parseFilename, "/var/spool/minion"),
                      'LogFile' : ('ALLOW', None, None),
                      'LogLevel' : ('ALLOW', C._parseSeverity, "WARN"),
                      'EchoMessages' : ('ALLOW', C._parseBoolean, "no"),

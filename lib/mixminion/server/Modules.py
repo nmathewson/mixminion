@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.40 2003/06/05 05:24:23 nickm Exp $
+# $Id: Modules.py,v 1.41 2003/06/05 05:48:39 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -323,7 +323,7 @@ class ModuleManager:
     def setPath(self, path):
         """Sets the search path for Python modules"""
         if path:
-            self.path = path.split(":")
+            self.path = [ os.path.expanduser(fn) for fn in path.split(":") ]
         else:
             self.path = []
 

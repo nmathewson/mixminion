@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.116 2003/06/05 05:24:23 nickm Exp $
+# $Id: test.py,v 1.117 2003/06/05 05:48:38 nickm Exp $
 
 """mixminion.tests
 
@@ -3584,6 +3584,12 @@ IntRS=5
         self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
         # nicknames
         self.assertEquals(C._parseNickname("Mrs.Premise"), "Mrs.Premise")
+        # Filenames
+        self.assertEquals(C._parseFilename(" ab/c/d"), "ab/c/d")
+        self.assertEquals(C._parseFilename("  ~/ab/c/d"),
+                          os.path.expanduser("~/ab/c/d"))
+        self.assertEquals(C._parseFilename(" 'ab/c d/d' "), "ab/c d/d")
+        self.assertEquals(C._parseFilename('  "ab/c d/d" '), "ab/c d/d")
 
         SC = mixminion.server.ServerConfig
         # Fractions
@@ -3599,6 +3605,7 @@ IntRS=5
         self.assertEquals(SC._parseMixRule("binomialCottrell"),
                           "BinomialCottrellMixPool")
         self.assertEquals(SC._parseMixRule("TIMED"), "TimedMixPool")
+        
 
         ##
         # Now, try the failing cases.
@@ -3659,6 +3666,9 @@ IntRS=5
         except ConfigError:
             # This is what we expect
             pass
+
+        # Filenames:
+        fails(C._parseFilename, " 'ab/cd")
 
         # IntervalSet validation
         def warns(mixInterval, retryList, self=self):
