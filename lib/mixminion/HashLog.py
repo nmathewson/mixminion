@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.12 2002/12/02 20:18:44 nickm Exp $
+# $Id: HashLog.py,v 1.13 2002/12/03 00:40:26 nickm Exp $
 
 """mixminion.HashLog
 
@@ -17,6 +17,7 @@ __all__ = [ 'HashLog' ]
 # FFFF two-copy journaling to protect against catastrophic failure that
 # FFFF underlying DB code can't handle.
 
+_JOURNAL_OPEN_MODE = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)
 class HashLog:
     """A HashLog is a file containing a list of message digests that we've
        already processed.
@@ -73,7 +74,7 @@ class HashLog:
 	    f.close()
 
 	self.journalFile = os.open(self.journalFileName, 
-		    os.O_WRONLY|os.O_CREAT|os.O_APPEND|os.O_SYNC, 0700)
+		    _JOURNAL_OPEN_MODE|os.O_APPEND, 0700)
 
     def seenHash(self, hash):
         """Return true iff 'hash' has been logged before."""
@@ -100,7 +101,7 @@ class HashLog:
             self.log.sync()
 	os.close(self.journalFile)
 	self.journalFile = os.open(self.journalFileName,
-		os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_SYNC, 0700)
+		   _JOURNAL_OPEN_MODE|os.O_TRUNC, 0700)
 	self.journal = {}
 
     def close(self):
