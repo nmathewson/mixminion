@@ -577,7 +577,8 @@ class ClientDirectory:
             # Make the exit hop _not_ be None; deal with getPath brokenness.
             #XXXX refactor this.
             if lastHop:
-                p.append(lastHop)
+                if not p or p[-1].lower()!=lastHop.lower():
+                    p.append(lastHop)
             elif p[-1] == None and not exitAddress.isReply:
                 p[-1] = prng.pick(plausibleExits)
  
