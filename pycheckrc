@@ -88,7 +88,7 @@ unpackNonSequence = 1
 # bool: warn when setting a tuple of variables to the wrong length (a, b = 1,)
 unpackLength = 1
 
-# bool: warn when using strings exceptions or 
+# bool: warn when using strings exceptions or
 #       other classes not derived from Exception to raise/catch exceptions
 badExceptions = 1
 
@@ -98,7 +98,7 @@ noEffect = 1
 # bool: warn when using (expr % 1), it has no effect on integers and strings
 modulo1 = 1
 
-# bool: warn if using (expr is const-literal), 
+# bool: warn if using (expr is const-literal),
 # doesn't always work on integers and strings
 isLiteral = 1
 

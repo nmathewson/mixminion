@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.37 2003/11/28 04:14:05 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ServerQueue.py,v 1.38 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -84,13 +84,6 @@ class _DeliveryState:
             self.queuedTime = state[1]
             self.lastAttempt = state[2]
             self.address = state[3]
-        elif state[0] == "V0":
-            #XXXX007 remove this case.
-            # 0.0.4 used a format that didn't have an 'address' field.
-            LOG.warn("Encountered an ancient queued message format.")
-            self.queuedTime = state[1]
-            self.lastAttempt = state[2]
-            self.address = None
         else:
             raise MixFatalError("Unrecognized delivery state")
 

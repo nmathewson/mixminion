@@ -1,5 +1,5 @@
-/* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.34 2004/02/07 21:27:58 nickm Exp $ */
+/* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information*/
+/* $Id: tls.c,v 1.35 2004/03/06 00:04:38 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -752,7 +752,6 @@ mm_TLSSock_get_num_bytes_raw(PyObject *self, PyObject* args, PyObject *kwargs)
 {
         SSL *ssl;
         unsigned long r, w;
-        PyObject *tup;
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
         ssl = ((mm_TLSSock*)self)->ssl;
@@ -760,24 +759,6 @@ mm_TLSSock_get_num_bytes_raw(PyObject *self, PyObject* args, PyObject *kwargs)
         w = BIO_number_written(SSL_get_wbio(ssl));
         return PyInt_FromLong((long)(r+w));
 }
-
-#if 0
-static char mm_TLSSock_get_num_renegotiations__doc__[] =
-"tlssock.get_num_renegotiations()\n\n";
-
-static PyObject*
-mm_TLSSock_get_num_renegotiations(PyObject *self, PyObject *args,
-                                  PyObject *kwargs)
-{
-        SSL *ssl;
-
-        assert(mm_TLSSock_Check(self));
-        FAIL_IF_ARGS();
-        ssl = ((mm_TLSSock*)self)->ssl;
-
-        return PyInt_FromLong(SSL_num_renegotiations(ssl));
-}
-#endif
 
 static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, accept),
@@ -793,9 +774,6 @@ static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, do_handshake),
         METHOD(mm_TLSSock, renegotiate),
         METHOD(mm_TLSSock, get_num_bytes_raw),
-#if 0
-        METHOD(mm_TLSSock, get_num_renegotiations),
-#endif
         { NULL, NULL }
 };
 

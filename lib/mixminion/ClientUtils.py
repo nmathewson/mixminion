@@ -129,7 +129,7 @@ def getPassword_fd(fileno):
         if not chunk:
             break
         pw += chunk
-    # Strip trailing endline from password, if any.  
+    # Strip trailing endline from password, if any.
     if pw.endswith("\n"): pw = pw[:-1]
     return pw
 
@@ -725,6 +725,8 @@ class ClientQueue:
             mixminion.ClientMain.clientUnlock()
 
     def getHandlesByAge(self, notAfter):
+        """Return a list of all handles for messages that were inserted into
+           the queue before 'notAfter'."""
         self.loadMetadata()
         result = []
         for h in self.store.getAllMessages():
@@ -734,7 +736,18 @@ class ClientQueue:
 
     def getHandlesByDestAndAge(self, destList, directory, notAfter=None,
                                warnUnused=1):
-        """DOCDOC destset: set of hostnames, ips, or keyids"""
+        """Return a list of handles for all messages queued for servers in a
+           given list before a given date.
+
+              destList -- A list of hostnames, ips, keyids, or nicknames
+                for servers whose messages should be included in the result.
+              directory -- An instance of ClientDirectory used to resolve
+                nicknames.  This may be None if no nicknames are included.
+              notAfter -- If provided, a time such that no messages queued
+                later should be included
+              warnUnused -- If true, we log a message for every element in
+                destList that has no matching messages in the queue.
+        """
         destSet = {}
         reverse = {}
         for d in destList:
@@ -860,26 +873,34 @@ class ClientQueue:
 # ----------------------------------------------------------------------
 
 class ClientFragmentPool:
-    """DOCDOC"""
+    """Wrapper around FragmentPool to provide a good interface for client-side
+       fragment reassembly."""
     def __init__(self, directory):
+        """Create a new FragmentPool storing its messages in 'directory'."""
         createPrivateDir(directory)
         self.dir = directory
         self.pool = None
 
     def __getPool(self):
+        """Helper: initialize self.pool and return it."""
         if self.pool is None:
             import mixminion.Fragments
             self.pool = mixminion.Fragments.FragmentPool(self.dir)
         return self.pool
 
     def close(self):
+        """Finalize self.pool."""
         if self.pool is not None:
             self.pool.close()
             self.pool = None
 
     def addFragment(self, fragment, nym=None):
-        """fragment is instance of fragmentPayload or is a string payload
-           DOCDOC"""
+        """Add a fragment to the pool, logging appropriate messages.  Return
+           the messageID which was updated, if any.
+
+             fragment -- an instance of FragmentPayload or a string payload.
+             nym -- the identity which received this message.
+        """
         pool = self.__getPool()
         if isinstance(fragment, types.StringType):
             try:
@@ -892,20 +913,24 @@ class ClientFragmentPool:
         assert isinstance(fragment, mixminion.Packet.FragmentPayload)
 
         r = pool.addFragment(fragment, nym=nym, verbose=1)
-        pool.unchunkMessages(); print "UNCHUNK"
         return r
 
     def process(self):
+        """Unchunk any messages that are ready for reassembly."""
         pool = self.__getPool()
         pool.unchunkMessages()
         pool.cleanQueue()
 
     def expireMessages(self, cutoff):
+        """Clean up any stale fragments from the pool that have been there
+           since before 'cutoff'."""
         pool = self.__getPool()
         pool.expireMessages(cutoff)
         self.cleanQueue()
 
     def getMessage(self, msgid):
+        """Return the string value of the reassembled message with ID 'msgid',
+           or raise an error explaining why we can't."""
         pool = self.__getPool()
         state = pool.getStateByMsgID(msgid)
         msg = pool.getReadyMessage(state.messageid)
@@ -921,10 +946,13 @@ class ClientFragmentPool:
                                 %msgid)
 
     def removeMessages(self, msgids):
+        """Remove all the messages whose IDs are in the list 'msgIDs'.  If the
+           messages were reassembled, mark them as 'COMPLETED'; else mark them
+           as 'REJECTED'."""
         pool = self.__getPool()
         idSet = {}
         for i in msgids:
-            state = pool.getStateByMsgID(i) 
+            state = pool.getStateByMsgID(i)
             if state is None:
                 raise UIError("No such message as %s")
             idSet[state.messageid] = 1
@@ -932,10 +960,13 @@ class ClientFragmentPool:
         pool.cleanQueue()
 
     def listMessages(self):
+        """Return a list of pretty-printed IDs for the messages in the pool."""
         pool = self.__getPool()
         return pool.listMessages()
 
     def formatMessageList(self):
+        """Return a list of strings suitable for display explaining the status
+           of the messages in the pool, sorted by pretty-printed ID."""
         msgs = self.listMessages()
         result = []
         msgids = msgs.keys()

@@ -86,7 +86,7 @@ def getIP(name, preferIP4=PREFER_INET4):
        found.
     """
     _,haveIP6 = getProtocolSupport()
-    if not haveIP6: haveIP4 = 1 
+    if not haveIP6: haveIP4 = 1
     try:
         r = getIPs(name)
         inet4 = [ addr for addr in r if addr[0] == AF_INET ]
@@ -95,7 +95,7 @@ def getIP(name, preferIP4=PREFER_INET4):
             LOG.warn("getIP returned no inet addresses for %r",name)
             return ("NOENT", "No inet addresses returned", time.time())
         if inet6 and not inet4 and not haveIP6:
-            return ("NOENT", 
+            return ("NOENT",
                  "All addresses were IPv6, and this host has no IPv6 support",
                  time.time())
         best4=best6=None

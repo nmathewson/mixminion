@@ -1376,7 +1376,8 @@ class ExitAddress:
         nickname = desc.getNickname()
 
         if self.headers:
-            #XXXX008 remove this eventually.
+            #XXXX007 remove this eventually, once all servers have upgraded
+            #XXXX007 to 0.0.6 or later.
             sware = desc['Server'].get("Software","")
             if (sware.startswith("Mixminion 0.0.4") or
                 sware.startswith("Mixminion 0.0.5alpha1")):
@@ -1473,7 +1474,9 @@ class ExitAddress:
         return rt, ri, self.lastHop
 
     def suppressTag(self):
-        """DOCDOC"""
+        """Return true iff we should suppress the decoding handle when
+           generating packets for this address.
+        """
         if self.isSSFragmented:
             return 1
         elif self.exitType == 'drop':
@@ -1683,22 +1686,15 @@ class PathSpecifier:
             return "%s:%s"%(",".join(p1s), ",".join(p2s))
 
 #----------------------------------------------------------------------
-WARN_STAR = 1 #XXXX007 remove
-
-def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
-              defaultNHops=None):
+def parsePath(config, path, isReply=0, isSURB=0):
     """Resolve a path as specified on the command line.  Returns a
        PathSpecifier object.
 
        config -- unused for now.
-       path -- the path, in a format described below.  If the path is
-          None, all servers are chosen as if the path were '*<nHops>'.
-       nHops -- the number of hops to use.  Defaults to defaultNHops.
+       path -- the path, in a format described below.
        startAt/endAt -- A time range during which all servers must be valid.
-       isSURB -- Boolean: is this a path for a reply block?
        isReply -- Boolean: is this a path for a reply?
-       defaultNHops -- The default path length to use when we encounter a
-          wildcard in the path.  Defaults to 6.
+       isSURB -- Boolean: is this a path for a reply block?
 
        Paths are ordinarily comma-separated lists of server nicknames or
        server descriptor filenames, as in:
@@ -1730,8 +1726,6 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
        star on the path, nHops must be >= the path length.
     """
     halfPath = isReply or isSURB
-    if not path:
-        path = "*%d"%(nHops or defaultNHops or 6)
     # Break path into a list of entries of the form:
     #        string
     #     or "<swap>"
@@ -1776,32 +1770,15 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
         elif re.match(r'\~(\d+)', ent):
             pathEntries.append(RandomServersPathElement(approx=int(ent[1:])))
         elif ent == '*':
-            pathEntries.append("*")
+            #XXXX008 remove entirely; we gave a warning in 0.0.6 and
+            #XXXX008 stopped supporting it in 0.0.7.
+            raise UIError("* without a number is no longer supported.")
         elif ent == '<swap>':
             pathEntries.append("<swap>")
         elif ent == '?':
             pathEntries.append(RandomServersPathElement(n=1))
         else:
             pathEntries.append(ServerPathElement(ent))
-
-    # If there's a variable-length wildcard...
-    if "*" in pathEntries:
-        # Find out where it is...
-        starPos = pathEntries.index("*")
-        if "*" in pathEntries[starPos+1:]:
-            raise UIError("Only one '*' is permitted in a single path")
-        # Figure out how many hops we expect to have...
-        approxHops = reduce(operator.add,
-                            [ ent.getAvgLength() for ent in pathEntries
-                              if ent not in ("*", "<swap>") ], 0)
-        # Replace the '*' with the number of additional hops we want.
-        myNHops = nHops or defaultNHops or 6
-        extraHops = max(myNHops-approxHops, 0)
-        pathEntries[starPos:starPos+1] =[RandomServersPathElement(n=extraHops)]
-
-        if WARN_STAR:
-            LOG.warn("'*' without a number is deprecated.  Try '*%d' instead.",
-                     extraHops)
 
     # Figure out how long the first leg should be.
     lateSplit = 0

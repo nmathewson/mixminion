@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.78 2004/03/02 05:40:14 nickm Exp $
+# $Id: Config.py,v 1.79 2004/03/06 00:04:37 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -363,7 +363,8 @@ def _parsePublicKey(s):
         raise ConfigError("Invalid exponent on public key")
     return key
 
-# FFFF007/8 stop accepting YYYY/MM/DD
+# FFFF008 stop accepting YYYY/MM/DD.  We've generated the right thing
+# FFFF008 since 0.0.6.
 # Regular expression to match YYYY/MM/DD or YYYY-MM-DD
 _date_re = re.compile(r"^(\d\d\d\d)([/-])(\d\d)([/-])(\d\d)$")
 def _parseDate(s):
@@ -383,7 +384,7 @@ def _parseDate(s):
         raise ConfigError("Invalid date %r"%s)
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
-# FFFF007/8 stop accepting YYYY/MM/DD
+# FFFF008 stop accepting YYYY/MM/DD
 # Regular expression to match YYYY/MM/DD HH:MM:SS
 _time_re = re.compile(r"^(\d\d\d\d)([/-])(\d\d)([/-])(\d\d)\s+"
                       r"(\d\d):(\d\d):(\d\d)((?:\.\d\d\d)?)$")
@@ -978,14 +979,11 @@ class ClientConfig(_ConfigFile):
                      'MaxSkew' : ('ALLOW', "interval", "10 minutes"),
                      'DirectoryTimeout' : ('ALLOW', "interval", "1 minute") },
         'User' : { 'UserDir' : ('ALLOW', "filename", DEFAULT_USER_DIR) },
-        'Security' : { 'PathLength' : ('ALLOW', "int", "8"),
-                       'SURBAddress' : ('ALLOW', None, None),
-                       'SURBPathLength' : ('ALLOW', "int", "4"),
+        'Security' : { 'SURBAddress' : ('ALLOW', None, None),
                        'SURBLifetime' : ('ALLOW', "interval", "7 days"),
                        'ForwardPath' : ('ALLOW', None, "*6"),
                        'ReplyPath' : ('ALLOW', None, "*4"),
                        'SURBPath' : ('ALLOW', None, "*4"),
-                       #DOCDOC and add to .mixminionrc
                        'BlockServers' : ('ALLOW*', 'list', ""),
                        'BlockEntries' : ('ALLOW*', 'list', ""),
                        'BlockExits' : ('ALLOW*', 'list', ""),
@@ -1013,12 +1011,6 @@ class ClientConfig(_ConfigFile):
         _validateHostSection(self['Host'])
 
         security = self['Security']
-        p = security.get('PathLength', 8)
-        if not 0 < p <= 16:
-            raise ConfigError("Path length must be between 1 and 16")
-        if p < 4:
-            LOG.warn("Your default path length is frighteningly low."
-                          "  I'll trust that you know what you're doing.")
 
         t = self['Network'].get('ConnectionTimeout')
         if t:

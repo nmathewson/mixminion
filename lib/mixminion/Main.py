@@ -1,6 +1,6 @@
 #!/usr/bin/python2
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.71 2004/03/02 07:06:14 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Main.py,v 1.72 2004/03/06 00:04:38 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -197,7 +197,7 @@ _SERVER_USAGE = (
 def printVersion(cmd,args):
     import mixminion
     print "Mixminion version %s" % mixminion.__version__
-    print ("Copyright 2002-2003 Nick Mathewson.  "+
+    print ("Copyright 2002-2004 Nick Mathewson.  "+
            "See LICENSE for licensing information.")
     print "NOTE: This software is for testing only.  The user set is too small"
     print "      to be anonymous, and the code is too alpha to be reliable."
@@ -285,7 +285,7 @@ def commandShell(cmd,args):
             print "Interrupted."
 
 def getUIError():
-    """DOCDOC"""
+    """Return the UIError class from mixminion.Common"""
     commonModule = __import__('mixminion.Common', {}, {}, ['UIError'])
     return commonModule.UIError
 

@@ -77,7 +77,8 @@ class ClientKeyring:
             passwordManager = mixminion.ClientUtils.CLIPasswordManager()
         createPrivateDir(keyDir)
 
-        # XXXX008 remove this.
+        # XXXX008 remove this; we haven't used the old format since 0.0.5.
+
         # We used to store our keys in a different format.  At this point,
         # it's easier to change the filename.
         obsoleteFn = os.path.join(keyDir, "keyring")
@@ -179,6 +180,15 @@ DirectoryTimeout: 1 minute
 #ReplyPath: ?,?,?,FavoriteSwap
 ## For reply blocks
 #SURBPath: ?,?,?,FavoriteExit
+
+### If there are servers that you never want to include in automatically
+### generated paths, you can list them here.
+## These servers will never begin a path:
+#BlockEntries: example1,example2
+## These servers will never end a path:
+#BlockExits: example3,example4
+## These servers will never appear in a path at all:
+#BlockServers: example5,example6,example7
 
 [Network]
 ConnectionTimeout: 60 seconds
@@ -538,10 +548,9 @@ class MixminionClient:
 
     def flushQueue(self, maxPackets=None, handles=None):
         """Try to send packets in the queue to their destinations.  Do not try
-           to send more than maxPackets packets.  If not all packets will be
-           sent, choose the ones to try at random.
-
-           DOCDOC nicknames
+           to send more than maxPackets packets.  If 'handles' is provided,
+           try only to send the packets whose handles are listed in 'handles;
+           otherwise, choose the ones to try at random.
         """
         #XXXX write unit tests
         class PacketProxy:
@@ -658,6 +667,7 @@ class MixminionClient:
 
             if not msg.isEncrypted():
                 if msg.isFragment():
+                    foundAFragment = 1
                     self.pool.addFragment(msg.getContents(), "---")
                 else:
                     results.append(msg.getContents())
@@ -677,6 +687,7 @@ class MixminionClient:
                     if p.isSingleton():
                         results.append(p.getUncompressedContents())
                     else:
+                        foundAFragment = 1
                         self.pool.addFragment(p,nym)
                 else:
                     raise UIError("Unable to decode message")
@@ -684,6 +695,8 @@ class MixminionClient:
             for p in results:
                 if not isPrintingAscii(p,allowISO=1):
                     raise UIError("Not writing binary message to terminal: Use -F to do it anyway.")
+        if foundAFragment:
+            self.pool.process()
         return results
 
 def readConfigFile(configFile):
@@ -766,7 +779,7 @@ class CLIArgumentParser:
     #  nHops: number of hops, or None.
     #  address: exit address, or None.
     #  lifetime: SURB lifetime, or None.
-    #  replyBlockFiles: list of SURB filenames. DOCDOC
+    #  replyBlockSources: list of SURB filenames (string), or SURB fds (int).
     #  configFile: Filename of configuration file, or None.
     #  forceQueue: true if "--queue" is set.
     #  forceNoQueue: true if "--no-queue" is set.
@@ -827,7 +840,7 @@ class CLIArgumentParser:
         self.nHops = None
         self.exitAddress = None
         self.lifetime = None
-        self.replyBlockSources = [] #DOCDOC int is fd, str is filename
+        self.replyBlockSources = []
 
         self.forceQueue = None
         self.forceNoQueue = None
@@ -897,7 +910,6 @@ class CLIArgumentParser:
                 except ValueError:
                     raise UsageError("%s expects an integer"%o)
             elif o in ('--passphrase-fd',):
-                #DOCDOC
                 try:
                     self.password_fileno = int(v)
                 except ValueError:
@@ -1024,15 +1036,12 @@ class CLIArgumentParser:
         isSURB = isReply = 0
         if self.wantReplyPath:
             p = 'SURBPath'; isSURB = 1
-            defHops = self.config['Security'].get("SURBPathLength", 4)
         elif useRB:
             p = 'ReplyPath'; isReply = 1
-            defHops = self.config['Security'].get("PathLength", 6)
         else:
             p = 'ForwardPath'
-            defHops = self.config['Security'].get("PathLength", 6)
         if self.path is None:
-            self.path = self.config['Security'].get(p, "*")
+            self.path = self.config['Security'].get(p, "*5")
 
         if isSURB:
             if self.lifetime is not None:
@@ -1046,8 +1055,7 @@ class CLIArgumentParser:
         self.endAt = previousMidnight(self.startAt+duration)
 
         self.pathSpec = mixminion.ClientDirectory.parsePath(
-            self.config, self.path, self.nHops, isReply=isReply, isSURB=isSURB,
-            defaultNHops=defHops)
+            self.config, self.path, isReply=isReply, isSURB=isSURB)
         self.directory.validatePath(self.pathSpec, self.exitAddress,
                                     self.startAt, self.endAt)
 
@@ -1078,7 +1086,7 @@ Options:
                              packet, then deliver multiple fragmented packets
                              to the recipient instead of having the server
                              reassemble the message.
-  --reply-block-fd=<N>       DOCDOC
+  --reply-block-fd=<N>       Read reply blcoks from file descriptor <N>.
 %(extra)s
 
 EXAMPLES:
@@ -1775,7 +1783,7 @@ def inspectSURBs(cmd, args):
         surblog.close()
 
 _FLUSH_QUEUE_USAGE = """\
-Usage: %(cmd)s [options]
+Usage: %(cmd)s [options] [servername] ...
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
@@ -1785,7 +1793,12 @@ Usage: %(cmd)s [options]
 EXAMPLES:
   Try to send all currently queued packets.
       %(cmd)s
-DOCDOC
+  Try to send at most 10 currently queued packets, chosen at random.
+      %(cmd)s -n 10
+  Try to send all currently queued packets for the server named 'Example1', or
+  for the server whose hostname is 'minion.example.com'.
+      %(cmd)s Example1 minion.example.com
+
 """.strip()
 
 def flushQueue(cmd, args):
@@ -1830,7 +1843,8 @@ Usage: %(cmd)s  [options] [servername...]
 EXAMPLES:
   Remove all pending packets older than one week.
       %(cmd)s -d 7
-DOCDODC
+  Remove all pending packets for the server 'Example1'.
+      %(cmd)s Example1
 """.strip()
 
 def cleanQueue(cmd, args):

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.74 2004/02/21 00:02:09 nickm Exp $
+# $Id: Packet.py,v 1.75 2004/03/06 00:04:38 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -198,9 +198,11 @@ class Subheader:
 
     def getExitAddress(self, tagged=1):
         """Return the part of the routingInfo that contains the delivery
-           address.  (Requires that routingType is an exit type.)"""
+           address.  (Requires that routingType is an exit type.)  If
+           'tagged' is true, ignore the first TAG_LEN bytes of the
+           routingInfo.
+        """
         assert self.routingtype >= MIN_EXIT_TYPE
-        #XXXX007 This interface is completely insane.  Change it.
         if not tagged:
             return self.routinginfo
         else:
@@ -591,7 +593,7 @@ class IPV4Info:
 
        Fields: ip (a dotted quad string), port (an int from 0..65535),
        and keyinfo (a digest)."""
-    #XXXX007/8 phase this out.
+    #XXXX008 phase this out: we have supported hostnames since 0.0.6.
     def __init__(self, ip, port, keyinfo):
         """Construct a new IPV4Info"""
         assert 0 <= port <= 65535
@@ -996,7 +998,7 @@ def _validateZlib():
 
     _ZLIB_LIBRARY_OK = 0.5
     if ver in ("1.1.2", "1.1.3", "1.1.4", "1.2.0", "1.2.0.1", "1.2.0.2",
-               "1.2.0.3", "1.2.0.4", "1.2.0.5", "1.2.0.6", "1.2.0.7", 
+               "1.2.0.3", "1.2.0.4", "1.2.0.5", "1.2.0.6", "1.2.0.7",
                "1.2.0.8", "1.2.1"):
         _ZLIB_LIBRARY_OK = 1
         return

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.71 2004/02/21 00:02:09 nickm Exp $
+# $Id: BuildMessage.py,v 1.72 2004/03/06 00:04:37 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -99,10 +99,10 @@ def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
             path2: Sequence of ServerInfo objects for the 2nd leg of the path
             paddingPRNG: random number generator used to generate padding.
                   If None, a new PRNG is initialized.
+            suppressTag: if true, do not include a decodind handle in the
+                  routingInfo for this packet.
 
         Neither path1 nor path2 may be empty.  If one is, MixError is raised.
-
-        suppressTag DOCDOC
     """
     if paddingPRNG is None:
         paddingPRNG = Crypto.getCommonPRNG()
@@ -257,6 +257,7 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
 
     # XXXX007 switch to Host info.  We need to use IPV4 for reply blocks
     # XXXX007 for now, since we don't know which servers will support HOST.
+    # XXXX007    (Do this after all hosts have upgraded to 0.0.6 or later.)
     return ReplyBlock(header, expiryTime,
                       SWAP_FWD_IPV4_TYPE,
                       path[0].getIPV4Info().pack(), sharedKey), secrets, tag
@@ -301,11 +302,11 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
 def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0,
                     suppressTag=0):
     """Given two path legs, an exit type and an exitInfo, raise an error
-       if we can't build a hop with the provided legs.
+       if we can't build a hop with the provided legs.  If suppressTag is
+       true, no decoding handle will be included.
 
        The leg "path1" may be null.
-
-       DOCDOC suppressTag"""
+    """
     err = 0 # 0: no error. 1: 1st leg too big. 2: 1st leg okay, 2nd too big.
     if path1 is not None:
         try:

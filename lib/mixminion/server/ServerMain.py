@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.119 2004/03/01 06:54:54 nickm Exp $
+# $Id: ServerMain.py,v 1.120 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -441,7 +441,7 @@ class CleaningThread(threading.Thread):
                         fnames.extend(more)
                 except QueueEmpty:
                     pass
-                   
+
                 delNames = []
                 for fn in fnames:
                     if os.path.exists(fn):
@@ -669,17 +669,6 @@ class MixminionServer(_Scheduler):
             # If we reach this point, the homedir is uninitialized.
             writeFile(os.path.join(homeDir, "version"),
                       SERVER_HOMEDIR_VERSION, 0644)
-
-        # Obsolete lock file.
-        #XXXX007: remove this check.
-        lockFname = os.path.join(homeDir, "lock")
-        if os.path.exists(lockFname):
-            lf = Lockfile(lockFname)
-            try:
-                lf.acquire()
-                lf.release()
-            except LockfileLocked:
-                raise UIError("Another (older) server seems to be running")
 
         # The pid/lock file.
         self.pidFile = config.getPidFile()
@@ -1106,7 +1095,7 @@ def configFromServerArgs(cmd, args, usage):
         _ECHO_OPT = 1
     elif _QUIET_OPT:
         # Don't even say we're silencing the log.
-        mixminion.Common.LOG.silenceNoted = 1 
+        mixminion.Common.LOG.silenceNoted = 1
         config['Server']['EchoMessages'] = 0
     if forceDaemon is not None:
         config['Server']['Daemon'] = forceDaemon

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.65 2004/01/27 05:15:38 nickm Exp $
+# $Id: ServerKeys.py,v 1.66 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -969,7 +969,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     mmtpProtocolsIn = ",".join(mmtpProtocolsIn)
     mmtpProtocolsOut = ",".join(mmtpProtocolsOut)
 
-    #XXXX007 remove
+    #XXXX008 remove: hasn't been needed since 0.0.5.
     identityKeyID = formatBase64(
                       mixminion.Crypto.sha1(
                           mixminion.Crypto.pk_encode_public_key(identityKey)))
@@ -996,7 +996,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         }
 
     # If we don't know our IP address, try to guess
-    if fields['IP'] == '0.0.0.0': #XXXX007 remove
+    if fields['IP'] == '0.0.0.0': #XXXX008 remove; not needed since 005.
         try:
             fields['IP'] = _guessLocalIP()
             LOG.warn("No IP configured; guessing %s",fields['IP'])

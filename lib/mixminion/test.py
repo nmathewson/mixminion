@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.188 2004/03/02 18:52:24 nickm Exp $
+# $Id: test.py,v 1.189 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.tests
 
@@ -6076,7 +6076,7 @@ class DNSFarmTests(TestCase):
                          'bar'    : '18:0FFF::4:1',
                          'baz.com': '10.99.22.8'},
                         delay=DELAY)
-            # Override getProtocolSupport so we don't convert IPv6 addrs to 
+            # Override getProtocolSupport so we don't convert IPv6 addrs to
             # an error if we're running on a host with no IPv6 support.
             mixminion.NetUtils._PROTOCOL_SUPPORT = (1,1)
 
@@ -6809,13 +6809,13 @@ class ClientDirectoryTests(TestCase):
         self.assertEquals(3, s.count("Only one relay known"))
 
         # wrap path parsing and verification and generation.
-        def ppath(dir, cfg, path, addr, nHops=None, startAt=None, endAt=None,
-                  halfPath=0, defaultNHops=None, nPaths=1):
+        def ppath(dir, cfg, path, addr, startAt=None, endAt=None,
+                  halfPath=0, nPaths=1):
             isReply = halfPath and (addr is None)
             isSURB = halfPath and (addr is not None)
             pathSpec = mixminion.ClientDirectory.parsePath(
-                cfg, path, nHops=nHops, isReply=isReply,
-                isSURB=isSURB, defaultNHops=defaultNHops)
+                cfg, path, isReply=isReply,
+                isSURB=isSURB)
             dir.validatePath(pathSpec, addr, startAt=startAt, endAt=endAt)
             paths = dir.generatePaths(nPaths, pathSpec, addr, startAt, endAt)
             if nPaths == 1:
@@ -6823,9 +6823,6 @@ class ClientDirectoryTests(TestCase):
                 return paths[0]
             else:
                 return paths
-
-        #XXXX008a remove
-        mixminion.ClientDirectory.WARN_STAR = 0
 
         paddr = mixminion.ClientDirectory.parseAddress
         email = paddr("smtp:lloyd@dobler.com")
@@ -6865,7 +6862,7 @@ class ClientDirectoryTests(TestCase):
         fredfile = os.path.join(impdirname, "Fred1")
         p1,p2 = ppath(ks, None, "Alice,%r,Bob,Joe"%fredfile, email)
         pathIs((p1,p2), ((alice,fred),(bob,joe)))
-        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola,Joe", email, nHops=5)
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola,Joe", email)
         pathIs((p1,p2), ((alice,fred,bob),(lola,joe)))
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob", mboxWithServer)
         pathIs((p1,p2), ((alice,fred),(bob,lola)))
@@ -6899,83 +6896,31 @@ class ClientDirectoryTests(TestCase):
         p1,p2 = ppath(ks, None, "Alice,Bob,?:Joe", email)
         eq((len(p1),len(p2)), (3,1))
         pathIs((p1[:-1],p2), ((alice,bob),(joe,)))
-        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email, nHops=4)
+        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email)
         pathIs((p1,p2), ((alice,bob,fred),(joe,)))
         p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", mboxWithServer)
         pathIs((p1,p2), ((alice,bob,fred),(joe,lola)))
         p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Lola", mboxWithoutServer)
         pathIs((p1,p2), ((alice,bob,fred),(lola,)))
 
-        # 1c. Star, no colon
-        p1,p2 = ppath(ks, None, 'Alice,*,Joe', email, nHops=5)
-        pathIs((p1[0],p2[-1]), (alice, joe))
-        eq((len(p1),len(p2)), (3,2))
-
-        p1,p2 = ppath(ks, None, 'Alice,Bob,*,Joe', email, nHops=6)
-        pathIs((p1[0],p1[1],p2[-1]), (alice, bob, joe))
-        eq((len(p1),len(p2)), (3,3))
-
-        p1,p2 = ppath(ks, None, 'Alice,Bob,*', email, nHops=6)
-        pathIs((p1[0],p1[1],p2[-1]), (alice, bob, joe))
-        eq((len(p1),len(p2)), (3,3))
-
-        p1,p2 = ppath(ks, None, '*,Bob,Joe', email) #default nHops=6
-        pathIs((p2[-2],p2[-1]), (bob, joe))
-        eq((len(p1),len(p2)), (3,3))
-
-        p1,p2 = ppath(ks, None, 'Bob,*,Alice', mboxWithServer, nHops=5)
-        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
-        eq((len(p1),len(p2)), (3,3))
-
-        p1,p2 = ppath(ks, None, 'Bob,*,Alice,Lola', mboxWithoutServer)
-        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
-        eq((len(p1),len(p2)), (3,3))
-
-        # 1d. Star and colon
-        p1,p2 = ppath(ks, None, 'Bob:*,Alice', mboxWithServer, nHops=5)
-        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
-        eq((len(p1),len(p2)), (1,5))
-
-        p1,p2 = ppath(ks, None, 'Bob,*:Alice', mboxWithServer, nHops=5)
-        pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
-        eq((len(p1),len(p2)), (4,2))
-
-        p1,p2 = ppath(ks, None, 'Bob,*,Joe:Alice', mboxWithServer, nHops=5)
-        pathIs((p1[0],p1[-1],p2[-2],p2[-1]), (bob, joe, alice, lola))
-        eq((len(p1),len(p2)), (4,2))
-
-        p1,p2 = ppath(ks, None, 'Bob,*,Lola:Alice,Joe', email)
-        pathIs((p1[0],p1[-1],p2[-2],p2[-1]), (bob, lola, alice, joe))
-        eq((len(p1),len(p2)), (4,2))
-
-        p1,p2 = ppath(ks, None, '*,Lola:Alice,Joe', email)
-        pathIs((p1[-1],p2[-2],p2[-1]), (lola, alice, joe))
-        eq((len(p1),len(p2)), (4,2))
-
-        p1,p2 = ppath(ks, None, 'Lola:Alice,*', email)
-        pathIs((p1[0],p2[0],p2[-1]), (lola, alice, joe))
-        eq((len(p1),len(p2)), (1,5))
-
-        p1,p2 = ppath(ks, None, 'Bob:Alice,*', mboxWithServer, nHops=5)
-        pathIs((p1[0],p2[0],p2[-1]), (bob, alice, lola))
-        eq((len(p1),len(p2)), (1,5))
+        # 1c, 1c':  Stars, no longer used.
 
         # 1d'. Tilde
         p1,p2 = ppath(ks, None, '~2', email)
         self.assert_(p1 and p2)
-        p1,p2 = ppath(ks, None, '?,~4,Bob,Joe', email) #default nHops=6
+        p1,p2 = ppath(ks, None, '?,~4,Bob,Joe', email)
         p = p1+p2
         pathIs((p2[-1], p2[-2],), (joe, bob))
         total = 0
         for _ in xrange(1000):
-            p1,p2 = ppath(ks, None, '~2,Bob,Joe', email) #default nHops=6
+            p1,p2 = ppath(ks, None, '~2,Bob,Joe', email)
             total += len(p1+p2)
         self.assert_(3.4 <= total/1000.0 <= 4.6)
 
         # 1e. Complex.
         try:
             suspendLog()
-            p1,p2 = ppath(ks, None, '?,Bob,*:Joe,*2,Joe', email, nHops=9)
+            p1,p2 = ppath(ks, None, '?,Bob,*3:Joe,*2,Joe', email)
         finally:
             resumeLog()
         pathIs((p1[1],p2[0],p2[-1]), (bob, joe, joe))
@@ -6998,16 +6943,16 @@ class ClientDirectoryTests(TestCase):
         # 2. Failing cases
         raises = self.assertRaises
         # Nonexistent server
-        raises(MixError, ppath, ks, None, "Pierre:Alice,*", email)
+        raises(MixError, ppath, ks, None, "Pierre:Alice,*2", email)
         # Two swap points
         raises(MixError, ppath, ks, None, "Alice:Bob:Joe", email)
         # Last hop doesn't support exit type
         raises(MixError, ppath, ks, None, "Alice:Bob,Fred", email)
         raises(MixError, ppath, ks, None, "Alice:Bob,Fred", mboxWithoutServer)
-        # Two stars.
-        raises(MixError, ppath, ks, None, "Alice,*,Bob,*,Joe", email)
+        # Old star syntax.
+        raises(MixError, ppath, ks, None, "Alice,*,Bob,Joe", email)
         # Nonexistent file
-        raises(MixError, ppath, ks, None, "./Pierre:Alice,*", email)
+        raises(MixError, ppath, ks, None, "./Pierre:Alice,*2", email)
 
         ## Try 'expungeByNickname'.
         # Zapping 'Lisa' does nothing, since she's in the directory...

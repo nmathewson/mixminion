@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.51 2004/02/07 06:56:45 nickm Exp $
+# $Id: ServerConfig.py,v 1.52 2004/03/06 00:04:38 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -359,7 +359,8 @@ SERVER_SYNTAX =  {
                                             "10 minutes",) },
         # FFFF Generic multi-port listen/publish options.
         'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', "boolean", "no"),
-                            #XXXX007/8 deprecate or remove IP.
+                            #XXXX008 deprecate or remove IP: hasn't been
+                            #XXXX008 needed since 0.0.5.
                             'IP' : ('ALLOW', "IP", "0.0.0.0"),
                           'Hostname' : ('ALLOW', "host", None),
                           'Port' : ('ALLOW', "int", "48099"),

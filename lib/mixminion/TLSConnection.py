@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.13 2004/02/16 22:50:38 nickm Exp $
+# $Id: TLSConnection.py,v 1.14 2004/03/06 00:04:38 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -401,7 +401,7 @@ class TLSConnection:
                     return cap
                 else:
                     # We got some data; add it to the inbuf.
-                    LOG.trace("Read got %s bytes from %s", 
+                    LOG.trace("Read got %s bytes from %s",
                               len(s), self.address)
                     self.inbuf.append(s)
                     self.inbuflen += len(s)

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.55 2004/02/16 22:50:38 nickm Exp $
+# $Id: MMTPClient.py,v 1.56 2004/03/06 00:04:38 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -113,7 +113,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
                 raise e
 
         tls = context.sock(sock)
-        mixminion.TLSConnection.TLSConnection.__init__(self, tls, sock, 
+        mixminion.TLSConnection.TLSConnection.__init__(self, tls, sock,
                                                        serverName)
 
         if targetKeyID != '\x00' * 20:

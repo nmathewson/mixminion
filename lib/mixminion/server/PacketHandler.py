@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.36 2004/02/21 00:02:09 nickm Exp $
+# $Id: PacketHandler.py,v 1.37 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -304,10 +304,13 @@ class DeliveryPacket:
         self.isfrag = 0
         self.dPayload = None
         self.error = None
-        self.hasTag = 0 # XXXX007 DOCDOC
 
     def setTagged(self,tagged=1):
-        self.hasTag=tagged
+        """Re-frame the routingInfo in this packet. If 'tagged' is true,
+           then the routingInfo starts with TAG_LEN bytes of decoding
+           handle, and the rest is address.  If 'tagged' is false, then
+           it's all address.
+        """
         x = self.tag+self.address
         if tagged:
             if len(x)<Packet.TAG_LEN:
@@ -322,22 +325,14 @@ class DeliveryPacket:
         return "V0", self.__dict__
 
     def __setstate__(self, state):
-        if type(state) == types.DictType:
-            #XXXX007 remove this case.  (Not used since 0.0.5alpha)
-            LOG.warn("Found ancient packet format.")
-            self.__dict__.update(state)
-            if not hasattr(self, 'isfrag'):
-                self.isfrag = 0
-            if not hasattr(self, 'dPayload'):
-                self.dPayload = None
-            if not hasattr(self, 'error'):
-                self.error = None
-            if not hasattr(self, 'headers'):
-                self.headers = {}
-        elif state[0] == 'V0':
-            self.__dict__.update(state[1])
+        if type(state) == types.TupleType:
+            if state[0] == 'V0':
+                self.__dict__.update(state[1])
+            else:
+                raise MixError("Unrecognized state version %s" % state[0])
         else:
-            raise MixError("Unrecognized state version %s" % state[0])
+            raise MixError("Unrecognized state type %s"% type(state))
+
 
     def isDelivery(self):
         """Return true iff this packet is a delivery (non-relay) packet."""

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.81 2004/02/07 17:52:49 nickm Exp $
+# $Id: ServerInfo.py,v 1.82 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -123,13 +123,15 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Published": ("REQUIRE", "time", None),
                      "Valid-After": ("REQUIRE", "date", None),
                      "Valid-Until": ("REQUIRE", "date", None),
-                     #XXXX008 change this to 'require'.
+                     #XXXX008 change this to 'require': servers have all
+                     #XXXX008 had it since 007.
                      "Contact": ("ALLOW", None, None),
                      "Comments": ("ALLOW", None, None),
                      "Packet-Key": ("REQUIRE", "publicKey", None),
                      "Contact-Fingerprint": ("ALLOW", None, None),
-                     "Packet-Formats": ("ALLOW", None, None),#XXXX007 remove
-                     # XXXX008 change these next few to "REQUIRE".
+                     "Packet-Formats": ("ALLOW", None, None),#XXXX008 remove
+                     # XXXX008 change these next few to "REQUIRE"; servers
+                     # XXXX008 have had them all since 0.0.5
                      "Packet-Versions": ("ALLOW", "list", '0.3'),
                      "Software": ("ALLOW", None, None),
                      "Secure-Configuration": ("ALLOW", "boolean", None),
@@ -137,10 +139,10 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     "IP": ("ALLOW", "IP", None),#XXXX007/8 remove
-                     "Hostname": ("ALLOW", "host", None),#XXXX008 require
+                     "IP": ("ALLOW", "IP", None),#XXXX008 remove
+                     "Hostname": ("ALLOW", "host", None),#XXXX008 require;since 0.0.6
                      "Port": ("REQUIRE", "int", None),
-                     "Key-Digest": ("ALLOW", "base64", None),#XXXX007/8 rmv
+                     "Key-Digest": ("ALLOW", "base64", None),#XXXX008 rmv; not used since 0.0.5
                      "Protocols": ("REQUIRE", "list", None),
                      "Allow": ("ALLOW*", "addressSet_allow", None),
                      "Deny": ("ALLOW*", "addressSet_deny", None),
@@ -153,14 +155,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Delivery/MBOX" : {
                      "Version": ("REQUIRE", None, None),
-                     # XXXX007 change to 'REQUIRE'
+                     # XXXX008 change to 'REQUIRE'; since 0.0.6
                      "Maximum-Size": ("ALLOW", "int", "32"),
-                     # XXXX007 change to 'REQUIRE'
+                     # XXXX008 change to 'REQUIRE'; since 0.0.6
                      "Allow-From": ("ALLOW", "boolean", "yes"),
                      },
         "Delivery/SMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     # XXXX007 change to 'REQUIRE'
+                     # XXXX008 change to 'REQUIRE'; since 0.0.6
                      "Maximum-Size": ("ALLOW", "int", "32"),
                      "Allow-From": ("ALLOW", "boolean", "yes"),
                      },
@@ -321,10 +323,6 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def getHostname(self):
         """Return this server's Hostname. (Returns None for servers running
            version 0.0.5 or earlier.)"""
-        #XXXX006 remove this.  0.0.6alpha1 could crash when it got hostnames.
-        #XXXX006 Sadly, some people installed it anyway.
-        if self['Server'].get("Software","").endswith("0.0.6alpha1"):
-            return None
         return self['Incoming/MMTP'].get("Hostname")
 
     def getPort(self):

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.72 2004/02/25 06:03:11 nickm Exp $
+# $Id: Modules.py,v 1.73 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -66,7 +66,10 @@ class DeliveryModule:
         pass
 
     def usesDecodingHandle(self):
-        """DOCDOC"""
+        """Return true iff this module expects to find decoding handles on
+           routinginfo fields.  This should be used by any module that
+           expects to receive replies or forward encrypted messages as
+           described in E2E-spec.txt"""
         return 1
 
     def getRetrySchedule(self):
@@ -146,7 +149,6 @@ class ImmediateDeliveryQueue:
     #  module: the underlying DeliveryModule object.
     def __init__(self, module):
         self.module = module
-        self.hasTag = 1
 
     def queueDeliveryMessage(self, packet, retry=0, lastAttempt=0):
         """Instead of queueing our message, pass it directly to the underlying
@@ -965,7 +967,7 @@ class MailBase:
     #   base64) for outgoing messages.
     # allowFromAddr: Boolean: do we support user-supplied from addresses?
 
-    COMMON_OPTIONS = { 
+    COMMON_OPTIONS = {
         'MaximumSize' : ('ALLOW', "size", "100K"),
         'AllowFromAddress' : ('ALLOW', "boolean", "yes"),
         'SubjectLine' : ('ALLOW', None,
@@ -976,7 +978,7 @@ class MailBase:
         'FromTag' : ('ALLOW', None, "[Anon]"),
         'ReturnAddress' : ('ALLOW', None, None),
         }
-        
+
     def _formatEmailMessage(self, address, packet):
         """Given a RFC822 mailbox (delivery address), and an instance of
            DeliveryMessage, return a string containing a message to be sent
@@ -1014,7 +1016,7 @@ class MailBase:
         return msg
 
     def initializeHeaders(self, sec):
-        """Sets subject and returns a string that can be added to message 
+        """Sets subject and returns a string that can be added to message
            headers."""
         # set subject
         self.subject = _wrapHeader(sec.get("SubjectLine").strip()).strip()
@@ -1423,7 +1425,6 @@ def checkMailHeaders(headers):
        for an outgoing email message.  Raise ParseError if they are not."""
     for k in headers.keys():
         if k not in MAIL_HEADERS:
-            #XXXX this should raise parse error instead.
             LOG.warn("Skipping unrecognized mail header %s"%k)
 
     fromAddr = headers['FROM']

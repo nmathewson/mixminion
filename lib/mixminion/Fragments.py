@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.13 2004/03/02 07:06:14 nickm Exp $
+# $Id: Fragments.py,v 1.14 2004/03/06 00:04:37 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -148,7 +148,8 @@ class FragmentPool:
     def addFragment(self, fragmentPacket, nym=None, now=None, verbose=0):
         """Given an instance of mixminion.Packet.FragmentPayload, record
            the fragment if appropriate and update the state of the
-           fragment pool if necessary.
+           fragment pool if necessary.  Returns the message ID that was
+           updated, or None if the fragment was redundant or misformed.
 
               fragmentPacket -- the new fragment to add.
               nym -- a string representing the identity that received this
@@ -156,8 +157,8 @@ class FragmentPool:
                   attack where we send 2 fragments to 'MarkTwain' and 2
                   fragments to 'SClemens', and see that the message is
                   reconstructed.]
-
-           DOCDOC return, verbose
+              verbose -- if true, log information at the INFO level;
+                  otherwise, log at DEBUG.
         """
         if verbose:
             say = LOG.info
@@ -183,7 +184,7 @@ class FragmentPool:
                                  chunkNum=None,
                                  overhead=fragmentPacket.getOverhead(),
                                  insertedDate=today,
-                                 nym=nym, 
+                                 nym=nym,
                                  digest=sha1(fragmentPacket.data))
         # ... and allocate or find the MessageState for this message.
         state = self._getState(meta)
@@ -342,7 +343,7 @@ class FragmentPool:
         for mid in messageIDSet.keys():
             if why == "?":
                 state = self.states[mid]
-                if state.isDone: 
+                if state.isDone:
                     whythis = "COMPLETED"
                 else:
                     whythis = "REJECTED"
@@ -372,7 +373,10 @@ class FragmentPool:
             return state
 
     def getStateByMsgID(self, msgid):
-        """DOCDOC"""
+        """Given a message ID (either a 20-byte full ID or a 12-byte
+           pretty-printed ID prefix), return a MessageState object for
+           the corresponding message, or None if the message is not
+           recognized."""
         if len(msgid) == 20:
             return self.state.get(msgid,None)
         elif len(msgid) == 12:
@@ -383,8 +387,11 @@ class FragmentPool:
         return None
 
     def listMessages(self):
-        """DOCDOC
-           pretty-id => { 'size':x, 'nym':x, 'have':x, 'need':x }
+        """Return a map from pretty-printed message ID to dicts mapping:
+               'size' to the size of the message, in bytes
+               'nym' to the pseudonym receiving the message
+               'have' to the number of packets we have so far
+               'need' to the number of additional packets we need.
         """
         result = {}
         for msgid in self.states.keys():
@@ -509,7 +516,9 @@ class MessageState:
         return [ self.chunks[i][0] for i in xrange(self.params.nChunks) ]
 
     def getCompleteness(self):
-        """(have,need) DOCDOC"""
+        """Return a tuple of (have,need), where 'need' is the final number
+           of packets needed to reconstruct the message, and 'have' is the
+           number we have so far."""
         need = self.params.k * self.params.nChunks
         have = self.params.k * len(self.chunks)
         for d in self.fragmentsByChunk:

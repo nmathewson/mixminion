@@ -1,9 +1,9 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.1 2004/01/08 22:33:31 nickm Exp $
+# $Id: ThreadUtils.py,v 1.2 2004/03/06 00:04:38 nickm Exp $
 
 """mixminion.ThreadUtils
 
-   Helper code for threading-related operations, including queues and 
+   Helper code for threading-related operations, including queues and
    RW-locks.
    """
 
@@ -100,7 +100,7 @@ else:
 
 class RWLock:
     """A lock that allows multiple readers at a time, but only one writer."""
-    # Changes from sync.mrsw: 
+    # Changes from sync.mrsw:
     #    *  Use threading.Condition instead of sync.condition.
     #    *  Document everything.
     #    *  Don't hold on to rwOK forever when there's an error.
@@ -119,7 +119,7 @@ class RWLock:
         self.nw = 0  # number writers either waiting to write or writing
         self.writing = 0  # 1 iff some thread is writing
         # map from each current reader's thread_ident to recursion depth.
-        self.readers = {} 
+        self.readers = {}
 
         # conditions
         self.readOK  = threading.Condition(self.rwOK)  # OK to unblock readers
