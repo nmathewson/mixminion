@@ -11,6 +11,7 @@ SPEC    - Spec not finalized
 NEEDS TO BE WRITTEN
 
 For 0.0.3:
+       *- Write a list of good introductory projects
         - Client
                 - Add "don't use me for anonymity" boilerplate.
                 - Client support for reply blocks.
@@ -22,7 +23,12 @@ For 0.0.3:
                         - Read message from reply block
                         - Examine reply block
                 - Read Base64-encoded messages and zbomb messages.
-                - Faster (adjustable?) timeout on client connect failure.
+                . Faster (adjustable?) timeout on client connect
+                  failure.
+                        o Implement client timeout (sigalrm?)
+                        - Add configuration options and reasonable
+                          default.
+                        - Unit tests
                 - Client-side pooling.
         . Multithreaded server for better network behavior (no 10ms
           hiccups when receiving; no pauses to shred files or deliver
@@ -145,6 +151,9 @@ For 0.0.3:
                         o Test
         - SMTP
                 - Add an extra "this is anonymous" header.
+        - Make ServerInfo more forward-compatible in preparation for
+          changing it in 0.0.4.
+        - Fix aes_ctr128 and bump packet version.
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
            CLI'S AND MULTI-SERVER SITUATIONS.
         - Tests for packet addressed to server with bogus IP.
@@ -158,6 +167,8 @@ Required for "1.0":
         - Better CLIs
                 - Add another level of CLI commands. (E.g., mixminion server
                   keygen, etc.)
+                - Add a --status-fd option similar to GPG's so that
+                  we can be more easily embedded.
         - Key rotation and expiry
                 - Document "DELKEYS"
                 - Automatic keygen as needed
