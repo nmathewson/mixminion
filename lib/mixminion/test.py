@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.31 2002/10/16 23:12:12 nickm Exp $
+# $Id: test.py,v 1.32 2002/10/21 02:31:34 nickm Exp $
 
 """mixminion.tests
 
@@ -1417,25 +1417,90 @@ class BuildMessageTests(unittest.TestCase):
 	for k in s:
 	    key = Keyset(k).getLionessKeys(PAYLOAD_ENCRYPT_MODE)
 	    m = lioness_decrypt(m,key)
-	self.assertEquals(payload, BuildMessage.decodeStatelessReplyPayload(m,tag,passwd))
-	repl2 = m
+	self.assertEquals(payload, 
+		     BuildMessage.decodeStatelessReplyPayload(m,tag,passwd))
+	repl2, repl2tag = m, tag
 	
-	# Okay, now let's try out 'decodePayload'.
+	#
+	# Okay, now let's try out 'decodePayload' (and thereby test its
+	# children).  First, we test all the cases that succeed; or that
+	# fail and return None to indicate that another key might decrypt
+	# the message.
 	decodePayload = BuildMessage.decodePayload
-	self.assertEquals(payload, 
-	  decodePayload(encoded1, "zzzz"*5, self.pk1, sdict, passwd))
-	self.assertEquals(payload, 
-	  decodePayload(efwd_p, efwd_t, self.pk1, sdict, passwd))
-	self.assert_(sdict)
-	self.assertEquals(payload, 
-	  decodePayload(repl1, "tag1"*5, self.pk1, sdict, passwd))
-	self.assert_(not sdict)
-	self.assertEquals(payload, 
-	  decodePayload(repl2, tag, self.pk1, sdict, passwd))
+	# fwd
+	for pk in (self.pk1, None):
+	    for d in (sdict, None):
+		for p in (passwd, None):
+		    for tag in ("zzzz"*5, "pzzz"*5):
+			self.assertEquals(payload, 
+					  decodePayload(encoded1, tag,pk,d,p))
 	
-	# And now the failing cases
-	# XXXX TEST THESE
+	# efwd
+	for d in (sdict, None):
+	    for p in (passwd, None):
+		self.assertEquals(payload, 
+		        decodePayload(efwd_p, efwd_t, self.pk1, d,p))
+		self.assertEquals(None,
+		        decodePayload(efwd_p, efwd_t, None, d,p))
+		self.assertEquals(None,
+		        decodePayload(efwd_p, efwd_t, self.pk2, d,p))
+
+	# repl (stateful)
+	sdict2 = { 'tag2'*5 : [secrets] + [ '\x00\xFF'*8] }	
+	for pk in (self.pk1, None):
+	    for p in (passwd, None):
+		sd = sdict.copy()
+		self.assertEquals(payload,
+		       decodePayload(repl1, "tag1"*5, pk, sd, p))
+		self.assert_(not sd)
+		self.assertEquals(None,
+		       decodePayload(repl1, "tag1"*5, pk, None, p))
+		self.assertEquals(None,
+		       decodePayload(repl1, "tag1"*5, pk, sdict2, p))
+
+	# repl (stateless)
+	for pk in (self.pk1, None):
+	    for sd in (sdict, None):
+		self.assertEquals(payload,
+			    decodePayload(repl2, repl2tag, pk, sd, passwd))
+		self.assertEquals(None,
+			    decodePayload(repl2, repl2tag, pk, sd,"Bliznerty"))
+		self.assertEquals(None,
+			    decodePayload(repl2, repl2tag, pk, sd,None))
+
+	# And now the cases that fail hard.  This can only happen on:
+	#   1) *: Hash checks out, but zlib or size is wrong.  Already tested.
+	#   2) EFWD: OAEP checks out, but hash is wrong.
+	#   3) REPLY: Tag matches; hash doesn't.
+	#   4) SREPLY: ---.
 	
+	# Bad efwd
+	efwd_pbad = efwd_p[:-1] + chr(ord(efwd_p[-1])^0xaa)
+	self.failUnlessRaises(MixError, 
+			      BuildMessage.decodeEncryptedForwardPayload, 
+			      efwd_pbad, efwd_t, self.pk1)
+	for d in (sdict, None):
+	    for p in (passwd, None):
+		self.failUnlessRaises(MixError, decodePayload, 
+				      efwd_pbad, efwd_t, self.pk1, d, p)
+		self.assertEquals(None,
+			  decodePayload(efwd_pbad, efwd_t, self.pk2, d,p))
+	
+	# Bad repl
+	repl1_bad = repl1[:-1] + chr(ord(repl1[-1])^0xaa)
+	for pk in (self.pk1, None):
+	    for p in (passwd, None):
+		sd = sdict.copy()
+		self.failUnlessRaises(MixError,
+			 decodePayload, repl1_bad, "tag1"*5, pk, sd, p)
+		sd = sdict.copy()
+		self.failUnlessRaises(MixError,
+			 BuildMessage.decodeReplyPayload, repl1_bad, 
+				      sd["tag1"*5])
+	# Bad srepl 
+	repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
+	self.assertEquals(None,
+		  decodePayload(repl2_bad, repl2tag, None, None, passwd))
 
 #----------------------------------------------------------------------
 # Having tested BuildMessage without using PacketHandler, we can now use
@@ -1856,14 +1921,15 @@ class QueueTests(unittest.TestCase):
 	b.sort()
 	self.assertEquals(msgs,b)
 	
-	cmq = CottrellMixQueue(d_m, 600, 6, .7)
+	cmq = CottrellMixQueue(d_m, 600, 6, sendRate=.3)
 	# Not enough messages (<= 6)
 	self.assertEquals([], cmq.getBatch())
 	self.assertEquals([], cmq.getBatch())
 	# 8 messages: 2 get sent
 	for i in range(5):
 	    cmq.queueMessage("Message %s"%i)
-
+	
+	self.assertEquals(8, cmq.count())
 	b1, b2, b3 = cmq.getBatch(), cmq.getBatch(), cmq.getBatch()
 	self.assertEquals(2, len(b1))
 	self.assertEquals(2, len(b2))
@@ -1890,7 +1956,6 @@ class QueueTests(unittest.TestCase):
 
 	bcmq.removeAll()
 	bcmq.cleanQueue()
-
 
 #---------------------------------------------------------------------
 # LOGGING
@@ -2770,7 +2835,49 @@ Foo: 100
 	
 	# FFFF Add tests for catching exceptions from buggy modules
 
+    def testDecoding(self):
+	'test decoding and test encapsulation.'
+	dem = mixminion.Modules._decodeAndEscapeMessage
+	eme = mixminion.Modules._escapeMessageForEmail
 
+	prng = AESCounterPRNG()
+	message = "Somebody set up us the module!\n\n(What you say?)\n"
+	payload = BuildMessage._encodePayload(message,0,prng)
+	binmessage = hexread("00ADD1EDC0FFEED00DAD")*40
+	binpayload = BuildMessage._encodePayload(binmessage,0,prng)
+	tag = ".!..!....!........!."
+	
+	#####
+	# Test decodeAndEscapeMessage
+
+	# plaintext text message, text mode.
+	self.assertEquals(dem(payload, tag, 1), ("TXT", message, None))
+	# plaintext text message, bin mode.
+	self.assertEquals(dem(payload, tag, 0), ("TXT", message, None))
+	# plaintext bin message, text mode.	
+	self.assertEquals(dem(binpayload, tag, 1), 
+			  ("BIN", base64.encodestring(binmessage), None))
+	# plaintext bin message, bin mode.
+	self.assertEquals(dem(binpayload, tag, 0), ("BIN", binmessage, None))
+
+	encoded = "baobob "*1024*4
+	# "Encoded" message, text mode
+	self.assertEquals(dem(encoded, tag, 1), 
+			  ("ENC", base64.encodestring(encoded), 
+			   base64.encodestring(tag)[:-1]))
+	# "Encoded" message, binary mode
+	self.assertEquals(dem(encoded, tag, 0), 
+			  ("ENC", encoded, tag))
+
+	####
+	# Tests escapeMessageForEmail
+	self.assert_(-1 != eme(payload, tag).find(message))
+	expect = "BEGINS\n"+base64.encodestring(binmessage)+"====="
+	self.assert_(-1 != eme(binpayload, tag).find(expect))
+	expect = "BEGINS\nDecoding handle: "+base64.encodestring(tag)+\
+		 base64.encodestring(encoded)+"====="
+	self.assert_(-1 != eme(encoded, tag).find(expect))
+	
 #----------------------------------------------------------------------
 import mixminion.ServerMain
 
@@ -2891,10 +2998,6 @@ def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
-
-    if 0:
-	suite.addTest(tc(BuildMessageTests))
-	return suite
 
     suite.addTest(tc(MiscTests))
     suite.addTest(tc(MinionlibCryptoTests))
