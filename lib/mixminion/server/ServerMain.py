@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.56 2003/05/26 21:08:13 nickm Exp $
+# $Id: ServerMain.py,v 1.57 2003/05/27 17:24:49 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -7,6 +7,33 @@
 
    See the "MixminionServer" class for more information about how it
    all works. """
+
+## Directory layout:
+#    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
+#                            mix/ [Mix pool]
+#                            outgoing/ [Messages for mmtp delivery]
+#                            deliver/mbox/ [DOCDOC]
+#                            deliver/smtp/
+#                            deliver/*/
+#                      tls/dhparam [Diffie-Hellman parameters]
+#                      hashlogs/hash_1*  [HashLogs of packet hashes
+#                               hash_2*    corresponding to key sets]
+#                                ...
+#                      stats.tmp [DOCDOC]
+#                log [Messages from the server]
+#                keys/identity.key [Long-lived identity PK]
+#                     key_0001/ServerDesc [Server descriptor]
+#                              mix.key [packet key]
+#                              mmtp.key [mmtp key]
+#                              mmtp.cert [mmmtp key x509 cert]
+#                              published [present if this desc is published]
+#                     key_0002/...
+#                conf/miniond.conf [configuration file]
+#                stats [DOCDOC]
+#                
+
+# FFFF Support to put keys/queues in separate directories.
+
 
 __all__ = [ 'MixminonServer' ]
 
@@ -534,9 +561,21 @@ class MixminionServer(_Scheduler):
         self.pidFile = os.path.join(homeDir, "pid")
 
         #XXXX004 Catch ConfigError for bad serverinfo.
-        #XXXX004 Check whether config matches serverinfo
-        self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
+        try:
+            self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
+        except ConfigError, e:
+            if str(e).startswith("Unrecognized descriptor version: 0.1"):
+                raise UIError("This server homedir contains keys in an old "
+                              "format.\nConsider running 'mixminion server"
+                              "-upgrade'")
+            elif str(e).startswith("Unrecognized descriptor version"):
+                raise UIError("The server homedir contains keys for an "
+                              "unrecognized version of the server.")
+            else:
+                raise
         self.keyring.createKeysAsNeeded()
+        self.keyring.checkDescriptorConsistency()
+        
         if self.config['DirectoryServers'].get('Publish'):
             self.keyring.publishKeys()
 
@@ -1072,3 +1111,4 @@ def runRepublish(cmd, args):
     LOG.info("Telling server to publish descriptors")
 
     _signalServer(config, reload=1)
+

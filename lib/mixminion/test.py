@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.108 2003/05/26 20:04:22 nickm Exp $
+# $Id: test.py,v 1.109 2003/05/27 17:24:49 nickm Exp $
 
 """mixminion.tests
 
@@ -3864,6 +3864,12 @@ IP: 192.168.100.3
 Enabled: yes
 ReturnAddress: X@Y.Z
 """)
+            conf2 =  mixminion.server.ServerConfig.ServerConfig(
+                string=(SERVER_CONFIG_SHORT%mix_mktemp())+
+                                           """[Incoming/MMTP]
+Enabled: yes
+IP: 192.168.100.4
+""")
         finally:
             resumeLog()
 
@@ -3883,6 +3889,10 @@ ReturnAddress: X@Y.Z
                           key2.getPacketKey().get_public_key())
         eq(info3['Incoming/MMTP']['IP'], "192.168.100.3")
         self.assert_('smtp' in info3.getCaps())
+
+        key3.regenerateServerDescriptor(conf2, identity)
+        info3 = key3.getServerDescriptor()
+        eq(info3['Incoming/MMTP']['IP'], "192.168.100.4")
 
     def test_directory(self):
         eq = self.assertEquals

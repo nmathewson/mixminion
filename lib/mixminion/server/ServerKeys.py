@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.23 2003/05/23 22:49:30 nickm Exp $
+# $Id: ServerKeys.py,v 1.24 2003/05/27 17:24:49 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -74,27 +74,6 @@ class ServerKeyring:
     #
     #DOCDOC currentKeys
 
-    ## Directory layout:
-    #    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
-    #                             mix/ [Mix pool]
-    #                             outgoing/ [Messages for mmtp delivery]
-    #                             deliver/mbox/ []
-    #                      tls/dhparam [Diffie-Hellman parameters]
-    #                      hashlogs/hash_1*  [HashLogs of packet hashes
-    #                               hash_2*    corresponding to key sets]
-    #                                ...
-    #                 log [Messages from the server]
-    #                 keys/identity.key [Long-lived identity PK]
-    #                      key_1/ServerDesc [Server descriptor]
-    #                            mix.key [packet key]
-    #                            mmtp.key [mmtp key]
-    #                            mmtp.cert [mmmtp key x509 cert]
-    #                      key_2/...
-    #                 conf/miniond.conf [configuration file]
-    #                       ....
-
-    # FFFF Support to put keys/queues in separate directories.
-
     def __init__(self, config):
         "Create a ServerKeyring from a config object"
         self._lock = threading.RLock()
@@ -168,6 +147,29 @@ class ServerKeyring:
             elif start > end:
                 LOG.warn("Gap in key schedule: no key from %s to %s",
                               formatDate(end), formatDate(start))
+
+    def checkDescriptorConsistency(self, regen=1):
+        """DOCDOC"""
+        identity = None
+        config = None
+        bad = []
+        for ks,_,_ in self.keySets:
+            ok = ks.checkConsistency(self.config, 0)
+            if not ok:
+                bad.append(ks)
+        if not bad:
+            return
+        
+        LOG.error("Some generated keysets do not match "
+                  "current configuration...")
+        for ks in bad:
+            va,vu = ks.getLiveness()
+            LOG.error("Keyset %s (%s--%s):",ks.keyname,formatTime(va,1),
+                      formatTime(vu,1))
+            ks.checkConsistency(self.config, 1)
+            if regen:
+                if not identity: identity = self.getIdentityKey()
+                ks.regenerateServerDescriptor(self.config, identity)
 
     def getIdentityKey(self):
         """Return this server's identity key.  Generate one if it doesn't
@@ -301,6 +303,13 @@ class ServerKeyring:
             startAt = nextStart
 
         self.checkKeys()
+
+    def regenerateDescriptors(self):
+        """DOCDOC"""
+        LOG.info("Regenerating server descriptors; keeping old keys.")
+        identityKey = self.getIdentityKey()
+        for ks,_,_ in self.keySets:
+            ks.regenerateServerDescriptor(self.config, identityKey)
 
     def getNextKeygen(self):
         """DOCDOC
@@ -566,22 +575,30 @@ class ServerKeyset:
         except OSError:
             pass
         self.published = 0
-    def regenerateServerDescriptor(self, config, identityKey, validAt=None):
+    def regenerateServerDescriptor(self, config, identityKey):
         """DOCDOC"""
         self.load()
-        if validAt is None:
-            validAt = self.getLiveness()[0]
+        validAt,validUntil = self.getLiveness()
         try:
             os.unlink(self.publishedFile)
         except OSError:
             pass
+        LOG.info("Regenerating descriptor for keyset %s (%s--%s)",
+                 self.keyname, formatTime(validAt,1),
+                 formatTime(validUntil,1))
         generateServerDescriptorAndKeys(config, identityKey,
                          self.keyroot, self.keyname, self.hashroot,
-                         validAt=validAt, useServerKeys=1)
+                         validAt=validAt, validUntil=validUntil,
+                         useServerKeys=1)
         self.serverinfo = self.validAfter = self.validUntil = None
+        self.markAsUnpublished()
+
+    def checkConsistency(self, config, log=1):
+        """DOCDOC"""
+        return checkDecsriptorConsistency(config,log,self.published)
 
     def publish(self, url):
-        """ Returns 'accept', 'reject', 'error'. """
+        """DOCDOC Returns 'accept', 'reject', 'error'. """
         fname = self.getDescriptorFileName()
         f = open(fname, 'r')
         try:
@@ -627,26 +644,28 @@ class _WarnWrapper:
     """Helper for 'checkDescriptorConsistency' to keep its implementation
        short.  Counts the number of times it's invoked, and delegates to
        LOG.warn if silence is false."""
-    def __init__(self, silence):
+    def __init__(self, silence, isPublished):
         self.silence = silence
         self.called = 0
+        self.published = isPublished
     def __call__(self, *args):
         self.called += 1
+        if not self.published:
+            args = args[:]
+            args[0] = args[0].replace("published", "in unpublished descriptor")
         if not self.silence:
             LOG.warn(*args)
 
-def checkDescriptorConsistency(info, config, log=1):
+def checkDescriptorConsistency(info, config, log=1, isPublished=1):
     """Given a ServerInfo and a ServerConfig, compare them for consistency.
 
        Return true iff info may have come from 'config'.  If 'log' is
        true, warn as well.  Does not check keys.
     """
 
-    if log:
-        warn = _WarnWrapper(0)
-    else:
-        warn = _WarnWrapper(1)
+    warn = _WarnWrapper(silence = not log, isPublished=isPublished)
 
+    fixable = 1
     config_s = config['Server']
     info_s = info['Server']
     if config_s['Nickname'] and (info_s['Nickname'] != config_s['Nickname']):
@@ -658,6 +677,8 @@ def checkDescriptorConsistency(info, config, log=1):
     if idBits != confIDBits:
         warn("Mismatched identity bits: %s in configuration; %s published.",
              confIDBits, idBits)
+        warn.called -= 1
+        fixable = 0
 
     if config_s['Contact-Email'] != info_s['Contact']:
         warn("Mismatched contacts: %s in configuration; %s published.",
@@ -674,6 +695,7 @@ def checkDescriptorConsistency(info, config, log=1):
         previousMidnight(config_s['PublicKeyLifetime'].getSeconds() +
                          info_s['Valid-After'])):
         warn("Published lifetime does not match PublicKeyLifetime")
+        warn("(This problem will go away in a while).")
 
     if info_s['Software'] != 'Mixminion %s'%mixminion.__version__:
         warn("Published version (%s) does not match current version (%s)",
@@ -689,7 +711,7 @@ def checkDescriptorConsistency(info, config, log=1):
     if config_im['IP'] == '0.0.0.0':
         guessed = _guessLocalIP()
         if guessed != config_im['IP']:
-            warn("Guessed IP (%s) does not match publishe IP (%s)",
+            warn("Guessed IP (%s) does not match published IP (%s)",
                  guessed, info_ip)
     elif config_im['IP'] != info_ip:
         warn("Configured IP (%s) does not match published IP (%s)",
@@ -722,7 +744,7 @@ CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
 
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                                     hashdir, validAt=None, now=None,
-                                    useServerKeys=0):
+                                    useServerKeys=0, validUntil=None):
     #XXXX reorder args
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
@@ -734,7 +756,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           hashdir -- The root directory for storing hash logs.
           validAt -- The starting time (in seconds) for this key's lifetime.
 
-          DOCDOC useServerKeys
+          DOCDOC useServerKeys, validUntil
           """
 
     if useServerKeys:
@@ -779,7 +801,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # Calculate descriptor and X509 certificate lifetimes.
     # (Round validAt to previous mignight.)
     validAt = mixminion.Common.previousMidnight(validAt+30)
-    validUntil = validAt + config['Server']['PublicKeyLifetime'].getSeconds()
+    if not validUntil:
+        keyLifetime = config['Server']['PublicKeyLifetime'].getSeconds()
+        validUntil = previousMidnight(validAt + keyLifetime + 30)
     certStarts = validAt - CERTIFICATE_EXPIRY_SLOPPINESS
     certEnds = validUntil + CERTIFICATE_EXPIRY_SLOPPINESS
 

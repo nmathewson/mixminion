@@ -110,15 +110,17 @@ For 0.0.4:
                         o Implement
                         o Document
                         o Tests
-                . Ability to generate new serverdesc with old keys.
+                o Ability to generate new serverdesc with old keys.
                         o Implement
-?                       o Test backend
-.5                     *- Automate
+                        o Test backend
+                        o Automate
+                        - Test
                 . Ability to notice discrepancies between SD and
                   server configuration.
                         o Implement
 .5                      - Test backend
-.5                     *- Integrate with frontend
+                        o Integrate with frontend
+                        - Test
                 . Online key rotation
                         o Function to determine time for next rotation event.
                         o Ability to add PK to packethandler
@@ -134,7 +136,7 @@ For 0.0.4:
                                 o replace old ones if superceded, 
                                   reject them if invalid,
                                   and queue them if unrecognized.
-     5                          o The actual CGI
+                                o The actual CGI
 2                               - Tests for above
                         o Ability to move servers from queue to good-list.
 0.5                             - Tests
