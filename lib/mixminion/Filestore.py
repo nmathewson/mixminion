@@ -1,10 +1,11 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.3 2003/07/24 18:01:29 nickm Exp $
+# $Id: Filestore.py,v 1.4 2003/08/08 21:40:42 nickm Exp $
 
 """mixminion.Filestore
 
    Common code for directory-based, security conscious, threadsafe
-   unordered file stores.
+   unordered file stores.  Also contains common code for journalable
+   DB-backed threadsafe stores.
    """
 
 # Formerly, this was all in mixminion.server.ServerQueue.  But
@@ -12,14 +13,17 @@
 # queues, and we needed another for fragment stores anyway.  So it was
 # time to refactor the common code.
 
+import anydbm
+import dumbdbm
 import os
+import errno
 import time
 import stat
 import cPickle
 import threading
 
 from mixminion.Common import MixFatalError, secureDelete, LOG, \
-     createPrivateDir, readFile
+     createPrivateDir, readFile, tryUnlink
 from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ "StringStore", "StringMetadataStore",
@@ -416,5 +420,187 @@ class MixedMetadataStore(BaseMetadataStore, StringStoreMixin,
         BaseMetadataStore.__init__(self, location, create, scrub)
         StringStoreMixin.__init__(self)
         ObjectStoreMixin.__init__(self)
+
+# ======================================================================
+# Database wrappers
+
+class DBBase:
+    # _lock
+    def __init__(self, filename, purpose=""):
+        self._lock = threading.RLock()
+        self.filename = filename
+        parent = os.path.split(filename)[0]
+        createPrivateDir(parent)
+
+        try:
+            st = os.stat(filename)
+        except OSError, e:
+            if e.errno != errno.ENOENT:
+                raise
+            st = None
+
+        if st and st[stat.ST_SIZE] == 0:
+            LOG.warn("Half-created database %s found; cleaning up.", filename)
+            tryUnlink(filename)
+
+        LOG.debug("Opening %s database at %s", purpose, filename)
+        self.log = anydbm.open(filename, 'c')
+        if not hasattr(self.log, 'sync'):
+            if hasattr(self.log, '_commit'):
+                # Workaround for dumbdbm to allow syncing. (Standard in 
+                # Python 2.3.)
+                self.log.sync = self.log._commit
+            else:
+                # Otherwise, force a no-op sync method.
+                self.log.sync = lambda : None
+
+        if isinstance(self.log, dumbdbm._Database):
+            LOG.warn("Warning: using a flat file for %s database", purpose)
+
+        # Subclasses may want to check whether this is the right database,
+        # flush the journal, and so on.
+
+    def _encodeKey(self, k):
+        return k
+    def _encodeVal(self, v):
+        return v
+    def _decodeVal(self, v):
+        return v
+
+    def has_key(self, k):
+        try:
+            _ = self[k]
+            return 1
+        except KeyError:
+            return 0
+
+    def __getitem__(self, k):
+        return self.getItem(k)
+
+    def get(self, k, default=None):
+        try:
+            return self[k]
+        except KeyError:
+            return default
+
+    def __setitem__(self, k, v):
+        self.setItem(k, v)
+
+    def getItem(self, k):
+        try:
+            self._lock.acquire()
+            return self._decodeVal(self.log[self._encodeKey(k)])
+        finally:
+            self._lock.release()
+
+    def setItem(self, k, v):
+        self._lock.acquire()
+        try:
+            self.log[self._encodeKey(k)] = self._encodeVal(v)
+        finally:
+            self._lock.release()
         
+    def sync(self):
+        self._lock.acquire()
+        try:
+            self.log.sync()
+        finally:
+            self._lock.release()
+
+    def close(self):
+        self._lock.acquire()
+        try:
+            self.log.close()
+            self.log = None
+        finally:
+            self._lock.release()
+
+_JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)|getattr(os,'O_BINARY',0)
+
+class JournaledDBBase(DBBase):
+    MAX_JOURNAL = 128
+    def __init__(self, location, purpose, klen, vlen, vdflt):
+        DBBase.__init__(self, location, purpose)
+
+        self.klen = klen
+        self.vlen = vlen
+        self.vdefault = vdflt
+
+        self.journalFileName = location+"_jrnl"
+        self.journal = {}
+        if os.path.exists(self.journalFileName):
+            j = readFile(self.journalFileName, 1)
+            for i in xrange(0, len(j), klen+vlen):
+                if vlen:
+                    self.journal[j[i:i+klen]] = j[i+klen:i+klen+vlen]
+                else:
+                    self.journal[j[i:i+klen]] = self.vdefault
+
+        self.journalFile = os.open(self.journalFileName,
+                                   _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
+
+        self.sync()
+
+    getItemNoJournal = DBBase.getItem
+    setItemNoJournal = DBBase.setItem
+
+    def _jEncodeKey(self, k):
+        return k
+    def _jDecodeKey(self, k):
+        return k
+    def _jEncodeVal(self, v):
+        return v
+    def _jDecodeVal(self, v):
+        return v
+
+    def getItem(self, k):
+        jk = self._jEncodeKey(k)
+        assert len(jk) == self.klen
+        self._lock.acquire()
+        try:
+            if self.journal.has_key(jk):
+                return self._jDecodeVal(self.journal[jk])
+            return self.getItemNoJournal(k)
+        finally:
+            self._lock.release()
+
+    def setItem(self, k, v):
+        jk = self._jEncodeKey(k)
+        jv = self._jEncodeVal(v)
+        assert len(jk) == self.klen
+        if self.vlen: assert len(jv) == self.vlen
+        self._lock.acquire()
+        try:
+            self.journal[jk] = jv
+            os.write(self.journalFile, jk)
+            if self.vlen:
+                os.write(self.journalFile, jv)
+            if len(self.journal) > self.MAX_JOURNAL:
+                self.sync()
+        finally:
+            self._lock.release()
+
+    def sync(self):
+        self._lock.acquire()
+        try:
+            for jk in self.journal.keys():
+                ek = self._encodeKey(self._jDecodeKey(jk))
+                ev = self._encodeVal(self._jDecodeVal(self.journal[jk]))
+                self.log[ek] = ev
+            self.log.sync()
+            os.close(self.journalFile)
+            self.journalFile = os.open(self.journalFileName,
+                                       _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
+            self.journal = {}
+        finally:
+            self._lock.release()
     
+    def close(self):
+        try:
+            self._lock.acquire()
+            self.sync()
+            self.log.close()
+            self.log = None
+            os.close(self.journalFile)
+        finally:
+            self._lock.release()

@@ -1176,8 +1176,81 @@ ConnectionTimeout: 20 seconds
 
 """)
 
+class SURBLog(mixminion.Filestore.DBBase):
+    def __init__(self, filename, forceClean=0):
+        clientLock()
+        mixminion.Filestore.DBBase.__init__(self, filename, "SURB log")
+        try:
+            lastCleaned = int(self.log['LAST_CLEANED'])
+        except (KeyError, ValueError):
+            lastCleaned = 0
 
-class SURBLog:
+        if lastCleaned < time.time()-24*60*60 or forceClean:
+            self.clean()
+
+    def findUnusedSURB(self, surbList, verbose=0, now=None):
+        if now is None:
+            now = time.time()
+        nUsed = nExpired = nShortlived = 0
+        result = None
+        for surb in surbList: 
+            expiry = surb.timestamp
+            timeLeft = expiry - now
+            if self.isSURBUsed(surb):
+                nUsed += 1
+            elif timeLeft < 60:
+                nExpired += 1
+            elif timeLeft < 3*60*60:
+                nShortlived += 1
+            else:
+                result = surb
+                break
+
+        if verbose:
+            if nUsed:
+                LOG.warn("Skipping %s used reply blocks", nUsed)
+            if nExpired:
+                LOG.warn("Skipping %s expired reply blocks", nExpired)
+            if nShortlived:
+                LOG.warn("Skipping %s soon-to-expire reply blocks", nShortlived)
+
+        return result
+
+    def close(self):
+        mixminion.Filestore.DBBase.close(self)
+        clientUnlock()
+
+    def isSURBUsed(self, surb):
+        return self.has_key[surb]
+
+    def markSURBUsed(self, surb):
+        self[surb] = surb.timestamp
+
+    def clean(self, now=None):
+        if now is None:
+            now = time.time() + 60*60
+        allHashes = self.log.keys()
+        removed = []
+        for hash in allHashes:
+            if self._decodeVal(self.log[hash]) < now:
+                removed.append(hash)
+        del allHashes
+        for hash in removed:
+            del self.log[hash]
+        self.log['LAST_CLEANED'] = str(int(now))
+        self.sync()
+
+    def _encodeKey(self, surb):
+        return sha1(surb.pack())
+    def _encodeVal(self, timestamp):
+        return str(timestamp)
+    def _decodeVal(self, timestamp):
+        try:
+            return int(timestamp)
+        except ValueError:
+            return 0
+
+class XSURBLog:
     """A SURBLog manipulates a database on disk to remember which SURBs we've
        used, so we don't reuse them accidentally.
        """
@@ -1203,7 +1276,6 @@ class SURBLog:
         except (KeyError, ValueError):
             lastCleaned = 0
 
-        forceClean = 1
         if lastCleaned < time.time()-24*60*60 or forceClean:
             self.clean()
 

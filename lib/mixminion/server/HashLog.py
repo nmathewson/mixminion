@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.21 2003/07/15 04:41:18 nickm Exp $
+# $Id: HashLog.py,v 1.22 2003/08/08 21:40:42 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -12,6 +12,7 @@ import os
 import stat
 import anydbm, dumbdbm
 import threading
+import mixminion.Filestore
 from mixminion.Common import MixFatalError, LOG, createPrivateDir, readFile, \
      secureDelete, tryUnlink
 from mixminion.Packet import DIGEST_LEN
@@ -22,9 +23,6 @@ __all__ = [ 'HashLog', 'getHashLog', 'deleteHashLog' ]
 
 # FFFF Two-copy journaling to protect against catastrophic failure that
 # FFFF underlying DB code can't handle.
-
-# We flush the log every MAX_JOURNAL hashes.
-MAX_JOURNAL = 128
 
 # Lock to protect _OPEN_HASHLOGS
 _HASHLOG_DICT_LOCK = threading.RLock()
@@ -74,11 +72,59 @@ def deleteHashLog(filename):
         secureDelete(remove, blocking=1)
     finally:
         _HASHLOG_DICT_LOCK.release()
-        
 
+class HashLog(mixminion.Filestore.JournaledDBBase):
+    def __init__(self, filename, keyid):
+        mixminion.Filestore.JournaledDBBase.__init__(self,
+                 filename, "digest hash", 20, 0, "1")
+
+        self.keyid = keyid
+        try:
+            if self.log["KEYID"] != keyid:
+                raise MixFatalError("Log KEYID does not match current KEYID")
+        except KeyError:
+            self.log["KEYID"] = keyid
+            self.log.sync()
+
+    def _encodeKey(self, k):
+        return binascii.b2a_hex(k)
+    def _encodeVal(self, v):
+        return "1"
+    def _decodeVal(self, v):
+        return 1
+
+    def _jEncodeKey(self, k):
+        return k
+    def _jDecodeKey(self, k):
+        return k
+    def _jEncodeVal(self, v):
+        return ""
+    def _jDecodeVal(self, v):
+        return 1
+
+    def seenHash(self, hash):
+        return self.has_key(hash)
+
+    def logHash(self, hash):
+        assert len(hash) == DIGEST_LEN
+        self[hash] = 1
+
+    def close(self):
+        try:
+            _HASHLOG_DICT_LOCK.acquire()
+            mixminion.Filestore.JournaledDBBase.close(self)
+            try:
+                del _OPEN_HASHLOGS[self.filename]
+            except KeyError:
+                pass
+        finally:
+            _HASHLOG_DICT_LOCK.release()
+
+# We flush the log every MAX_JOURNAL hashes.
+MAX_JOURNAL = 128
 # flags to pass to os.open when opening the journal file.
 _JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)|getattr(os,'O_BINARY',0)
-class HashLog:
+class XHashLog:
     """A HashLog is a file containing a list of message digests that we've
        already processed.
 
@@ -128,7 +174,7 @@ class HashLog:
                 raise
             st = None
         if st and st[stat.ST_SIZE] == 0:
-            LOG.warn("Half-created database %s found; cleaning up.")
+            LOG.warn("Half-created database %s found; cleaning up.", filename)
             tryUnlink(filename)
 
         LOG.debug("Opening database %s for packet digests", filename)
@@ -163,7 +209,6 @@ class HashLog:
                     _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
 
         self.__lock = threading.RLock()
-
         # On startup, we flush everything to disk.
         self.sync()
 

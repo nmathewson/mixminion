@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.141 2003/07/24 17:37:16 nickm Exp $
+# $Id: test.py,v 1.142 2003/08/08 21:40:40 nickm Exp $
 
 """mixminion.tests
 
@@ -1049,6 +1049,15 @@ class CryptoTests(TestCase):
         self.assertEquals(left+right, lioness_encrypt(plain,key))
         self.assertEquals(key, Keyset("ABCDE"*4).getLionessKeys("foo"))
 
+        u = "Hello world"*2
+        w = whiten(u)
+        self.assertNotEquals(w, u)
+        self.assertEquals(unwhiten(w), u)
+        u = "xyzprdlty"*100
+        w = whiten(u)
+        self.assertNotEquals(w, u)
+        self.assertEquals(unwhiten(w), u)
+
     def test_bear(self):
         enc = bear_encrypt
         dec = bear_decrypt
@@ -1341,8 +1350,8 @@ class PacketTests(TestCase):
         ## Now, for the fragment payloads.
         msgID = "This is a message123"
         assert len(msgID) == 20
-        contents = contents[:28*1024 - 46]
-        frag_payload_1 = "\x80\x02"+hash+msgID+"\x00\x01\x00\x00"+contents
+        contents = contents[:28*1024 - 47]
+        frag_payload_1 = "\x80\x00\x02"+hash+msgID+"\x00\x01\x00\x00"+contents
         frag_payload_2 = frag_payload_1[:-38] # efwd overhead
         p1 = parsePayload(frag_payload_1)
         p2 = parsePayload(frag_payload_2)
@@ -1371,11 +1380,11 @@ class PacketTests(TestCase):
         self.failUnlessRaises(ParseError,parsePayload,frag_payload_2[:-1])
 
         # Impossible message sizes
-        min_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD3"+contents
-        bad_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents
-        min_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAD"+contents[:-38]
-        bad_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAC"+contents[:-38]
-        min_payload_3 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents[:-38]
+        min_payload_1 = "\x80\x00\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents
+        bad_payload_1 = "\x80\x00\x02"+hash+msgID+"\x00\x00\x6F\xD1"+contents
+        min_payload_2 = "\x80\x00\x02"+hash+msgID+"\x00\x00\x6F\xAC"+contents[:-38]
+        bad_payload_2 = "\x80\x00\x02"+hash+msgID+"\x00\x00\x6F\xAB"+contents[:-38]
+        min_payload_3 = "\x80\x00\x02"+hash+msgID+"\x00\x00\x6F\xD1"+contents[:-38]
         parsePayload(min_payload_1)
         parsePayload(min_payload_2)
         parsePayload(min_payload_3)
@@ -1490,16 +1499,13 @@ class HashLogTests(TestCase):
 
         # Make sure that an empty hash contains nothing, including NUL strings
         # and high-ascii strings.
-        notseen("a")
-        notseen("a*20")
-        notseen("\000"*10)
-        notseen("\000")
-        notseen("\277"*10)
+        notseen("a"*20)
+        notseen("\000"*20)
+        notseen("\277"*20)
         # Log a value, and make sure that only that value is now in the log
         log("a"*20)
-        notseen("a*10")
-        notseen("\000"*10)
-        notseen("b")
+        notseen("\000"*20)
+        notseen("b"*20)
         seen("a"*20)
 
         # Try a second value; make sure both values are now there.
@@ -1510,7 +1516,9 @@ class HashLogTests(TestCase):
         # Try logging a string of NULs
         log("\000"*20)
         seen("\000"*20)
-        notseen("\000"*10)
+        notseen("\001"*20)
+        notseen(("\000"*19)+"\001")
+        notseen("\001"+("\000"*19))
 
         # Try double-logging.
         log("\000"*20)
@@ -1523,6 +1531,9 @@ class HashLogTests(TestCase):
         # And a nice plain ascii string
         log("abcde"*4)
         seen("abcde"*4)
+        seen("a"*20)
+        h[0].sync()
+        seen("a"*20)
 
         # Now reopen the log, and make sure it has all its original contents.
         h[0].close()
@@ -1533,8 +1544,7 @@ class HashLogTests(TestCase):
         seen("abcde"*4)
         seen("\000"*20)
         # (and no other contents)
-        notseen(" ")
-        notseen("\000"*5)
+        notseen(" "*20)
         notseen("\001"*20)
 
         # Now add more, close again, and see if our latest adddition went in.
@@ -6173,7 +6183,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(QueueTests))
+        suite.addTest(tc(HashLogTests))
         return suite
 
     suite.addTest(tc(MiscTests))
