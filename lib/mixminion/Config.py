@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.29 2003/01/03 05:14:47 nickm Exp $
+# $Id: Config.py,v 1.30 2003/01/03 08:25:47 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -53,7 +53,6 @@ __all__ = [ 'ConfigError', 'ClientConfig' ]
 
 import calendar
 import binascii
-import gzip
 import os
 import re
 import socket # for inet_aton and error
@@ -61,8 +60,7 @@ from cStringIO import StringIO
 
 import mixminion.Common
 import mixminion.Crypto
-from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace, \
-     _ALLCHARS
+from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -299,7 +297,7 @@ def _parseNickname(s):
        containing only the characters [A-Za-z0-9_.!@#] and '-'.
        """
     s = s.strip()
-    bad = s.translate(_ALLCHARS, _NICKNAME_CHARS)
+    bad = s.translate(mixminion.Common._ALLCHARS, _NICKNAME_CHARS)
     if len(bad):
         raise ConfigError("Invalid characters %r in nickname %r" % (bad,s))
     if len(s) > MAX_NICKNAME:
@@ -506,15 +504,9 @@ class _ConfigFile:
            the contents of this object unchanged."""
         if not self.fname:
             return
-        if self.fname.endswith(".gz"):
-            #XXXX002 test!
-            f = gzip.GzipFile(self.fname, 'r')
-        else:
-            f = open(self.fname, 'r')
-        try:
-            self.__reload(f, None)
-        finally:
-            f.close()
+
+        contents = mixminion.Common.readPossiblyGzippedFile(self.fname)
+        self.__reload(None, contents)
 
     def __reload(self, file, fileContents):
         """As in .reload(), but takes an open file object _or_ a string."""

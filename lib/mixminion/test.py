@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.53 2003/01/03 05:14:47 nickm Exp $
+# $Id: test.py,v 1.54 2003/01/03 08:25:47 nickm Exp $
 
 """mixminion.tests
 
@@ -8,7 +8,6 @@
    Usage:
    >>> import mixminion.tests
    >>> mixminion.tests.testAll()
-
    """
 
 __pychecker__ = 'no-funcdoc maxlocals=100'
@@ -52,6 +51,7 @@ import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 import mixminion.server.ServerMain
 import mixminion.directory.ServerList
+import mixminion.directory.DirMain
 from mixminion.Common import *
 from mixminion.Common import Log, _FileLogHandler, _ConsoleLogHandler
 from mixminion.Config import _ConfigFile, ConfigError, _parseInt
@@ -803,6 +803,15 @@ class CryptoTests(unittest.TestCase):
 
         for i in xrange(100):
             self.failUnless(0 <= PRNG.getFloat() < 1)
+
+        # Test the pick method
+        lst = [1, 2, 3]
+        count = [0,0,0,0]
+        for _ in xrange(100):
+            count[PRNG.pick(lst)]+=1
+        self.assert_(count[0]==0)
+        self.assert_(0 not in count[1:])
+        self.assertRaises(IndexError, PRNG.pick, [])
 
         lst = range(100)
         # Test shuffle(0)
@@ -3084,7 +3093,7 @@ Nickname: fred-the-bunny
 """
 
 class ServerInfoTests(unittest.TestCase):
-    def testServerInfoGen(self):
+    def test_ServerInfo(self):
         # Try generating a serverinfo and see if its values are as expected.
         identity = getRSAKey(1, 2048)
         d = mix_mktemp()
@@ -3128,6 +3137,46 @@ class ServerInfoTests(unittest.TestCase):
                                             0,65535),
                                            ])
         eq(info['Delivery/MBOX'].get('Version'), None)
+        # Check the more complex helpers.
+        self.assert_(info.isValidated())
+        self.assertEquals(info.getIntervalSet(),
+                          IntervalSet([(info['Server']['Valid-After'],
+                                        info['Server']['Valid-Until'])]))
+
+        self.assert_(not info.isExpiredAt(time.time()))
+        self.assert_(not info.isExpiredAt(time.time()-25*60*60))
+        self.assert_(info.isExpiredAt(time.time()+24*60*60*30))
+
+        self.assert_(info.isValidAt(time.time()))
+        self.assert_(not info.isValidAt(time.time()-25*60*60))
+        self.assert_(not info.isValidAt(time.time()+24*60*60*30))
+
+        self.assert_(info.isValidFrom(time.time(), time.time()+60*60))
+        self.assert_(not info.isValidFrom(time.time()-25*60*60, 
+                                          time.time()+60*60))
+        self.assert_(not info.isValidFrom(time.time()-25*60*60, 
+                                          time.time()+24*60*60*30))
+        self.assert_(not info.isValidFrom(time.time(), 
+                                          time.time()+24*60*60*30))
+        self.assert_(not info.isValidFrom(time.time()-25*60*60, 
+                                          time.time()-23*60*60))
+        self.assert_(not info.isValidFrom(time.time()+24*60*60*30,
+                                          time.time()+24*60*60*31))
+        
+        self.assert_(info.isValidAtPartOf(time.time(), time.time()+60*60))
+        self.assert_(info.isValidAtPartOf(time.time()-25*60*60, 
+                                          time.time()+60*60))
+        self.assert_(info.isValidAtPartOf(time.time()-25*60*60, 
+                                          time.time()+24*60*60*30))
+        self.assert_(info.isValidAtPartOf(time.time(), 
+                                          time.time()+24*60*60*30))
+        self.assert_(not info.isValidAtPartOf(time.time()-25*60*60, 
+                                              time.time()-23*60*60))
+        self.assert_(not info.isValidAtPartOf(time.time()+24*60*60*30,
+                                              time.time()+24*60*60*31))
+
+        self.assert_(info.isNewerThan(time.time()-60*60))
+        self.assert_(not info.isNewerThan(time.time()+60))
 
         # Now check whether we still validate the same after some corruption
         self.assert_(inf.startswith("[Server]\n"))
@@ -3201,6 +3250,17 @@ IP: 192.168.0.99
         self.failUnlessRaises(ConfigError,
                               mixminion.ServerInfo.ServerInfo,
                               None, badSig)
+
+        # Test superceding
+        ServerInfo = mixminion.ServerInfo.ServerInfo
+        examples = getExampleServerDescriptors()
+        bobs = [ ServerInfo(string=s, assumeValid=1) for s in examples["Bob"] ]
+        freds= [ ServerInfo(string=s, assumeValid=1) for s in examples["Fred"]]
+        self.assert_(bobs[1].isSupersededBy([bobs[3], bobs[4]]))
+        self.assert_(not bobs[1].isSupersededBy([bobs[3], bobs[5]]))
+        self.assert_(not bobs[1].isSupersededBy([]))
+        self.assert_(not bobs[1].isSupersededBy([bobs[1]]))
+        self.assert_(not bobs[1].isSupersededBy([freds[2]]))
 
     def test_directory(self):
         eq = self.assertEquals

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.29 2003/01/03 05:14:47 nickm Exp $
+# $Id: ServerInfo.py,v 1.30 2003/01/03 08:25:47 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -10,7 +10,6 @@
 
 __all__ = [ 'ServerInfo', 'ServerDirectory' ]
 
-import gzip
 import re
 import time
 
@@ -18,7 +17,7 @@ import mixminion.Config
 import mixminion.Crypto
 
 from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
-    formatBase64, formatDate, formatTime
+    formatBase64, formatDate, formatTime, readPossiblyGzippedFile
 from mixminion.Config import ConfigError
 from mixminion.Packet import IPV4Info
 from mixminion.Crypto import CryptoError, DIGEST_LEN, pk_check_signature
@@ -194,32 +193,29 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def getIntervalSet(self):
         """Return an IntervalSet covering all the time at which this
            ServerInfo is valid."""
-        #XXXX002 test
         return IntervalSet([(self['Server']['Valid-After'],
                              self['Server']['Valid-Until'])])
 
     def isExpiredAt(self, when):
         """Return true iff this ServerInfo expires before time 'when'."""
-        #XXXX002 test
         return self['Server']['Valid-Until'] < when
 
     def isValidAt(self, when):
         """Return true iff this ServerInfo is valid at time 'when'."""
-        #XXXX002 test
         return (self['Server']['Valid-After'] <= when <=
                 self['Server']['Valid-Until'])
 
     def isValidFrom(self, startAt, endAt):
         """Return true iff this ServerInfo is valid at all time from 'startAt'
            to 'endAt'."""
-        #XXXX002 test
-        return (startAt <= self['Server']['Valid-After'] and
-                self['Server']['Valid-Until'] <= endAt)
-
+        assert startAt < endAt
+        return (self['Server']['Valid-After'] <= startAt and
+                endAt <= self['Server']['Valid-Until'])
+    
     def isValidAtPartOf(self, startAt, endAt):
         """Return true iff this ServerInfo is valid at some time between
            'startAt' and 'endAt'."""
-        #XXXX002 test
+        assert startAt < endAt
         va = self['Server']['Valid-After']
         vu = self['Server']['Valid-Until']
         return ((startAt <= va and va <= endAt) or
@@ -229,35 +225,47 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def isNewerThan(self, other):
         """Return true iff this ServerInfo was published after 'other',
            where 'other' is either a time or a ServerInfo."""
-        #XXXX002 test
         if isinstance(other, ServerInfo):
             other = other['Server']['Published']
         return self['Server']['Published'] > other
 
-#----------------------------------------------------------------------
+    def isSupersededBy(self, others):
+        """Return true iff this ServerInfo is superseded by the other
+           ServerInfos in 'others'.
 
-#DOCDOC 
+           A ServerInfo is superseded when, for all time it is valid,
+           a more-recently-published descriptor with the same nickname
+           is also valid.
+        """
+        valid = self.getIntervalSet()
+        for o in others:
+            if o.isNewerThan(self) and o.getNickname() == self.getNickname():
+                valid -= o.getIntervalSet()
+        return valid.isEmpty()
+
+#----------------------------------------------------------------------
+# Server Directories
+
+# Regex used to split a big directory along '[Server]' lines.
 _server_header_re = re.compile(r'^\[\s*Server\s*\]\s*\n', re.M)
 class ServerDirectory:
-    #DOCDOC
     """Minimal client-side implementation of directory parsing.  This will
        become very inefficient when directories get big, but we won't have
        that problem for a while."""
-   
+    ##Fields:
+    # servers: list of validated ServerInfo objects, in no particular order.
+    # header: a _DirectoryHeader object for the non-serverinfo part of this
+    #    directory.
     def __init__(self, string=None, fname=None):
+        """Create a new ServerDirectory object, either from a literal <string>
+           (if specified) or a filename [possibly gzipped].
+        """
         if string:
             contents = string
-        elif fname.endswith(".gz"):
-            # XXXX test!
-            f = gzip.GzipFile(fname, 'r')
-            contents = f.read()
-            f.close()
         else:
-            f = open(fname)
-            contents = f.read()
-            f.close()
+            contents = readPossiblyGzippedFile(fname)
         
-        contents = _abnormal_line_ending_re.sub("\n", contents)
+        contents = _cleanForDigest(contents)
 
         # First, get the digest.  Then we can break everything up.
         digest = _getDirectoryDigestImpl(contents)
@@ -272,13 +280,19 @@ class ServerDirectory:
         self.servers = [ ServerInfo(string=s) for s in servercontents ]
 
     def getServers(self):
+        """Return a list of ServerInfo objects in this directory"""
         return self.servers
 
     def __getitem__(self, item):
         return self.header[item]
 
 class _DirectoryHeader(mixminion.Config._ConfigFile):
-    "DOCDOC"
+    """Internal object: used to parse, validate, and store fields in a
+       directory's header sections.
+    """
+    ## Fields:
+    # expectedDigest: the 20-byte digest we expect to find in this
+    #    directory's header.
     _restrictFormat = 1
     _syntax = {
         'Directory': { "__SECTION__": ("REQUIRE", None, None),
@@ -293,8 +307,10 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
                  "DirectorySignature": ("REQUIRE", C._parseBase64, None),
                       }
         }
-
     def __init__(self, contents, expectedDigest):
+        """Parse a directory header out of a provided string; validate it
+           given the digest we expect to find for the file.
+        """
         self.expectedDigest = expectedDigest
         mixminion.Config._ConfigFile.__init__(self, string=contents)
 
@@ -340,7 +356,8 @@ _leading_whitespace_re = re.compile(r'^[ \t]+', re.M)
 _trailing_whitespace_re = re.compile(r'[ \t]+$', re.M)
 _abnormal_line_ending_re = re.compile(r'\r\n?')
 def _cleanForDigest(s):
-    "DOCDOC"
+    """Helper function: clean line endigs and whitespace so we can calculate
+       our digests with uniform results."""
     # should be shared with config, serverinfo.
     s = _abnormal_line_ending_re.sub("\n", s)
     s = _trailing_whitespace_re.sub("", s)
@@ -351,10 +368,18 @@ def _cleanForDigest(s):
 
 def _getDigestImpl(info, regex, digestField=None, sigField=None, rsa=None):
     """Helper method.  Calculates the correct digest of a server descriptor
+       or directory
        (as provided in a string).  If rsa is provided, signs the digest and
        creates a new descriptor.  Otherwise just returns the digest.
 
-       DOCDOC: NO LONGER QUITE TRUE
+       info -- the string to digest or sign.
+       regex -- a compiled regex that matches the line containing the digest
+          and the line containting the signature.
+       digestField -- If not signing, None.  Otherwise, the name of the digest
+          field.
+       sigField -- If not signing, None.  Otherwise, the name of the signature
+          field.
+       rsa -- our public key
        """
     info = _cleanForDigest(info)
     def replaceFn(m):

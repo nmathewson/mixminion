@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.39 2002/12/31 17:40:54 nickm Exp $
+# $Id: Common.py,v 1.40 2003/01/03 08:25:47 nickm Exp $
 
 """mixminion.Common
 
@@ -10,11 +10,13 @@ __all__ = [ 'IntervalSet', 'LOG', 'LogStream', 'MixError', 'MixFatalError',
             'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
             'formatFnameTime', 'formatTime', 'installSignalHandlers',
             'isSMTPMailbox', 'onReset', 'onTerminate', 'previousMidnight',
+            'readPossiblyGzippedFile',
             'secureDelete', 'stringContains', 'waitForChildren' ]
 
 import base64
 import bisect
 import calendar
+import gzip
 import os
 import re
 import signal
@@ -782,3 +784,22 @@ def installSignalHandlers(child=1,hup=1,term=1):
         signal.signal(signal.SIGHUP, _sigHandler)
     if term:
         signal.signal(signal.SIGTERM, _sigHandler)
+
+#----------------------------------------------------------------------
+# Gzip helpers
+
+def readPossiblyGzippedFile(fname, mode='r'):
+    """Read the contents of the file <fname>.  If <fname> ends with ".gz", 
+       treat it as a gzipped file."""
+    f = None
+    try:
+        if fname.endswith(".gz"):
+            f = gzip.GzipFile(fname, 'r')
+        else:
+            f = open(fname, 'r')
+        return f.read()
+    finally:
+        if f is not None:
+            f.close()
+
+

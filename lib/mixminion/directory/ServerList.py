@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.2 2003/01/03 05:14:47 nickm Exp $
+# $Id: ServerList.py,v 1.3 2003/01/03 08:25:48 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -21,31 +21,49 @@ import time
 from mixminion.Crypto import pk_encode_public_key, pk_same_public_key
 from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
      formatBase64, formatDate, formatFnameTime, formatTime, previousMidnight, \
-     stringContains
+     readPossiblyGzippedFile, stringContains
 from mixminion.Config import ConfigError
 from mixminion.ServerInfo import ServerDirectory, ServerInfo, \
      _getDirectoryDigestImpl
 
-# Layout:
-#  basedir
-#     servers/
-#       nickname-dateinserted.
-#     archive/
-#     reject/
-#     directory
-#     dirArchive/
-
 class ServerList:
-    "DOCDOC"
-    ##Fields: DOCDOC
-    #  baseDir
-    #  serverDir
-    #  rejectDir,
-    #  archiveDir
-    #  servers (filename->ServerInfo)
-    #  serversByNickname (nickname -> [filename, filename,...])
+    """A ServerList holds a set of server descriptors for use in generating
+       directories.  It checks new descriptors for consistency with old ones
+       as they are inserted.  It will reject any server if:
+          -- it is expired (Valid-Until in the past)
+          -- it is superseded (For all time it is valid, a more-recently-
+             published descriptor is also valid.)
+          -- it is inconsistent (We already know a descriptor for this
+             nickname, with a different identity key.)
+             [FFFF This check will become stricter in the future.]
+          
+       This implementation isn't terribly optimized, but there's no need to
+       optimize it until we have far more descriptors to worry about.
+    """
+    ##Fields:
+    #  baseDir: Base directory of this list
+    #  serverDir: Directory where we store active descriptors.
+    #  rejectDir: Directory where we store invalid descriptors.
+    #  archiveDir: Directory where we store old descriptors
+    #  servers: Map from filename within <serverDir> to ServerInfo objects.
+    #  serversByNickname: A map from server nickname to lists of filenames
+    #       within <serverDir>
+    ##Layout:
+    #  basedir
+    #     servers/
+    #          nickname-dateinserted.N ...
+    #     archive/
+    #          nickname-dateinserted.N ...
+    #     reject/
+    #          nickname-dateinserted.N ...
+    #     directory
+    #     dirArchive/
+    #          dir-dategenerated.N ...
+    #     identity
     def __init__(self, baseDir):
-        "DOCDOC"
+        """Initialize a ServerList to store servers under baseDir/servers,
+           creating directories as needed.
+        """
         self.baseDir = baseDir
         self.serverDir = os.path.join(self.baseDir, "servers")
         self.rejectDir = os.path.join(self.baseDir, "reject")
@@ -60,14 +78,19 @@ class ServerList:
         self.rescan()
         
     def importServerInfo(self, server, knownOnly=0):
-        "DOCDOC"
+        """Insert a ServerInfo into the list.  If the server is expired, or
+           superseded, or inconsistent, raise a MixError. 
+           
+           server -- a string containing the descriptor, or the name of a
+               file containing the descriptor (possibly gzip'd)
+           knownOnly -- if true, raise MixError is we don't already have
+               a descriptor with this nickname.
+        """
         # Raises ConfigError, MixError, 
         if stringContains(server, "[Server]"):
             contents = server
         else:
-            f = open(server, 'r')
-            contents = f.read()
-            f.close()
+            contents = readPossiblyGzippedFile(fname)
 
         server = ServerInfo(string=contents, assumeValid=0)
 
@@ -93,10 +116,10 @@ class ServerList:
                 if oldServer['Server']['Digest'] == server['Server']['Digest']:
                     raise MixError("Server descriptor already inserted.")
             # Okay -- make sure that this server isn't superseded.
-            if self._serverIsSupersededBy(server, 
+            if server.isSupersededBy(
                [ self.servers[fn] for fn in self.serversByNickname[nickname]]):
                 raise MixError("Server descriptor is superseded")
-
+        
         newFile = nickname+"-"+formatFnameTime()
         f, newFile = _openUnique(os.path.join(self.serverDir, newFile))
         newFile = os.path.split(newFile)[1]
@@ -108,7 +131,7 @@ class ServerList:
         self.serversByNickname.setdefault(nickname, []).append(newFile)
 
     def expungeServersByNickname(self, nickname):
-        "DOCDOC"
+        """Forcibly remove all servers named <nickname>"""
         LOG.info("Removing all servers named %s", nickname)
         if not self.serversByNickname.has_key(nickname):
             LOG.info("  (No such servers exist)")
@@ -125,7 +148,10 @@ class ServerList:
     def generateDirectory(self,
                           startAt, endAt, extraTime,
                           identityKey, publicationTime=None):
-        "DOCDOC"
+        """Generate and sign a new directory, to be effective from <startAt>
+           through <endAt>.  It includes all servers that are valid at
+           any time between <startAt> and <endAt>+>extraTime>.  The directory
+           is signed with <identityKey> """
         if publicationTime is None:
             publicationTime = time.time()
         if previousMidnight(startAt) >= previousMidnight(endAt):
@@ -177,7 +203,7 @@ class ServerList:
             for s in parsed.getServers():
                 foundDigests[s['Server']['Digest']] = 1
             assert foundDigests == includedDigests
-
+            
         f = open(os.path.join(self.baseDir, "directory"), 'w')
         f.write(directory)
         f.close()
@@ -188,22 +214,19 @@ class ServerList:
         f.close()
 
     def getDirectoryFilename(self):
-        "DOCDOC"
+        """Return the filename of the most recently generated directory"""
         return os.path.join(self.baseDir, "directory")
 
     def clean(self, now=None):
-        "DOCDOC"
-        # A server needs to be cleaned out if it is no longer valid,
-        # or if its future validity range is wholly covered by other, more
-        # recently published descriptors for the same server.
-
+        """Remove all expired or superceded servers from the active directory.
+        """
         # This algorithm is inefficient: O(N_descs * N_descs_per_nickname).
         # We're just going to ignore that.
         if now is None:
             now = time.time()
 
-        removed = {}
-        beforeNow = IntervalSet([(0, time.time())])
+        removed = {} # Map from filename->whyRemoved
+        # Find all superseded servers
         for name, servers in self.serversByNickname.items():
             servers = [ (self.servers[fn]['Server']['Published'], 
                         fn, self.servers[fn]) for fn in servers ]
@@ -211,10 +234,10 @@ class ServerList:
             fns = [ fn for _, fn, _ in servers]
             servers = [ s for _, _, s  in servers ]
             for idx in range(len(servers)):
-                if self._serverIsSupersededBy(servers[idx],
-                                              servers[idx+1:]):
+                if servers[idx].isSupersededBy(servers[idx+1:]):
                     removed[fns[idx]] = "superceded"
 
+        # Find all expired servers.
         for fn, s in self.servers.items():
             if removed.has_key(fn):
                 continue
@@ -240,6 +263,7 @@ class ServerList:
                      removed[fn], fn, name)
             del removed[fn]
  
+        # Now, do the actual removing.
         for fn, why in removed.items():
             LOG.info("Removing %s descriptor %s", why, fn)
             os.rename(os.path.join(self.serverDir, fn),
@@ -250,8 +274,9 @@ class ServerList:
         self.__buildNicknameMap()        
     
     def rescan(self):
-        "DOCDOC"
+        """Reconstruct this ServerList object's internal state."""
         self.servers = {}
+        # First, build self.servers
         for filename in os.listdir(self.serverDir):
             path = os.path.join(self.serverDir, filename)
             try:
@@ -262,32 +287,28 @@ class ServerList:
                 LOG.warn(" (Error was: %s)", str(e))
                 os.rename(path, os.path.join(self.rejectDir, filename))
 
+        # Then, rebuild self.serversByNickname
         self.__buildNicknameMap()
 
     def __buildNicknameMap(self):
-        "DOCDOC"
+        """Helper method. Regenerate self.serversByNickname from
+           self.servers"""
         self.serversByNickname = {}
         for fn, server in self.servers.items():
             nickname = server.getNickname()
             self.serversByNickname.setdefault(nickname, []).append(fn)
 
-    def _serverIsSupersededBy(self, server, others):
-        "DOCDOC"
-        validity = server.getIntervalSet()
-        for s in others:
-            if server.isNewerThan(s):
-                continue
-            validity -= s.getIntervalSet()
-        return validity.isEmpty()
-        
-def _openUnique(fname):
-    "DOCDOC"
+def _openUnique(fname, mode='w'):
+    """Helper function. Returns a file open for writing into the file named
+       'fname'.  If fname already exists, opens 'fname.1' or 'fname.2' or
+       'fname.3' or so on."""
+    # ???? Should this go into common?
     base, rest = os.path.split(fname)
     idx = 0
     while 1:
         try:
             fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0600)
-            return os.fdopen(fd, 'w'), fname
+            return os.fdopen(fd, mode), fname
         except OSError:
             pass
         idx += 1

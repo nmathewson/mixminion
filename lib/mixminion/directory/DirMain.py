@@ -1,10 +1,10 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.1 2003/01/03 05:14:47 nickm Exp $
+# $Id: DirMain.py,v 1.2 2003/01/03 08:25:48 nickm Exp $
 
 """mixminion.directory.DirMain
 
    CLI for mixminion directory generation.
-   """
+"""
 
 __all__ = [ ]
 
@@ -21,15 +21,17 @@ from mixminion.directory.ServerList import ServerList
 
 USAGE = """%s -d <directory> command 
    Where 'command' is one of:
-      import <serverinfo>
-      import-new <serverinfo>
-      generate
-      export <filename>
-      remove <nickname>
-      fingerprint"""
+      import <serverinfo>      [Import a descriptor for a known server]
+      import-new <serverinfo>  [Import a descriptor for a new server]
+      generate                 [Generate and sign a new directory]
+      export <filename>        [Export the most recently generated directory]
+      remove <nickname>        [Remove a server from storage]
+      fingerprint              [Return the fingerprint of this directory's pk]
+"""
 
 def getIdentity(baseDir):
-    "DOCDOC"
+    """Load the identity key stored under the base directory, creating it
+       if necessary."""
     createPrivateDir(baseDir)
     fname = os.path.join(baseDir, "identity")
     if not os.path.exists(fname):
@@ -41,9 +43,8 @@ def getIdentity(baseDir):
         return pk_PEM_load(fname)
     
 def usageAndExit(cmd):
-    "DOCDOC"
+    """Print a usage message and exit"""
     print >>sys.stderr, USAGE%cmd
-    raise "N"
     sys.exit(1)
 
 def cmd_import(cmd, base, rest):
@@ -71,7 +72,6 @@ def cmd_generate(cmd, base, rest):
     print >>sys.stderr, "Directory generated."
 
 def cmd_export(cmd, base, rest):
-    "DOCDOC"
     if len(rest) != 1: usageAndExit(cmd)
     lst = ServerList(base)
     fname = lst.getDirectoryFilename()

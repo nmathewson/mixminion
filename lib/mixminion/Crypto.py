@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.32 2003/01/03 05:14:47 nickm Exp $
+# $Id: Crypto.py,v 1.33 2003/01/03 08:25:47 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -495,8 +495,10 @@ class RNG:
             return res
 
     def pick(self, lst):
-        "DOCDOC"
-        #XXXX002 test
+        """Return a member of 'lst', chosen randomly according to a uniform
+           distribution.  Raises IndexError if lst is empty."""
+        if not lst:
+            raise IndexError("rng.pick([])")
         return lst[self.getInt(len(lst))]
 
     def shuffle(self, lst, n=None):
