@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.129 2004/05/17 21:18:22 nickm Exp $
+# $Id: ServerMain.py,v 1.130 2004/05/17 21:25:27 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -956,6 +956,7 @@ class MixminionServer(_Scheduler):
         self.keyring.checkKeys()
         self.generateKeys()
         self.moduleManager.sync()
+        self.outgoingQueue.sync()
 
     def doMix(self):
         """Called when the server's mix is about to fire.  Picks some
@@ -1011,6 +1012,7 @@ class MixminionServer(_Scheduler):
 
         self.packetHandler.close()
         self.moduleManager.close()
+        self.outgoingQueue.close()
 
         EventStats.log.save()
 
