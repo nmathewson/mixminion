@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.10 2002/11/21 19:56:26 nickm Exp $
+# $Id: Makefile,v 1.11 2002/12/02 02:51:41 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -80,7 +80,7 @@ lines:
 
 xxxx:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
-	   | xargs -0 grep 'XXXX\|FFFF|\?\?\?\?'
+	   | xargs -0 grep 'XXXX\|FFFF\|DOCDOC\|????'
 
 #
 # Targets to make openssl get built properly.  
