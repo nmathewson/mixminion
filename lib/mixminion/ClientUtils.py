@@ -948,7 +948,7 @@ class ClientFragmentPool:
                     else:
                         maxSize = msg*20
                     return mixminion.Packet.uncompressData(msg,maxSize)
-                except ParseError, e:
+                except mixminion.Packet.ParseError, e:
                     raise UIError("Invalid message %s: %s"%(msgid,e))
 
         if state is None:
