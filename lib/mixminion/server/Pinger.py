@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.15 2004/12/12 23:24:31 nickm Exp $
+# $Id: Pinger.py,v 1.16 2004/12/13 00:23:11 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -759,7 +759,7 @@ class PingLog:
         if now is None: now=time.time()
         LOG.info("Computing ping results.")
         LOG.info("Starting to compute server uptimes.")
-        self.calculateUptimes(now, now-24*60*60*12)
+        self.calculateUptimes(now-24*60*60*12, now)
         LOG.info("Starting to compute one-hop ping results")
         self.calculateOneHopResults(now)
         LOG.info("Starting to compute two-hop chain status")
