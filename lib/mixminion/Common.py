@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.139 2004/05/14 23:44:09 nickm Exp $
+# $Id: Common.py,v 1.140 2004/05/17 22:39:17 nickm Exp $
 
 """mixminion.Common
 
@@ -1100,11 +1100,9 @@ class StatusLog:
             A space,
             A 'message type' consisting only of capital letters, digits,
                 and underscores,
-            Optionally, a space, and a space-separated list of arguments,
+            Optionally, a space followed by a sequence of printing non-newline
+                characters.
             A newline.
-
-       If an argument contains a space, a newline, or a backslash,
-       these characters are escaped with a backslash.
 
        To maintain compatibility, arguments must only be added, never
        removed, moved, or changed.  Messages should be emitted by
@@ -1115,10 +1113,11 @@ class StatusLog:
        Each message type should be independent (it seems safer to not
        assume any particular ordering between messages).
 
-       Keep machine-parseability in mind when adding these message types:
-       make sure the name is unique, and separate arguments with colons.
+       Keep machine-parseability in mind when adding these message
+       types: make sure the name is unique.  When possible, separate
+       arguments with a character that cannot occur in the arguments:
+       colons, spaces, or so on.
     """
-    _ESC_PAT = re.compile(r'([ \n\\])')
     def __init__(self):
         """DOCDOC"""
         self.fd = None
@@ -1126,13 +1125,13 @@ class StatusLog:
 
     def setFD(self, fdnum):
         """DOCDOC"""
-        # this will fail if the invoking user did not actually open the file
+        # This will fail if the invoking user did not actually open the file
         # descriptor they ask us to use, for example if they did:
         #  mixminion send --status-fd=3
         # instead of:
         #  mixminion send --status-fd=3 3>somewhere.txt
         #
-        # remember, this is not meant for use by a shell, it is for
+        # Remember, this is not meant for use by a shell. It is for
         # front-end programs that are running mixminion in a child process.
         # There will be a pipe connected to this fd which the parent process
         # will be reading from.
@@ -1142,14 +1141,14 @@ class StatusLog:
         else:
             self.fd = fdnum
 
-    def msg(self, name, args):
+    def msg(self, name, args=""):
         """DOCDOC"""
-        r = [ "[MIXMINION:]", name ]
-        for arg in args:
-            r.append(self._ESC_PAT.sub(r"\\\1",str(arg)))
-        return "%s\n"%(" ".join(r))
+        if args:
+            return "[MIXMINION:] %s %s\n" % (name,args)
+        else:
+            return "[MIXMINION:] %s\n"%(name)
 
-    def log(self, name, *args):
+    def log(self, name, args=""):
         """DOCDOC"""
         if self.fd is None:
             return
@@ -1164,25 +1163,6 @@ class StatusLog:
 # The global Status instance for the mixminion client. Status messages
 # should be emitted with STATUS.log()
 STATUS = StatusLog()
-
-_STATUS_LINE_RE = re.compile(r'^\[MIXMINION:\] ([A-Z_]+)(?: (.*))?', re.S)
-_ARG_RE = re.compile(r'^((?:[^ \n\\]+|\\[ \n\\])+)[ \n]?')
-_UNESC_ARG_RE = re.compile(r'\\([ \n\\])')
-def parseStatusLogLine(s):
-    """DOCDOC"""
-    m = _STATUS_LINE_RE.match(s)
-    if not m:
-        return None,None
-    name = m.group(1)
-    s = m.group(2)
-    res = []
-    while s:
-        m = _ARG_RE.match(s)
-        if not m:
-            return None,None
-        res.append(_UNESC_ARG_RE.sub(r'\1', m.group(1)))
-        s = s[m.end():]
-    return name, res
 
 #----------------------------------------------------------------------
 # Time processing

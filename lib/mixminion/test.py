@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.198 2004/05/17 05:19:07 nickm Exp $
+# $Id: test.py,v 1.199 2004/05/17 22:39:17 nickm Exp $
 
 """mixminion.tests
 
@@ -3632,33 +3632,19 @@ class LogTests(TestCase):
     def testStatusLog(self):
         SL = mixminion.Common.StatusLog()
         self.assertEquals("[MIXMINION:] ABC\n",
-                          SL.msg("ABC", []))
+                          SL.msg("ABC", ""))
         self.assertEquals("[MIXMINION:] ABC 42 HELLO\n",
-                          SL.msg("ABC", [42, "HELLO"]))
-        self.assertEquals("[MIXMINION:] ABC A A\\ BC\\ D\n",
-                          SL.msg("ABC", ["A", "A BC D"]))
-        self.assertEquals("[MIXMINION:] A_BCD A\\\nB\\\\X\n",
-                          SL.msg("A_BCD", ["A\nB\\X"]))
+                          SL.msg("ABC", "42 HELLO"))
         tmpfile = mix_mktemp()
         f = open(tmpfile, 'w')
         SL.setFD(f.fileno())
-        SL.log("REVOLUTION_9", "number nine", "number nine")
+        SL.log("REVOLUTION_9", "number nine number nine")
         SL.log("REVOLUTION_9", "take this brother")
         SL.setFD(None)
         f.close()
         self.assertEquals(readFile(tmpfile),
-                   "[MIXMINION:] REVOLUTION_9 number\\ nine number\\ nine\n"
-                   "[MIXMINION:] REVOLUTION_9 take\\ this\\ brother\n")
-
-        PSL = mixminion.Common.parseStatusLogLine
-        self.assertEquals(PSL("[MIXMINION:] ABC 42 HELLO\n"),
-                          ("ABC",["42", "HELLO"]))
-        self.assertEquals(PSL("[MIXMINION:] ABC 42 HELLO\\ \n"),
-                          ("ABC",["42", "HELLO "]))
-        self.assertEquals(PSL("[MIXMINION:] ABC\n"),
-                          ("ABC",[]))
-        self.assertEquals(PSL("[MIXMINION:] ABC X\\\nYZ 03.1\\\\\n"),
-                          ("ABC",["X\nYZ", "03.1\\"]))
+                   "[MIXMINION:] REVOLUTION_9 number nine number nine\n"
+                   "[MIXMINION:] REVOLUTION_9 take this brother\n")
 
 #----------------------------------------------------------------------
 # File paranoia
@@ -7757,7 +7743,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 1:
+    if 0:
         suite.addTest(tc(QueueTests))
         return suite
     testClasses = [MiscTests,

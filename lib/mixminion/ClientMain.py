@@ -1384,7 +1384,7 @@ def countPackets(cmd,args):
     address.setHeaders(parseMessageAndHeaders(headerStr+"\n")[1])
     if address and inFile == '-' and not address.hasPayload():
         print "1 packet needed"
-        STATUS.log("COUNT_PACKETS", 1)
+        STATUS.log("COUNT_PACKETS", "1")
         return
     else:
         if address and not address.hasPayload():
@@ -1411,7 +1411,7 @@ def countPackets(cmd,args):
 
         n = mixminion.BuildMessage.getNPacketsToEncode(message, 0, prefix)
         print "%d packets needed" % n
-        STATUS.log("COUNT_PACKETS", n)
+        STATUS.log("COUNT_PACKETS", str(n))
 
 _PING_USAGE = """\
 Usage: mixminion ping [options] serverName
@@ -1942,9 +1942,10 @@ def inspectSURBs(cmd, args):
                     used = surblog.isSURBUsed(surb) and "yes" or "no"
                     print surb.format()
                     print "Used:", used
-                    STATUS.log("INSPECT_SURB", surb.getHexDigest(),
-                               surb.timestamp,
-                               surblog.isSURBUsed(surb) and "1" or "0")
+                    STATUS.log("INSPECT_SURB",
+                               "%s %s %s"%(surb.getHexDigest(),
+                                           surb.timestamp,
+                                   surblog.isSURBUsed(surb) and "1" or "0"))
             except ParseError, e:
                 print "Error while parsing: %s"%e
     finally:
