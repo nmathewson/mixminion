@@ -1,6 +1,7 @@
-mixminion (0.0.6+0.0.7.cvs) unreleased; urgency=low
+mixminion (0.0.6.2-1) experimental; urgency=low
 
-  * Initial Release (closes: #176539).
+  * Initial Release, uploading to experimental
+    (Happy birthday #176539; closes: #176539).
 
- -- Peter Palfrader <weasel@debian.org>  Sat,  8 Nov 2003 11:07:43 +0100
+ -- Peter Palfrader <weasel@debian.org>  Tue, 13 Jan 2004 16:01:20 +0100
 
