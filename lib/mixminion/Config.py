@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.51 2003/07/01 21:25:13 nickm Exp $
+# $Id: Config.py,v 1.52 2003/07/07 16:49:24 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -712,6 +712,11 @@ class _ConfigFile:
            Return a map from keys to values for a given section.  If the
            section was absent, return an empty map."""
         return self._sections[sec]
+
+    def get(self, sec, val="---"):
+        """DOCDOC"""
+        if val == "---": val = {}
+        return self._sections.get(sec, val)
 
     def has_section(self, sec):
         """Return true if this config object allows a section named 'sec'."""

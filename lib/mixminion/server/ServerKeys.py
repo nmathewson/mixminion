@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.45 2003/06/26 03:23:53 nickm Exp $
+# $Id: ServerKeys.py,v 1.46 2003/07/07 16:49:25 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -771,6 +771,18 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         warn("(Future keys will be generated with the correct lifetime")
         warn.errors -= 2 # We can't do anything about this!
 
+    insecurities = config.getInsecurities()
+    if insecurities:
+        if (info_s['Secure-Configuration'] or
+            info_s.get('Why-Insecure',None)!=", ".join(insecurities)):
+            warn("Mismatched Secure-Configuration: %r %r %r",
+                 info_s['Secure-Configuration'],
+                 info_s.get("Why-Insecure",None),
+                 ", ".join(insecurities))
+    else:
+        if not info_s['Secure-Configuration'] or info_s.get('Why-Insecure'):
+            warn("Mismatched Secure-Configuration")
+
     info_im = info['Incoming/MMTP']
     config_im = config['Incoming/MMTP']
     if info_im['Port'] != config_im['Port']:
@@ -801,6 +813,12 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
             warn("%s published, but not enabled.", section)
         if config_out and not info_out:
             warn("%s enabled, but not published.", section)
+
+    info_testing = info.get("Testing",{})
+    if info_testing.get("Platform", "") != getPlatformSummary():
+        warn("Mismatched platform summary")
+    if not warn.errors and info_testing.get("Configuration", "") != config.getConfigurationSummary():
+        warn("Mismatched configuration summary")
 
     if warn.errors:
         return "bad"
@@ -863,7 +881,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     if not validAt:
         validAt = now
 
-    if config.getInsecurities():
+    insecurities = config.getInsecurities()
+    if insecurities:
         secure = "no"
     else:
         secure = "yes"
@@ -941,6 +960,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         Software: Mixminion %(mm_version)s
         Secure-Configuration: %(Secure)s
         """ % fields
+    if insecurities:
+        info += "Why-Insecure: %s\n"%(", ".join(insecurities))
     if contact:
         info += "Contact: %s\n"%contact
     if comments:
@@ -979,6 +1000,13 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # Ask our modules for their configuration information.
     info += "".join(config.moduleManager.getServerInfoBlocks())
 
+    info += """\
+          [Testing]
+          Platform: %s
+          Configuration: %s
+          """ %(getPlatformSummary(),
+                config.getConfigurationSummary())
+    
     # Remove extra (leading or trailing) whitespace from the lines.
     lines = [ line.strip() for line in info.split("\n") ]
     # Remove empty lines
@@ -996,6 +1024,11 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # FFFF Remove this once we're more confident.
     inf = ServerInfo(string=info)
     ok = checkDescriptorConsistency(inf, config, log=0, isPublished=0)
+    if ok not in ('good', 'so-so'):
+        print "========"
+        print info
+        print "======"
+        checkDescriptorConsistency(inf, config, log=1, isPublished=0)
     assert ok in ('good', 'so-so')
 
     return info
@@ -1108,3 +1141,10 @@ def generateCertChain(filename, mmtpKey, identityKey, nickname,
     identityCertText = readFile(fname)
     os.unlink(fname)
     writeFile(filename, certText+identityCertText, 0600)
+        
+def getPlatformSummary():
+    """XXXX005 move; DOCDOC"""
+    uname = " ".join(os.uname())
+    return "Mixminion %s; Python %r on %r" % (
+        mixminion.__version__, sys.version, uname)
+

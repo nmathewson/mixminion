@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.34 2003/06/26 17:43:27 nickm Exp $
+# $Id: ServerConfig.py,v 1.35 2003/07/07 16:49:25 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -122,10 +122,10 @@ class ServerConfig(mixminion.Config._ConfigFile):
         if server['LogLevel'] in ('TRACE', 'DEBUG'):
             reasons.append("Log is too verbose")
         if server['LogStats'] and server['StatsInterval'].getSeconds() \
-               < 24*60*60:
+               < 2*60*60:
             reasons.append("StatsInterval is too short")
-        if not server["EncryptIdentityKey"]:
-            reasons.append("Identity key is not encrypted")
+        #if not server["EncryptIdentityKey"]:
+        #    reasons.append("Identity key is not encrypted")
         # ???? Pkey lifetime, sloppiness?
         if server["MixAlgorithm"] not in _SECURE_MIX_RULES:
             reasons.append("Mix algorithm is not secure")
@@ -144,6 +144,25 @@ class ServerConfig(mixminion.Config._ConfigFile):
 
         return reasons
 
+    def getConfigurationSummary(self):
+        """DOCDOC"""
+        res = []
+        for section,entries in [
+            ("Server", ['LogLevel', 'LogStats', 'StatsInterval',
+                        'PublicKeyOverlap', 'Mode', 'MixAlgorithm',
+                        'MixInterval', 'MixPoolRate', 'MixPoolMinSize',
+                        'Timeout',]),
+            ("Outgoing/MMTP", ['Retry']),
+            ("Delivery/SMTP", ['Enabled','Retry']),
+            ("Delivery/SMTP-Via-Mixmaster", ['Enabled', 'Retry', 'Server']),
+            ]:
+            sec = self[section]
+            for k in entries:
+                v = sec.get(k, None)
+                if v:
+                    res.append("%s/%s=%r"%(section,k,v))
+        return "; ".join(res)
+    
     def validateRetrySchedule(self, sectionName, entryName='Retry'):
         """Check whether the retry schedule in self[sectionName][entryName]
            is reasonable.  Warn or raise ConfigError if it isn't.  Ignore
@@ -154,6 +173,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
             return
         mixInterval = self['Server']['MixInterval'].getSeconds()
         _validateRetrySchedule(mixInterval, entry, sectionName)
+
 
 def _validateRetrySchedule(mixInterval, schedule, sectionName):
     """Backend for ServerConfig.validateRetrySchedule -- separated for testing.

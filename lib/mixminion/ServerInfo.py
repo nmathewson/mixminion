@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.49 2003/06/09 00:03:37 nickm Exp $
+# $Id: ServerInfo.py,v 1.50 2003/07/07 16:49:24 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -66,6 +66,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Packet-Formats": ("ALLOW", None, None),
                      "Software": ("ALLOW", None, None),
                      "Secure-Configuration": ("ALLOW", C._parseBoolean, None),
+                     "Why-Insecure": ("ALLOW", None, None),
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
@@ -87,7 +88,14 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Delivery/SMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     }
+                     },
+        # We never read these values, except to see whether we should
+        # regenerate them.  Depending on these options would violate
+        # the spec.
+        "Testing" : {
+                     "Platform": ("ALLOW", None, None),
+                     "Configuration": ("ALLOW", None, None),
+                     },
         }
 
     def __init__(self, fname=None, string=None, assumeValid=0,
