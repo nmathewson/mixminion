@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.50.2.1 2003/09/28 03:57:33 nickm Exp $
+# $Id: MMTPServer.py,v 1.50.2.2 2003/10/01 14:57:54 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -1125,14 +1125,16 @@ class MMTPAsyncServer(AsyncServer):
         try:
             # Is there an existing connection open to the right server?
             con = self.clientConByAddr[(ip,port,keyID)]
-            # If so, is that connection currently sending messages?
+        except KeyError:
+            pass
+        else:
+            # No exception: There is an existing connection.  But is that
+            # connection currently sending messages?
             if con.isActive():
                 LOG.debug("Queueing %s messages on open connection to %s",
                           len(deliverable), con.address)
                 con.addMessages(deliverable)
                 return
-        except KeyError:
-            pass
 
         try:
             # There isn't any connection to the right server. Open one...
@@ -1142,19 +1144,21 @@ class MMTPAsyncServer(AsyncServer):
                                      ip, port, keyID, deliverable,
                                      finishedCallback=finished,
                                      certCache=self.certificateCache)
-            con.register(self)
-            # ...and register it in clientConByAddr
-            assert addr == con.getAddr()
-            self.clientConByAddr[addr] = con
         except socket.error, e:
             LOG.error("Unexpected socket error connecting to %s:%s: %s",
                       ip, port, e)
             EventStats.log.failedConnect() #FFFF addr
-            for m in con.messageList:
+            for m in deliverable:
                 try:
                     m.failed(1)
                 except AttributeError:
                     pass
+        else:
+            # No exception: We created the connection successfully.  
+            # Thus, register it in clientConByAddr
+            assert addr == con.getAddr()
+            con.register(self)
+            self.clientConByAddr[addr] = con
 
     def __clientFinished(self, addr):
         """Called when a client connection runs out of messages to send."""
