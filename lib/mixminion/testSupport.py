@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.7 2002/11/22 21:12:05 nickm Exp $
+# $Id: testSupport.py,v 1.8 2002/12/02 03:25:46 nickm Exp $
 
 """mixminion.testSupport
 
@@ -10,8 +10,10 @@ import os
 import sys
 import stat
 import base64
+import cStringIO
 
-from mixminion.Common import waitForChildren, createPrivateDir
+import mixminion.Common
+from mixminion.Common import waitForChildren, createPrivateDir, getLog
 from mixminion.Config import _parseBoolean, ConfigError
 from mixminion.Modules import DeliveryModule, ImmediateDeliveryQueue, \
      SimpleModuleDeliveryQueue, DELIVER_OK, DELIVER_FAIL_RETRY, \
@@ -36,7 +38,6 @@ class DirectoryStoreModule(DeliveryModule):
     def validateConfig(self, sections, entries, lines, contents):
 	# loc = sections['Testing/DirectoryDump'].get('Location')
 	pass 
-    
     
     def configure(self, config, manager):
 	self.loc = config['Testing/DirectoryDump'].get('Location')
@@ -65,7 +66,7 @@ class DirectoryStoreModule(DeliveryModule):
     
     def createDeliveryQueue(self, queueDir):
 	if self.useQueue:
-	    return SimpleModuleDeliveryQueue()#XXXX
+	    return SimpleModuleDeliveryQueue(self, queueDir)
 	else:
 	    return ImmediateDeliveryQueue(self)
 	
@@ -76,6 +77,8 @@ class DirectoryStoreModule(DeliveryModule):
 	    return DELIVER_FAIL_RETRY
 	elif exitInfo == 'FAIL!':
 	    return DELIVER_FAIL_NORETRY
+
+	getLog().debug("Delivering test message")
 
 	m = _escapeMessageForEmail(message, tag)
 	if m is None:
@@ -181,3 +184,83 @@ def deltree(*dirs):
             os.rmdir(d)
         elif os.path.exists(d):
             os.unlink(d)
+
+#----------------------------------------------------------------------
+
+def suspendLog(severity=None):
+    """Temporarily suppress logging output."""
+    log = getLog()
+    if hasattr(log, '_storedHandlers'):
+	resumeLog()
+    buf = cStringIO.StringIO()
+    h = mixminion.Common._ConsoleLogHandler(buf)
+    log._storedHandlers = log.handlers
+    log._storedSeverity = log.severity
+    log._testBuf = buf
+    log.handlers = []
+    if severity is not None:
+	log.setMinSeverity(severity)
+    log.addHandler(h)
+
+def resumeLog():
+    """Resume logging output.  Return all new log messages since the last
+       suspend."""
+    log = getLog()
+    if not hasattr(log, '_storedHandlers'):
+	return None
+    buf = log._testBuf
+    del log._testBuf
+    log.handlers = log._storedHandlers
+    del log._storedHandlers
+    log.setMinSeverity(log._storedSeverity)
+    del log._storedSeverity
+    return buf.getvalue()
+
+#----------------------------------------------------------------------
+
+# list of obj, attr, oldval.
+_REPLACED_OBJECT_STACK = []
+
+def replaceAttribute(object, attribute, value):
+    "DOCDOC"
+    if hasattr(object, attribute):
+	tup = (object, attribute, getattr(object, attribute))
+    else:
+	tup = (object, attribute)
+    _REPLACED_OBJECT_STACK.append(tup)
+    setattr(object, attribute, value)
+
+_CALL_LOG = []
+
+class _ReplacementFunc:
+    def __init__(self, name, fn=None):
+	self.name = name
+	self.fn = fn
+    def __call__(self, *args, **kwargs):
+	_CALL_LOG.append((self.name, args, kwargs))
+	if self.fn:
+	    return self.fn(*args, **kwargs)
+	else:
+	    return None
+
+def replaceFunction(object, attribute, fn=None):
+    replaceAttribute(object, attribute, _ReplacementFunc(attribute, fn))
+
+def getReplacedFunctionCallLog():
+    return _CALL_LOG
+
+def clearReplacedFunctionCallLog():
+    del _CALL_LOG[:]
+
+def undoReplacedAttributes():
+    "DOCDOC"
+    r = _REPLACED_OBJECT_STACK[:]
+    r.reverse()
+    del _REPLACED_OBJECT_STACK[:]
+    for item in r:
+	if len(item) == 2:
+	    o,a = item
+	    delattr(o,a)
+	else:
+	    o,a,v = item
+	    setattr(o,a,v)
