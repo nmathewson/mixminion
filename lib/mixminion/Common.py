@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.110 2003/09/03 15:49:25 nickm Exp $
+# $Id: Common.py,v 1.111 2003/09/03 16:13:23 nickm Exp $
 
 """mixminion.Common
 
@@ -826,11 +826,14 @@ class Log:
     ## Fields:
     # handlers: a list of logHandler objects.
     # severity: a severity below which log messages are ignored.
+    # silenceNoted: true iff we have printed a message about silencing the
+    #     console long.
     def __init__(self, minSeverity):
         """Create a new Log object that ignores all message less severe than
            minSeverity, and sends its output to stderr."""
         self.configure(None)
         self.setMinSeverity(minSeverity)
+        self.silenceNoted = 0
         self.__lock = threading.Lock()
 
     def configure(self, config, keepStderr=0):
@@ -861,8 +864,10 @@ class Log:
                     return
                 if (config['Server'].get('Daemon',0) or
                     not config['Server'].get('EchoMessages',0)):
-                    print "Silencing the console log; look in %s instead"%(
-                        logfile)
+                    if not self.silenceNoted:
+                        print "Silencing the console log; look in %s instead"%(
+                            logfile)
+                        self.silenceNoted = 1
                     del self.handlers[0]
 
     def setMinSeverity(self, minSeverity):
