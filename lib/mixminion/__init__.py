@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.35 2003/05/30 07:36:28 nickm Exp $
+# $Id: __init__.py,v 1.36 2003/06/02 17:49:51 nickm Exp $
 
 """mixminion
 
@@ -28,6 +28,8 @@ def version_tuple_to_string(t):
         s1 = "alpha"
     elif status == 50:
         s1 = "beta"
+    elif status == 98:
+        s1 = "pre"
     elif status == 99:
         s1 = "rc"
     elif status == 100:
@@ -56,6 +58,8 @@ def parse_version_string(s):
         status = 100
     elif status == 'rc':
         status = 99
+    elif status == 'pre':
+        status = 98
     elif status == 'beta':
         status = 50
     elif status == 'alpha':
