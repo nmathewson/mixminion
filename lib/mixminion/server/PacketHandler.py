@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.26 2003/09/03 15:54:40 nickm Exp $
+# $Id: PacketHandler.py,v 1.27 2003/10/09 03:55:07 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -113,6 +113,9 @@ class PacketHandler:
         encSubh = header1[:Packet.ENC_SUBHEADER_LEN]
         header1 = header1[Packet.ENC_SUBHEADER_LEN:]
 
+        assert len(header1) == Packet.HEADER_LEN - Packet.ENC_SUBHEADER_LEN
+        assert len(header1) == (128*16) - 256 == 1792
+
         # Try to decrypt the first subheader.  Try each private key in
         # order.  Only fail if all private keys fail.
         subh = None
@@ -131,6 +134,9 @@ class PacketHandler:
             # Nobody managed to get us the first subheader.  Raise the
             # most-recently-received error.
             raise e
+
+        if len(subh) != Packet.MAX_SUBHEADER_LEN:
+            raise ContentError("Bad length in RSA-encrypted part of subheader")
 
         subh = Packet.parseSubheader(subh) #may raise ParseError
 
@@ -169,6 +175,12 @@ class PacketHandler:
                                Packet.OAEP_OVERHEAD + Packet.MIN_SUBHEADER_LEN
                                + subh.routinglen)
 
+        assert len(header1) == (Packet.HEADER_LEN - Packet.ENC_SUBHEADER_LEN
+                             + Packet.OAEP_OVERHEAD+Packet.MIN_SUBHEADER_LEN
+                                + subh.routinglen)
+        assert len(header1) == 1792 + 42 + 42 + subh.routinglen == \
+               1876 + subh.routinglen
+
         # Decrypt the rest of header 1, encrypting the padding.
         header1 = Crypto.ctr_crypt(header1, header_sec_key)
 
@@ -179,7 +191,13 @@ class PacketHandler:
             subh.appendOverflow(header1[:overflowLength])
             header1 = header1[overflowLength:]
 
+        assert len(header1) == (
+            1876 + subh.routinglen 
+            - max(0,subh.routinglen-Packet.MAX_ROUTING_INFO_LEN))
+
         header1 = subh.underflow + header1
+
+        assert len(header1) == Packet.HEADER_LEN
 
         # Decrypt the payload.
         payload = Crypto.lioness_decrypt(pkt.payload,
