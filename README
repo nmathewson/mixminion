@@ -1,4 +1,4 @@
-$Id: README,v 1.29 2003/02/13 10:56:39 nickm Exp $
+$Id: README,v 1.30 2003/02/13 11:34:15 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3rc1.
 
@@ -70,7 +70,6 @@ NEW IN VERSION 0.0.3rc1:
       - DROP packets have random payloads.
       - A nasty bug in our implementation of counter mode is fixed.  On
         the bright side, big-endian and little-endian hosts should now,
-
         finally, be compatible.  On the minus side, we lose backward
         compatibility.
       - Server descriptors and directories now follow a more forward-
