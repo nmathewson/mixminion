@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.16 2003/06/10 10:40:21 nickm Exp $
+# $Id: HashLog.py,v 1.17 2003/06/12 04:07:53 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -70,7 +70,7 @@ def deleteHashLog(filename):
             for fn in os.listdir(parent):
                 if fn.startswith(prefix1) or fn.startswith(prefix2):
                     files.append(os.path.join(parent, fn))
-        remove = [f for f in remove if os.path.exists(f)]                
+        remove = [f for f in remove if os.path.exists(f)]
         secureDelete(remove, blocking=1)
     finally:
         _HASHLOG_DICT_LOCK.release()
