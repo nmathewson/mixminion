@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.33 2003/06/03 17:28:11 nickm Exp $
+# $Id: MMTPClient.py,v 1.34 2003/06/14 23:15:15 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -82,8 +82,8 @@ class BlockingClientConnection:
             tp = "TLSClosed"
         else:
             tp = str(type(err))
-        e = MixProtocolError("%s error while %s to %s:%s: %s",
-                             tp, action, self.targetIP, self.targetPort, err)
+        e = MixProtocolError("%s error while %s to %s:%s: %s" %(
+                             tp, action, self.targetIP, self.targetPort, err))
         e.base = err
         raise e
 
