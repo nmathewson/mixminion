@@ -10,8 +10,11 @@ Peter Palfrader
 Robyn Wagner
 Bryce "Zooko" Wilcox-O'Hearn
 
+   Special thanks go to Christopher Porter, whose donation of
+   a copy of Visual Studio 6 made a native Windows port possible.
+
    Finaly, thanks to George Danezis and the whole Mixminion-Dev team
    for their work on the Type III remailer design.
 
                                               -- Nick
-$Id: ACKS,v 1.3 2003/01/07 01:41:20 nickm Exp $
+$Id: ACKS,v 1.4 2003/07/14 22:16:00 nickm Exp $

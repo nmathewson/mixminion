@@ -1,4 +1,4 @@
-$Id: HACKING,v 1.19 2003/06/26 03:23:53 nickm Exp $
+$Id: HACKING,v 1.20 2003/07/14 22:16:00 nickm Exp $
 Hacking Mixminion
 
 Requirements:
@@ -9,21 +9,30 @@ Requirements:
 
         A working /dev/urandom (see PORTING NOTES below)
 
+NON-HACKING PROJECTS:
+
+- We need documentation.
+
+- We need a man page.
+
+- See the spec for open issues.
+
+- We need a better web page.
+
+- We need a logo.  (An alien with an eggbeater or an alien at a DJ's mixer
+  are two ideas.)
+
 THINGS TO HACK:  (Good introductory projects that I won't get to myself for
   at least a version or two.)
 
-- Last time I checked, the client could run okay on Cygwin.  Somebody should
-  do a full port.
+- Last time I checked, the client and server could run okay on Cygwin.  More
+  people should try it out, and see what needs to be done.
 
-- We need a native (non-Cygwin) windows port!  (A client-only port would be a
-  good start.)  Most of the code is in Python, and what C we have is pretty
-  standard, so I don't anticipate too many problems.  Some known issues in
-  the source are marked with comments labeled WIN32.  Other areas of
-  potential difficulty are:
-      - The build process.  (I don't know the first thing about how to build
-        Python modules under windows.  Python distutils should work, but I
-        don't know what compiler is appropriate.  Studying the Python
-        webpages may be useful.)
+- We need a native (non-Cygwin) windows port!  (Right now, I can make the
+  client work, but the server needs to be tested, and we need an installer.)
+  good start.)  Most of the code is in Python, and what C we have builds
+  fine.  Some known issues in the source are marked with comments labeled
+  WWWW.  Other areas of potential difficulty are:
       - Binaries and installer.  (We should provide two versions: one that
         comes with a Python interpreter, and one that doesn't. They should
         both be easy to generate.)
@@ -32,11 +41,6 @@ THINGS TO HACK:  (Good introductory projects that I won't get to myself for
         client code uses SIGALRM to timeout dead connections.]
       - The 'daemonize' code in ServerMain.py is almost certainly not
         right on windows.
-      - We assume the existence of /dev/urandom or some other similar entropy
-        source; these do not exist on windows.  OpenSSL's RAND_* functions
-        may be helpful, but coming up with good seed information may be
-        tricky. Clients can use RAND_event, but servers will need to get
-        entropy from somewhere else.
       - There will be other, as-yet-unexpected issues. :)
   (Difficulty: moderate.  Invasiveness: moderate)
 
@@ -88,16 +92,9 @@ THINGS TO HACK:  (Good introductory projects that I won't get to myself for
 
 THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
   specification work.  Please, get your spec discussed on mixminion-dev and
-  checked into CVS *before* you submit an implementation for any of these!)
+  checked into CVS *before* you submit an implementation for any of these!
 
-- There should be a way for clients to set some (but not all) RFC822 email
-  headers.  Likely candidates are 'Subject' and 'Content-Type'.  Maybe there
-  should be *limited* support for setting 'From'.  [For example, if the user
-  wants to set 'From' to "xyzzy", the From line would appear as "From:
-  "Anonymous user claiming to be xyzzy" <nobody@your-remailer>".  Maybe.]
-  Whatever you choose, be sure to justify it.  (Spec difficulty: easy, but
-  you're likely to start a holy war and end up pleasing nobody.
-  Implementation difficulty: easy.  Invasiveness: slight.)
+  [See spec-issues.txt for more open issues].)
 
 - Maybe, there should be support for multiple exit addresses (cc, bcc, etc.)
   This is prone to abuse... (Spec difficulty: easy, once you've figured out
@@ -111,8 +108,8 @@ THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
 
 - Want a real challenge?  We have an allusive description for how to do
   K-of-N fragmentation in our E2E-spec documentation.  Go flesh out the
-  description and implement it.  (Spec difficulty: moderate.  Implementation
-  difficulty: hard.  Invasiveness: some.)
+  description.  (Spec difficulty: moderate.  Implementation difficulty: hard.
+  Invasiveness: some.)
 
 - Right now, we never generate link padding or dummy messages.  The code is
   there, but it never gets triggered.  Specify when it gets triggered (and
@@ -125,21 +122,6 @@ THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
   anonymity implications.  If you can come up with an algorithm that
   doesn't, the code should be pretty easy to do.  (Spec difficulty: ????.
   Implementation difficulty: easy.  Invasiveness: some.)
-
-NON-HACKING PROJECTS:
-
-- We need documentation.
-
-- We need a man page.
-
-- See the spec for open issues.
-
-- We need a better web page.
-
-- We need a logo.  (An alien with an eggbeater or an alien at a DJ's mixer
-  are two ideas.)
-
-- We need a bugtracker.
 
 HARD HACKING:
 

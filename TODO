@@ -240,7 +240,15 @@ Other features for "1.0" (no research required):
                 - Servers should use downloaded directories to print useful
                   nicknames for other servers rather than just IP addresses.
         - Port to Twisted, if reasonable (see HACKING)
-
+        - MMTP / async
+               - Tests for all cases:
+                        - Packet to server with bogus IP
+                        - Junk
+                        - Retry on bogus close.
+                        - Multiple senders
+                        - Bad senders
+                        - Bad recipients
+                        - Hunt down leaks
 
 Features for "1.0" (some research/specification required):
         - Nymservers
@@ -265,14 +273,6 @@ Features for "1.0" (some research/specification required):
                 - Real PKI for end-to-end encryption
         - MMTP / async
                 - Make MMTP bursty
-                - Tests for all cases:
-                        - Packet to server with bogus IP
-                        - Junk
-                        - Retry on bogus close.
-                        - Multiple senders
-                        - Bad senders
-                        - Bad recipients
-                        - Hunt down leaks
         - Directories
                 - Support for full-blown multiple-server agreement mechanism
         - IPv6 support (must solve non-clique problem)
