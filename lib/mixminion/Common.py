@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.117 2003/11/24 19:59:04 nickm Exp $
+# $Id: Common.py,v 1.118 2003/11/25 02:14:33 nickm Exp $
 
 """mixminion.Common
 
@@ -868,11 +868,8 @@ class Log:
             self.addHandler(_ConsoleLogHandler(sys.stderr))
         else:
             self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
-            logfile = config['Server'].get('LogFile')
-            if logfile is None:
-                homedir = config['Server'].get('Homedir')
-                if homedir:
-                    logfile = os.path.join(homedir, "log")
+            #XXXX006 ensure parent.
+            logfile = config.getLogFile()
             self.addHandler(_ConsoleLogHandler(sys.stderr))
             if logfile:
                 try:
@@ -1443,7 +1440,7 @@ class Lockfile:
         """Return the contents of the lock file."""
         return readFile(self.filename)
 
-    def acquire(self, contents="", blocking=0):
+    def acquire(self, contents="", blocking=0, mode=0600):
         """Acquire this lock.  If we're acquiring the lock for the first time,
            write 'contents' to the lockfile.  If 'blocking' is true, wait
            until we can acquire the lock.  If 'blocking' is false, raise
@@ -1454,7 +1451,7 @@ class Lockfile:
             return
 
         assert self.fd is None
-        self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, 0600)
+        self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, mode)
         try:
             self._lock(self.fd, blocking)
             self.count += 1
@@ -1464,6 +1461,16 @@ class Lockfile:
             os.close(self.fd)
             self.fd = None
             raise
+
+    def replaceContents(self, contents):
+        """Replace the current contents of the lockfile with 'contents',
+           without releasing the lock.  Invokers must hold the lock."""
+        assert self.count > 0 and self.fd is not None
+        SEEK_SET = 0
+        os.lseek(self.fd, 0, SEEK_SET)
+        os.ftruncate(self.fd, 0)
+        os.write(self.fd, contents)
+        os.fsync(self.fd)
 
     def release(self):
         """Release the lock."""
