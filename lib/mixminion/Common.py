@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.24 2002/11/21 16:55:49 nickm Exp $
+# $Id: Common.py,v 1.25 2002/11/22 00:15:07 nickm Exp $
 
 """mixminion.Common
 
@@ -310,12 +310,18 @@ class Log:
 	self._log(severity, message, args)
 
     def _log(self, severity, message, args):
-        if _SEVERITIES.get(severity, 100) < self.severity:
-            return
+        # Enable this block to bail early in production versions
+        #if _SEVERITIES.get(severity, 100) < self.severity:
+        #    return
 	if args is None:
 	    m = message
 	else:
 	    m = message % args
+
+        # Enable this block to debug message formats.    
+        if _SEVERITIES.get(severity, 100) < self.severity:
+            return
+            
         for h in self.handlers:
             h.write(severity, m)
 
