@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.50 2003/01/09 06:28:58 nickm Exp $
+# $Id: Common.py,v 1.51 2003/01/09 17:42:11 nickm Exp $
 
 """mixminion.Common
 
@@ -294,7 +294,10 @@ def secureDelete(fnames, blocking=0):
 
 def _logtime():
     'Helper function.  Returns current local time formatted for log.'
-    return time.strftime("%b %d %H:%M:%S", time.localtime(time.time()))
+    t = time.time()
+    return "%s.%03d"%(time.strftime("%b %d %H:%M:%S", time.localtime(t)),
+                      # ???? There is probably a faster way to do this.
+                      (t*1000)%1000)
 
 class _FileLogHandler:
     """Helper class for logging.  Represents a file on disk, and allows the
