@@ -1,6 +1,6 @@
-$Id: README,v 1.59.2.3 2003/10/27 13:26:44 nickm Exp $
+$Id: README,v 1.59.2.4 2003/10/31 01:30:00 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.5.2.
+This is Mixminion version 0.0.5.3.
 
 CONTENTS:
         I.    Overview
@@ -37,6 +37,10 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.5.3:
+   - An SSL bug has been corrected that prevented 0.0.5.2 servers from
+     relaying messages to servers running versions 0.0.5.1 and earlier.
 
 NEW IN VERSION 0.0.5.2:
    - Better recovery from files corrupted due to a crash or otherwise.
