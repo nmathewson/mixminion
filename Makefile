@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.38 2003/02/20 02:21:41 nickm Exp $
+# $Id: Makefile,v 1.39 2003/02/20 02:27:39 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -12,8 +12,8 @@
 
 # XXXX This fails when PYTHON is set to a version of Python earlier than 1.3
 
-PYTHON_CANDIDATES = python2.2 python2.2x python2.1 python2.1x python2.0      \
-	python2.0x python2 python
+PYTHON_CANDIDATES = python2.3 python2.3x python2.2 python2.2x python2.1 \
+        python2.1x python2.0 python2.0x python2 python
 FINDPYTHON = \
    if [ "x`which which`" = "x" ]; then                                       \
         echo "Ouch!  I couldn't run 'which' on your system.";                \
