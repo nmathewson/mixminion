@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.111 2003/09/03 16:13:23 nickm Exp $
+# $Id: Common.py,v 1.112 2003/10/13 17:31:22 nickm Exp $
 
 """mixminion.Common
 
@@ -1546,3 +1546,36 @@ class ClearableQueue(MessageQueue):
     def _clear(self):
         """Backend for _clear"""
         del self.queue[:]
+
+try:
+    q = MessageQueue()
+    q.put(3)
+    q.get(timeout=10)
+    BUILTIN_QUEUE_HAS_TIMEOUT = 1
+except TypeError:
+    BUILTIN_QUEUE_HAS_TIMEOUT = 0
+del q
+
+if BUILTIN_QUEUE_HAS_TIMEOUT:
+    TimeoutQueue = ClearableQueue
+else:
+    class TimeoutQueue(ClearableQueue):
+        """DOCDOC -- for python 2.2 and earlier."""
+        def get(self, blocking=1, timeout=None):
+            if timeout is None:
+                return MessageQueue.get(self, blocking)
+
+            # Adapted from 'Condition
+            _time = time.time
+            _sleep = time.sleep
+            deadline = timeout+_time()
+            delay = .0005
+            while 1:
+                try:
+                    return MessageQueue.get(self,0)
+                except QueueEmpty:
+                    remaining = endTime-_time()
+                    if remaining <= 0:
+                        raise
+                    delay = min(delay*2,remaining,0.2)
+                    _sleep(delay)
