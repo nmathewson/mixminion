@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.5 2002/10/21 02:32:49 nickm Exp $
+# $Id: testSupport.py,v 1.6 2002/11/21 19:43:29 nickm Exp $
 
 """mixminion.testSupport
 
@@ -112,16 +112,24 @@ def mix_mktemp(extra=""):
     global _MM_TESTING_TEMPDIR_COUNTER
     if _MM_TESTING_TEMPDIR is None:
 	import tempfile
-	temp = tempfile.mktemp()
-	paranoia = _MM_TESTING_TEMPDIR_PARANOIA
-	if paranoia and os.path.exists(temp):
-	    print "I think somebody's trying to exploit mktemp."
-	    sys.exit(1)
-	try:
-	    os.mkdir(temp, 0700)
-	except OSError, e:
-	    print "Something's up with mktemp: %s" % e
-	    sys.exit(1)
+        paranoia = _MM_TESTING_TEMPDIR_PARANOIA
+        if hasattr(tempfile, 'mkdtemp'):
+            try:
+                temp = tempfile.mkdtemp()
+            except OSError, e:
+                print "mkdtemp failure: %s" % e
+                sys.exit(1)
+        else:
+            temp = tempfile.mktemp()
+            if paranoia and os.path.exists(temp):
+                print "I think somebody's trying to exploit mktemp."
+                sys.exit(1)
+            try:
+                os.mkdir(temp, 0700)
+            except OSError, e:
+                print "Something's up with mktemp: %s" % e
+                sys.exit(1)
+
 	if not os.path.exists(temp):
 	    print "Couldn't create temp dir %r" %temp
 	    sys.exit(1)
