@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.11 2002/08/19 20:27:02 nickm Exp $ */
+/* $Id: crypt.c,v 1.12 2002/08/21 15:54:48 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -887,11 +887,14 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 				  "start_time", "end_time", NULL };
 	char *filename, *cn;
 	PyObject *_rsa;
-	/* XXXX Python wants to write into longs.  C wants time_t.  We should
-	 * XXXX check somewhere to be sure that we can cast long to time_t
-	 * XXXX without ill effects.
+
+	/*
+	 * Python wants time to be a double. OpenSSL wants time_t.
+	 * Ordinarily, I'd worry about resolution and bounds, but if time_t
+	 * doesn't fit in a double, Python's time.time() function is already
+	 * doomed.  
 	 */
-	long start_time, end_time;
+	double start_time, end_time;
 	
 	RSA *rsa = NULL;
 	EVP_PKEY *pkey = NULL;
@@ -902,7 +905,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 	PyObject *retval;
 	time_t time;
 	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO!sll:generate_cert",
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO!sdd:generate_cert",
 					 kwlist, &filename,
 					 &mm_RSA_Type, &_rsa, &cn, 
 					 &start_time, &end_time))
