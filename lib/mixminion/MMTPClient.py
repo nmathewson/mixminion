@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.57 2004/04/13 04:00:59 nickm Exp $
+# $Id: MMTPClient.py,v 1.58 2004/04/27 13:12:52 weasel Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -131,7 +131,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         self._isFailed = 0
         self._isAlive = 1
         EventStats.log.attemptedConnect()
-        LOG.debug("Openining client connection to %s",self.address)
+        LOG.debug("Opening client connection to %s",self.address)
         self.beginConnecting()
 
     def addPacket(self, deliverableMessage):
@@ -270,7 +270,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
             self.startShutdown()
             return
 
-        LOG.debug("MMTP protocol negotaiated with %s: version %s",
+        LOG.debug("MMTP protocol negotiated with %s: version %s",
                   self.address, self.protocol)
 
         # Now that we're connected, optimize for throughput.
