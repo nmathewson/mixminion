@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.9 2002/11/22 21:01:49 nickm Exp $
+# $Id: Main.py,v 1.10 2002/12/02 03:47:46 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -89,17 +89,22 @@ def correctPath(myself):
 	sys.exit(1)
 
 # Global map from command name to 2-tuples of (module_name, function_name).
-# 
-#   'Main.py <cmd> arg1 arg2 arg3' will result in a call to function_name
+#
+# DOCDOC unclear!
+#
+#  'Main.py <cmd> arg1 arg2 arg3' will result in a call to function_name
 #   in module_name.  The function should take two arguments: a string to
-#   be used as command name in error messages, and a list of [arg1,arg2,arg3].
+#   be used as command name in error messages, and a list of [arg1,arg2,arg3].'
+#   
+#   By convention, all commands must print a usage message and exit when
+#   invoked with a single argument, "--help"
 _COMMANDS = {
-    "version" : ( 'mixminion.Main', 'printVersion'),
-    "unittests" : ( 'mixminion.test', 'testAll' ),
-    "benchmarks" : ( 'mixminion.benchmark', 'timeAll' ),
-    "client" : ( 'mixminion.ClientMain', 'runClient' ),
-    "server" : ( 'mixminion.ServerMain', 'runServer' ),
-    "server-keygen" : ( 'mixminion.ServerMain', 'runKeygen'),
+    "version" :        ( 'mixminion.Main',       'printVersion'),
+    "unittests" :      ( 'mixminion.test',       'testAll' ),
+    "benchmarks" :     ( 'mixminion.benchmark',  'timeAll' ),
+    "client" :         ( 'mixminion.ClientMain', 'runClient' ),
+    "server" :         ( 'mixminion.ServerMain', 'runServer' ),
+    "server-keygen" :  ( 'mixminion.ServerMain', 'runKeygen'),
     "server-DELKEYS" : ( 'mixminion.ServerMain', 'removeKeys'),
 }
 
@@ -135,10 +140,11 @@ def main(args):
 
     # Invoke the command.
     try:
-        func(" ".join(args[0:2]), args[2:])
+        commandStr = " ".join(args[0:2])
+        func(commandStr, args[2:])
     except getopt.GetoptError, e:
-        print >>sys.stderr, e
-        func(" ".join(args[0:2]), ["--help"])
+        sys.stderr.write(str(e)+"\n")
+        func(commandStr, ["--help"])
 
 if __name__ == '__main__':
     main(sys.argv)
