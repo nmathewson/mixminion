@@ -1,11 +1,12 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.101 2003/07/13 03:45:33 nickm Exp $
+# $Id: Common.py,v 1.102 2003/07/15 15:30:56 nickm Exp $
 
 """mixminion.Common
 
    Common functionality and utility code for Mixminion"""
 
-__all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
+__all__ = [ 'IntervalSet', 'Lockfile', 'LockfileLocked', 'LOG', 'LogStream', 
+            'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
             'armorText', 'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
             'createPrivateDir', 'encodeBase64', 'floorDiv', 'formatBase64',
@@ -45,6 +46,10 @@ try:
     import fcntl
 except ImportError:
     fcntl = None
+try:
+    import msvcrt
+except ImportError:
+    mcvcrt = None
 
 try:
     import pwd, grp
@@ -1368,6 +1373,11 @@ def openUnique(fname, mode='w', perms=0600):
     raise MixFatalError("unreachable code")
 
 #----------------------------------------------------------------------
+class LockfileLocked(Exception):
+    """Exception raised when trying to get a nonblocking lock on a locked
+       lockfile"""
+    pass
+
 class Lockfile:
     """Class to implement a recursive advisory lock, using flock on a
        'well-known' filename."""
@@ -1388,26 +1398,18 @@ class Lockfile:
 
     def acquire(self, contents="", blocking=0):
         """Acquire this lock.  If we're acquiring the lock for the first time,
-           write 'contents' to the lockfile.  If 'blocking' is true, wait until
-           we can acquire the lock.  If 'blocking' is false, raise IOError if
-           we can't acquire the lock."""
+           write 'contents' to the lockfile.  If 'blocking' is true, wait
+           until we can acquire the lock.  If 'blocking' is false, raise
+           LockfileLocked if we can't acquire the lock."""
 
-        if not fcntl:
-            #WWWWW
-            LOG.warn("Skipping Lockfile.acquire")
-            return
         if self.count > 0:
-
             self.count += 1
             return
 
         assert self.fd is None
         self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, 0600)
         try:
-            if blocking:
-                fcntl.flock(self.fd, fcntl.LOCK_EX)
-            else:
-                fcntl.flock(self.fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
+            self._lock(self.fd, blocking)
             self.count += 1
             os.write(self.fd, contents)
             os.fsync(self.fd)
@@ -1418,12 +1420,6 @@ class Lockfile:
 
     def release(self):
         """Release the lock."""
-
-        if not fcntl:
-            #WWWWW
-            LOG.warn("Skipping Lockfile.release")
-            return
-
         assert self.fd is not None
         self.count -= 1
         if self.count > 0:
@@ -1433,7 +1429,7 @@ class Lockfile:
         except OSError:
             pass
         try:
-            fcntl.flock(self.fd, fcntl.LOCK_UN)
+            self._unlock(self.fd)
         except OSError:
             pass
         try:
@@ -1442,6 +1438,62 @@ class Lockfile:
             pass
 
         self.fd = None
+
+    def _lock(self, fd, blocking):
+        """Compatibility wrapper to implement file locking for posix and win32
+           systems.  If 'blocking' is false, and the lock cannot be obtained,
+           raises LockfileLocked."""
+        if fcntl:
+            # Posixy systems have a friendly neighborhood flock clone.
+            flags = fcntl.LOCK_EX
+            if not blocking: flags |= fcntl.LOCK_NB
+            try:
+                fcntl.flock(fd, flags)
+            except IOError, e:
+                if e.errno in (errno.EAGAIN, errno.EACCES) and not blocking:
+                    raise LockfileLocked()
+                else:
+                    raise
+        elif msvcrt:
+            # Windows has decided that System V's perennially unstandardized
+            # "locking" is a cool idea.
+            os.lseek(fd, 0, 0)
+            # The msvcrt.locking() function never gives you a blocking lock.
+            # If you ask for one, it just retries once per second for ten
+            # seconds.  This must be some genius's idea of a 'feature'.
+            while 1:
+                try:
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 0)
+                    return
+                except IOError, e:
+                    if e.errno not in (errno.EAGAIN, errno.EACCES):
+                        raise
+                    elif not blocking:
+                        raise LockfileLocked()
+                    else:
+                        time.sleep(0.5)
+        else:
+            # There is no locking implementation.
+            _warn_no_locks()
+        
+    def _unlock(self, fd):
+        """Compatibility wrapper: unlock a file for unix and windows systems.
+        """
+        if fcntl:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        elif msvcrt:
+            os.lseek(fd, 0, 0)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 0)
+        else:
+            _warn_no_locks()
+
+_warned_no_locks = 0
+def _warn_no_locks():
+    global _warned_no_locks
+    if not _warned_no_locks:
+        _warned_no_locks = 1
+        LOG.warn("Mixminion couldn't find a file locking implementation.")
+        LOG.warn("  (Simultaneous accesses may lead to data corruption.")
 
 #----------------------------------------------------------------------
 # Threading operations

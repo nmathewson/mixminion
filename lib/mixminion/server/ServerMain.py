@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.85 2003/07/13 03:45:35 nickm Exp $
+# $Id: ServerMain.py,v 1.86 2003/07/15 15:30:56 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -63,8 +63,8 @@ import mixminion.server.EventStats as EventStats
 from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
      UIError, ceilDiv, createPrivateDir, formatBase64, formatTime, \
-     installSIGCHLDHandler, Lockfile, readFile, secureDelete, tryUnlink, \
-     waitForChildren, writeFile
+     installSIGCHLDHandler, Lockfile, LockfileLocked, readFile, secureDelete, \
+     tryUnlink, waitForChildren, writeFile
 
 # Version number for server home-directory.
 #
@@ -622,7 +622,7 @@ class MixminionServer(_Scheduler):
         self.lockFile = Lockfile(os.path.join(homeDir, "lock"))
         try:
             self.lockFile.acquire()
-        except IOError:
+        except LockfileLocked:
             raise MixFatalError("Another server seems to be running.")
 
         # The pid file.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.139 2003/07/15 04:40:57 nickm Exp $
+# $Id: test.py,v 1.140 2003/07/15 15:30:56 nickm Exp $
 
 """mixminion.tests
 
@@ -482,28 +482,24 @@ class MiscTests(unittest.TestCase):
         self.assertEquals(fn, dX+".2")
 
     def test_lockfile(self):
-        if ON_WIN32:
-            #WWWW
-            return
-
         fn = mix_mktemp()
         LF1 = Lockfile(fn)
         LF2 = Lockfile(fn)
         LF1.acquire("LF1")
         if not ON_WINDOWS:
             self.assertEquals("LF1", readFile(fn))
-        self.assertRaises(IOError, LF2.acquire, blocking=0)
+        self.assertRaises(LockfileLocked, LF2.acquire, blocking=0)
         LF1.release()
         LF2.acquire("LF2",1)
         if not ON_WINDOWS:
             self.assertEquals("LF2", readFile(fn))
-        self.assertRaises(IOError, LF1.acquire, blocking=0)
+        self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
 
         # Now try recursivity.
         LF2.acquire()
-        self.assertRaises(IOError, LF1.acquire, blocking=0)
+        self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
         LF2.release()
-        self.assertRaises(IOError, LF1.acquire, blocking=0)
+        self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
         LF2.release()
         LF1.acquire(blocking=1)
 

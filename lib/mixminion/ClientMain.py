@@ -33,7 +33,8 @@ import mixminion.MMTPClient
 from mixminion.Common import AtomicFile, IntervalSet, LOG, floorDiv, \
      MixError, MixFatalError, MixProtocolError, MixProtocolBadAuth, UIError, \
      UsageError, ceilDiv, createPrivateDir, isPrintingAscii, isSMTPMailbox, \
-     formatDate, formatFnameTime, formatTime, Lockfile, openUnique, \
+     formatDate, formatFnameTime, formatTime, Lockfile, LockfileLocked, \
+     openUnique, \
      previousMidnight, readFile, readPickled, readPossiblyGzippedFile, \
      replaceFile, secureDelete, stringContains, succeedingMidnight, tryUnlink,\
      writeFile, \
@@ -60,7 +61,7 @@ def clientLock():
     pidStr = str(os.getpid())
     try:
         _CLIENT_LOCKFILE.acquire(blocking=0, contents=pidStr)
-    except IOError:
+    except LockfileLocked:
         LOG.info("Waiting for pid %s", _CLIENT_LOCKFILE.getContents())
         _CLIENT_LOCKFILE.acquire(blocking=1, contents=pidStr)
 

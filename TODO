@@ -39,6 +39,8 @@ For 0.0.5:
                         o Make all unittests pass
                         o Make unittests pass without warnings
                         o Add a makeshift interactive mode.
+                        o Real locking
+                        o Real RNG via CryptGenRandom() 
                 o Twisted port decision
                 o Website work
         . Initial support for email headers (client side)
@@ -91,8 +93,6 @@ For 0.0.6:
         - Full Windows client-side support
                 - Address everything on Itamar's non-blocking
                   incompatibility list.
-                - Real RNG via CryptGenRandom() 
-                - Real locking
                 - Installer
                 - Instructions
         - RFC822 interface to help integrators
