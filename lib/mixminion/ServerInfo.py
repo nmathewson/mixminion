@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.83 2004/03/07 06:31:46 nickm Exp $
+# $Id: ServerInfo.py,v 1.83.2.1 2004/04/27 06:00:47 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -396,6 +396,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
             return 1
         myOutProtocols = self.getOutgoingMMTPProtocols()
         otherInProtocols = otherDesc.getIncomingMMTPProtocols()
+        if not self.getHostname() and not other.getIP():
+            return 0
         for out in myOutProtocols:
             if out in otherInProtocols:
                 return 1
