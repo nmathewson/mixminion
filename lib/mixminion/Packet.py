@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.54 2003/08/08 21:42:47 nickm Exp $
+# $Id: Packet.py,v 1.55 2003/08/18 05:11:55 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -82,6 +82,8 @@ SWAP_FWD_TYPE  = 0x0002  # SWAP, then forward the msg to an IPV4 addr via MMTP
 MIN_EXIT_TYPE  = 0x0100  # The numerically first exit type.
 SMTP_TYPE      = 0x0100  # Mail the message
 MBOX_TYPE      = 0x0101  # Send the message to one of a fixed list of addresses
+NEWS_TYPE      = 0x0102  # Post the message to some ngs, and maybe mail it too
+FRAGMENT_TYPE  = 0x0103  # Find the actual deliver info in the message payload 
 MAX_EXIT_TYPE  = 0xFFFF
 
 class ParseError(MixError):

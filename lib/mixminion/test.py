@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.145 2003/08/18 00:41:10 nickm Exp $
+# $Id: test.py,v 1.146 2003/08/18 05:11:55 nickm Exp $
 
 """mixminion.tests
 
@@ -6407,7 +6407,7 @@ class FragmentTests(TestCase):
         pkts2 = [ pp(x) for x in em(M2,38) ]
         pkts3 = [ pp(x) for x in em(M3,0) ]
         pkts4 = [ pp(x) for x in em(M4,0) ]
-        pkts5 = [ pp(x) for x in em(M4,0) ]
+        pkts5 = [ pp(x) for x in em(M5,0) ]
         self.assertEquals(map(len, [pkts1,pkts2,pkts3,pkts4,pkts5]),
                           [3, 11, 11, 66, 66])
         
@@ -6417,8 +6417,10 @@ class FragmentTests(TestCase):
         pool.unchunkMessages()
 
         #DOCDOC comment this rats' nets
-        
+
+        ####
         # Reconstruct: simple case.
+        ####
         pool.addFragment(pkts1[2])
         self.assertEquals(1, pool.store.count())
         self.assertEquals([], pool.listReadyMessages())
@@ -6437,11 +6439,45 @@ class FragmentTests(TestCase):
         self.assertEquals([], pool.listReadyMessages())
         pool.addFragment(pkts1[1])
         self.assertEquals([], pool.store.getAllMessages())
-        
-        
-        
+
+        ####
+        # Reconstruct: large message, stop half-way, reload, finish.
+        ####
+        # enough for chunk1 -- 17 messages
+        for p in pkts4[5:22]: pool.addFragment(p)
+        # enough for half of chunk2: 8 messages
+        for p in pkts4[22:30]: pool.addFragment(p)
+        pool.unchunkMessages()
+        # close and re-open messages
+        pool.close()
+        pool = mixminion.Fragments.FragmentPool(loc)
+        # Enough for the rest of message 4...  8 from 2, 17 from 3.
+        for p in pkts4[36:44]+pkts4[49:66]:
+            pool.addFragment(p)
+            pool.unchunkMessages()
+        self.assertEquals(len(pool.listReadyMessages()), 1)
+        mid = pool.listReadyMessages()[0]
+        self.assertLongStringEq(M4, uncompressData(pool.getReadyMessage(mid)))
+        pool.markMessageCompleted(mid)
+        pool.close()
+        pool = mixminion.Fragments.FragmentPool(loc)
+        pool.addFragment(pkts4[48])
+        self.assertEquals([], pool.store.getAllMessages())
+
+        # free some RAM
+        del M4
+        del M1
+        del pkts4
+        del pkts1
+
+        ####
+        # Try an interleaved case with two smallish msgs and one big one.
+        # Provoke an error in the big one part way through.
+        ####
         
 
+        
+        
 #----------------------------------------------------------------------
 def testSuite():
     """Return a PyUnit test suite containing all the unit test cases."""
@@ -6449,7 +6485,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 0:
+    if 1:
         suite.addTest(tc(FragmentTests))
         return suite
 
