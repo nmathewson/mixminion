@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.67 2003/03/26 16:36:46 nickm Exp $
+# $Id: ClientMain.py,v 1.68 2003/03/27 10:30:59 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -43,7 +43,7 @@ MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
-# concurrent access to the directory cache, message pool, or SURB log.
+# concurrent access to the directory cache, message queue, or SURB log.
 _CLIENT_LOCKFILE = None
 
 def clientLock():
@@ -933,9 +933,9 @@ class ClientKeyring:
         self.keyring = None
         self.keyringPassword = None
 
-    def getKey(self, keyid, create=0, createFn=None):
+    def getKey(self, keyid, create=0, createFn=None, password=None):
         if self.keyring is None:
-            self.getKeyring(create=create)
+            self.getKeyring(create=create,password=password)
             if self.keyring is None:
                 return None
         try:
@@ -950,7 +950,7 @@ class ClientKeyring:
                 self._saveKeyring()
                 return key
 
-    def getKeyring(self, create=0):
+    def getKeyring(self, create=0, password=None):
         if self.keyring is not None:
             return self.keyring
         fn = os.path.join(self.keyDir, "keyring")
@@ -965,7 +965,10 @@ class ClientKeyring:
                 pass
             # ...then ask the user for a password 'till it loads.
             while 1:
-                p = self._getPassword("Enter password for keyring:")
+                if password is not None:
+                    p = password
+                else:
+                    p = self._getPassword("Enter password for keyring:")
                 try:
                     data = self._load(fn, magic, p)
                     self.keyring = cPickle.loads(data)
@@ -973,10 +976,14 @@ class ClientKeyring:
                     return self.keyring
                 except (MixError, cPickle.UnpicklingError), e:
                     LOG.error("Cannot load keyring: %s", e)
+                    if password is not None: return None
         elif create:
             # If the key file doesn't exist, and 'create' is set, create it.
             LOG.warn("No keyring found; generating.")
-            self.keyringPassword = self._getNewPassword("keyring")
+            if password is not None:
+                self.keyringPassword = password
+            else:
+                self.keyringPassword = self._getNewPassword("keyring")
             self.keyring = {}
             self._saveKeyring()
             return self.keyring
@@ -987,19 +994,21 @@ class ClientKeyring:
         assert self.keyringPassword
         fn = os.path.join(self.keyDir, "keyring")
         LOG.trace("Saving keyring to %s", fn)
-        self._save(fn,
+        self._save(fn+"_tmp",
                    cPickle.dumps(self.keyring,1),
                    "KEYRING1", self.keyringPassword)
+        os.rename(fn+"_tmp", fn)
 
-    def getSURBKey(self, name="", create=0):
+    def getSURBKey(self, name="", create=0, password=None):
         k = self.getKey("SURB-"+name,
-                        create=create, createFn=lambda: trng(20))
-        if len(k) != 20:
+                        create=create, createFn=lambda: trng(20),
+                        password=password)
+        if k is not None and len(k) != 20:
             raise MixError("Bad length on SURB key")
         return k
 
-    def getSURBKeys(self):
-        self.getKeyring(create=0)
+    def getSURBKeys(self,password=None):
+        self.getKeyring(create=0,password=password)
         if not self.keyring: return {}
         r = {}
         for k in self.keyring.keys():
@@ -1222,9 +1231,9 @@ class SURBLog:
             del self.log[hash]
         self.log['LAST_CLEANED'] = str(int(now))
 
-class ClientPool:
-    """A ClientPool holds packets that have been scheduled for delivery
-       but not yet delivered.  As a matter of policy, we pool messages if
+class ClientQueue:
+    """A ClientQueue holds packets that have been scheduled for delivery
+       but not yet delivered.  As a matter of policy, we queue messages if
        the user tells us to, or if deliver has failed and the user didn't
        tell us not to."""
     ## Fields:
@@ -1237,14 +1246,14 @@ class ClientPool:
     #             a 32K string (the packet),
     #             an instance of IPV4Info (the first hop),
     #             the latest midnight preceeding the time when this
-    #                 packet was inserted into the pool.
+    #                 packet was inserted into the queue
     #           )
     # XXXX004 change this to be OO; add nicknames.
     
     # XXXX004 write unit tests
 
     def __init__(self, directory, prng=None):
-        """Create a new ClientPool object, storing packets in 'directory'
+        """Create a new ClientQueue object, storing packets in 'directory'
            and generating random filenames using 'prng'."""
         self.dir = directory
         createPrivateDir(directory)
@@ -1253,9 +1262,9 @@ class ClientPool:
         else:
             self.prng = mixminion.Crypto.getCommonPRNG()
 
-    def poolPacket(self, message, routing):
+    def queuePacket(self, message, routing):
         """Insert the 32K packet 'message' (to be delivered to 'routing')
-           into the pool.  Return the handle of the newly inserted packet."""
+           into the queue.  Return the handle of the newly inserted packet."""
         clientLock()
         try:
             f, handle = self.prng.openNewFile(self.dir, "pkt_", 1)
@@ -1268,7 +1277,7 @@ class ClientPool:
     
     def getHandles(self):
         """Return a list of the handles of all messages currently in the
-           pool."""
+           queue."""
         clientLock()
         try:
             fnames = os.listdir(self.dir)
@@ -1282,7 +1291,7 @@ class ClientPool:
 
     def getPacket(self, handle):
         """Given a handle, return a 3-tuple of the corresponding
-           32K packet, IPV4Info, and time of first pooling.  (The time
+           32K packet, IPV4Info, and time of first queueing.  (The time
            is rounded down to the closest midnight GMT.)"""
         f = open(os.path.join(self.dir, "pkt_"+handle), 'rb')
         magic, message, routing, when = cPickle.load(f)
@@ -1293,7 +1302,7 @@ class ClientPool:
         return message, routing, when
 
     def packetExists(self, handle):
-        """Return true iff the pool contains a packet with the handle
+        """Return true iff the queue contains a packet with the handle
            'handle'."""
         fname = os.path.join(self.dir, "pkt_"+handle)
         return os.path.exists(fname)
@@ -1303,14 +1312,14 @@ class ClientPool:
         fname = os.path.join(self.dir, "pkt_"+handle)
         secureDelete(fname, blocking=1)
 
-    def inspectPool(self, now=None):
-        """Print a message describing how many messages in the pool are headed
+    def inspectQueue(self, now=None):
+        """Print a message describing how many messages in the queue are headed
            to which addresses."""
         if now is None:
             now = time.time()
         handles = self.getHandles()
         if not handles:
-            print "[Pool is empty.]"
+            print "[Queue is empty.]"
             return
         timesByServer = {}
         for h in handles:
@@ -1332,7 +1341,7 @@ class MixminionClient:
     # config: The ClientConfig object with the current configuration
     # prng: A pseudo-random number generator for padding and path selection
     # keys: A ClientKeyring object.
-    # pool: A ClientPool object.
+    # queue: A ClientQueue object.
     # surbLogFilename: The filename used by the SURB log.
     def __init__(self, conf):
         """Create a new MixminionClient with a given configuration"""
@@ -1347,20 +1356,24 @@ class MixminionClient:
 
         # Initialize PRNG
         self.prng = mixminion.Crypto.getCommonPRNG()
-        self.pool = ClientPool(os.path.join(userdir, "pool"))
+        # XXXX005 remove.
+        if os.path.exists(os.path.join(userdir, "pool")):
+            os.rename(os.path.join(userdir, "pool"),
+                      os.path.join(userdir, "queue"))
+        self.queue = ClientQueue(os.path.join(userdir, "queue"))
 
     def sendForwardMessage(self, address, payload, servers1, servers2,
-                           forcePool=0, forceNoPool=0):
+                           forceQueue=0, forceNoQueue=0):
         """Generate and send a forward message.
             address -- the results of a parseAddress call
             payload -- the contents of the message to send
             servers1,servers2 -- lists of ServerInfos for the first and second
                legs the path, respectively.
-            forcePool -- if true, do not try to send the message; simply
-               pool it and exit.
-            forceNoPool -- if true, do not pool the message even if delivery
+            forceQueue -- if true, do not try to send the message; simply
+               quque it and exit.
+            forceNoQueue -- if true, do not queue the message even if delivery
                fails."""
-        assert not (forcePool and forceNoPool)
+        assert not (forceQueue and forceNoQueue)
 
         message, firstHop = \
                  self.generateForwardMessage(address, payload,
@@ -1368,22 +1381,22 @@ class MixminionClient:
 
         routing = firstHop.getRoutingInfo()
 
-        if forcePool:
-            self.poolMessages([message], routing)
+        if forceQueue:
+            self.queueMessages([message], routing)
         else:
-            self.sendMessages([message], routing, noPool=forceNoPool)
+            self.sendMessages([message], routing, noQueue=forceNoQueue)
 
-    def sendReplyMessage(self, payload, servers, surbList, forcePool=0,
-                         forceNoPool=0):
+    def sendReplyMessage(self, payload, servers, surbList, forceQueue=0,
+                         forceNoQueue=0):
         """Generate and send a reply message.
             payload -- the contents of the message to send
             servers -- a list of ServerInfos for the first leg of the path.
             surbList -- a list of SURBs to consider for the second leg of
                the path.  We use the first one that is neither expired nor
                used, and mark it used.
-            forcePool -- if true, do not try to send the message; simply
-               pool it and exit.
-            forceNoPool -- if true, do not pool the message even if delivery
+            forceQueue -- if true, do not try to send the message; simply
+               queue it and exit.
+            forceNoQueue -- if true, do not queue the message even if delivery
                fails."""
         #XXXX004 write unit tests
         message, firstHop = \
@@ -1391,11 +1404,10 @@ class MixminionClient:
 
         routing = firstHop.getRoutingInfo()
         
-        if forcePool:
-            self.poolMessages([message], routing)
+        if forceQueue:
+            self.queueMessages([message], routing)
         else:
-            self.sendMessages([message], routing, noPool=forceNoPool)
-
+            self.sendMessages([message], routing, noQueue=forceNoQueue)
 
     def generateReplyBlock(self, address, servers, name="", expiryTime=0):
         """Generate an return a new ReplyBlock object.
@@ -1466,18 +1478,18 @@ class MixminionClient:
         """
         return SURBLog(self.surbLogFilename)
 
-    def sendMessages(self, msgList, routingInfo, noPool=0, lazyPool=0,
+    def sendMessages(self, msgList, routingInfo, noQueue=0, lazyQueue=0,
                      warnIfLost=1):
         """Given a list of packets and an IPV4Info object, sends the
            packets to the server via MMTP.
 
-           If noPool is true, do not pool the message even on failure.
-           If lazyPool is true, only pool the message on failure.
-           Otherwise, insert the message in the pool, and remove it on
+           If noQueue is true, do not queue the message even on failure.
+           If lazyQueue is true, only queue the message on failure.
+           Otherwise, insert the message in the queue, and remove it on
            success.
 
            If warnIfLost is true, log a warning if we fail to deliver
-           the message, and we don't pool it.
+           the message, and we don't queue it.
            """
         #XXXX004 write unit tests
         timeout = self.config['Network'].get('ConnectionTimeout')
@@ -1486,10 +1498,10 @@ class MixminionClient:
         else:
             timeout = 60
 
-        if noPool or lazyPool:
+        if noQueue or lazyQueue:
             handles = []
         else:
-            handles = self.poolMessages(msgList, routingInfo)
+            handles = self.queueMessages(msgList, routingInfo)
 
         if len(msgList) > 1:
             mword = "messages"
@@ -1505,40 +1517,40 @@ class MixminionClient:
                                                   timeout)
                 LOG.info("... %s sent", mword)
             except:
-                if noPool and warnIfLost:
-                    LOG.error("Error with pooling disabled: %s lost", mword)
-                elif lazyPool:
-                    LOG.info("Error while delivering %s; %s pooled",
+                if noQueue and warnIfLost:
+                    LOG.error("Error with queueing disabled: %s lost", mword)
+                elif lazyQueue:
+                    LOG.info("Error while delivering %s; %s queued",
                              mword,mword)
-                    self.poolMessages(msgList, routingInfo)
+                    self.queueMessages(msgList, routingInfo)
                 else:
-                    LOG.info("Error while delivering %s; leaving in pool",
+                    LOG.info("Error while delivering %s; leaving in queue",
                              mword)
                 raise
             try:
                 clientLock()
                 for h in handles:
-                    if self.pool.packetExists(h):
-                        self.pool.removePacket(h)
+                    if self.queue.packetExists(h):
+                        self.queue.removePacket(h)
             finally:
                 clientUnlock()
         except MixProtocolError, e:
             raise UIError(str(e))
             
-    def flushPool(self):
+    def flushQueue(self):
         """Try to send end all messages in the queue to their destinations.
         """
         #XXXX004 write unit tests
 
-        LOG.info("Flushing message pool")
+        LOG.info("Flushing message queue")
         # XXXX This is inefficient in space!
         clientLock()
         try:
-            handles = self.pool.getHandles()
+            handles = self.queue.getHandles()
             LOG.info("Found %s pending messages", len(handles))
             messagesByServer = {}
             for h in handles:
-                message, routing, _ = self.pool.getPacket(h)
+                message, routing, _ = self.queue.getPacket(h)
                 messagesByServer.setdefault(routing, []).append((message, h))
         finally:
             clientUnlock()
@@ -1549,37 +1561,37 @@ class MixminionClient:
             msgs = [ m for m, _ in messagesByServer[routing] ]
             handles = [ h for _, h in messagesByServer[routing] ]
             try:
-                self.sendMessages(msgs, routing, noPool=1, warnIfLost=0)
+                self.sendMessages(msgs, routing, noQueue=1, warnIfLost=0)
                 try:
                     clientLock()
                     for h in handles:
-                        if self.pool.packetExists(h):
-                            self.pool.removePacket(h)
+                        if self.queue.packetExists(h):
+                            self.queue.removePacket(h)
                 finally:
                     clientUnlock()
             except MixError:
-                LOG.error("Can't deliver messages to %s:%s; leaving in pool",
+                LOG.error("Can't deliver messages to %s:%s; leaving in queue",
                           routing.ip, routing.port)
-        LOG.info("Pool flushed")
+        LOG.info("Queue flushed")
 
-    def poolMessages(self, msgList, routing):
-        """Insert all the messages in msgList into the pool, to be sent
+    def queueMessages(self, msgList, routing):
+        """Insert all the messages in msgList into the queue, to be sent
            to the server identified by the IPV4Info object 'routing'.
         """
         #XXXX004 write unit tests
-        LOG.trace("Pooling messages")
+        LOG.trace("Queueing messages")
         handles = []
         try:
             clientLock()
             for msg in msgList:
-                h = self.pool.poolPacket(msg, routing)
+                h = self.queue.queuePacket(msg, routing)
                 handles.append(h)
         finally:
             clientUnlock()
         if len(msgList) > 1:
-            LOG.info("Messages pooled")
+            LOG.info("Messages queued")
         else:
-            LOG.info("Message pooled")
+            LOG.info("Message queued")
         return handles
 
     def decodeMessage(self, s, force=0, isatty=0):
@@ -1724,7 +1736,7 @@ class CLIArgumentParser:
           REPLY PATH ONLY
              --lifetime : Required lifetime of new reply blocks.
           MESSAGE-SENDING ONLY:
-             --pool | --no-pool : force/disable pooling.
+             --queue | --no-queue : force/disable queueing.
 
          The class's constructor parses command line options, as required.
          The .init() method initializes a config file, logging, a
@@ -1746,8 +1758,8 @@ class CLIArgumentParser:
     #  lifetime: SURB lifetime, or None.
     #  replyBlockFiles: list of SURB filenames.
     #  configFile: Filename of configuration file, or None.
-    #  forcePool: true if "--pool" is set.
-    #  forceNoPool: true if "--no-pool" is set.
+    #  forceQueue: true if "--queue" is set.
+    #  forceNoQueue: true if "--no-queue" is set.
     #  verbose: true if verbose mode is set.
     #  download: 1 if the user told us to download the directory, 0 if
     #    they told us not to download it, and None if they didn't say.
@@ -1807,8 +1819,8 @@ class CLIArgumentParser:
         self.lifetime = None
         self.replyBlockFiles = []
 
-        self.forcePool = None
-        self.forceNoPool = None
+        self.forceQueue = None
+        self.forceNoQueue = None
 
         for o,v in opts:
             if o in ('-h', '--help'):
@@ -1875,9 +1887,17 @@ class CLIArgumentParser:
                 except ValueError:
                     raise UsageError("%s expects an integer"%o)
             elif o in ('--pool',):
-                self.forcePool = 1
+                LOG.warn(
+                    "The --pool option is deprecated; use --queue instead")
+                self.forceQueue = 1
             elif o in ('--no-pool',):
-                self.forceNoPool = 1
+                LOG.warn(
+                 "The --no-pool option is deprecated; use --no-queue instead")
+                self.forceNoQueue = 1
+            elif o in ('--queue',):
+                self.forceQueue = 1
+            elif o in ('--no-queue',):
+                self.forceNoQueue = 1
 
     def init(self):
         """Configure objects and initialize subsystems as specified by the
@@ -2071,14 +2091,14 @@ def usageAndExit(cmd, error=None):
         print >>sys.stderr, "ERROR: %s"%error
         print >>sys.stderr, "For usage, run 'mixminion send --help'"
         sys.exit(1)
-    if cmd.endswith(" pool"):
+    if cmd.endswith(" pool") or cmd.endswith(" queue"):
         print _SEND_USAGE % { 'cmd' : cmd, 'send' : 'pool', 'Send': 'Pool',
                               'extra' : '' }
     else:
         print _SEND_USAGE % { 'cmd' : cmd, 'send' : 'send', 'Send': 'Send',
                               'extra' : """\
-  --pool                     Pool the message; don't send it.
-  --no-pool                  Do not attempt to pool the message.""" }
+  --queue                    Pool the message; don't send it.
+  --no-queue                 Do not attempt to pool the message.""" }
     sys.exit(0)
 
 # NOTE: This isn't the final client interface.  Many or all options will
@@ -2087,14 +2107,17 @@ def runClient(cmd, args):
     #DOCDOC Comment this function
     if cmd.endswith(" client"): #XXXX004 remove this.
         print "The 'client' command is deprecated.  Use 'send' instead."
-    poolMode = 0
-    if cmd.endswith(" pool"):
-        poolMode = 1
+    queueMode = 0
+    if cmd.endswith(" queue"):
+        queueMode = 1
+    elif cmd.endswith(" pool"):
+        LOG.warn("The 'pool' command is deprecated.  Use 'queue' instead.")
+        queueMode = 1
 
     options, args = getopt.getopt(args, "hvf:D:t:H:P:R:i:",
              ["help", "verbose", "config=", "download-directory=",
               "to=", "hops=", "swap-at=", "path=", "reply-block=",
-              "input=", "pool", "no-pool" ])
+              "input=", "pool", "no-pool", "queue", "no-queue" ])
               
     if not options:
         usageAndExit(cmd)
@@ -2111,10 +2134,10 @@ def runClient(cmd, args):
         parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
                                    wantClient=1, wantLog=1, wantDownload=1,
                                    wantForwardPath=1)
-        if poolMode and parser.forceNoPool:
-            raise UsageError("Can't use --no-pool option with pool command")
-        if parser.forcePool and parser.forceNoPool:
-            raise UsageError("Can't use both --pool and --no-pool")
+        if queueMode and parser.forceNoQueue:
+            raise UsageError("Can't use --no-queue option with queue command")
+        if parser.forceQueue and parser.forceNoQueue:
+            raise UsageError("Can't use both --queue and --no-queue")
     except UsageError, e:
         e.dump()
         usageAndExit(cmd)
@@ -2123,9 +2146,9 @@ def runClient(cmd, args):
         raise UIError(
             "Can't read both message and reply block from stdin")
 
-    # FFFF Make pooling configurable from .mixminionrc
-    forcePool = poolMode or parser.forcePool
-    forceNoPool = parser.forceNoPool
+    # FFFF Make queueing configurable from .mixminionrc
+    forceQueue = queueMode or parser.forceQueue
+    forceNoQueue = parser.forceNoQueue
 
     parser.init()
     client = parser.client
@@ -2173,10 +2196,10 @@ def runClient(cmd, args):
     if parser.usingSURBList:
         assert isinstance(path2, ListType)
         client.sendReplyMessage(payload, path1, path2,
-                                forcePool, forceNoPool)
+                                forceQueue, forceNoQueue)
     else:
         client.sendForwardMessage(address, payload, path1, path2,
-                                  forcePool, forceNoPool)
+                                  forceQueue, forceNoQueue)
 
 _IMPORT_SERVER_USAGE = """\
 Usage: %(cmd)s [options] <filename> ...
@@ -2525,7 +2548,7 @@ def inspectSURBs(cmd, args):
     finally:
         surblog.close()
 
-_FLUSH_POOL_USAGE = """\
+_FLUSH_QUEUE_USAGE = """\
 Usage: %(cmd)s [options]
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
@@ -2533,11 +2556,11 @@ Usage: %(cmd)s [options]
                                (You can also use MIXMINIONRC=FILE)
 
 EXAMPLES:
-  Try to send all currently pooled messages.
+  Try to send all currently queued messages.
       %(cmd)s
 """.strip()
 
-def flushPool(cmd, args):
+def flushQueue(cmd, args):
     options, args = getopt.getopt(args, "hvf:",
              ["help", "verbose", "config=", ])
     try:
@@ -2545,16 +2568,16 @@ def flushPool(cmd, args):
                                    wantClient=1)
     except UsageError, e:
         e.dump()
-        print _FLUSH_POOL_USAGE % { 'cmd' : cmd }
+        print _FLUSH_QUEUE_USAGE % { 'cmd' : cmd }
         sys.exit(1)
 
     parser.init()
     client = parser.client
 
-    client.flushPool()
+    client.flushQueue()
 
 
-_LIST_POOL_USAGE = """\
+_LIST_QUEUE_USAGE = """\
 Usage: %(cmd)s [options]
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
@@ -2562,11 +2585,11 @@ Usage: %(cmd)s [options]
                                (You can also use MIXMINIONRC=FILE)
 
 EXAMPLES:
-  Describe the current contents of the pool.
+  Describe the current contents of the queue.
       %(cmd)s
 """.strip()
 
-def listPool(cmd, args):
+def listQueue(cmd, args):
     options, args = getopt.getopt(args, "hvf:",
              ["help", "verbose", "config=", ])
     try:
@@ -2574,7 +2597,7 @@ def listPool(cmd, args):
                                    wantClient=1)
     except UsageError, e:
         e.dump()
-        print _LIST_POOL_USAGE % { 'cmd' : cmd }
+        print _LIST_QUEUE_USAGE % { 'cmd' : cmd }
         sys.exit(1)
 
     parser.init()
@@ -2582,6 +2605,6 @@ def listPool(cmd, args):
 
     try:
         clientLock()
-        client.pool.inspectPool()
+        client.queue.inspectQueue()
     finally:
         clientUnlock()

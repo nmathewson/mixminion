@@ -41,9 +41,9 @@ For 0.0.4:
                 - Increase key length to 2048 bits
                 . Support multiple SURB keys
                         o Better keyrings: implement
-                        - Better keyrings: test
+                        o Better keyrings: test
                         o Backend support: implement
-                        - Backend support: test
+                        o Backend support: test
                         o CLI support for identities
                         o Test CLI support
                         - Specify behavior
@@ -249,7 +249,7 @@ WHEN WE GET THE CHANCE:
         - Consider dropping support for older Python versions?
 
 NEED TO BE TESTED
-- Signals
+- Signals      
 
 NEED TO BE DOCUMENTED
 

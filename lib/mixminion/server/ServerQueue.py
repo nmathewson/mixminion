@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.11 2003/03/26 17:02:09 nickm Exp $
+# $Id: ServerQueue.py,v 1.12 2003/03/27 10:31:00 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -17,8 +17,8 @@ from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir
 from mixminion.Crypto import getCommonPRNG
 
-__all__ = [ 'Queue', 'DeliveryQueue', 'TimedMixQueue', 'CottrellMixQueue',
-            'BinomialCottrellMixQueue' ]
+__all__ = [ 'Queue', 'DeliveryQueue', 'TimedMixPool', 'CottrellMixPool',
+            'BinomialCottrellMixPool' ]
 
 # Mode to pass to open(2) for creating a new file, and dying if it already
 # exists.
@@ -492,14 +492,14 @@ class DeliveryQueue(Queue):
         finally:
             self._lock.release()
 
-class TimedMixQueue(Queue):
-    """A TimedMixQueue holds a group of files, and returns some of them
+class TimedMixPool(Queue):
+    """A TimedMixPool holds a group of files, and returns some of them
        as requested, according to a mixing algorithm that sends a batch
        of messages every N seconds."""
     ## Fields:
     #   interval: scanning interval, in seconds.
     def __init__(self, location, interval=600):
-        """Create a TimedMixQueue that sends its entire batch of messages
+        """Create a TimedMixPool that sends its entire batch of messages
            every 'interval' seconds."""
         Queue.__init__(self, location, create=1, scrub=1)
         self.interval = interval
@@ -512,8 +512,8 @@ class TimedMixQueue(Queue):
     def getInterval(self):
         return self.interval
 
-class CottrellMixQueue(TimedMixQueue):
-    """A CottrellMixQueue holds a group of files, and returns some of them
+class CottrellMixPool(TimedMixPool):
+    """A CottrellMixPool holds a group of files, and returns some of them
        as requested, according the Cottrell (timed dynamic-pool) mixing
        algorithm from Mixmaster."""
     ## Fields:
@@ -545,7 +545,7 @@ class CottrellMixQueue(TimedMixQueue):
         # *THIS* is the algorithm that the current 'Batching Taxonomy' paper
         # says that Cottrell says is the real thing.
 
-        TimedMixQueue.__init__(self, location, interval)
+        TimedMixPool.__init__(self, location, interval)
         self.minPool = minPool
         self.minSend = minSend
         self.sendRate = sendRate
@@ -568,7 +568,7 @@ class CottrellMixQueue(TimedMixQueue):
             return []
 
 class _BinomialMixin:
-    """Mixin class.  Given a MixQueue that defines a _getBatchSize function,
+    """Mixin class.  Given a MixPool that defines a _getBatchSize function,
        replaces the getBatch function with one that -- instead of sending N
        messages from a pool of size P, sends each message with probability
        N/P."""
@@ -582,7 +582,7 @@ class _BinomialMixin:
         return rng.shuffle([ h for h in self.getAllMessages()
                              if rng.getFloat() < msgProbability ])
 
-class BinomialCottrellMixQueue(_BinomialMixin,CottrellMixQueue):
-    """Same algorithm as CottrellMixQueue, but instead of sending N messages
+class BinomialCottrellMixPool(_BinomialMixin,CottrellMixPool):
+    """Same algorithm as CottrellMixPool, but instead of sending N messages
        from the pool of size P, sends each message with probability N/P."""
     

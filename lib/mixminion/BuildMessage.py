@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.41 2003/03/26 16:36:46 nickm Exp $
+# $Id: BuildMessage.py,v 1.42 2003/03/27 10:30:59 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -303,7 +303,7 @@ def decodePayload(payload, tag, key=None,
                 try:
                     p = _decodeStatelessReplyPayload(payload, tag, userKey)
                     if name:
-                        LOG.info("Decoded reply message to identity: %r", name)
+                        LOG.info("Decoded reply message to identity %r", name)
                     return p
                 except MixError:
                     pass

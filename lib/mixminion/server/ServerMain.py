@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.45 2003/03/26 16:36:46 nickm Exp $
+# $Id: ServerMain.py,v 1.46 2003/03/27 10:31:00 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -110,14 +110,14 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
             self.removeMessage(handle) # ???? Really dump this message?
 
 class MixPool:
-    """Wraps a mixminion.server.Queue.*MixQueue to send messages to an exit
-       queue and a delivery queue.  The files in the MixQueue are instances
+    """Wraps a mixminion.server.Queue.*MixPool to send messages to an exit
+       queue and a delivery queue.  The files in the MixPool are instances
        of RelayedPacket or DeliveryPacket from PacketHandler.
 
        All methods on this class are invoked from the main thread.
     """
     ## Fields:
-    # queue -- underlying *MixQueue
+    # queue -- underlying *MixPool
     # outgoingQueue -- instance of OutgoingQueue
     # moduleManager -- instance of ModuleManager.
     def __init__(self, config, queueDir):
@@ -126,39 +126,39 @@ class MixPool:
 
         server = config['Server']
         interval = server['MixInterval'][2]
-        if server['MixAlgorithm'] == 'TimedMixQueue':
-            self.queue = mixminion.server.ServerQueue.TimedMixQueue(
+        if server['MixAlgorithm'] == 'TimedMixPool':
+            self.queue = mixminion.server.ServerQueue.TimedMixPool(
                 location=queueDir, interval=interval)
-        elif server['MixAlgorithm'] == 'CottrellMixQueue':
-            self.queue = mixminion.server.ServerQueue.CottrellMixQueue(
+        elif server['MixAlgorithm'] == 'CottrellMixPool':
+            self.queue = mixminion.server.ServerQueue.CottrellMixPool(
                 location=queueDir, interval=interval,
                 minPool=server.get("MixPoolMinSize", 5),
                 sendRate=server.get("MixPoolRate", 0.6))
-        elif server['MixAlgorithm'] == 'BinomialCottrellMixQueue':
-            self.queue = mixminion.server.ServerQueue.BinomialCottrellMixQueue(
+        elif server['MixAlgorithm'] == 'BinomialCottrellMixPool':
+            self.queue = mixminion.server.ServerQueue.BinomialCottrellMixPool(
                 location=queueDir, interval=interval,
                 minPool=server.get("MixPoolMinSize", 5),
                 sendRate=server.get("MixPoolRate", 0.6))
         else:
-            raise MixFatalError("Got impossible mix queue type from config")
+            raise MixFatalError("Got impossible mix pool type from config")
 
-        self.outgoingQueue = None
+        self.outgoingPool = None
         self.moduleManager = None
 
     def lock(self):
-        """Acquire the lock on the underlying queue"""
+        """Acquire the lock on the underlying pool"""
         self.queue.lock()
 
     def unlock(self):
-        """Release the lock on the underlying queue"""
+        """Release the lock on the underlying pool"""
         self.queue.unlock()
 
     def queueObject(self, obj):
-        """Insert an object into the queue."""
+        """Insert an object into the pool."""
         self.queue.queueObject(obj)
 
     def count(self):
-        "Return the number of messages in the queue"
+        "Return the number of messages in the pool"
         return self.queue.count()
 
     def connectQueues(self, outgoing, manager):

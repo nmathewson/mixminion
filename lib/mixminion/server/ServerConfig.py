@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.19 2003/03/26 16:36:46 nickm Exp $
+# $Id: ServerConfig.py,v 1.20 2003/03/27 10:31:00 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -68,7 +68,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
         mixInterval = server['MixInterval'][2]
         if mixInterval < 30*60:
             LOG.warn("Dangerously low MixInterval")
-        if server['MixAlgorithm'] == 'TimedMixQueue':
+        if server['MixAlgorithm'] == 'TimedMixPool':
             if _haveEntry(entries, 'Server', 'MixPoolRate'):
                 LOG.warn("Option MixPoolRate is not used for Timed mixing.")
             if _haveEntry(entries, 'Server', 'MixPoolMinSize'):
@@ -148,13 +148,13 @@ def _validateRetrySchedule(mixInterval, entries, sectionname,
 #======================================================================
 
 _MIX_RULE_NAMES = {
-    'timed' : "TimedMixQueue",
-    'cottrell'     : "CottrellMixQueue",
-    'mixmaster'    : "CottrellMixQueue",
-    'dynamicpool'  : "CottrellMixQueue",
-    'binomial'            : "BinomialCottrellMixQueue",
-    'binomialcottrell'    : "BinomialCottrellMixQueue",
-    'binomialdynamicpool' : "BinomialCottrellMixQueue",
+    'timed' : "TimedMixPool",
+    'cottrell'     : "CottrellMixPool",
+    'mixmaster'    : "CottrellMixPool",
+    'dynamicpool'  : "CottrellMixPool",
+    'binomial'            : "BinomialCottrellMixPool",
+    'binomialcottrell'    : "BinomialCottrellMixPool",
+    'binomialdynamicpool' : "BinomialCottrellMixPool",
 }
 
 def _parseMixRule(s):

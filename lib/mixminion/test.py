@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.95 2003/03/26 16:36:46 nickm Exp $
+# $Id: test.py,v 1.96 2003/03/27 10:30:59 nickm Exp $
 
 """mixminion.tests
 
@@ -2039,29 +2039,27 @@ class BuildMessageTests(unittest.TestCase):
 
         # Stateful replies are disabled.
 
-##      # repl (stateful)
-##      sdict2 = { 'tag2'*5 : [secrets] + [ '\x00\xFF'*8] }
-##      for pk in (self.pk1, None):
-##          for p in (passwd, None):
-##              sd = sdict.copy()
-##              self.assertEquals(payload,
-##                     decodePayload(repl1, "tag1"*5, pk, sd, p))
-##              self.assert_(not sd)
-##              self.assertEquals(None,
-##                     decodePayload(repl1, "tag1"*5, pk, None, p))
-##              self.assertEquals(None,
-##                     decodePayload(repl1, "tag1"*5, pk, sdict2, p))
-
         # repl (stateless)
         for pk in (self.pk1, None):
             #for sd in (sdict, None): #Stateful replies are disabled
                 self.assertEquals(payload,
                             decodePayload(repl2, repl2tag, pk, passwd))
+                try:
+                    suspendLog("INFO")
+                    self.assertEquals(payload,
+                                      decodePayload(repl2, repl2tag, pk,
+                                     userKeys={ "Fred": passwd, "": "z"*20 }))
+                finally:
+                    s = resumeLog()
+                self.assert_(stringContains(s,
+                               "Decoded reply message to identity 'Fred'"))
                 self.assertEquals(None,
                             decodePayload(repl2, repl2tag, pk, "Bliznerty"))
                 self.assertEquals(None,
+                            decodePayload(repl2, repl2tag, pk,
+                                   userKeys={ "Fred":"Bliznerty", "":"z"*20}))
+                self.assertEquals(None,
                             decodePayload(repl2, repl2tag, pk, None))
-
 
         # Try decoding a payload that looks like a zlib bomb.  An easy way to
         # get such a payload is to compress 25K of zeroes.
@@ -2074,7 +2072,7 @@ class BuildMessageTests(unittest.TestCase):
         # And now the cases that fail hard.  This can only happen on:
         #   1) *: Hash checks out, but zlib or size is wrong.  Already tested.
         #   2) EFWD: OAEP checks out, but hash is wrong.
-        #   3) REPLY: Tag matches; hash doesn't.
+        #   3) <omitted; stateful replies are gone>
         #   4) SREPLY: ---.
 
         # Bad efwd
@@ -2082,26 +2080,14 @@ class BuildMessageTests(unittest.TestCase):
         self.failUnlessRaises(MixError,
                               BuildMessage._decodeEncryptedForwardPayload,
                               efwd_pbad, efwd_t, self.pk1)
-        #for d in (sdict, None):
-        if 1:
-            for p in (passwd, None):
-                self.failUnlessRaises(MixError, decodePayload,
-                                      efwd_pbad, efwd_t, self.pk1, p)
-                self.assertEquals(None,
-                          decodePayload(efwd_pbad, efwd_t, self.pk2, p))
 
-##      # Bad repl
-##      repl2_bad = repl2[:-1] + chr(ord(repl1[-1])^0xaa)
-##      for pk in (self.pk1, None):
-##          for p in (passwd, None):
-##              #sd = sdict.copy()
-##              self.failUnlessRaises(MixError,
-##                       decodePayload, repl1_bad, "tag1"*5, pk, p)
-##              #sd = sdict.copy()
-##              self.failUnlessRaises(MixError,
-##                       BuildMessage._decodeReplyPayload, repl1_bad,
-##                                    sd["tag1"*5])
-        # Bad srepl
+        for p in (passwd, None):
+            self.failUnlessRaises(MixError, decodePayload,
+                                  efwd_pbad, efwd_t, self.pk1, p)
+            self.assertEquals(None,
+                      decodePayload(efwd_pbad, efwd_t, self.pk2, p))
+
+        # Bad repl
         repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
         self.assertEquals(None,
                   decodePayload(repl2_bad, repl2tag, None, passwd))
@@ -2621,11 +2607,11 @@ class QueueTests(unittest.TestCase):
         queue.removeAll()
         queue.cleanQueue()
 
-    def testMixQueues(self):
+    def testMixPools(self):
         d_m = mix_mktemp("qm")
 
-        # Trivial 'TimedMixQueue'
-        queue = TimedMixQueue(d_m)
+        # Trivial 'TimedMixPool'
+        queue = TimedMixPool(d_m)
         h1 = queue.queueMessage("Hello1")
         h2 = queue.queueMessage("Hello2")
         h3 = queue.queueMessage("Hello3")
@@ -2635,8 +2621,8 @@ class QueueTests(unittest.TestCase):
         b.sort()
         self.assertEquals(msgs,b)
 
-        # Now, test the CottrellMixQueue.
-        cmq = CottrellMixQueue(d_m, 600, 6, sendRate=.3)
+        # Now, test the CottrellMixPool.
+        cmq = CottrellMixPool(d_m, 600, 6, sendRate=.3)
         # Not enough messages (<= 6) -- none will be sent.
         self.assertEquals([], cmq.getBatch())
         self.assertEquals([], cmq.getBatch())
@@ -2664,7 +2650,7 @@ class QueueTests(unittest.TestCase):
             self.assertEquals(30, len(cmq.getBatch()))
 
         # Binomial Cottrell pool
-        bcmq = BinomialCottrellMixQueue(d_m, 600, 6, sendRate=.3)
+        bcmq = BinomialCottrellMixPool(d_m, 600, 6, sendRate=.3)
         # (Just make sure that we don't always return the same number of
         #  messages each time.)
         messageLens = []
@@ -3393,10 +3379,10 @@ IntRS=5
         self.assert_(floatEq(SC._parseFraction("100%"), 1))
         self.assert_(floatEq(SC._parseFraction("0%"), 0))
         # Mix algorithms
-        self.assertEquals(SC._parseMixRule(" Cottrell"), "CottrellMixQueue")
+        self.assertEquals(SC._parseMixRule(" Cottrell"), "CottrellMixPool")
         self.assertEquals(SC._parseMixRule("binomialCottrell"),
-                          "BinomialCottrellMixQueue")
-        self.assertEquals(SC._parseMixRule("TIMED"), "TimedMixQueue")
+                          "BinomialCottrellMixPool")
+        self.assertEquals(SC._parseMixRule("TIMED"), "TimedMixPool")
 
         ##
         # Now, try the failing cases.
@@ -4637,12 +4623,12 @@ class ServerMainTests(unittest.TestCase):
         # Test pool configuration
         pool = MixPool(configTimed, mixDir)
         self.assert_(isinstance(pool.queue,
-                                TimedMixQueue))
+                                TimedMixPool))
         self.assertEquals(pool.getNextMixTime(100), 100+2*60*60)
 
         pool = MixPool(configCottrell, mixDir)
         self.assert_(isinstance(pool.queue,
-                                CottrellMixQueue))
+                                CottrellMixPool))
         self.assertEquals(pool.getNextMixTime(100), 100+12*60*60)
         self.assertEquals(pool.queue.minPool, 10)
         self.assertEquals(pool.queue.minSend, 1)
@@ -4650,7 +4636,7 @@ class ServerMainTests(unittest.TestCase):
 
         pool = MixPool(configBCottrell, mixDir)
         self.assert_(isinstance(pool.queue,
-                                BinomialCottrellMixQueue))
+                                BinomialCottrellMixPool))
         self.assertEquals(pool.getNextMixTime(100), 100+6*60*60)
         self.assertEquals(pool.queue.minPool, 10)
         self.assertEquals(pool.queue.minSend, 1)
@@ -5263,8 +5249,43 @@ class ClientMainTests(unittest.TestCase):
 
     def testClientKeyring(self):
         keydir = mix_mktemp()
-        keyring = mixminion.ClientMain.ClientKeyring(keyring)
+        keyring = mixminion.ClientMain.ClientKeyring(keydir)
+        # Check for some nonexistant keys.
+        self.assertEquals({}, keyring.getSURBKeys(password="pwd"))
+        
+        self.assertEquals(None, keyring.getSURBKey(create=0))
+        # Reload, try again:
+        kfirst = None
+        for _ in 1, 2:
+            keyring = mixminion.ClientMain.ClientKeyring(keydir)
+            self.assertEquals(kfirst, keyring.getSURBKey(
+                create=0,password="pwd"))
+            try:
+                suspendLog()
+                k1 = keyring.getSURBKey(create=1,password="pwd")
+            finally:
+                s = resumeLog()
+            if kfirst:
+                self.assertEquals(s, "")
+                self.assertEquals(k1, kfirst)
+            else:
+                self.assert_(stringContains(s, "No keyring found"))
+                kfirst = k1
+            self.assertEquals(20, len(k1))
+            k2 = keyring.getSURBKey(name="Bob",create=1)
+            self.assertEquals(20, len(k2))
+            self.assertNotEquals(k1,k2)
+            self.assertEquals({"":k1,"Bob":k2}, keyring.getSURBKeys())
 
+        # Incorrect password
+        keyring = mixminion.ClientMain.ClientKeyring(keydir)
+        try:
+            suspendLog()
+            self.assertEquals(None,keyring.getSURBKey(password="incorrect"))
+        finally:
+            s = resumeLog()
+        self.assert_(stringContains(s, "Incorrect password"))
+        
     def testMixminionClient(self):
         # Create and configure a MixminionClient object...
         parseAddress = mixminion.ClientMain.parseAddress
