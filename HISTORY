@@ -1,8 +1,23 @@
-$Id: HISTORY,v 1.7 2003/12/15 04:47:22 nickm Exp $
+$Id: HISTORY,v 1.8 2003/12/18 23:29:50 nickm Exp $
 ----------------------------------------------------------------------
 This file lists changes for earlier versions of Mixminion.  For changes
 in the latest version, see the README file.
 ----------------------------------------------------------------------
+NEW IN VERSION 0.0.6.1:
+   - Several documentation fixes.
+
+   - Make the -H option work again when -P is not provided, and give a
+     useful error when it is.
+
+   - Make 'list-server -R' work properly.
+
+   - Fix a bug that made it impossible to send replies messages with text
+     from the command line.
+
+   - Never try to clean client queues without holding the proper lock.
+
+   - Prevent the server from crashing on an unresolvable hostname.
+
 NEW IN VERSION 0.0.6:
    - Several documentation fixes.
 
