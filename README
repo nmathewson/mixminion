@@ -156,6 +156,10 @@ To send a message _without_ reloading the directory, type:
 
       mixminion send -t <address> -i <file> -D no
 
+To reload the directory without sending a message, type:
+
+      mixminion send -D yes
+
 To force a path of a given length, type:
 
       mixminion send -t <address> -i <file> -H <number of hops>
@@ -185,6 +189,7 @@ To specify a path manually, type:
       specify a swap point explicitly, use a colon in your path, as in:
              -P 'Foo,Bar:Baz,Quux'    [Swap headers at server Bar]
              --swap-at=<n>            [Swap headers at the n'th server]
+      By default, we swap halfway through the path, rounding up.
       If you don't know what a swap point is, don't worry. :)
 
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER:
