@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.15 2002/12/12 19:56:45 nickm Exp $
+# $Id: Makefile,v 1.16 2002/12/15 03:47:03 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -56,7 +56,7 @@ clean:
 	@$(FINDPYTHON); \
 	echo $$PYTHON setup.py clean; \
 	$$PYTHON setup.py clean
-	rm -rf build
+	rm -rf build dist
 	rm -f lib/mixminion/_unittest.py
 	rm -f lib/mixminion/*.pyc
 	rm -f lib/mixminion/*.pyo
@@ -72,29 +72,36 @@ time: do_build
 	echo $$PYTHON build/lib*/mixminion/Main.py benchmarks; \
 	($$PYTHON build/lib*/mixminion/Main.py benchmarks)
 
-# FFFF coding style target
+#======================================================================
+# Install target (minimal.)
 
-pychecker: do_build
-	( export PYTHONPATH=.; cd build/lib*; pychecker -F ../../pycheckrc ./mixminion/*.py )
+ifdef PREFIX
+PREFIXARG = --prefix="$(PREFIX)"
+export PREFIXARG
+export PREFIX
+else
+PREFIXARG=
+PREFIX=""
+export PREFIXARG
+export PREFIX
+endif
 
-lines:
-	wc -l src/*.[ch] lib/*/*.py lib/*/*/*.py
+install: do_build
+	@$(FINDPYTHON); \
+	echo $$PYTHON setup.py install $(PREFIXARG) --compile --optimize=1; \
+	$$PYTHON setup.py install $(PREFIXARG) --compile --optimize=1
 
-xxxx:
-	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
-	   | xargs -0 grep 'XXXX\|FFFF\|DOCDOC\|????'
+#======================================================================
+# Source dist target
 
-xxxx001:
-	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
-	   | xargs -0 grep 'XXXX001\|FFFF001\|DOCDOC\|????001'
+sdist: clean
+	@$(FINDPYTHON); \
+	echo $$PYTHON setup.py sdist; \
+	$$PYTHON setup.py sdist
 
-longlines:
-	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
-	   | xargs -0 grep '^.{80,}'
+#======================================================================
+# OpenSSL-related targets
 
-#
-# Targets to make openssl get built properly.
-#
 OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7-beta4.tar.gz
 OPENSSL_FILE = openssl-0.9.7-beta4.tar.gz
 
@@ -155,3 +162,25 @@ unpack-openssl:
 	fi;                                                                 \
 	rm -f ./openssl;                                                    \
 	ln -sf $$UNPACKED openssl
+
+#======================================================================
+# Coding style targets
+
+pychecker: do_build
+	( export PYTHONPATH=.; cd build/lib*; pychecker -F ../../pycheckrc \
+	  ./mixminion/*.py )
+
+lines:
+	wc -l src/*.[ch] lib/*/*.py lib/*/*/*.py
+
+xxxx:
+	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
+	   | xargs -0 grep 'XXXX\|FFFF\|DOCDOC\|????'
+
+xxxx001:
+	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
+	   | xargs -0 grep 'XXXX001\|FFFF001\|DOCDOC\|????001'
+
+longlines:
+	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
+	   | xargs -0 grep '^.{80,}'

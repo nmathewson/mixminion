@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.13 2002/12/12 19:56:45 nickm Exp $
+# $Id: setup.py,v 1.14 2002/12/15 03:47:03 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -20,7 +20,7 @@ except ImportError:
 
 import os, struct, shutil
 
-VERSION= '0.1'
+VERSION= '0.0.1'
 
 USE_OPENSSL=1
 
@@ -67,7 +67,43 @@ elif other_endian:
     MACROS.append( ("MM_O_ENDIAN", 1)  )
 
 #======================================================================
+# Create a startup script if we're installing.
+
+# This isn't as fully general as distutils allows.  Unfortunately, distutils
+# doesn't make it easy for us to create a script that knows where distutils
+# has been told to install.
+
+if os.environ.get('PREFIX'):
+    prefix = os.path.expanduser(os.environ["PREFIX"])
+    pathextra = os.path.join(prefix, "lib",
+			     "python"+(sys.version)[:3],
+			     "site-packages")
+else:
+    pathextra = ""
+
+SCRIPT_PATH = os.path.join("build", "mixminion")
+if not os.path.exists("build"):
+    os.mkdir("build")
+f = open(SCRIPT_PATH, 'wt')
+f.write("#!%s\n"% sys.executable)
+if pathextra:
+    f.write("import sys\nsys.path.append(%r)\n"%pathextra)
+f.write("""\
+try:
+    import mixminion.Main
+except:
+    print 'ERROR importing mixminion package.'
+    raise
+
+mixminion.Main.main(sys.argv)
+""")
+f.close()
+
+#======================================================================
+# Now, tell setup.py how to cope.
+import distutils.core
 from distutils.core import setup, Extension
+from distutils import sysconfig
 
 INCLUDE_DIRS.append("src")
 
@@ -81,8 +117,17 @@ extmodule = Extension("mixminion._minionlib",
 
 setup(name='Mixminion',
       version=VERSION,
-      description="Mixminion: Python implementation of the Type III MIX protocol (ALPHA)",
+      license="LGPL",
+      description="Mixminion: Python implementation of the Type III Mix protocol (ALPHA)",
       author="Nick Mathewson",
+      author_email="nickm@freehaven.net",
+      url="http://www.mixminion.net/",
       package_dir={ '' : 'lib' },
       packages=['mixminion', 'mixminion.server'],
+      scripts=[SCRIPT_PATH],
       ext_modules=[extmodule])
+
+try:
+    os.unlink(SCRIPT_PATH)
+except:
+    pass

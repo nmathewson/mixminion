@@ -16,21 +16,21 @@ FOR 0.0.1: (The first alpha)
          work.  There need not be an interface for replies.  Key rotation
          need not be automated.]
 
-	. Build
-		- Marginal 'make install'
-		- Marginal 'make dist'
+	o Build
+		o Marginal 'make install'
+		o Marginal 'make dist'
 	. Integration testing
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
 	- Documentation
 		- Contributor's guide
-		- Basic HOWTO
+		o Basic HOWTO
 		- Difference between XXXX FFFF ????
 		- Overall design
 		- More readable mixminiond.conf
 	- Patch specification:
 	  	- SPEC comments from code
-		- Incorporate e2e mixminion design
+		o Incorporate e2e mixminin design
 		- Rename stateful, stateless SURBs
 
 Required for "1.0":
@@ -128,16 +128,17 @@ SPEC!!		- Timeout old connections
 			- Hunt down leaks
 	- Build and install process
 		- Use sane arguments when testing with multiple python versions
-		. Get SSL as needed
+		o Get SSL as needed
 		- Well-tested 'make install'
 		- RPMS, debs, and so on
 		- Make sure we run on solaris and *BSD.
 		- "Somebody" should do a Windows port of the client code
+		- An init.d script.
 	- Protocol support
 		- External reply block format
 		o End-to-end payload encryption
-		. Reading messages sent to reply blocks
-		. Correct implementation of stateless reply blocks
+		o Reading messages sent to reply blocks
+		o Correct implementation of stateless reply blocks
 SPEC		o Patch to address George's 15August attack
 	- Testing
 		- Test on other (non-redhat, non-linux) systems
