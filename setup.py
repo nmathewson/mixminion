@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.71 2003/07/14 15:38:50 nickm Exp $
+# $Id: setup.py,v 1.72 2003/07/15 04:42:14 nickm Exp $
 import sys
 
 #
@@ -269,6 +269,28 @@ elif other_endian:
     print "somehow made it run Python.  Despite your perversity, I admire"
     print "your nerve, and will try to soldier on.\n"
     MACROS.append( ("MM_O_ENDIAN", 1)  )
+
+#======================================================================
+# Apple's OS X 10.2 has really weird options for its Python distutils.
+# The logic to fix this comes from Twisted.
+
+BROKEN_CONFIG = '2.2 (#1, 07/14/02, 23:25:09) \n[GCC Apple cpp-precomp 6.14]'
+if sys.platform == 'darwin' and sys.version == BROKEN_CONFIG:
+    # change this to 1 if you have some need to compile
+    # with -flat_namespace as opposed to -bundle_loader
+    FLAT_NAMESPACE = 0
+    BROKEN_ARCH = '-arch i386'
+    BROKEN_NAMESPACE = '-flat_namespace -undefined_suppress'
+    import distutils.sysconfig
+    distutils.sysconfig.get_config_vars()
+    x = distutils.sysconfig._config_vars['LDSHARED']
+    y = x.replace(BROKEN_ARCH, '')
+    if not FLAT_NAMESPACE:
+        e = os.path.realpath(sys.executable)
+        y = y.replace(BROKEN_NAMESPACE, '-bundle_loader ' + e)
+    if y != x:
+        print "Fixing some of Apple's compiler flag mistakes..."
+        distutils.sysconfig._config_vars['LDSHARED'] = y
 
 #======================================================================
 # Create a startup script if we're installing.
