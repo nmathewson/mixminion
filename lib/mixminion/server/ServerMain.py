@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.95 2003/10/19 03:12:02 nickm Exp $
+# $Id: ServerMain.py,v 1.96 2003/10/19 05:21:45 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -355,8 +355,9 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     ## Fields:
     # incomingQueue -- a Queue to hold messages we receive
     # outgoingQueue -- a DeliveryQueue to hold messages to be sent.
-    def __init__(self, config, tls):
-        mixminion.server.MMTPServer.MMTPAsyncServer.__init__(self, config, tls)
+    def __init__(self, config, servercontext, clientcontext):
+        mixminion.server.MMTPServer.MMTPAsyncServer.__init__(
+            self, config, servercontext, clientcontext)
 
     def connectQueues(self, incoming, outgoing):
         self.incomingQueue = incoming
@@ -669,7 +670,7 @@ The original error message was '%s'."""%e)
         LOG.debug("Initializing packet handler")
         self.packetHandler = mixminion.server.PacketHandler.PacketHandler()
         LOG.debug("Initializing MMTP server")
-        self.mmtpServer = _MMTPServer(config, None)
+        self.mmtpServer = _MMTPServer(config, None, clientContext)
         LOG.debug("Initializing keys")
         self.descriptorFile = os.path.join(homeDir, "current-desc")
         self.keyring.updateKeys(self.packetHandler, self.mmtpServer,

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.51 2003/10/19 03:12:02 nickm Exp $
+# $Id: ServerKeys.py,v 1.52 2003/10/19 05:21:45 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -449,7 +449,7 @@ class ServerKeyring:
                  len(deadKeys), " ".join(deadKeyNames))
         if mmtpServer is not None:
             context = self._getTLSContext(keys[-1])
-            mmtpServer.setContext(context)
+            mmtpServer.setServerContext(context)
         if packetHandler is not None:
             packetKeys = []
             hashLogs = []

@@ -14,9 +14,6 @@ NEEDS TO BE WRITTEN:
 
 For 0.0.5.something:
         - Get limited client timeouts working.
-        - Make sure we clean out Filestores used by clients.
-        - Don't remove currently-undeliverable messages from client
-          queue when flushing.
 
 For 0.0.6:  (The release for integrators, Windows users, senders of
 large replies, people with dynamically assigned IPs, people with high
@@ -55,6 +52,7 @@ TCP latency, and me.)
                 - Logging UIErrors isn't a bad idea.
                 - Separate 'mixminiond' wrapper; 'mixminion server-foo'
                   confuses folk.
+
                 - SSL's "Unexpected error: wrong version number"
                   message is confusing.
                 - Better error message when opening db with unsupported
@@ -76,6 +74,10 @@ TCP latency, and me.)
                 - Installer
                 - Instructions
                 - Py2EXE support
+        - Fix misc annoyances
+                - Make sure we clean out Filestores used by clients.
+                - Don't remove currently-undeliverable messages from client
+                  queue when flushing.
         - Dynamic IP support
                 - Change IPv4/IPv6 delivery methods to use DNS if desired.
                   [Migration plan: Supplement 'IP' with 'Hostname' in

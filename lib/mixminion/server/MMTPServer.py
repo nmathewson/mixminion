@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.53 2003/10/19 03:12:02 nickm Exp $
+# $Id: MMTPServer.py,v 1.54 2003/10/19 05:21:45 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -1053,17 +1053,19 @@ class MMTPAsyncServer(AsyncServer):
        MMTPClientConnection, with a function to add new connections, and
        callbacks for message success and failure."""
     ##
-    # context: a TLSContext object to use for newly received connections.
+    # serverContext: a TLSContext object to use for newly received connections.
+    # clientContext: a TLSContext object to use for initiated connections.
     # clientConByAddr: A map from 3-tuples returned by MMTPClientConnection.
     #     getAddr, to MMTPClientConnection objects.
     # certificateCache: A PeerCertificateCache object.
     # listener: A ListenConnection object.
     # _timeout: The number of seconds of inactivity to allow on a connection
     #     before formerly shutting it down.
-    def __init__(self, config, tls):
+    def __init__(self, config, servercontext):
         AsyncServer.__init__(self)
 
-        self.context = tls
+        self.serverContext = servercontext
+        self.clientContext = _ml.TLSContext_new()
         # FFFF Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs
 
@@ -1105,10 +1107,10 @@ class MMTPAsyncServer(AsyncServer):
     def connectDNSCache(self, dnsCache):
         self.dnsCache = dnsCache
 
-    def setContext(self, context):
+    def setServerContext(self, servercontext):
         """Change the TLS context used for newly received connections.
            Used to rotate keys."""
-        self.context = context
+        self.serverContext = servercontext
 
     def getNextTimeoutTime(self, now=None):
         """Return the time at which we next purge connections, if we have
@@ -1121,7 +1123,7 @@ class MMTPAsyncServer(AsyncServer):
         """helper method.  Creates and registers a new server connection when
            the listener socket gets a hit."""
         # FFFF Check whether incoming IP is allowed!
-        tls = self.context.sock(sock, serverMode=1)
+        tls = self.serverContext.sock(sock, serverMode=1)
         sock.setblocking(0)
         con = MMTPServerConnection(sock, tls, self.onMessageReceived)
         con.register(self)
@@ -1190,7 +1192,7 @@ class MMTPAsyncServer(AsyncServer):
             # There isn't any connection to the right server. Open one...
             addr = (ip, port, keyID)
             finished = lambda addr=addr, self=self: self.__clientFinished(addr)
-            con = MMTPClientConnection(self.context,
+            con = MMTPClientConnection(self.clientContext,
                                      ip, port, keyID, deliverable,
                                      finishedCallback=finished,
                                      certCache=self.certificateCache)
