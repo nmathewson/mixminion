@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.44 2003/05/29 02:01:34 nickm Exp $
+# $Id: Main.py,v 1.45 2003/05/30 02:03:02 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -116,7 +116,6 @@ _COMMANDS = {
     "unittests" :      ( 'mixminion.test',       'testAll' ),
     "benchmarks" :     ( 'mixminion.benchmark',  'timeAll' ),
     "send" :           ( 'mixminion.ClientMain', 'runClient' ),
-    "client" :         ( 'mixminion.ClientMain', 'runClient' ),
     # XXXX Obsolete; use "queue"; remove in 0.0.5
     "pool" :           ( 'mixminion.ClientMain', 'runClient' ),
     "queue" :          ( 'mixminion.ClientMain', 'runClient' ),
@@ -130,10 +129,10 @@ _COMMANDS = {
     "inspect-surbs" :  ( 'mixminion.ClientMain', 'inspectSURBs' ),
     "flush" :          ( 'mixminion.ClientMain', 'flushQueue' ),
     "inspect-queue" :   ( 'mixminion.ClientMain', 'listQueue' ),
-    # XXXX Obsolete; use "inspect-queue"; remove in 0.0.5
+    # XXXX005 Obsolete; use "inspect-queue"; remove in 0.0.5
     "inspect-pool" :   ( 'mixminion.ClientMain', 'listQueue' ),
     "ping" :           ( 'mixminion.ClientMain', 'runPing' ),
-    # XXXX Obsolete; use "server-start"; remove in 0.0.5
+    # XXXX005 Obsolete; use "server-start"; remove in 0.0.5
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-start" :   ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-stop" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
@@ -166,10 +165,9 @@ _USAGE = (
   "       server-stop    [Halt a running Mixminion server]\n"+
   "       server-reload  [Make running Mixminion server reload its config\n"+
   "                        (Not implemented yet; only restarts logging.)]\n"+
-  "       server-keygen  [Generate keys for a Mixminion server]\n"+
+  "       server-republish    [Re-send all keys to directory server.]\n"+
   "       server-DELKEYS [Remove generated keys for a Mixminion server]\n"+
-  "       server-stats   [XXXX]\n"+
-  " {XXXX004 stuff has changed!\n"+
+  "       server-stats   [List as-yet-unlogged statistics for this server.]\n"+
   "                             (For Developers)\n"+
   "       dir            [Administration for server directories]\n"+
   "       unittests      [Run the mixminion unit tests]\n"+
@@ -206,13 +204,13 @@ def main(args):
         printUsage()
         sys.exit(1)
 
-    if args[1] not in ('unittests', 'benchmarks'):
-        print "==========================================================="
-        print "                     TURN  BACK  NOW  !!!"
-        print "This version of Mixminion (0.0.4alpha3) is compatible with no"
-        print "other version.  Go check out the maintenance branch if you"
-        print "want to use this software to run a server or send messages."
-        print "==========================================================="
+#    if args[1] not in ('unittests', 'benchmarks'):
+#        print "==========================================================="
+#        print "                     TURN  BACK  NOW  !!!"
+#        print "This version of Mixminion (0.0.4alpha3) is compatible with no"
+#        print "other version.  Go check out the maintenance branch if you"
+#        print "want to use this software to run a server or send messages."
+#        print "==========================================================="
 
     # Read the 'common' module to get the UIError class.  To simplify
     # command implementation code, we catch all UIError exceptions here.
