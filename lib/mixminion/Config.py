@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.34 2003/01/08 07:56:24 nickm Exp $
+# $Id: Config.py,v 1.35 2003/01/13 06:15:10 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -60,7 +60,8 @@ from cStringIO import StringIO
 
 import mixminion.Common
 import mixminion.Crypto
-from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace
+from mixminion.Common import MixError, LOG, ceilDiv, isPrintingAscii, \
+   stripSpace, stringContains
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -99,8 +100,8 @@ def _parseServerMode(mode):
     return s
 
 # re to match strings of the form '9 seconds', '1 month', etc.
-_interval_re = re.compile(r'''(\d+\.?\d*|\.\d+)\s+
-                     (sec|second|min|minute|hour|day|week|mon|month|year)s?''',
+_interval_re = re.compile(r'''^(\d+\.?\d*|\.\d+)\s+
+                     (sec|second|min|minute|hour|day|week|mon|month|year)s?$''',
                           re.X)
 _seconds_per_unit = {
     'second': 1,
@@ -127,6 +128,33 @@ def _parseInterval(interval):
     nsec = num * _seconds_per_unit[unit]
     return num, _canonical_unit_names.get(unit,unit), nsec
 
+
+def _parseIntervalList(s):
+    """DOCDOC"""
+    items = s.strip().lower().split(",")
+    ilist = []
+    for item in items:
+        item = item.strip()
+        if stringContains(item, " for "):
+            if item.startswith("every "):
+                item = item[6:]
+            interval, duration = item.split(" for ", 1)
+            interval = int(_parseInterval(interval)[2])
+            duration = int(_parseInterval(duration)[2])
+            if interval < 1:
+                raise ConfigError("Repeated interval too small in %s"%s)
+
+            for _ in xrange(ceilDiv(duration, interval)):
+                ilist.append(interval)
+        elif item.startswith("every "):
+            raise ConfigError(
+                "Bad syntax on interval %s. (Did you mean %s for X days?)",
+                item, item)
+        else:
+            interval = _parseInterval(item)[2]
+            ilist.append(interval)
+    return ilist
+
 def _parseInt(integer):
     """Validation function.  Converts a config value to an int.
        Raises ConfigError on failure."""
@@ -137,7 +165,7 @@ def _parseInt(integer):
         raise ConfigError("Expected an integer but got %r" % (integer))
 
 # Regular expression to match a dotted quad.
-_ip_re = re.compile(r'\d+\.\d+\.\d+\.\d+')
+_ip_re = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
 
 def _parseIP(ip):
     """Validation function.  Converts a config value to an IP address.
@@ -158,12 +186,12 @@ def _parseIP(ip):
 
 # Regular expression to match 'address sets' as used in Allow/Deny
 # configuration lines. General format is "<IP|*> ['/'MASK] [PORT['-'PORT]]"
-_address_set_re = re.compile(r'''(\d+\.\d+\.\d+\.\d+|\*)
+_address_set_re = re.compile(r'''^(\d+\.\d+\.\d+\.\d+|\*)
                                  \s*
                                  (?:/\s*(\d+\.\d+\.\d+\.\d+))?\s*
                                  (?:(\d+)\s*
                                            (?:-\s*(\d+))?
-                                        )?''',re.X)
+                                        )?$''',re.X)
 def _parseAddressSet_allow(s, allowMode=1):
     """Validation function.  Converts an address set string of the form
        'IP/mask port-port' into a tuple of (IP, Mask, Portmin, Portmax).
@@ -256,7 +284,7 @@ def _parsePublicKey(s):
     return key
 
 # Regular expression to match YYYY/MM/DD
-_date_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d)")
+_date_re = re.compile(r"^(\d\d\d\d)/(\d\d)/(\d\d)$")
 def _parseDate(s):
     """Validation function.  Converts from YYYY/MM/DD format to a (long)
        time value for midnight on that date."""
@@ -271,7 +299,7 @@ def _parseDate(s):
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
 # Regular expression to match YYYY/MM/DD HH:MM:SS
-_time_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)")
+_time_re = re.compile(r"^(\d\d\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)$")
 def _parseTime(s):
     """Validation function.  Converts from YYYY/MM/DD HH:MM:SS format
        to a (float) time value for GMT."""
