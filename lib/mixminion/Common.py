@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.120 2003/11/28 04:14:04 nickm Exp $
+# $Id: Common.py,v 1.121 2003/12/03 23:18:52 nickm Exp $
 
 """mixminion.Common
 
@@ -864,27 +864,39 @@ class Log:
            """
         self.handlers = []
         if config == None or not config.has_section("Server"):
+            # We're configuring a client.
             self.setMinSeverity("WARN")
             self.addHandler(_ConsoleLogHandler(sys.stderr))
-        else:
-            #DOCDOC
-            self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
-            logfile = config.getLogFile()
-            self.addHandler(_ConsoleLogHandler(sys.stderr))
-            if logfile:
-                try:
-                    self.addHandler(_FileLogHandler(logfile))
-                except MixError, e:
-                    self.error(str(e))
-                if keepStderr or config['Server'].get('EchoMessages',0)==2:
-                    return
-                if (config['Server'].get('Daemon',0) or
-                    not config['Server'].get('EchoMessages',0)):
-                    if not self.silenceNoted:
-                        print "Silencing the console log; look in %s instead"%(
-                            logfile)
-                        self.silenceNoted = 1
-                    del self.handlers[0]
+            return
+
+        # We're configuring the log on a server.  Stuff will get complicated
+        # now.  First, we set the severity as specified in the configuration...
+        self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
+        # ...find out what logfile we're supposed to use ...
+        logfile = config.getLogFile()
+        # ...and add a handler to log any messages to stderr.
+        self.addHandler(_ConsoleLogHandler(sys.stderr))
+        if logfile:
+            # First, try to create a file log handler.
+            try:
+                self.addHandler(_FileLogHandler(logfile))
+            except MixError, e:
+                self.error(str(e))
+                return
+            # If we're successful, and we're absolutely supposed to echo
+            # messages (or keepStderr is set), we don't even consider
+            # dumping the console log handler.
+            if keepStderr or config['Server'].get('EchoMessages',0)==2:
+                return
+            # If we're running in daemon mode, or we're not supposed to echo
+            # messages, we remove the console log handler.
+            if (config['Server'].get('Daemon',0) or
+                not config['Server'].get('EchoMessages',0)):
+                if not self.silenceNoted:
+                    print "Silencing the console log; look in %s instead"%(
+                        logfile)
+                    self.silenceNoted = 1
+                del self.handlers[0]
 
     def setMinSeverity(self, minSeverity):
         """Sets the minimum severity of messages to be logged.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.169 2003/11/28 04:14:04 nickm Exp $
+# $Id: test.py,v 1.170 2003/12/03 23:18:52 nickm Exp $
 
 """mixminion.tests
 
@@ -4410,6 +4410,40 @@ Nickname: fred-the-bunny
 """
 
 class ServerInfoTests(TestCase):
+    def test_displayServer(self):
+        ds = mixminion.ServerInfo.displayServer
+        eq = self.assertEquals
+        eq(ds(None), "unknown server")
+        eq(ds("Fred"), "Fred")
+
+        # Test without keyid resolver
+        eq(ds(IPV4Info("1.2.3.4", 48099, "x"*20)),
+           "server at 1.2.3.4:48099")
+
+        eq(ds(MMTPHostInfo("a.b.com", 48099, "x"*20)),
+           "server at a.b.com:48099")
+
+        # Test with keyid resolver
+        def resolver(keyid):
+            if keyid[0] == 'a': return "Kenichi"
+            elif keyid[1] == 'b': return "Tima"
+            else: return None
+        try:
+            mixminion.ServerInfo._keyIDToNicknameFn = resolver
+            eq(ds(IPV4Info("1.2.3.4", 48099, "b"*20)),
+               "'Tima' at 1.2.3.4:48099")
+            eq(ds(IPV4Info("1.2.3.4", 48099, "x"*20)),
+               "server at 1.2.3.4:48099")
+            eq(ds(MMTPHostInfo("ken.com", 48099, "a"*20)),
+               "'Kenichi' at ken.com:48099")
+        finally:
+            mixminion.ServerInfo._keyIDToNicknameFn = None
+
+            # Test serverinfos
+        examples = getExampleServerDescriptors()
+        eq(ds(mixminion.ServerInfo.ServerInfo(string=examples["Fred"][0])),
+           "'Fred' at Fred:48099")
+
     def test_ServerInfo(self):
         # Try generating a serverinfo and see if its values are as expected.
         identity = getRSAKey(1, 2048)
@@ -4422,11 +4456,15 @@ class ServerInfoTests(TestCase):
         if not os.path.exists(d):
             os.mkdir(d, 0700)
 
-        inf = generateServerDescriptorAndKeys(conf,
-                                              identity,
-                                              d,
-                                              "key1",
-                                              d)
+        try:
+            overrideDNS({"Theserver": "192.168.0.1"})
+            inf = generateServerDescriptorAndKeys(conf,
+                                                  identity,
+                                                  d,
+                                                  "key1",
+                                                  d)
+        finally:
+            undoReplacedAttributes()
         info = mixminion.ServerInfo.ServerInfo(string=inf)
         eq = self.assertEquals
         eq(info['Server']['Descriptor-Version'], "0.2")
@@ -4472,11 +4510,15 @@ class ServerInfoTests(TestCase):
         if not os.path.exists(d):
             os.mkdir(d, 0700)
 
-        inf = generateServerDescriptorAndKeys(conf,
-                                              identity,
-                                              d,
-                                              "key2",
-                                              d)
+        try:
+            overrideDNS({"Theserver" : "192.168.0.1"})
+            inf = generateServerDescriptorAndKeys(conf,
+                                                  identity,
+                                                  d,
+                                                  "key2",
+                                                  d)
+        finally:
+            undoReplacedAttributes()
         info = mixminion.ServerInfo.ServerInfo(string=inf)
         eq(info['Delivery/MBOX'].get('Version'), '0.1')
         eq(info['Delivery/Fragmented'].get('Version'), '0.1')
@@ -4598,9 +4640,9 @@ class ServerInfoTests(TestCase):
         eq(info.getMMTPHostInfo(), info.getRoutingInfo())
         self.assert_(info.canStartAt())
 
-        #XXXX006 this is a workaround to deal with the fact that we've
-        #XXXX006 opened a fragment DB just to configure the server. Not
-        #XXXX006 cool.
+        #XXXX this is a workaround to deal with the fact that we've
+        #XXXX opened a fragment DB just to configure the server. Not
+        #XXXX cool.  Startup should get refactored.
         conf.getModuleManager().close()
 
         # Now with a shorter configuration
@@ -4614,11 +4656,15 @@ IP: 192.168.0.99
 """)
         finally:
             resumeLog()
-        generateServerDescriptorAndKeys(conf,
-                                        identity,
-                                        d,
-                                        "key2",
-                                        d)
+        try:
+            overrideDNS({"Theserver2" : "192.168.0.99"})
+            generateServerDescriptorAndKeys(conf,
+                                            identity,
+                                            d,
+                                            "key2",
+                                            d)
+        finally:
+            undoReplacedAttributes()
         # Now with a bad signature
         sig2 = Crypto.pk_sign(sha1("Hello"), identity)
         sig2 = base64.encodestring(sig2).replace("\n", "")
@@ -4684,12 +4730,21 @@ IP: 192.168.100.4
         finally:
             resumeLog()
 
-        _ = generateServerDescriptorAndKeys(conf,
-                                            identity,
-                                            d,
-                                            "key2",
-                                            d,
-                                            useServerKeys=1)
+        try:
+            suspendLog()
+            overrideDNS({"Theserver3" : "1.2.3.4"})
+            _ = generateServerDescriptorAndKeys(conf,
+                                                identity,
+                                                d,
+                                                "key2",
+                                                d,
+                                                useServerKeys=1)
+        finally:
+            s = resumeLog()
+            undoReplacedAttributes()
+
+        self.assertEndsWith(s, "Configured hostname 'Theserver3' resolves to"
+                      " 1.2.3.4, but we're publishing the IP 192.168.100.3\n")
 
         key3 = mixminion.server.ServerKeys.ServerKeyset(d, "key2", d)
         key3.load()
@@ -4709,14 +4764,15 @@ IP: 192.168.100.4
         self.assert_(not info3.canRelayTo(info)) # info3 has no outgoing/mmtp
         self.assertEquals(info.getRoutingFor(info3)[1],
                           info3.getRoutingInfo().pack())
-        #XXXX006 Test negative (IPv4) cases, somehow.
 
-        key3.regenerateServerDescriptor(conf2, identity)
+        try:
+            overrideDNS({"Theserver4": "192.168.100.4"})
+            key3.regenerateServerDescriptor(conf2, identity)
+        finally:
+            undoReplacedAttributes()
         info3 = key3.getServerDescriptor()
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver4")
         eq(info3['Incoming/MMTP']['IP'], "192.168.100.4")
-
-
 
     def test_directory(self):
         eq = self.assertEquals
@@ -4969,7 +5025,8 @@ class EventStatsTests(TestCase):
         # Test rotate
         ES.log.rotate(now=tm+3600*24)
         s2 = readFile(os.path.join(homedir, "stats"))
-        eq(s2.split("\n")[1:], sOrig.split("\n")[1:])
+        eq([ l for l in s2.split("\n") if l == '' or l[0] not in "#="],
+           sOrig.split("\n")[1:])
         eq(ES.log.count['UnretriableDelivery'], {})
         eq(ES.log.lastSave, tm+3600*24)
         eq(ES.log.accumulatedTime, 0)
@@ -5154,11 +5211,13 @@ IP: 1.0.0.1
         # Check serverinfo generation.
         try:
             suspendLog()
+            overrideDNS({"TheServer5" : '1.0.0.1'})
             info = generateServerDescriptorAndKeys(
                 conf, getRSAKey(0,2048), home_dir, "key11", home_dir)
             self.failUnless(stringContains(info,"\n[Example]\nFoo: 99\n"))
         finally:
             resumeLog()
+            undoReplacedAttributes()
         manager.close()
 
         # Try again, this time with the test module disabled.
@@ -5852,15 +5911,19 @@ class ServerKeysTests(TestCase):
 
         # Now create a keyset
         now = time.time()
-        keyring.createKeys(1, now)
-        # check internal state
-        ivals = keyring.keySets
-        start = mixminion.Common.previousMidnight(now)
-        finish = mixminion.Common.previousMidnight(start+(10*24*60*60)+30)
-        self.assertEquals(1, len(ivals))
-        self.assertEquals((start,finish), ivals[0][0:2])
+        try:
+            overrideDNS({"Theserver5" : '10.0.0.1'})
+            keyring.createKeys(1, now)
+            # check internal state
+            ivals = keyring.keySets
+            start = mixminion.Common.previousMidnight(now)
+            finish = mixminion.Common.previousMidnight(start+(10*24*60*60)+30)
+            self.assertEquals(1, len(ivals))
+            self.assertEquals((start,finish), ivals[0][0:2])
 
-        keyring.createKeys(2)
+            keyring.createKeys(2)
+        finally:
+            undoReplacedAttributes()
 
         # Check the first key we created
         va, vu, _ = keyring._getLiveKeys()[0]
@@ -6153,9 +6216,13 @@ def getExampleServerDescriptors():
                 continue
             k = "tst%d"%n
             validAt = previousMidnight(now + 24*60*60*starting[n])
-            gen(config=conf, identityKey=identity, keyname=k,
-                keydir=tmpkeydir, hashdir=tmpkeydir, validAt=validAt,
-                now=publishing)
+            try:
+                overrideDNS({nickname: ip})
+                gen(config=conf, identityKey=identity, keyname=k,
+                    keydir=tmpkeydir, hashdir=tmpkeydir, validAt=validAt,
+                    now=publishing)
+            finally:
+                undoReplacedAttributes()
 
             sd = os.path.join(tmpkeydir,"key_"+k,"ServerDesc")
             _EXAMPLE_DESCRIPTORS[nickname].append(readFile(sd))
@@ -7411,7 +7478,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(DNSFarmTests))
+        suite.addTest(tc(ServerInfoTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

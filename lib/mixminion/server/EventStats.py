@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.12 2003/11/28 04:14:04 nickm Exp $
+# $Id: EventStats.py,v 1.13 2003/12/03 23:18:53 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -101,6 +101,15 @@ class NilEventLog:
            module fails unretriably.
         """
         self._log("UnretriableDelivery", arg)
+
+
+BOILERPLATE = """\
+# Mixminion server statistics
+#
+# NOTE: These statistics _do not_ necessarily cover the current interval
+# of operation.  To see pending statistics that have not yet been flushed
+# to this file, run 'mixminion server-stats'.
+"""
 
 class EventLog(NilEventLog):
     """An EventLog records events, aggregates them according to some time
@@ -226,8 +235,10 @@ class EventLog(NilEventLog):
         LOG.debug("Flushing statistics log")
         if now is None: now = time()
 
-        #XXXX006 dump boilerplate when starting new file.
+        starting = not os.path.exists(self.historyFilename)
         f = open(self.historyFilename, 'a')
+        if starting:
+            f.write(BOILERPLATE)
         self.dump(f, now)
         f.close()
 
@@ -311,7 +322,6 @@ def configureLog(config):
             os.makedirs(os.path.split(statsfile)[0], 0700)
 
         workfile = os.path.join(config.getWorkDir(), "stats.tmp")
-        #XXXX006 ensure parent.
         log = EventLog(
            workfile, statsfile, config['Server']['StatsInterval'].getSeconds())
         LOG.info("Statistics logging enabled")

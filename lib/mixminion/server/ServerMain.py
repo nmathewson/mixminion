@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.104 2003/11/28 04:14:05 nickm Exp $
+# $Id: ServerMain.py,v 1.105 2003/12/03 23:18:53 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -10,30 +10,35 @@
 
 #XXXX make usage messages have the same format.
 
-## Directory layout:  DOCDOC this is now more complicated. :P
-#    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
-#                            mix/ [Mix pool]
-#                            outgoing/ [Packets for mmtp delivery]
-#                            deliver/*/ [Messages for delivery via modules]
-#                      tls/dhparam [Diffie-Hellman parameters]
-#                      hashlogs/hash_1*  [HashLogs of packet hashes
-#                               hash_2*    corresponding to key sets]
-#                                ...
-#                      stats.tmp [Cache of stats from latest period]
-#                log [Messages from the server]
-#                keys/identity.key [Long-lived identity PK]
-#                     key_0001/ServerDesc [Server descriptor]
-#                              mix.key [packet key]
-#                              mmtp.key [mmtp key]
-#                              mmtp.cert [mmtp key's x509 cert chain]
-#                              published [present if this desc is published]
-#                     key_0002/...
-#                conf/miniond.conf [configuration file]
-#                current-desc [Filename of current server descriptor.]
-#                stats [Log of server statistics]
-#                version [Version of homedir format.]
-
-# FFFF Support to put keys/queues in separate directories.
+## Directory layout:  
+#    ${BASEDIR}/current-desc [Filename of current server descriptor.]
+#               version      [Version of homedir format.]
+#
+#    WORKDIR defaults to ${BASEDIR}/work
+#    ${WORKDIR}/tls/dhparam       [Diffie-Hellman parameters]
+#               hashlogs/hash_1*  [HashLogs of packet hashes
+#                        hash_2*     corresponding to key sets]
+#                          ...
+#               stats.tmp         [Cache of stats from latest period]
+#
+#    QUEUEDIR defaults to ${WORKDIR}/queues
+#    ${QUEUEDIR}/incoming/        [Queue of received,unprocessed pkts]
+#                mix/             [Mix pool]
+#                outgoing/        [Packets for mmtp delivery]
+#                deliver/*/       [Messages for delivery via modules]
+#
+#    KEYDIR defaults to ${BASEDIR}/keys
+#    ${KEYDIR}/identity.key [Long-lived identity private key]
+#              key_0001/ServerDesc [Server descriptor]
+#                       mix.key [packet key]
+#                       mmtp.key [mmtp key]
+#                       mmtp.cert [mmtp key's x509 cert chain]
+#                       published [present if this desc is published]
+#              key_0002/...
+#
+#   LOGFILE defaults to ${BASEDIR}/log
+#   PIDFILE defaults to ${BASEDIR}/pid
+#   STATSFILE defaults to ${BASEDIR}/stats
 
 __all__ = [ 'MixminionServer' ]
 
@@ -840,7 +845,7 @@ The original error message was '%s'."""%e)
 
         # This is the last possible moment to shut down the console log, so
         # we have to do it now.
-        mixminion.Common.LOG.configure(self.config, keepStderr=0)
+        mixminion.Common.LOG.configure(self.config, keepStderr=_ECHO_OPT)
         if self.config['Server'].get("Daemon",1):
             closeUnusedFDs()
 
@@ -985,8 +990,10 @@ def closeUnusedFDs():
     sys.stdout = sys.__stdout__ = LogStream("STDOUT", "WARN")
     sys.stderr = sys.__stderr__ = LogStream("STDERR", "WARN")
 
-# Global flag: has the user requested a quiet startui?
+# Global flag: has the user requested a quiet start?
 _QUIET_OPT = 0
+# Global flag: has the user requested that the console log be kept?
+_ECHO_OPT = 0
 
 def configFromServerArgs(cmd, args, usage):
     """Given cmd and args as passed to one of the entry commands,
@@ -995,6 +1002,7 @@ def configFromServerArgs(cmd, args, usage):
        Otherwise, find and parse the configuration file.
     """
     global _QUIET_OPT
+    global _ECHO_OPT
     options, args = getopt.getopt(args, "hQf:",
                                   ["help", "quiet", "config=",
                                    "daemon", "nodaemon", "echo", "severity="])
@@ -1019,19 +1027,18 @@ def configFromServerArgs(cmd, args, usage):
         elif o == '--daemon':
             forceDaemon = 1
         elif o == '--echo':
-            echo = 1
+            _ECHO_OPT = 1
         elif o == '--severity':
             try:
                 severity = mixminion.Config._parseSeverity(v)
             except mixminion.Config.ConfigError, e:
                 raise UIError(str(e))
 
-    #DOCDOC
     config = readConfigFile(configFile)
     if forceDaemon == 0 and not _QUIET_OPT:
-        echo = 1
-    if echo:
-        config['Server']['EchoMessages'] = 2#DOCDOC
+        # If we've been forced to use the console, go verbose as well, since
+        # people probably want that.
+        _ECHO_OPT = 1
     elif _QUIET_OPT:
         config['Server']['EchoMessages'] = 0
     if forceDaemon is not None:
@@ -1093,7 +1100,7 @@ def runServer(cmd, args):
     config = configFromServerArgs(cmd, args, _SERVER_START_USAGE)
     checkHomedirVersion(config)
     daemonMode = config['Server'].get("Daemon",1)
-    quiet = _QUIET_OPT or daemonMode
+    quiet = (_QUIET_OPT or daemonMode) and not _ECHO_OPT
     try:
         # Configure the log, but delay disabling stderr until the last
         # possible minute; we want to keep echoing to the terminal until

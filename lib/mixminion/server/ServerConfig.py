@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.43 2003/11/28 04:14:04 nickm Exp $
+# $Id: ServerConfig.py,v 1.44 2003/12/03 23:18:53 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -185,7 +185,10 @@ class ServerConfig(mixminion.Config._ConfigFile):
         _validateRetrySchedule(mixInterval, entry, sectionName)
 
     def _get_fname(self, sec, ent, defaultRel):
-        """DOCDOC"""
+        """Helper function.  Returns the filename in self[sec][ent],
+           but defaults to ${BASEDIR}/defaultRel.  All relative paths
+           are also interpreted relative to ${BASEDIR}.
+        """
         raw = self[sec].get(ent)
         homedir = self.getBaseDir()
         if not raw:
@@ -196,30 +199,31 @@ class ServerConfig(mixminion.Config._ConfigFile):
             return os.path.join(homedir, raw)
 
     def getBaseDir(self):
-        """DOCDOC"""
+        """Return the base directory for this configuration."""
         v = self["Server"]["BaseDir"]
         if v is None:
             v = self["Server"]["Homedir"]
         if v is None:
             v = "/var/spool/minion"
         return v
+
     def getLogFile(self):
-        """DOCDOC"""
+        """Return the configured logfile location."""
         return self._get_fname("Server", "LogFile", "log")
     def getStatsFile(self):
-        """DOCDOC"""
+        """Return the configured stats file location."""
         return self._get_fname("Server", "StatsFile", "stats")
     def getKeyDir(self):
-        """DOCDOC"""
+        """Return the configured key directory"""
         return self._get_fname("Server", "KeyDir", "keys")
     def getWorkDir(self):
-        """DOCDOC"""
+        """Return the configured work directory"""
         return self._get_fname("Server", "WorkDir", "work")
     def getPidFile(self):
-        """DOCDOC"""
+        """Return the configured PID file location"""
         return self._get_fname("Server", "PidFile", "pid")
     def getQueueDir(self):
-        """DOCDOC"""
+        """Return the configured queue directory."""
         if self["Server"]["QueueDir"] is None:
             return os.path.join(self.getWorkDir(), 'queues')
         else:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.60 2003/11/28 04:14:04 nickm Exp $
+# $Id: ServerKeys.py,v 1.61 2003/12/03 23:18:53 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -31,9 +31,9 @@ import mixminion.server.ServerMain
 from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
      signServerInfo
 from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
-     ceilDiv, createPrivateDir, checkPrivateFile, formatBase64, formatDate, \
-     formatTime, previousMidnight, readFile, secureDelete, tryUnlink, \
-     UIError, writeFile
+     ceilDiv, createPrivateDir, checkPrivateFile, englishSequence, \
+     formatBase64, formatDate, formatTime, previousMidnight, readFile, \
+     secureDelete, tryUnlink, UIError, writeFile
 from mixminion.Config import ConfigError
 
 #----------------------------------------------------------------------
@@ -71,6 +71,7 @@ class ServerKeyring:
     #      have keys on disk.
     # currentKeys: None, if we haven't checked for currently live keys, or
     #      a list of currently live ServerKeyset objects.
+    # dhFile: pathname to file holding diffie-helman parameters.
     # _lock: A lock to prevent concurrent key generation or rotation.
 
     def __init__(self, config):
@@ -84,7 +85,6 @@ class ServerKeyring:
         self.homeDir = config.getBaseDir()
         self.keyDir = config.getKeyDir()
         self.hashDir = os.path.join(config.getWorkDir(), 'hashlogs')
-        #DOCDOC
         self.dhFile = os.path.join(config.getWorkDir(), 'tls', 'dhparam')
         self.keyOverlap = config['Server']['PublicKeyOverlap'].getSeconds()
         self.nextUpdate = None
@@ -783,6 +783,7 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
 
        If 'log' is true, warn as well.  Does not check keys.
     """
+    #XXXX This needs unit tests.  For now, though, it seems to work.
     warn = _WarnWrapper(silence = not log, isPublished=isPublished)
 
     config_s = config['Server']
@@ -1006,6 +1007,16 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         fields['Hostname'] = socket.getfqdn()
         LOG.warn("No Hostname configured; guessing %s",fields['Hostname'])
     _checkHostnameIsLocal(fields['Hostname'])
+    try:
+        dnsResults = mixminion.NetUtils.getIPs(fields['Hostname'])
+    except socket.error, e:
+        LOG.warn("Can't resolve configured hostname %r: %s",
+                 fields['Hostname'],str(e))
+    else:
+        found = [ ip for _,ip,_ in dnsResults ]
+        if fields['IP'] not in found:
+            LOG.warn("Configured hostname %r resolves to %s, but we're publishing the IP %s",
+                     fields['Hostname'], englishSequence(found), fields['IP'])
 
     # Fill in a stock server descriptor.  Note the empty Digest: and
     # Signature: lines.
