@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.82 2003/05/29 04:39:59 nickm Exp $
+# $Id: ClientMain.py,v 1.83 2003/05/30 00:01:57 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -106,7 +106,10 @@ class ClientDirectory:
     MAGIC = "ClientKeystore-0.2"
 
     # The amount of time to require a path to be valid, by default.
-    DEFAULT_REQUIRED_LIFETIME = 3600
+    #
+    # (Servers already have a keyOverlap of a few hours, so there's not so
+    #  much need to do this at the client side.)
+    DEFAULT_REQUIRED_LIFETIME = 1
 
     def __init__(self, directory):
         """Create a new ClientDirectory to keep directories and descriptors
@@ -2598,6 +2601,7 @@ Usage: %(cmd)s [options]
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
+  -n <n>, --count=<n>        Send no more than <n> messages from the queue.
 
 EXAMPLES:
   Try to send all currently queued messages.
