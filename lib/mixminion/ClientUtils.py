@@ -114,14 +114,24 @@ def getPassword_term(prompt):
     else:
         f = sys.stderr
         nl = 1
-    f.write(prompt)
-    f.flush()
-    try:
-        p = getpass.getpass("")
-    except KeyboardInterrupt:
+    if os.isatty(sys.stdin.fileno()):
+        # If stdin is a tty, then we use the magic from getpass.getpass to
+        # disable echoing and read a line.
+        f.write(prompt)
+        f.flush()
+        try:
+            p = getpass.getpass("")
+        except KeyboardInterrupt:
+            if nl: print >>f
+            raise UIError("Interrupted")
         if nl: print >>f
-        raise UIError("Interrupted")
-    if nl: print >>f
+    else:
+        # If stdin is _not_ a tty, however, then the getpass magic can
+        # raise exceptions.
+        print >>f, "Reading password from stdin."
+        p = sys.stdin.readline()
+        if not p: raise UIError("No password received")
+        if p[-1] == '\n': p = p[:-1]
     return p
 
 def getNewPassword_term(prompt):
@@ -131,6 +141,9 @@ def getNewPassword_term(prompt):
         f = sys.stdout
     else:
         f = sys.stderr
+    if not os.isatty(sys.stdin.fileno()):
+        p1 = getPassword_term("")
+        return p1
     while 1:
         p1 = getPassword_term(prompt)
         p2 = getPassword_term(s2)
@@ -636,7 +649,7 @@ class ClientQueue:
     #    [These formats are redundant so that 0.0.6 and 0.0.5 clients
     #     stay backward compatible for now.]
     #
-    # XXXX006 write unit tests
+    # XXXX write unit tests
     def __init__(self, directory, prng=None):
         """Create a new ClientQueue object, storing packets in 'directory'
            and generating random filenames using 'prng'."""
