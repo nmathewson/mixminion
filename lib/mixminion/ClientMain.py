@@ -1183,12 +1183,6 @@ def runClient(cmd, args):
     options, args = getOptions(args, "",
                                ["queue", "no-queue", "deliver-fragments"],
                                dir=1,reply=1,path=1,headers=1,dest=1,input=1)
-##     options, args = getopt.getopt(args, "hvQf:D:t:H:P:R:i:",
-##              ["help", "verbose", "quiet", "config=", "download-directory=",
-##               "to=", "hops=", "path=", "reply-block=", "reply-block-fd=",
-##               "input=", "queue", "no-queue",
-##               "subject=", "from=", "in-reply-to=", "references=",
-##               "deliver-fragments", "status-fd=" ])
 
     if not options:
         sendUsageAndExit(cmd)
@@ -1209,9 +1203,6 @@ def runClient(cmd, args):
             h_references = val
         elif opt == '--deliver-fragments':
             no_ss_fragment = 1
-
-##     if args:
-##         sendUsageAndExit(cmd,"Unexpected arguments")
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
@@ -1305,7 +1296,7 @@ def runClient(cmd, args):
 
 _COUNT_PACKETS_USAGE = """\
 Usage: mixminion count-packets [options] <-t address>|<--to=address>|
-                              <-R reply-block>|<--reply-block=reply-block>
+                              <-R>|<--reply>
 Options:
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
@@ -1318,27 +1309,17 @@ Options:
                              packet, then deliver multiple fragmented packets
                              to the recipient instead of having the server
                              reassemble the message.
-  --reply-block-fd=<N>       Read reply blocks from file descriptor <N>.
+  --reply                    Read reply blocks from file descriptor <N>.
+  DOCDOC not right anymore
 """
 def countPackets(cmd,args):
-    options, args = getOptions(args, dir=1, dest=1, path=1, reply=1,
+    options, args = getOptions(args, "R", ["reply"], dir=1, dest=1, path=1,
                                input=1, headers=1)
-
-##     options,args = getopt.getopt(args, "hvQf:D:t:R:i:",
-##              ["help", "verbose", "quiet", "config=", "download-directory=",
-##               "to=", "path=", "reply-block=", "reply-block-fd=",
-##               "input=",
-##               "subject=", "from=", "in-reply-to=", "references=",
-##               "deliver-fragments", "status-fd=" ])
-
-##     if args:
-##         print >>sys.stderr, "Unexpected arguments"
-##         print _COUNTPACKET_USAGE
-##         sys.exit(1)
 
     inFile = '-'
     h_subject = h_from = h_irt = h_references = None
     no_ss_fragment = 0
+    reply = 0
     for opt,val in options:
         if opt in ('-i', '--input'):
             inFile = val
@@ -1352,7 +1333,8 @@ def countPackets(cmd,args):
             h_references = val
         elif opt == '--deliver-fragments':
             no_ss_fragment = 1
-
+        elif opt in ('-R', '--reply'):
+            reply = 1
     try:
         parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
                                    wantLog=1)
@@ -1381,7 +1363,16 @@ def countPackets(cmd,args):
 
     parser.init()
     address = parser.exitAddress
-    address.setHeaders(parseMessageAndHeaders(headerStr+"\n")[1])
+    if address and not reply:
+        address.setHeaders(parseMessageAndHeaders(headerStr+"\n")[1])
+    elif reply and address:
+        raise UsageError("Cannot use both a recipient and a reply block")
+    elif not reply and not address:
+        raise UsageError("Must specify a recipient, or --reply for a reply")
+    else:
+        assert reply and not address
+        address = mixminion.ClientDirectory.exitAddress(isReply=1)
+
     if address and inFile == '-' and not address.hasPayload():
         print "1 packet needed"
         STATUS.log("COUNT_PACKETS", "1")
@@ -1430,12 +1421,6 @@ def runPing(cmd, args):
         sys.exit(0)
 
     options, args = getOptions(args, dir=1, argsOK=1)
-##     options, args = getopt.getopt(args, "hvQf:D:",
-##              ["help", "verbose", "quiet", "config=", "download-directory=",
-##               "status-fd=" ])
-
-##     if len(args) == 0:
-##         raise UsageError("(No servers provided)")
 
     print "==========================================================="
     print "WARNING: Pinging a server is potentially dangerous, since"
@@ -1499,8 +1484,6 @@ EXAMPLES:
 def importServer(cmd, args):
     """[Entry point] Manually add a server to the client directory."""
     options, args = getOptions(args, dir=1, argsOK=1)
-##     options, args = getopt.getopt(args, "hf:vQ",
-##                      ['help', 'config=', 'verbose', 'quiet', "status-fd="])
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
@@ -1562,12 +1545,6 @@ def listServers(cmd, args):
                                 "separator=", "cascade","cascade-features",
                                 'list-features'],
                                dir=1, argsOK=1)
-##     options, args = getopt.getopt(args, "hf:D:vQF:JTrRs:cC",
-##                                 ['help', 'config=', "download-directory=",
-##                                  'verbose', 'quiet', 'feature=', 'justify',
-##                                  'with-time', "no-collapse", "recommended",
-##                                  "separator=", "cascade","cascade-features",
-##                                  'list-features', "status-fd=" ])
     try:
         parser = CLIArgumentParser(options, wantConfig=1,
                                    wantClientDirectory=1,
@@ -1684,8 +1661,6 @@ EXAMPLES:
 
 def updateServers(cmd, args):
     options, args = getOptions(args)
-##     options, args = getopt.getopt(args, "hvQf:",
-##                ['help', 'quiet', 'verbose', 'config=', "status-fd="])
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantClientDirectory=1,
@@ -1730,10 +1705,6 @@ EXAMPLES:
 def clientDecode(cmd, args):
     """[Entry point] Decode a message."""
     options, args = getOptions(args, input=1, output=1, passphrase=1)
-
-##     options, args = getopt.getopt(args, "hvQf:o:Fi:",
-##           ['help', 'verbose', 'quiet', 'config=',
-##            'output=', 'force', 'input=', 'passphrase-fd=', "status-fd="])
 
     outputFile = '-'
     inputFile = '-'
@@ -1837,11 +1808,6 @@ def generateSURB(cmd, args):
                                "bn:", ["binary", "count=", "identity="],
                                dir=1, dest=1, path=1, passphrase=1, output=1)
 
-##     options, args = getopt.getopt(args, "hvQf:D:t:H:P:o:bn:",
-##           ['help', 'verbose', 'quiet', 'config=', 'download-directory=',
-##            'to=', 'hops=', 'path=', 'lifetime=', 'passphrase-fd=',
-##            'output=', 'binary', 'count=', 'identity=', "status-fd="])
-
     outputFile = '-'
     binary = 0
     count = 1
@@ -1913,8 +1879,6 @@ EXAMPLES:
 
 def inspectSURBs(cmd, args):
     options, args = getOptions(args, argsOK=1)
-##     options, args = getopt.getopt(args, "hvQf:",
-##              ["help", "verbose", "quiet", "config=", "status-fd="])
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
@@ -1972,8 +1936,6 @@ EXAMPLES:
 
 def flushQueue(cmd, args):
     options, args = getOptions(args, "", ["count="], argsOK=1)
-##    options, args = getopt.getopt(args, "hvQf:n:",
-##             ["help", "verbose", "quiet", "config=", "count=", "status-fd="])
     count=None
     for o,v in options:
         if o in ('-n','--count'):
@@ -2019,8 +1981,6 @@ EXAMPLES:
 
 def cleanQueue(cmd, args):
     options, args = getOptions(args, "d:" ["days"])
-##     options, args = getopt.getopt(args, "hvQf:d:",
-##              ["help", "verbose", "quiet", "config=", "days=", "status-fd="])
     days = 60
     for o,v in options:
         if o in ('-d','--days'):
@@ -2063,9 +2023,6 @@ EXAMPLES:
 
 def listQueue(cmd, args):
     options, args = getOptions(args, dir=1)
-##     options, args = getopt.getopt(args, "hvQf:D:",
-##                                   ["help", "verbose", "quiet", "config=",
-##                                    'download-directory=', "status-fd="])
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
                                    wantClient=1, wantClientDirectory=1)
@@ -2112,9 +2069,6 @@ EXAMPLES:
 
 def listFragments(cmd, args):
     options, args = getOptions(args, dir=1)
-##     options, args = getopt.getopt(args, "hvQf:D:",
-##                                   ["help", "verbose", "quiet", "config=",
-##                                    'download-directory=', "status-fd="])
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
                                    wantClient=1, wantClientDirectory=1)
@@ -2151,10 +2105,6 @@ Usage: %(cmd)s [options] <message-id> ...
 def reassemble(cmd, args):
     options, args = getOptions(args, "PF", ["purge", "force"],
                                output=1, argsOK=1)
-##     options, args = getopt.getopt(args, "hvQf:D:Po:F",
-##                                   ["help", "verbose", "quiet", "config=",
-##                                    'download-directory=','--purge',
-##                                    '--output', '--force',"status-fd="])
     reassemble = 1
     if cmd.endswith("purge-fragments") or cmd.endswith("purge-fragment"):
         reassemble = 0
