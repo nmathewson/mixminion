@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.59 2003/02/14 03:51:24 arma Exp $
+# $Id: ClientMain.py,v 1.60 2003/02/14 17:01:49 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -659,7 +659,6 @@ class ClientDirectory:
             return
         current_t = mixminion.version_info
         more_recent_exists = 0
-        most_recent = current_t
         for a in allowed:
             try:
                 t = mixminion.parse_version_string(a)
@@ -669,7 +668,6 @@ class ClientDirectory:
             try:
                 if mixminion.cmp_versions(current_t, t) < 0:
                     more_recent_exists = 1
-                    most_recent = a
             except ValueError:
                 pass
         if more_recent_exists:
@@ -1114,27 +1112,30 @@ class SURBLog:
            no such reply block exists."""
         if now is None:
             now = time.time()
+        nUsed = nExpired = nShortlived = 0
+        result = None
         for surb in surbList:
             expiry = surb.timestamp
             timeLeft = expiry - now
             if self.isSURBUsed(surb):
-                if verbose:
-                    LOG.warn("Skipping used reply block")
-                continue
+                nUsed += 1
             elif timeLeft < 60:
-                if verbose:
-                    LOG.warn("Skipping expired reply (expired at %s)",
-                             formatTime(expiry, 1))
-                continue
+                nExpired += 1
             elif timeLeft < 3*60*60:
-                if verbose:
-                    LOG.warn("Skipping soon-to-expire reply block "
-                             "(%s hrs, %s min left)",
-                             floorDiv(timeLeft, 60), int(timeLeft % 60))
-                continue
+                nShortlived += 1
+            else:
+                result = surb
+                break
 
-            return surb
-        return None
+        if verbose:
+            if nUsed:
+                LOG.warn("Skipping %s used reply blocks", nUsed)
+            if nExpired:
+                LOG.warn("Skipping %s expired reply blocks", nExpired)
+            if nShortlived:
+                LOG.warn("Skipping %s sooon-to-expire reply blocks", nShortlived)
+        
+        return result
 
     def close(self):
         """Release resources associated with the surblog."""
@@ -1885,9 +1886,12 @@ class CLIArgumentParser:
             useRB = 1
             surbs = []
             for fn in self.replyBlockFiles:
-                f = open(fn, 'rb')
-                s = f.read()
-                f.close()
+                if fn == '-':
+                    s = sys.stdin.read()
+                else:
+                    f = open(fn, 'rb')
+                    s = f.read()
+                    f.close()
                 try:
                     if stringContains(s, "== BEGIN TYPE III REPLY BLOCK =="):
                         surbs.extend(parseTextReplyBlocks(s))
@@ -1963,7 +1967,8 @@ Options:
   -P <path>, --path=<path>   Specify an explicit message path.
   -t address, --to=address   Specify the recipient's address.
   -R <file>, --reply-block=<file>
-                             %(Send)s the message to a reply block in <file>
+                             %(Send)s the message to a reply block in <file>,
+                             or '-' for a reply block read from stdin.
   --swap-at=<n>              Spcecify an explicit swap point.
 %(extra)s
 
@@ -2038,7 +2043,7 @@ def runClient(cmd, args):
         usageAndExit(cmd,"Unexpected arguments")
 
     try:
-        parser = CLIArgumentParser(options, wantConfig=1, wantClientDirectory=1,
+        parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
                                    wantClient=1, wantLog=1, wantDownload=1,
                                    wantForwardPath=1)
         if poolMode and parser.forceNoPool:
@@ -2048,6 +2053,10 @@ def runClient(cmd, args):
     except UsageError, e:
         e.dump()
         usageAndExit(cmd)
+
+    if inFile in (None, '-') and '-' in parser.replyBlockFiles:
+        raise UIError(
+            "Can't read both message and reply block from stdin")
 
     # FFFF Make pooling configurable from .mixminionrc
     forcePool = poolMode or parser.forcePool
