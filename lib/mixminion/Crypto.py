@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.61 2004/01/03 07:35:23 nickm Exp $
+# $Id: Crypto.py,v 1.62 2004/04/21 20:49:41 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -775,9 +775,9 @@ class _TrueRNG(RNG):
         if _TRNG_FILENAME is None:
             configure_trng(None)
 
-        f = open(_TRNG_FILENAME, 'rb')
-        d = f.read(n)
-        f.close()
+        fd = os.open(_TRNG_FILENAME, os.O_RDONLY|getattr(os,"O_BINARY",0))
+        d = os.read(fd, n)
+        os.close(fd)
         return d
 
     def getBytes(self, n):
