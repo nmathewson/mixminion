@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.56 2004/03/06 00:04:38 nickm Exp $
+# $Id: MMTPClient.py,v 1.57 2004/04/13 04:00:59 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -24,7 +24,8 @@ import mixminion.ServerInfo
 import mixminion.TLSConnection
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Common import MixProtocolError, MixProtocolReject, \
-     MixProtocolBadAuth, LOG, MixError, formatBase64, TimeoutError
+     MixProtocolBadAuth, LOG, MixError, formatBase64, stringContains, \
+     TimeoutError
 from mixminion.Packet import IPV4Info, MMTPHostInfo
 
 def _noop(*k,**v): pass
@@ -492,8 +493,15 @@ class PeerCertificateCache:
         try:
             tls.check_cert_alive()
         except _ml.TLSError, e:
+            s = str(e)
+            notBefore,notAfter = tls.get_cert_lifetime()
+            # XXXX 'stringContains' is not the best possible check here...
+            if stringContains(s, "expired"):
+                s = "%s [at %s]"%(s,notAfter)
+            elif stringContains(s,"not yet valid"):
+                s = "%s [until %s"%(s,notBefore)
             raise MixProtocolBadAuth("Invalid certificate from %s: %s" % (
-                serverName, str(e)))
+                serverName, s))
 
         # If we don't care whom we're talking to, we don't need to check
         # them out.

@@ -13,7 +13,7 @@ For a list of good beginner projects, check out HACKING.
 NEEDS TO BE WRITTEN:
 
 For 0.0.8:
-        - Better error messages on expired / not-yet-ready certificates,
+        o Better error messages on expired / not-yet-ready certificates,
           no matter how hard OpenSSL makes it.
         - Dummies and pinging
         - Distributed directories

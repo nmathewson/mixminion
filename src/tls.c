@@ -1,5 +1,5 @@
 /* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information*/
-/* $Id: tls.c,v 1.35 2004/03/06 00:04:38 nickm Exp $ */
+/* $Id: tls.c,v 1.36 2004/04/13 04:01:00 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -7,9 +7,11 @@
 #ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/ssl.h>
 #include <openssl/tls1.h>
+#include <openssl/bio.h>
 #else
 #include <ssl.h>
 #include <tls1.h>
+#include <bio.h>
 #endif
 
 char mm_TLSError__doc__[] =
@@ -615,6 +617,59 @@ mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
 }
 
+static char mm_TLSSock_get_cert_lifetime__doc__[] =
+  "get_cert_lifetime()\n\n"
+  "Return a 2-tuple of strings representing a certificate's notBefore and\n"
+  "notAfter fields.\n";
+
+static PyObject *
+mm_TLSSock_get_cert_lifetime(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+        SSL *ssl = NULL;
+        X509 *cert = NULL;
+        BIO *bio = NULL;
+        BUF_MEM *buf;
+        PyObject *s1 = NULL, *s2 = NULL;
+        PyObject *ret;
+
+        assert(mm_TLSSock_Check(self));
+        FAIL_IF_ARGS();
+
+        ssl = ((mm_TLSSock*)self)->ssl;
+        if (!(cert = SSL_get_peer_certificate(ssl))) {
+                mm_SSL_ERR(0); return NULL;
+        }
+
+        if (!(bio = BIO_new(BIO_s_mem()))) {
+                PyErr_NoMemory(); goto error;
+        }
+        if (!ASN1_TIME_print(bio, X509_get_notBefore(cert))) {
+                mm_SSL_ERR(0); goto error;
+        }
+        BIO_get_mem_ptr(bio, &buf);
+        s1 = PyString_FromStringAndSize(buf->data, buf->length);
+
+        BIO_reset(bio);
+        if (!ASN1_TIME_print(bio, X509_get_notAfter(cert))) {
+                mm_SSL_ERR(0); goto error;
+        }
+        BIO_get_mem_ptr(bio, &buf);
+        s2 = PyString_FromStringAndSize(buf->data, buf->length);
+
+        ret = Py_BuildValue("OO", s1, s2);
+        X509_free(cert);
+        BIO_free(bio);
+        Py_DECREF(s1);
+        Py_DECREF(s2);
+        return ret;
+ error:
+        if (cert) { X509_free(cert); }
+        if (bio) { BIO_free(bio); }
+        if (s1) { Py_DECREF(s1); }
+        if (s2) { Py_DECREF(s2); }
+        return NULL;
+}
+
 static char mm_TLSSock_verify_cert_and_get_identity_pk__doc__[] =
   "verify_cert_and_get_identity_pk()\n\n"
   "Check whether all of the following conditions hold:\n"
@@ -774,6 +829,7 @@ static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, do_handshake),
         METHOD(mm_TLSSock, renegotiate),
         METHOD(mm_TLSSock, get_num_bytes_raw),
+        METHOD(mm_TLSSock, get_cert_lifetime),
         { NULL, NULL }
 };
 

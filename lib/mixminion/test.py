@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.192 2004/03/23 00:24:31 nickm Exp $
+# $Id: test.py,v 1.193 2004/04/13 04:00:59 nickm Exp $
 
 """mixminion.tests
 
@@ -7517,8 +7517,8 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 0:
-        suite.addTest(tc(MiscTests))
+    if 1:
+        suite.addTest(tc(MMTPTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
