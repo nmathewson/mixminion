@@ -1,4 +1,4 @@
-.\" $Id: mixminiond.conf.5,v 1.4 2004/04/27 06:10:02 nickm Exp $
+.\" $Id: mixminiond.conf.5,v 1.5 2004/05/02 18:43:10 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -290,11 +290,14 @@ Interval: How long will the server hold fragments for a message before
 giving up on the message?  Defaults to "2 days".
 .El
 .Ss The [Delivery/SMTP] Section
-This section configures outgoing email delivery.
+This section configures outgoing email delivery to final recipients.  (Note:
+because Mixminion doesn't use email as a server-to-server transport, you do
+\fInot\fP need to set this option if you're running a middleman server.)
 .Bl -tag -width ".Cm EntropySource"
 .It Cm Enabled
 Boolean: Does the server support outgoing email?  Don't enable this unless
-you have your ISP's permission to run a remailer.  Defaults to "no".
+you have your ISP's permission to run a remailer that will send email to
+arbitrary recipients.  Defaults to "no".
 .It Cm Retry
 RetrySchedule: How often, and for how long, should the server attempt to
 send failed SMTP messages?  Defaults to "every 7 hours for 6 days".
@@ -354,7 +357,7 @@ for a description of the regular expression syntax.
 .El
 .Ss The [Delivery/MBOX] Section
 This section configures outgoing delivery to locally configured users via the
-'MBOX' module.
+\'MBOX' module.
 .Bl -tag -width ".Cm EntropySource"
 .It Cm Enabled
 Should the 'MBOX' module be enabled? Defaults to "no".
