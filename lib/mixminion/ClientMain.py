@@ -717,7 +717,7 @@ class CLIArgumentParser:
     def __init__(self, opts,
                  wantConfig=0, wantClientDirectory=0, wantClient=0, wantLog=0,
                  wantDownload=0, wantForwardPath=0, wantReplyPath=0,
-                 minHops=0):
+                 minHops=0, ignoreOptions=[]):
         """Parse the command line options 'opts' as returned by getopt.getopt.
 
            wantConfig -- If true, accept options pertaining to the config file,
@@ -770,6 +770,7 @@ class CLIArgumentParser:
         self.forceNoQueue = None
 
         for o,v in opts:
+            if o in ignoreOptions: continue
             if o in ('-h', '--help'):
                 raise UsageError()
             elif o in ('-f', '--config'):
@@ -1294,7 +1295,8 @@ def listServers(cmd, args):
     try:
         parser = CLIArgumentParser(options, wantConfig=1,
                                    wantClientDirectory=1,
-                                   wantLog=1, wantDownload=1)
+                                   wantLog=1, wantDownload=1,
+                                   ignoreOptions=['-R'])
     except UsageError, e:
         e.dump()
         print _LIST_SERVERS_USAGE % {'cmd' : cmd}
