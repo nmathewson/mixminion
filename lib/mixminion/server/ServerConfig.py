@@ -1,11 +1,13 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.15 2003/01/13 06:35:52 nickm Exp $
+# $Id: ServerConfig.py,v 1.16 2003/01/14 09:20:18 nickm Exp $
 
 """Configuration format for server configuration files.
 
    See Config.py for information about the generic configuration facility."""
 
 __all__ = [ "ServerConfig" ]
+
+import operator
 
 import mixminion.Config
 import mixminion.server.Modules
@@ -108,7 +110,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
         "Return the module manager initialized by this server."
         return self.moduleManager
 
-def _validateRetrySchedule(mixinterval, entries, sectionname,
+def _validateRetrySchedule(mixInterval, entries, sectionname,
                            entryname='Retry'):
     #XXXX writeme.
     entry = [e for e in entries.get(sectionname,[]) if e[0] == entryname]

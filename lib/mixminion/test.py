@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.73 2003/01/13 06:35:52 nickm Exp $
+# $Id: test.py,v 1.74 2003/01/14 09:20:17 nickm Exp $
 
 """mixminion.tests
 
@@ -1969,12 +1969,12 @@ class PacketHandlerTests(unittest.TestCase):
         # A one-hop/one-hop message.
         m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
         
-        pkt = self.do_test_chain(m,
-                                 [self.sp1,self.sp3],
-                                 [FWD_TYPE, SMTP_TYPE],
-                                 [self.server3.getRoutingInfo().pack(),
-                                  "nobody@invalid"],
-                                 p)
+        self.do_test_chain(m,
+                           [self.sp1,self.sp3],
+                           [FWD_TYPE, SMTP_TYPE],
+                           [self.server3.getRoutingInfo().pack(),
+                            "nobody@invalid"],
+                           p)
         
         # Try servers with multiple keys
         m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])

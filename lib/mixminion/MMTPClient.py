@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.16 2003/01/13 06:16:42 nickm Exp $
+# $Id: MMTPClient.py,v 1.17 2003/01/14 09:20:17 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -17,10 +17,15 @@
 
 __all__ = [ "BlockingClientConnection", "sendMessages" ]
 
+import errno
+import signal
 import socket
 import mixminion._minionlib as _ml
 from mixminion.Crypto import sha1, getCommonPRNG
-from mixminion.Common import MixProtocolError, LOG
+from mixminion.Common import MixProtocolError, LOG, MixError
+
+class TimeoutError(MixError):
+    pass
 
 class BlockingClientConnection:
     """A BlockingClientConnection represents a MMTP connection to a single
@@ -48,15 +53,28 @@ class BlockingClientConnection:
         self.tls = None
         self.sock = None
 
-    def connect(self):
+    def connect(self, timeout=None):
         """Negotiate the handshake and protocol."""
+        def sigalarmHandler(sig, _):
+            assert sig == signal.SIGALRM
+        if timeout:
+            signal.signal(signal.SIGALRM, sigalarmHandler)
+        
         # Connect to the server
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setblocking(1)
         LOG.debug("Connecting to %s:%s", self.targetIP, self.targetPort)
 
         # Do the TLS handshaking
-        self.sock.connect((self.targetIP,self.targetPort))
+        if timeout:
+            signal.alarm(timeout)
+        try:
+            self.sock.connect((self.targetIP,self.targetPort))
+        except socket.error, e:
+            if e[0] == errno.EINTR:
+                raise TimeoutError("Connection timed out")
+            else:
+                raise e
         LOG.debug("Handshaking with %s:%s",self.targetIP, self.targetPort)
         self.tls = self.context.sock(self.sock.fileno())
         # FFFF session resumption
