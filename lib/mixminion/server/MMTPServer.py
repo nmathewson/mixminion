@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.81 2004/03/01 07:18:02 nickm Exp $
+# $Id: MMTPServer.py,v 1.82 2004/03/06 05:10:56 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -258,7 +258,7 @@ class PollAsyncServer(SelectAsyncServer):
         self.poll.unregister(fd)
         del self.connections[fd]
 
-if hasattr(select,'poll') and not _ml.POLL_IS_EMULATED:
+if hasattr(select,'poll') and not _ml.POLL_IS_EMULATED and sys.platform != 'cygwin':
     # Prefer 'poll' to 'select', except on MacOS and other platforms where
     # where 'poll' is just a wrapper around 'select'.  (The poll wrapper is
     # sometimes buggy.)
