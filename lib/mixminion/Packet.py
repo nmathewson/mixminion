@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.51 2003/07/13 02:59:30 nickm Exp $
+# $Id: Packet.py,v 1.52 2003/07/13 03:45:34 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -282,8 +282,8 @@ def parsePayload(payload):
 # A singleton payload starts with a 0 bit, 15 bits of size, and a 20-byte hash
 SINGLETON_UNPACK_PATTERN = "!H%ds" % (DIGEST_LEN)
 
-# A fragment payload starts with a 1 bit, a 15-bit paket index, a 20-byte hash,
-# a 20-byte message ID, and 4 bytes of message size.
+# A fragment payload starts with a 1 bit, a 15-bit packet index, a
+# 20-byte hash, a 20-byte message ID, and 4 bytes of message size.
 FRAGMENT_UNPACK_PATTERN = "!H%ds%dsL" % (DIGEST_LEN, FRAGMENT_MESSAGEID_LEN)
 
 class _Payload:

@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.6 2003/07/10 18:39:16 nickm Exp $ */ 
+/* $Id: fec.c,v 1.7 2003/07/13 03:45:36 nickm Exp $ */ 
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -60,7 +60,7 @@
  * The first part of the file implements linear algebra in GF.
  *
  * gf is the type used to store an element of the Galois Field.
- * Must constain at least GF_BITS bits.
+ * Must contain at least GF_BITS bits.
  *
  * Note: unsigned char will work up to GF(256) but int seems to run
  * faster on the Pentium. We use int whenever have to deal with an
@@ -107,7 +107,7 @@ static char *allPp[] = {    /* GF_BITS	polynomial		*/
  * and inverse of a number. If GF_BITS <= 8, we use a table for
  * multiplication as well (it takes 64K, no big deal even on a PDA,
  * especially because it can be pre-initialized an put into a ROM!),
- * otherwhise we use a table of logarithms.
+ * otherwise we use a table of logarithms.
  * In any case the macro gf_mul(x,y) takes care of multiplications.
  */
 
@@ -191,6 +191,8 @@ gf_mul(x,y)
 /*
  * i use malloc so many times, it is easier to put checks all in
  * one place.
+ *
+ * XXXX005 Pythonize this. -NM 
  */
 static void *
 my_malloc(int sz, char *err_string)
@@ -235,7 +237,7 @@ generate_gf(void)
 	    gf_exp[GF_BITS] ^= mask;
     }
     /*
-     * now gf_exp[GF_BITS] = \alpha ** GF_BITS is complete, so can als
+     * now gf_exp[GF_BITS] = \alpha ** GF_BITS is complete, so can also
      * compute its inverse.
      */
     gf_log[gf_exp[GF_BITS]] = GF_BITS;
@@ -264,7 +266,7 @@ generate_gf(void)
     /*
      * again special cases. 0 has no inverse. This used to
      * be initialized to GF_SIZE, but it should make no difference
-     * since noone is supposed to read from here.
+     * since no one is supposed to read from here.
      */
     inverse[0] = 0 ;
     inverse[1] = 1;

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.137 2003/07/13 02:59:30 nickm Exp $
+# $Id: test.py,v 1.138 2003/07/13 03:45:34 nickm Exp $
 
 """mixminion.tests
 
@@ -819,7 +819,7 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.assertEquals(padhello, p.crypt(msg1,0,0))
         self.assertEquals(padhello, p.crypt(msg2,0,0))
         self.assertEquals(padhello, p.crypt(msg3,0,0))
-        # And make sure that neihter p2 nor p3 can decode them.
+        # And make sure that neither p2 nor p3 can decode them.
         self.failUnlessRaises(TypeError, p2.crypt, msg1, 0, 0)
         self.failUnlessRaises(TypeError, p3.crypt, msg1, 0, 0)
         # And make sure that we can't encode either as a private key
@@ -2988,7 +2988,7 @@ class FileParanoiaTests(unittest.TestCase):
         noia = mix_mktemp("noia")
         subdir = os.path.join(noia, "subdir")
 
-        # Nonexistant directory.
+        # Nonexistent directory.
         self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
         # Bad permissions.
         os.mkdir(noia)
@@ -3585,7 +3585,7 @@ class ConfigFileTests(unittest.TestCase):
         self.assertEquals(f['Sec1']['Foo'], 'a')
         self.assertEquals(f['Sec2'], {})
 
-        # Now, try all the syntaxtical possibilities, and all the fields
+        # Now, try all the syntactical possibilities, and all the fields
         longerString = """[Sec1]
 
 Foo=  abcde f
@@ -4098,7 +4098,7 @@ IP: 192.168.0.99
                               mixminion.ServerInfo.ServerInfo,
                               None, badSig)
 
-        # Test superceding
+        # Test superseding
         ServerInfo = mixminion.ServerInfo.ServerInfo
         examples = getExampleServerDescriptors()
         bobs = [ ServerInfo(string=s, assumeValid=1) for s in examples["Bob"] ]
@@ -4250,7 +4250,7 @@ IP: 192.168.100.4
         lst.importServerInfo(examples["Bob"][4])
         self.failUnlessRaises(MixError,
                               lst.importServerInfo, examples["Bob"][1])
-        # Now, start with a fresh list, so we can try superceding bob later.
+        # Now, start with a fresh list, so we can try superseding bob later.
         baseDir = mix_mktemp()
         archiveDir = os.path.join(baseDir, "archive")
         serverDir = os.path.join(baseDir, "servers")
@@ -4276,7 +4276,7 @@ IP: 192.168.100.4
         self.failUnlessRaises(MixError, lst.importServerInfo,
                               examples["Bob"][0], 1)
 
-        ### Now test the removal of superceded servers.
+        ### Now test the removal of superseded servers.
         # Clean out archiveDir first so we can see what gets removed.
         for a in os.listdir(archiveDir):
             os.unlink(os.path.join(archiveDir, a))
@@ -4288,7 +4288,7 @@ IP: 192.168.100.4
         lst.importServerInfo(examples["Bob"][2]) # From  6 to 9
         lst.importServerInfo(examples["Bob"][3]) # Newer, from 0 to 3
         eq(4, len(lst.servers))
-        # Right now, nothing is superceded or expired
+        # Right now, nothing is superseded or expired
         lst.clean()
         eq(4, len(os.listdir(serverDir)))
         eq(4, len(lst.serversByNickname["bob"]))
@@ -4386,7 +4386,7 @@ class EventStatsTests(unittest.TestCase):
          Total: 1
 """
         eq(s, expected)
-        # Test time accumultion.
+        # Test time accumulation.
         ES.log.save(now=tm+1800)
         self.assert_(abs(1800-ES.log.accumulatedTime) < 10)
         self.assertEquals(ES.log.lastSave, tm+1800)
@@ -4511,7 +4511,7 @@ class ModuleManagerTests(unittest.TestCase):
         mod_dir = mix_mktemp()
         home_dir = mix_mktemp()
 
-        # Create an example module, and try to load iit.
+        # Create an example module, and try to load it.
         os.mkdir(mod_dir, 0700)
         writeFile(os.path.join(mod_dir, "ExampleMod.py"),
                   EXAMPLE_MODULE_TEXT)
@@ -4568,7 +4568,7 @@ IP: 1.0.0.1
         self.assertEquals(1, queue.count())
         # It should have processed all three.
         self.assertEquals(3, len(exampleMod.processedMessages))
-        # If we try to send agin, the second message should get re-sent.
+        # If we try to send again, the second message should get re-sent.
         time.sleep(.15) # so we retry.
         manager.sendReadyMessages()
         self.assertEquals(1, queue.count())
@@ -4780,7 +4780,7 @@ class ModuleTests(unittest.TestCase):
         bad("deny allhosts")
 
     def testMixmasterSMTP(self):
-        """Check out the SMTP-Via-Mixmaster module.  (We temporarily relace
+        """Check out the SMTP-Via-Mixmaster module.  (We temporarily replace
            os.spawnl with a stub function so that we don't actually send
            anything."""
         manager = self.getManager()
@@ -4858,7 +4858,7 @@ This is the message
             clearReplacedFunctionCallLog()
 
     def testDirectSMTP(self):
-        """Check out the SMTP module.  (We temporarily relace sendSMTPMessage
+        """Check out the SMTP module.  (We temporarily replace sendSMTPMessage
            with a stub function so that we don't actually send anything.)"""
         FDP = FakeDeliveryPacket
 
@@ -4890,7 +4890,7 @@ SubjectLine: Arr! This be a Type III Anonymous Message
                      "Free to speak, to free ourselves\n"+
                      "Free to hide no more.")
 
-            # Try queueing a valild message and sending it.
+            # Try queueing a valid message and sending it.
             queueMessage(FDP('plain', SMTP_TYPE, "users@everywhere", haiku))
             self.assertEquals(getReplacedFunctionCallLog(), [])
             queue.sendReadyMessages()
@@ -4985,7 +4985,7 @@ Free to hide no more.
             clearReplacedFunctionCallLog()
 
     def testMBOX(self):
-        """Check out the MBOX module. (We temporarily relace sendSMTPMessage
+        """Check out the MBOX module. (We temporarily replace sendSMTPMessage
            with a stub function so that we don't actually send anything.)"""
         FDP = FakeDeliveryPacket
         # Configure the module
@@ -5050,7 +5050,7 @@ Free to hide no more.
 
     def testDirectoryDump(self):
         """Check out the DirectoryStoreModule that we use for testing on
-           machines with unreliable/nonexistant SMTP."""
+           machines with unreliable/nonexistent SMTP."""
         FDP = FakeDeliveryPacket
         eme = mixminion.server.Modules._escapeMessageForEmail
         dir = mix_mktemp()
@@ -5420,7 +5420,7 @@ def getExampleServerDescriptors():
         finally:
             resumeLog()
 
-        # Now, for each starting time, generate a server desciprtor.
+        # Now, for each starting time, generate a server descriptor.
         _EXAMPLE_DESCRIPTORS[nickname] = []
         publishing = now
         for n in xrange(len(starting)):
@@ -5862,7 +5862,7 @@ class ClientMainTests(unittest.TestCase):
 
         # 2. Failing cases
         raises = self.assertRaises
-        # Nonexistant server
+        # Nonexistent server
         raises(MixError, ppath, ks, None, "Pierre:Alice,*", email)
         # Two swap points
         raises(MixError, ppath, ks, None, "Alice:Bob:Joe", email)
@@ -5874,7 +5874,7 @@ class ClientMainTests(unittest.TestCase):
         # NHops mismatch
         raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=2)
         raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=4)
-        # Nonexistant file
+        # Nonexistent file
         raises(MixError, ppath, ks, None, "./Pierre:Alice,*", email)
 
         ## Try 'expungeByNickname'.
@@ -5949,7 +5949,7 @@ class ClientMainTests(unittest.TestCase):
     def testClientKeyring(self):
         keydir = mix_mktemp()
         keyring = mixminion.ClientMain.ClientKeyring(keydir)
-        # Check for some nonexistant keys.
+        # Check for some nonexistent keys.
         self.assertEquals({}, keyring.getSURBKeys(password="pwd"))
 
         self.assertEquals(None, keyring.getSURBKey(create=0))

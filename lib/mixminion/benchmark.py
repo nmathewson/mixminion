@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.44 2003/07/08 19:13:50 nickm Exp $
+# $Id: benchmark.py,v 1.45 2003/07/13 03:45:34 nickm Exp $
 
 """mixminion.benchmark
 
@@ -41,7 +41,7 @@ from mixminion.testSupport import mix_mktemp
 # If PRECISION_FACTOR is >1, we time everything for PRECISION_FACTOR times
 # more iterations than ususal.
 #
-# If PRESISION_FACTOR is 0, we only try stuff once.  Good for testing this
+# If PRECISION_FACTOR is 0, we only try stuff once.  Good for testing this
 # file in a hurry.
 PRECISION_FACTOR = 1
 
@@ -300,7 +300,7 @@ def rsaTiming():
         print "[generating key...]"
         rsa2 = pk_generate(bits)
         t = time()-t
-        print "RSA genrate (%d bit)"%bits, timestr(t)
+        print "RSA generate (%d bit)"%bits, timestr(t)
         enc = pk_encrypt(s70b, rsa2)
         print "Pad+RSA public encrypt (%d bit)"%bits,
         print timeit((lambda rsa2=rsa2: pk_encrypt("zzz", rsa2)),it)
@@ -431,14 +431,14 @@ def buildMessageTiming():
     print "Uncompress (1K, no max)", \
           timeit(lambda c=compressed: uncompressData(c), 1000)
     compressed = compressData("Hello!!!"*(128*28))
-    print "Unompress (28K, no max)", \
+    print "Uncompress (28K, no max)", \
           timeit(lambda c=compressed: uncompressData(c), 1000)
 
     compressed = compressData("Hello!!!"*128)
     print "Uncompress (1K, 1K max)", \
           timeit(lambda c=compressed: uncompressData(c, 1024), 1000)
     compressed = compressData("Hello!!!"*(128*28))
-    print "Unompress (28K, 28K max)", \
+    print "Uncompress (28K, 28K max)", \
           timeit(lambda c=compressed: uncompressData(c, 28<<10), 1000)
 
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
@@ -595,7 +595,7 @@ def timeEfficiency():
     # Here we compare the time spent in an operation with the time we think
     # is required for its underlying operations, in order to try to measure
     # its efficiency.  If function X is pretty efficient, there's not much
-    # reason to try to optimise its implementation; instead, we need to attack
+    # reason to try to optimize its implementation; instead, we need to attack
     # the functions it uses.
 
     ##### LIONESS

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.34 2003/07/10 20:01:31 nickm Exp $
+# $Id: ServerList.py,v 1.35 2003/07/13 03:45:34 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -251,7 +251,7 @@ class ServerList:
                 includedByNickname.setdefault(nickname, []).append((s, fn))
 
             # Second, find all servers that are valid for part of the period,
-            # and that aren't superceded for the whole period.
+            # and that aren't superseded for the whole period.
             timeRange = IntervalSet([(previousMidnight(startAt),
                                       endAt+extraTime)])
 
@@ -351,7 +351,7 @@ class ServerList:
         return os.path.join(self.baseDir, "directory")
 
     def clean(self, now=None):
-        """Remove all expired or superceded servers from the active directory.
+        """Remove all expired or superseded servers from the active directory.
         """
         # This algorithm is inefficient: O(N_descs * N_descs_per_nickname).
         # We're just going to ignore that.
@@ -370,7 +370,7 @@ class ServerList:
                 servers = [ s for _, _, s  in servers ]
                 for idx in range(len(servers)):
                     if servers[idx].isSupersededBy(servers[idx+1:]):
-                        removed[fns[idx]] = "superceded"
+                        removed[fns[idx]] = "superseded"
 
             # Find all expired servers.
             for fn, s in self.servers.items():

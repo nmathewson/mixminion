@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.50 2003/07/07 16:49:24 nickm Exp $
+# $Id: ServerInfo.py,v 1.51 2003/07/13 03:45:34 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -463,7 +463,7 @@ _leading_whitespace_re = re.compile(r'^[ \t]+', re.M)
 _trailing_whitespace_re = re.compile(r'[ \t]+$', re.M)
 _abnormal_line_ending_re = re.compile(r'\r\n?')
 def _cleanForDigest(s):
-    """Helper function: clean line endigs and whitespace so we can calculate
+    """Helper function: clean line endings and whitespace so we can calculate
        our digests with uniform results."""
     # should be shared with config, serverinfo.
     s = _abnormal_line_ending_re.sub("\n", s)
@@ -481,7 +481,7 @@ def _getDigestImpl(info, regex, digestField=None, sigField=None, rsa=None):
 
        info -- the string to digest or sign.
        regex -- a compiled regex that matches the line containing the digest
-          and the line containting the signature.
+          and the line containing the signature.
        digestField -- If not signing, None.  Otherwise, the name of the digest
           field.
        sigField -- If not signing, None.  Otherwise, the name of the signature

@@ -1,4 +1,4 @@
-$Id: README,v 1.51 2003/06/12 06:30:40 nickm Exp $
+$Id: README,v 1.52 2003/07/13 03:45:33 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.5, from the Mixminion CVS repository.
 
@@ -261,7 +261,7 @@ To specify a path manually, type:
       If you don't know what a swap point is, don't worry. :)
 
 If you want to use the same path by default for all of your messages,
-edit the  ~/.mixminonrc and change the ForwardPath line:
+edit the  ~/.mixminionrc and change the ForwardPath line:
 
       # By default, use the same servers for entry and exit each time,
       # with three randomly chosen servers in the middle.
@@ -294,7 +294,7 @@ To queue a message for later transmission, run "mixminion queue" instead of
       message, it leaves that message in the queue to be reattempted later.
       To suppress this behavior, use the "--no-queue" option:
             mixminion send --no-queue -t <address> -i <file> -P <path>
-      Also, as a final sidenote, "mixminion send --queue" is a synonym for
+      Also, as a final side note, "mixminion send --queue" is a synonym for
       "mixminion queue".)
 
 To decode a message you have received, type:
@@ -400,7 +400,7 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
         "mixminion server-start -f <path to mixminiond.conf>"
 
     (The -f flag and path are only necessary if you placed the
-    configuration file somehwere other than ~/.mixminiond.conf,
+    configuration file somewhere other than ~/.mixminiond.conf,
     ~/etc/mixminiond.conf, or /etc/mixminiond.conf.)
 
 5) To try out your server, clients will need a copy of your server

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.84 2003/07/07 18:55:15 nickm Exp $
+# $Id: ServerMain.py,v 1.85 2003/07/13 03:45:35 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -25,7 +25,7 @@
 #                     key_0001/ServerDesc [Server descriptor]
 #                              mix.key [packet key]
 #                              mmtp.key [mmtp key]
-#                              mmtp.cert [mmmtp key x509 cert]
+#                              mmtp.cert [mmtp key's x509 cert chain]
 #                              published [present if this desc is published]
 #                     key_0002/...
 #                conf/miniond.conf [configuration file]
@@ -35,7 +35,7 @@
 
 # FFFF Support to put keys/queues in separate directories.
 
-__all__ = [ 'MixminonServer' ]
+__all__ = [ 'MixminionServer' ]
 
 import errno
 import getopt
@@ -594,7 +594,7 @@ class MixminionServer(_Scheduler):
     #    periodically decides which ones to deliver, according to some
     #    batching algorithm.
     # moduleManager: Instance of ModuleManager.  Map routing types to
-    #    outging queues, and processes non-MMTP exit messages.
+    #    outgoing queues, and processes non-MMTP exit messages.
     # outgoingQueue: Holds messages waiting to be send via MMTP.
     # cleaningThread: Thread used to remove packets in the background
     # processingThread: Thread to handle CPU-intensive activity without

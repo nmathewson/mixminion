@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.43 2003/07/10 21:16:05 nickm Exp $
+# $Id: MMTPServer.py,v 1.44 2003/07/13 03:45:35 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -232,7 +232,7 @@ class SimpleTLSConnection(Connection):
            3. Reading
            4. Writing
            5. Shutting down.
-       Reads procede until either a given number of bytes have been received,
+       Reads proceed until either a given number of bytes have been received,
        or until a provided terminator has been found.  Writes procede until
        a buffer is exhausted.
 
@@ -712,7 +712,7 @@ class MMTPServerConnection(SimpleTLSConnection):
 NULL_KEYID = "\x00"*20
 
 class DeliverableMessage:
-    """Interface to be impemented by messages deliverable by MMTP """
+    """Interface to be implemented by messages deliverable by MMTP """
     def __init__(self):
         pass
     def getContents(self):
@@ -723,7 +723,7 @@ class DeliverableMessage:
         raise NotImplementedError
 
 class DeliverablePacket(DeliverableMessage):
-    """Implementation of DelierableMessage.
+    """Implementation of DeliverableMessage.
 
        Wraps a ServerQueue.PendingMessage object for a queue holding
        PacketHandler.RelayPacket objects."""
@@ -738,7 +738,7 @@ class DeliverablePacket(DeliverableMessage):
         return self.pending.getMessage().getPacket()
 
 class MMTPClientConnection(SimpleTLSConnection):
-    """Asynchronious implementation of the sending ("client") side of a
+    """Asynchronous implementation of the sending ("client") side of a
        mixminion connection."""
     ## Fields:
     # ip, port, keyID, messageList, finishedCallback, certCache:
@@ -1062,7 +1062,7 @@ class MMTPAsyncServer(AsyncServer):
         """Begin sending a set of messages to a given server.
 
            deliverable is a list of objects obeying the DeliverableMessage
-           lsit.
+           interface.
         """
 
         try:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.6 2003/06/05 18:41:40 nickm Exp $
+# $Id: EventStats.py,v 1.7 2003/07/13 03:45:35 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -95,15 +95,15 @@ class EventLog(NilEventLog):
        We take some pains to avoid flushing the statistics when too
        little time has passed.  We only rotate an aggregated total to disk
        when:
-           - An interval has passsed since the last rotation time
+           - An interval has passed since the last rotation time
          AND
            - We have accumulated events for at least 75% of an interval's
              worth of time.
 
        The second requirement prevents the following unpleasant failure mode:
-           - We set the interval to '1 day'.  At midnight on monday,
+           - We set the interval to '1 day'.  At midnight on Monday,
              we rotate.  At 00:05, we go down.  At 23:55 we come back
-             up.  At midnight at tuesday, we noticing that it's been one
+             up.  At midnight at Tuesday, we noticing that it's been one
              day since the last rotation, and rotate again -- thus making
              a permanent record that reflects 10 minutes worth of traffic,
              potentially exposing more about individual users than we should.
@@ -124,7 +124,7 @@ class EventLog(NilEventLog):
     # Map from {"count","lastRotation","accumulatedTime"} to the values
     # for those fields.
     def __init__(self, filename, historyFile, interval):
-        """Intializes an EventLog that caches events in 'filename', and
+        """Initializes an EventLog that caches events in 'filename', and
            periodically writes to 'historyFile' every 'interval' seconds."""
         NilEventLog.__init__(self)
         if os.path.exists(filename):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.35 2003/07/07 16:49:25 nickm Exp $
+# $Id: ServerConfig.py,v 1.36 2003/07/13 03:45:35 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -38,7 +38,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
             entries = self._sectionEntries
             return len([e for e in entries[section] if e[0] == ent]) != 0
 
-        # Pre-emptively configure the log before validation, so we don't
+        # Preemptively configure the log before validation, so we don't
         # write to the terminal if we've been asked not to.
         if not self['Server'].get("EchoMessages", 0):
             LOG.handlers = []

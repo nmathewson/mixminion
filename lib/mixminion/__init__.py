@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.42 2003/06/12 06:30:40 nickm Exp $
+# $Id: __init__.py,v 1.43 2003/07/13 03:45:34 nickm Exp $
 
 """mixminion
 
@@ -16,7 +16,7 @@ __version__ = "0.0.5alpha1"
 #        100 for release.
 # The 5th is a patchlevel.  If -1, it is suppressed.
 # The 4th or 5th number may be a string.  If so, it is not meant to
-#   succeed or preceed any other sub-version with the same a.b.c version
+#   succeed or precede any other sub-version with the same a.b.c version
 #   number.
 version_info = (0, 0, 5, 0, 1)
 __all__ = [ 'server', 'directory' ]

@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.17 2003/07/10 20:01:31 nickm Exp $ */
+/* $Id: main.c,v 1.18 2003/07/13 03:45:36 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -57,7 +57,7 @@ static struct PyMethodDef _mixcryptlib_functions[] = {
    exception: Set to point to a pointer to the newly allocated exception.
    longName: The fully qualified name of this exception.
    itemString: The name of this exception within the module.
-   doc: The doctring for this exception.
+   doc: The docstring for this exception.
 
    returns 1 on failure; 0 on success */
 static int

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.47 2003/07/10 20:01:31 nickm Exp $
+# $Id: ServerKeys.py,v 1.48 2003/07/13 03:45:35 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -152,8 +152,8 @@ class ServerKeyring:
 
     def checkDescriptorConsistency(self, regen=1):
         """Check whether the server descriptors in this keyring are
-           consistent with the server's configuration.  If 'regen' are true,
-           inconsistent descriptors are regenerated."""
+           consistent with the server's configuration.  If 'regen' is
+           true, inconsistent descriptors are regenerated."""
         identity = None
         state = []
         for _,_,ks in self.keySets:
@@ -540,7 +540,7 @@ class ServerKeyset:
        to store the keys' lifetimes.
 
        When we create a new ServerKeyset object, the associated keys are not
-       read from disk unil the object's load method is called."""
+       read from disk until the object's load method is called."""
     ## Fields:
     # keydir: Directory to store this keyset's data.
     # hashlogFile: filename of this keyset's hashlog.
@@ -888,7 +888,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         secure = "yes"
 
     # Calculate descriptor and X509 certificate lifetimes.
-    # (Round validAt to previous mignight.)
+    # (Round validAt to previous midnight.)
     validAt = mixminion.Common.previousMidnight(validAt+30)
     if not validUntil:
         keyLifetime = config['Server']['PublicKeyLifetime'].getSeconds()

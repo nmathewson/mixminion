@@ -349,7 +349,7 @@ class ClientDirectory:
 
         # Is the server expired?
         if info.isExpiredAt(time.time()):
-            raise UIError("Server desciptor is expired")
+            raise UIError("Server descriptor is expired")
 
         # Is the server superseded?
         if self.byNickname.has_key(lcnickname):
@@ -718,7 +718,7 @@ def parsePath(directory, config, path, address, nHops=None,
        address -- the address to deliver the message to; if it specifies
           an exit node, the exit node is appended to the second leg of the
           path and does not count against the number of hops.  If 'address'
-          is None, the exit node must support realy.
+          is None, the exit node must support relay.
        nHops -- the number of hops to use.  Defaults to defaultNHops.
        startAt/endAt -- A time range during which all servers must be valid.
        halfPath -- If true, we generate only the second leg of the path
@@ -1259,7 +1259,7 @@ class SURBLog:
     def clean(self, now=None):
         """Remove all entries from this SURBLog the correspond to expired
            SURBs.  This is safe because if a SURB is expired, we'll never be
-           able to use it inadvertantly."""
+           able to use it inadvertently."""
         if now is None:
             now = time.time() + 60*60
         allHashes = self.log.keys()
@@ -1286,7 +1286,7 @@ class ClientQueue:
     #           ("PACKET-0",
     #             a 32K string (the packet),
     #             an instance of IPV4Info (the first hop),
-    #             the latest midnight preceeding the time when this
+    #             the latest midnight preceding the time when this
     #                 packet was inserted into the queue
     #           )
     # XXXX change this to be OO; add nicknames.
@@ -1421,7 +1421,7 @@ class MixminionClient:
             servers1,servers2 -- lists of ServerInfos for the first and second
                legs the path, respectively.
             forceQueue -- if true, do not try to send the message; simply
-               quque it and exit.
+               queue it and exit.
             forceNoQueue -- if true, do not queue the message even if delivery
                fails."""
         assert not (forceQueue and forceNoQueue)
@@ -1812,7 +1812,7 @@ class CLIArgumentParser:
              -v | --verbose : run verbosely.
           DIRECTORY ONLY
              -D | --download-directory : force/disable directory downloading.
-          PATH-RELEATED
+          PATH-RELATED
              -t | --to : specify an exit address
              -R | --reply-block : specify a reply block
              -H | --hops : specify a path length
@@ -1864,11 +1864,11 @@ class CLIArgumentParser:
               is called.
            wantLog -- If true, configure logging.
            wantDownload -- If true, accept options pertaining to downloading
-              a new directory, and download the directrory as required.
+              a new directory, and download the directory as required.
            wantForawrdPath -- If true, accept options to specify a forward
               path (for forward or reply messages), and enable self.parsePath.
            wantReplyPath -- If true, accept options to specify a path for
-              a reply block, and enable seslf.parsePath.
+              a reply block, and enable self.parsePath.
            minHops -- Smallest allowable value for -H option.
         """
         self.config = None
@@ -2123,7 +2123,7 @@ Options:
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
   -H <n>, --hops=<n>         Force the path to use <n> hops.
-  -i <file>, --input=<file>  Read the messagefrom <file>. (Defaults to stdin.)
+  -i <file>, --input=<file>  Read the message from <file>. (Defaults to stdin.)
   -P <path>, --path=<path>   Specify an explicit message path.
   -t address, --to=address   Specify the recipient's address.
   -R <file>, --reply-block=<file>

@@ -1,12 +1,12 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.35 2003/07/10 21:52:31 nickm Exp $
+# $Id: MMTPClient.py,v 1.36 2003/07/13 03:45:33 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
    side of the Mixminion Transfer protocol.  You can use this client to
    upload messages to any conforming Mixminion server.
 
-   (We don't use this module for tranferring packets between servers;
+   (We don't use this module for transferring packets between servers;
    in fact, MMTPServer makes it redundant.  We only keep this module
    around [A] so that clients have an easy (blocking) interface to
    introduce messages into the system, and [B] so that we've got an
@@ -133,7 +133,7 @@ class BlockingClientConnection:
         # For now, we only support 1.0, but we call it 0.3 so we can
         # change our mind between now and a release candidate, and so we
         # can obsolete betas come release time.
-        LOG.debug("Negotiatiating MMTP protocol")
+        LOG.debug("Negotiating MMTP protocol")
         self.tls.write("MMTP %s\r\n" % ",".join(self.PROTOCOL_VERSIONS))
         # This is ugly, but we have no choice if we want to read up to the
         # first newline.
@@ -150,7 +150,7 @@ class BlockingClientConnection:
                 break
         if not self.protocol:
             raise MixProtocolError("Protocol negotiation failed")
-        LOG.debug("MMTP protocol negotated: version %s", self.protocol)
+        LOG.debug("MMTP protocol negotiated: version %s", self.protocol)
 
     def renegotiate(self):
         """Re-do the TLS handshake to renegotiate a new connection key."""
@@ -269,7 +269,7 @@ def pingServer(routing, connectTimeout=5):
 class PeerCertificateCache:
     """A PeerCertificateCache validates certificate chains from MMTP servers,
        and remembers which chains we've already seen and validated."""
-    ## Fieleds
+    ## Fields
     # cache: A map from peer (temporary) KeyID's to a (signing) KeyID.
     def __init__(self):
         self.cache = {}

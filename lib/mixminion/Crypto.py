@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.47 2003/07/13 02:59:30 nickm Exp $
+# $Id: Crypto.py,v 1.48 2003/07/13 03:45:33 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -319,7 +319,7 @@ copy_reg.pickle(_ml.RSA, _pickle_rsa, _ml.rsa_decode_key)
 #       ftp://ftp.rsasecurity.com/pub/rsalabs/rsa_algorithm/rsa-oaep_spec.pdf)
 
 def _oaep_mgf(seed, bytes):
-    ''' Mask generation function specified for RAESA-OAEP.  Given a seed
+    ''' Mask generation function specified for RSA-OAEP.  Given a seed
         and a number of bytes, generates a mask for OAEP by computing
         sha1(seed + "\x00\x00\x00\x00")+sha1(seed+"\x00\x00\x00\x01)+...
 
@@ -386,7 +386,7 @@ def _check_oaep_padding(data, p, bytes):
         raise CryptoError("Decoding error")
     return m
 
-# Use the fastest implementaiton of OAEP we have.
+# Use the fastest implementation of OAEP we have.
 if hasattr(_ml, 'check_oaep_padding'):
     check_oaep = _ml.check_oaep_padding
     add_oaep = _ml.add_oaep_padding

@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.10 2003/07/11 03:06:57 nickm Exp $
+# $Id: ServerInbox.py,v 1.11 2003/07/13 03:45:34 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -48,7 +48,7 @@ class ServerInbox:
 
            text -- a string containing a new server descriptor.
            source -- a (human readable) string describing the source
-               of the descriptor, used in error meessages.
+               of the descriptor, used in error messages.
         
            """
         try:

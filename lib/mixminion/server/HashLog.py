@@ -1,9 +1,9 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.19 2003/07/10 20:01:31 nickm Exp $
+# $Id: HashLog.py,v 1.20 2003/07/13 03:45:35 nickm Exp $
 
 """mixminion.server.HashLog
 
-   Persistant memory for the hashed secrets we've seen.  Used by
+   Persistent memory for the hashed secrets we've seen.  Used by
    PacketHandler to prevent replay attacks."""
 
 import binascii
@@ -26,7 +26,7 @@ __all__ = [ 'HashLog', 'getHashLog', 'deleteHashLog' ]
 # We flush the log every MAX_JOURNAL hashes.
 MAX_JOURNAL = 128
 
-# Lock to pretect _OPEN_HASHLOGS
+# Lock to protect _OPEN_HASHLOGS
 _HASHLOG_DICT_LOCK = threading.RLock()
 # Map from (filename) to (keyid,open HashLog). Needed to implement getHashLog.
 _OPEN_HASHLOGS = {}

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.25 2003/06/05 18:41:41 nickm Exp $ */
+/* $Id: tls.c,v 1.26 2003/07/13 03:45:36 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -111,8 +111,7 @@ const char mm_TLSContext_new__doc__[] =
    "Allocates a new TLSContext object.  The files, if provided, are used\n"
    "contain the PEM-encoded X509 public keys, private key, and DH\n"
    "parameters for this context.\n\n"
-   "If a cert is provided, assume we're working in server mode, and allow\n"
-   "BUG:In the future, certs, pks, and dh parameters will be first-class.\n\n"
+   "If a cert is provided, assume we're working in server mode, and allow\n\n"
    "LIMITATION: We don\'t expose any more features than Mixminion needs.\n";
 
 PyObject*
@@ -678,7 +677,7 @@ mm_TLSSock_verify_cert_and_get_identity_pk(
 }
 
 static char mm_TLSSock_renegotiate__doc__[] =
-    "tlssock.renegotate()\n\n"
+    "tlssock.renegotiate()\n\n"
     "Mark this connection as requiring renegotiation.  No renegotiation is\n"
     "performed until do_handshake is called.  Note that renegotiation only\n"
     "works intuitively on the client side.\n";

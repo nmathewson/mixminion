@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.47 2003/07/07 19:27:15 nickm Exp $
+# $Id: Modules.py,v 1.48 2003/07/13 03:45:35 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -47,7 +47,7 @@ class DeliveryModule:
        the methods in this class.
 
        A delivery module has the following responsibilities:
-           * It must have a 0-argument contructor.
+           * It must have a 0-argument constructor.
            * If it is configurable, it must be able to specify its options,
              validate its configuration, and configure itself.
            * If it is advertisable, it must provide a server info block.
@@ -112,7 +112,7 @@ class DeliveryModule:
                                    retrySchedule=self.getRetrySchedule())
 
     def processMessage(self, packet):
-        """Given a DeliveryPacket object, try to delier it.  Return one of:
+        """Given a DeliveryPacket object, try to deliver it.  Return one of:
             DELIVER_OK (if the message was successfully delivered),
             DELIVER_FAIL_RETRY (if the message wasn't delivered, but might be
               deliverable later), or
@@ -244,7 +244,7 @@ class ModuleManager:
        A module may be in one of three states: unloaded, registered, or
        enabled.  An unloaded module is just a class in a python module.
        A registered module has been loaded, configured, and listed with
-       the ModuleManager, but will not receive messags until it is
+       the ModuleManager, but will not receive messages until it is
        enabled.
 
        Because modules need to tell the ServerConfig object about their
@@ -290,7 +290,7 @@ class ModuleManager:
         self.thread = None
 
     def startThreading(self):
-        """Begin delivering messages in a separte thread.  Should only
+        """Begin delivering messages in a separate thread.  Should only
            be called once."""
         self.thread = DeliveryThread(self)
         self.thread.start()
@@ -404,7 +404,7 @@ class ModuleManager:
 
     def queueDecodedMessage(self, packet):
         """Given a packet of type DeliveryPacket, try to find an appropriate
-           exit module, and queue the packet for delivey by that exit module.
+           exit module, and queue the packet for delivery by that exit module.
         """
         exitType = packet.getExitType()
 
@@ -499,7 +499,7 @@ class EmailAddressSet:
     #   If the value for a key is 'SUB', all subdomains are also included.
     # users -- A dict whose keys are lowercased users ("foo")
     # patterns -- A list of regular expression objects.
-    # includeStr -- a string the casuses items to get included in this set.
+    # includeStr -- a string the causes items to get included in this set.
     #   defaults to 'deny'
     def __init__(self, fname=None, string=None, includeStr="deny"):
         """Read the address set from a file or a string."""
@@ -886,7 +886,7 @@ class DirectSMTPModule(SMTPModule):
 class MixmasterSMTPModule(SMTPModule):
     """Implements SMTP by relaying messages via Mixmaster nodes.  This
        is kind of unreliable and kludgey, but it does allow us to
-       test mixminion by usingg Mixmaster nodes as exits."""
+       test mixminion by using Mixmaster nodes as exits."""
     # (Mixmaster has tons of options, but we ignore them, since
     #  this is only a temporary workaround until enough people
     #  are running SMTP exit nodes.)

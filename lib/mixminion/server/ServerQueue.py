@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.24 2003/06/26 03:23:53 nickm Exp $
+# $Id: ServerQueue.py,v 1.25 2003/07/13 03:45:35 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -42,12 +42,12 @@ class Queue:
              inp_HANDLE  (An incomplete message being created.)
 
        (Where HANDLE is a randomly chosen 8-character string of characters
-       chosen from 'A-Za-z0-9+-'.  [Collision probability is negligable, and
+       chosen from 'A-Za-z0-9+-'.  [Collision probability is negligible, and
        collisions are detected.])
 
        Threading notes:  Although Queue itself is threadsafe, you'll want
        to synchronize around any multistep operations that you want to
-       run atomicly.  Use Queue.lock() and Queue.unlock() for this.
+       run atomically.  Use Queue.lock() and Queue.unlock() for this.
 
        In the Mixminion server, no queue currently has more than one producer
        or more than one consumer ... so synchronization turns out to be
@@ -288,7 +288,7 @@ class Queue:
 
 class _DeliveryState:
     """Helper class: holds the state needed to schedule delivery or
-       eventual abandonmont of a message in a DeliveryQueue."""
+       eventual abandonment of a message in a DeliveryQueue."""
     ## Fields:
     # queuedTime: time at which the corresponding message was first
     #    inserted into the queue.
@@ -514,7 +514,7 @@ class DeliveryQueue(Queue):
             if fn.startswith("meta_"):
                 h = fn[5:]
                 if not self.deliveryState.has_key(h):
-                    LOG.warn("Metadata for nonexistant handle %s", h)
+                    LOG.warn("Metadata for nonexistent handle %s", h)
                 os.unlink(os.path.join(self.dir, fn))
 
     def _writeState(self, h):
@@ -823,7 +823,7 @@ class CottrellMixPool(TimedMixPool):
         """Create a new queue that yields a batch of message every 'interval'
            seconds, always keeps <minPool> messages in the pool, never sends
            unless it has <minPool>+<minSend> messages, and never sends more
-           than <sendRate> * the corrent pool size.
+           than <sendRate> * the current pool size.
 
            If 'minSend'==1, this is a real Cottrell (type II style) mix pool.
            Otherwise, this is a generic 'timed dynamic-pool' mix pool.  (Note
@@ -835,7 +835,7 @@ class CottrellMixPool(TimedMixPool):
         # mixmaster algorithm.  I picked up the other algorithm from an early
         # draft of Roger, Paul, and Andrei's 'Batching Taxonomy' paper (since
         # corrected); they seem to have gotten it from Anja Jerichow's
-        # Phd. thesis ("Generalisation and Security Improvement of
+        # Phd. thesis ("Generalization and Security Improvement of
         # Mix-mediated Anonymous Communication") of 2000.
         #
         # *THIS* is the algorithm that the current 'Batching Taxonomy' paper

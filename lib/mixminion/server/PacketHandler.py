@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.18 2003/06/30 17:33:33 nickm Exp $
+# $Id: PacketHandler.py,v 1.19 2003/07/13 03:45:35 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -95,7 +95,7 @@ class PacketHandler:
         """Given a 32K mixminion message, processes it completely.
 
            Return one of:
-                    None [if the mesesage should be dropped.]
+                    None [if the message should be dropped.]
                     a DeliveryPacket object
                     a RelayedPacket object
 

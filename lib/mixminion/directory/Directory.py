@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.11 2003/06/06 06:08:39 nickm Exp $
+# $Id: Directory.py,v 1.12 2003/07/13 03:45:34 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -18,7 +18,7 @@ from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
      formatBase64, writePickled, readPickled
 
 class Directory:
-    """Wraper class for directory filestores.
+    """Wrapper class for directory filestores.
 
        Currently, a directory server keeps two filestores: an 'ServerInbox'
        that contains servers which have been uploaded but not yet inserted
@@ -223,7 +223,7 @@ class MismatchedID(Exception):
     pass
 
 class IDCache:
-    """Cache to hold a set of nickname->identitye key mappings"""
+    """Cache to hold a set of nickname->identity key mappings"""
     ##Fields:
     # cache: map from lowercased nickname to ID fingerprint.
     # location: filename to hold pickled cache.

@@ -121,7 +121,7 @@ For 0.0.6:
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
 [Release criteria: Workable replacement for type II.  At least as
-anonymous, useable, secure, and portable.  Nymservers aren't in, so
+anonymous, usable, secure, and portable.  Nymservers aren't in, so
 not yet ready to replace type I.]
 
         - Full statistics

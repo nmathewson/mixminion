@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.100 2003/07/10 20:09:58 nickm Exp $
+# $Id: Common.py,v 1.101 2003/07/13 03:45:33 nickm Exp $
 
 """mixminion.Common
 
@@ -88,7 +88,7 @@ class UIError(MixError):
 
 class UsageError(UIError):
     """Exception raised for an error that should be reported to the user
-       along with a usage mesage.
+       along with a usage message.
     """
     pass
 
@@ -154,7 +154,7 @@ if sys.version_info[0:3] >= (2,1,0):
         """Convert 's' to a one-line base-64 representation."""
         return binascii.b2a_base64(s).strip()
 else:
-    # Python 2.0 didin't allow a binascii to return more than one line.
+    # Python 2.0 didn't allow a binascii to return more than one line.
     def formatBase64(s):
         """Convert 's' to a one-line base-64 representation."""
         return encodeBase64(s, 64, 1)
@@ -347,7 +347,7 @@ def _gidToName(gid):
 def checkPrivateFile(fn, fix=1):
     """Checks whether f is a file owned by this uid, set to mode 0600 or
        0700, and all its parents pass checkPrivateDir.  Raises MixFatalError
-       if the assumtions are not met; else return None.  If 'fix' is true,
+       if the assumptions are not met; else return None.  If 'fix' is true,
        repair permissions on the file rather than raising MixFatalError."""
     parent, _ = os.path.split(fn)
     checkPrivateDir(parent)
@@ -355,11 +355,11 @@ def checkPrivateFile(fn, fix=1):
         st = os.stat(fn)
     except OSError, e:
         if e.errno == errno.EEXIST:
-            raise MixFatalError("Nonexistant file %s" % fn)
+            raise MixFatalError("Nonexistent file %s" % fn)
         else:
-            raise MixFatalError("Could't stat file %s: %s" % (fn, e))
+            raise MixFatalError("Couldn't stat file %s: %s" % (fn, e))
     if not st:
-        raise MixFatalError("Nonexistant file %s" % fn)
+        raise MixFatalError("Nonexistent file %s" % fn)
     if not os.path.isfile(fn):
         raise MixFatalError("%s is not a regular file" % fn)
     
@@ -672,7 +672,7 @@ def secureDelete(fnames, blocking=0):
        partition from the get-go... or to physically destroy and
        replace your hard drive every so often.)
 
-       So we don't even bother trying to make the data 'physcially
+       So we don't even bother trying to make the data 'physically
        irretrievable.'  We just zero it out, which should be good
        enough to stymie root for most purposes, and totally inadequate
        against a well-funded adversary with access to your hard drive
@@ -793,7 +793,7 @@ class Log:
                  message or a connection.
               FATAL: nonrecoverable errors that affect the entire system.
 
-       In practise, we instantiate only a single instance of this class,
+       In practice, we instantiate only a single instance of this class,
        accessed as mixminion.Common.LOG."""
     ## Fields:
     # handlers: a list of logHandler objects.
@@ -919,7 +919,7 @@ class Log:
         self.log("FATAL", message, *args)
     def log_exc(self, severity, (exclass, ex, tb), message=None, *args):
         """Write an exception and stack trace to the log.  If message and
-           args are provided, use them as an explanitory message; otherwise,
+           args are provided, use them as an explanatory message; otherwise,
            introduce the message as "Unexpected exception".
 
            This should usually be called as
@@ -1032,7 +1032,7 @@ def formatDate(when):
 
 def formatFnameTime(when=None):
     """Given a time in seconds since the epoch, returns a date value suitable
-       for use as part of a fileame.  Defaults to the current time."""
+       for use as part of a filename.  Defaults to the current time."""
     if when is None:
         when = time.time()
     return time.strftime("%Y%m%d%H%M%S", time.localtime(when))
@@ -1096,7 +1096,7 @@ class Duration:
         return self
 
 #----------------------------------------------------------------------
-# InteralSet
+# IntervalSet
 
 class IntervalSet:
     """An IntervalSet is a mutable set of numeric intervals, closed below and
@@ -1240,7 +1240,7 @@ class IntervalSet:
         return cmp(self.edges, other.edges)
 
     def start(self):
-        """Return the first point contained in this inverval."""
+        """Return the first point contained in this interval."""
         return self.edges[0][0]
 
     def end(self):
@@ -1250,7 +1250,7 @@ class IntervalSet:
 #----------------------------------------------------------------------
 # SMTP address functionality
 
-# Regular expressions to valide RFC822 addresses.
+# Regular expressions to validate RFC822 addresses.
 # (This is more strict than RFC822, actually.  RFC822 allows tricky stuff to
 #   quote special characters, and I don't trust every MTA or delivery command
 #   to support addresses like <bob@bob."; rm -rf /; echo".com>
@@ -1294,7 +1294,7 @@ def waitForChildren(onceOnly=0, blocking=1):
         return
     while 1:
         try:
-            # WIN32 This won't work on Windows.  What to do?
+            # WWWW This won't work on Windows.  What to do?
             pid, status = os.waitpid(-1, options)
         except OSError, e:
             return
@@ -1311,7 +1311,6 @@ def _sigChldHandler(signal_num, _):
 
     while 1:
         try:
-            # WIN32 This waitpid call won't work on Windows.  What to do?
             pid, status = os.waitpid(-1, os.WNOHANG)
             if pid == 0:
                 break

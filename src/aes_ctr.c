@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.14 2003/07/10 18:39:16 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.15 2003/07/13 03:45:36 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because
@@ -8,7 +8,7 @@
  *             but that's not the same.)
  *          c) It uses some awfully brute-forceish logic to increment
  *             the counter.  Sure, that's not in the critical path,
- *             but it still wrankles.
+ *             but it still rankles.
  *
  * Disclosure: I have seen and played with the OpenSSL implementation for
  *   a while before I decided to abandon it.
