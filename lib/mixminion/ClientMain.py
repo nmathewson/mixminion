@@ -417,7 +417,7 @@ class MixminionClient:
                                                   timeout)
                 LOG.info("... %s sent", mword)
             except:
-                e = sys.exc_info()[1]
+                e = sys.exc_info()
                 if noQueue and warnIfLost:
                     LOG.error("Error with queueing disabled: %s lost", mword)
                 elif lazyQueue:
@@ -427,8 +427,8 @@ class MixminionClient:
                 else:
                     LOG.info("Error while delivering %s; leaving in queue",
                              mword)
-
-                LOG.info("Error was: %s",e)
+                LOG.info("Error was: %s",e[1])
+                return
             try:
                 clientLock()
                 for h in handles:
@@ -472,6 +472,7 @@ class MixminionClient:
             handles = [ h for _, h in messagesByServer[routing] ]
             try:
                 self.sendMessages(msgs, routing, noQueue=1, warnIfLost=0)
+                #XXXX006 is this part needed?
                 try:
                     clientLock()
                     for h in handles:
