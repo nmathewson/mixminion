@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.84 2004/04/27 06:00:10 nickm Exp $
+# $Id: ServerInfo.py,v 1.85 2004/07/27 03:10:03 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -8,7 +8,8 @@
    descriptors.
    """
 
-__all__ = [ 'ServerInfo', 'ServerDirectory', 'displayServerByRouting' ]
+__all__ = [ 'ServerInfo', 'ServerDirectory', 'displayServerByRouting',
+            'getNicknameByKeyID' ]
 
 import re
 import time
@@ -339,7 +340,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def getIPV4Info(self):
         """Returns a mixminion.Packet.IPV4Info object for routing messages
            to this server.  (Returns None for servers running version 0.0.5
-           or earlier.)"""
+           or earlier.)"""#DOCDOC wrong!
         ip = self.getIP()
         if ip is None: return None
         return mixminion.Packet.IPV4Info(ip, self.getPort(), self.getKeyDigest())
@@ -347,7 +348,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def getMMTPHostInfo(self):
         """Returns a mixminion.Packet.MMTPHostInfo object for routing messages
            to this server.  (Returns None for servers running version 0.0.7
-           or later.)"""
+           or later.)""" #DOCDOC wrong!
         host = self.getHostname()
         if host is None: return None
         return mixminion.Packet.MMTPHostInfo(
@@ -396,7 +397,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
             return 1
         myOutProtocols = self.getOutgoingMMTPProtocols()
         otherInProtocols = otherDesc.getIncomingMMTPProtocols()
-        if not self.getHostname() and not other.getIP():
+        if not self.getHostname() and not otherDesc.getIP():
             return 0
         for out in myOutProtocols:
             if out in otherInProtocols:
