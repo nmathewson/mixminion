@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.55 2003/11/24 19:59:03 nickm Exp $
+# $Id: Makefile,v 1.56 2003/11/25 03:41:57 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -90,19 +90,17 @@ testvectors:
 
 
 install: do_build
-	@$(FINDPYTHON); \
-	if [ 'x' = "x$(PREFIX)" ] ; then                                     \
-	  echo $$PYTHON -tt setup.py install --compile --optimize=1 --force; \
-	  $$PYTHON -tt setup.py install --compile --optimize=1 --force;      \
-	else                                                                 \
-	  PREFIX=$(PREFIX);                                                  \
-	  export PREFIX;                                                     \
-	  echo $$PYTHON -tt setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force; \
-	  $$PYTHON -tt setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force;\
-	fi
-
-#	  echo "MIXMINION SAYS: Please ignore the warning about sys.path:"
-#	  echo "  The installed script will adjust sys.path automatically."
+	@$(FINDPYTHON);                                                      \
+	ARGS="install --compile --optimize=1 --force";                       \
+	if [ 'x' != "x$(PREFIX)" ] ; then                                    \
+	  PREFIX=$(PREFIX); export PREFIX;                                   \
+	  ARGS="$$ARGS --prefix=$(PREFIX)";                                  \
+	fi;                                                                  \
+	if [ 'x' != "x$(DESTDIR)" ] ; then                                   \
+	  ARGS="$$ARGS --root=$(DESTDIR)";                                   \
+        fi;                                                                  \
+	echo $$PYTHON -tt setup.py $$ARGS;                                   \
+	$$PYTHON -tt setup.py $$ARGS
 
 update:
 	@$(FINDPYTHON);                                                      \
