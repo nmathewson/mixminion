@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.114 2004/01/09 01:03:27 nickm Exp $
+# $Id: ServerMain.py,v 1.115 2004/01/27 05:16:29 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -398,8 +398,8 @@ class CleaningThread(threading.Thread):
        main thread.
     """
     # Fields:
-    #   mqueue: A ClearableQueue holding filenames to delete, or None to indicate
-    #     a shutdown.
+    #   mqueue: A ClearableQueue holding lists of filenames to delete,
+    #     or None to indicate a shutdown.
     def __init__(self):
         threading.Thread.__init__(self)
         self.mqueue = ClearableQueue()
@@ -408,12 +408,11 @@ class CleaningThread(threading.Thread):
         """Schedule the file named 'fname' for deletion"""
         #LOG.trace("Scheduling %s for deletion", fname)
         assert fname is not None
-        self.mqueue.put(fname)
+        self.mqueue.put([fname])
 
     def deleteFiles(self, fnames):
         """Schedule all the files in the list 'fnames' for deletion"""
-        for f in fnames:
-            self.deleteFile(f)
+        self.mqueue.put(fnames)
 
     def shutdown(self):
         """Tell this thread to shut down once it has deleted all pending
@@ -427,16 +426,32 @@ class CleaningThread(threading.Thread):
            a filename to delete or an indication to shutdown, then
            acts accordingly."""
         try:
-            while 1:
-                fn = self.mqueue.get()
-                if fn is None:
-                    LOG.info("Cleanup thread shutting down.")
-                    return
-                if os.path.exists(fn):
-                    #LOG.trace("Deleting %s", fn)
-                    secureDelete(fn, blocking=1)
-                else:
-                    LOG.warn("Delete thread didn't find file %s",fn)
+            running = 1
+            while running:
+                fnames = self.mqueue.get()
+                if fnames is None:
+                    fnames = []
+                    running = 0
+
+                try:
+                    while 1:
+                        more = self.mqueue.get(0)
+                        if more is None:
+                            running=0
+                        fnames.extend(more)
+                except QueueEmpty:
+                    pass
+                   
+                delNames = []
+                for fn in fnames:
+                    if os.path.exists(fn):
+                        delNames.append(fn)
+                    else:
+                        LOG.warn("Delete thread didn't find file %s",fn)
+
+                secureDelete(delNames, blocking=1)
+
+            LOG.info("Cleanup thread shutting down.")
         except:
             LOG.error_exc(sys.exc_info(),
                           "Exception while cleaning; shutting down thread.")
@@ -1023,10 +1038,13 @@ def closeUnusedFDs():
     """Close stdin, stdout, and stderr."""
     # (We could try to do this via sys.stdin.close() etc., but then we
     #  would miss the magic copies in sys.__stdin__, sys.__stdout__, etc.
-    #  Using os.close instead just nukes the FD for us.)
-    os.close(sys.stdin.fileno())
-    os.close(sys.stdout.fileno())
-    os.close(sys.stderr.fileno())
+    #  Using os.dup2 instead just nukes the old file for us, and keeps the
+    #  fd from getting reused.)
+    nullfd = os.open("/dev/null", os.O_RDWR|os.O_APPEND)
+    os.dup2(nullfd, sys.stdin.fileno())
+    os.dup2(nullfd, sys.stdout.fileno())
+    os.dup2(nullfd, sys.stderr.fileno())
+    os.close(nullfd)
     # Override stdout and stderr in case some code tries to use them
     sys.stdout = sys.__stdout__ = LogStream("STDOUT", "WARN")
     sys.stderr = sys.__stderr__ = LogStream("STDERR", "WARN")
