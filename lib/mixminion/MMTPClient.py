@@ -1,23 +1,25 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.41 2003/11/07 07:03:28 nickm Exp $
+# $Id: MMTPClient.py,v 1.42 2003/11/19 09:48:09 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
    side of the Mixminion Transfer protocol.  You can use this client to
-   upload messages to any conforming Mixminion server.
+   upload packets to any conforming Mixminion server.
 
    (We don't use this module for transferring packets between servers;
    in fact, MMTPServer makes it redundant.  We only keep this module
    around [A] so that clients have an easy (blocking) interface to
-   introduce messages into the system, and [B] so that we've got an
+   introduce packets into the system, and [B] so that we've got an
    easy-to-verify reference implementation of the protocol.)
    """
 
-__all__ = [ "BlockingClientConnection", "sendMessages" ]
+__all__ = [ "BlockingClientConnection", "sendPackets" ]
 
 import socket
 import mixminion._minionlib as _ml
 import mixminion.NetUtils
+import mixminion.Packet
+import mixminion.ServerInfo
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Common import MixProtocolError, MixProtocolReject, \
      MixProtocolBadAuth, LOG, MixError, formatBase64, TimeoutError
@@ -40,7 +42,8 @@ class BlockingClientConnection:
     # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
     #     in decreasing order of preference.
     PROTOCOL_VERSIONS = ['0.3']
-    def __init__(self, targetFamily, targetAddr, targetPort, targetKeyID):
+    def __init__(self, targetFamily, targetAddr, targetPort, targetKeyID,
+                 serverName=None):
         """Open a new connection."""
         self.targetFamily = targetFamily
         self.targetAddr = targetAddr
@@ -53,6 +56,12 @@ class BlockingClientConnection:
         self.tls = None
         self.sock = None
         self.certCache = PeerCertificateCache()
+        if serverName:
+            self.serverName = serverName
+            #DOCDOC
+        else:
+            self.serverName = mixminion.ServerInfo.displayServer(
+                mixminion.Packet.IPV4Info(targetAddr, targetPort, targetKeyID))
 
     def connect(self, connectTimeout=None):
         """Connect to the server, perform the TLS handshake, check the server
@@ -72,10 +81,15 @@ class BlockingClientConnection:
         """Helper method: given an exception (err) and an action string (e.g.,
            'connecting'), raises an appropriate MixProtocolError.
         """
+        errstr = str(err)
         if isinstance(err, socket.error):
             tp = "Socket"
+            if mixminion.NetUtils.exceptionIsTimeout(err):
+                tp = "Timeout"
         elif isinstance(err, _ml.TLSError):
             tp = "TLS"
+            if errstr == 'wrong version number':
+                errstr = 'wrong version number (or failed handshake)'
         elif isinstance(err, _ml.TLSClosed):
             tp = "TLSClosed"
         elif isinstance(err, _ml.TLSWantRead):
@@ -84,8 +98,8 @@ class BlockingClientConnection:
             tp = "Unexpected TLSWantWrite"
         else:
             tp = str(type(err))
-        e = MixProtocolError("%s error while %s to %s:%s: %s" %(
-                             tp, action, self.targetAddr, self.targetPort, err))
+        e = MixProtocolError("%s error while %s to %s: %s" %(
+                             tp, action, self.serverName, errstr))
         e.base = err
         raise e
 
@@ -94,20 +108,19 @@ class BlockingClientConnection:
         # Connect to the server
         self.sock = socket.socket(self.targetFamily, socket.SOCK_STREAM)
         self.sock.setblocking(1)
-        LOG.debug("Connecting to %s:%s", self.targetAddr, self.targetPort)
+        LOG.debug("Connecting to %s", self.serverName)
 
         # Do the TLS handshaking
         mixminion.NetUtils.connectWithTimeout(
             self.sock, (self.targetAddr, self.targetPort), connectTimeout)
         
-        LOG.debug("Handshaking with %s:%s",self.targetAddr, self.targetPort)
+        LOG.debug("Handshaking with %s:", self.serverName)
         self.tls = self.context.sock(self.sock.fileno())
         self.tls.connect()
         LOG.debug("Connected.")
         # Check the public key of the server to prevent man-in-the-middle
         # attacks.
-        self.certCache.check(self.tls, self.targetKeyID,
-                             "%s:%s"%(self.targetAddr,self.targetPort))
+        self.certCache.check(self.tls, self.targetKeyID, self.serverName)
 
         ####
         # Protocol negotiation
@@ -131,7 +144,8 @@ class BlockingClientConnection:
                 break
         if not self.protocol:
             raise MixProtocolError("Protocol negotiation failed")
-        LOG.debug("MMTP protocol negotiated: version %s", self.protocol)
+        LOG.debug("MMTP protocol negotiated with %s: version %s",
+                  self.serverName, self.protocol)
 
     def renegotiate(self):
         """Re-do the TLS handshake to renegotiate a new connection key."""
@@ -157,7 +171,7 @@ class BlockingClientConnection:
         """Helper method: implements sendPacket and sendJunkPacket.
               packet -- a 32K string to send
               control -- a 6-character string ending with CRLF to
-                  indicate the type of message we're sending.
+                  indicate the type of packet we're sending.
               serverControl -- a 10-character string ending with CRLF that
                   we expect to receive if we've sent correctly.
               hashExtra -- a string to append to the packet when computing
@@ -188,8 +202,7 @@ class BlockingClientConnection:
 
     def shutdown(self):
         """Close this connection."""
-        LOG.debug("Shutting down connection to %s:%s",
-                  self.targetAddr, self.targetPort)
+        LOG.debug("Shutting down connection to %s", self.serverName)
         try:
             if self.tls is not None:
                 self.tls.shutdown()
@@ -200,8 +213,8 @@ class BlockingClientConnection:
             self._raise(e, "closing connection")
         LOG.debug("Connection closed")
 
-def sendMessages(routing, packetList, connectTimeout=None, callback=None):
-    """Sends a list of messages to a server.  Raise MixProtocolError on
+def sendPackets(routing, packetList, connectTimeout=None, callback=None):
+    """Sends a list of packets to a server.  Raise MixProtocolError on
        failure.
 
        routing -- an instance of mixminion.Packet.IPV4Info or
@@ -224,7 +237,9 @@ def sendMessages(routing, packetList, connectTimeout=None, callback=None):
         elif p == 'RENEGOTIATE':
             packets.append(("RENEGOTIATE", None))
         else:
-            packets.append(("MSG", p))
+            packets.append(("PKT", p))
+
+    serverName = mixminion.ServerInfo.displayServer(routing)
 
     if isinstance(routing, IPV4Info):
         family, addr = socket.AF_INET, routing.ip
@@ -236,7 +251,8 @@ def sendMessages(routing, packetList, connectTimeout=None, callback=None):
             raise MixProtocolError("Couldn't resolve hostname %s: %s",
                                    routing.hostname, addr)
 
-    con = BlockingClientConnection(family,addr,routing.port,routing.keyinfo)
+    con = BlockingClientConnection(family,addr,routing.port,routing.keyinfo,
+                                   serverName=serverName)
     try:
         con.connect(connectTimeout=connectTimeout)
         for idx in xrange(len(packets)):
@@ -257,7 +273,7 @@ def pingServer(routing, connectTimeout=5):
 
        May raise MixProtocolBadAuth, or other MixProtocolError if server
        isn't up."""
-    sendMessages(routing, ["JUNK"], connectTimeout=connectTimeout)
+    sendPackets(routing, ["JUNK"], connectTimeout=connectTimeout)
 
 class PeerCertificateCache:
     """A PeerCertificateCache validates certificate chains from MMTP servers,
@@ -267,17 +283,19 @@ class PeerCertificateCache:
     def __init__(self):
         self.cache = {}
 
-
-    def check(self, tls, targetKeyID, address):
+    #XXXX006 use displayName to 
+    def check(self, tls, targetKeyID, serverName):
         """Check whether the certificate chain on the TLS connection 'tls'
            is valid, current, and matches the keyID 'targetKeyID'.  If so,
            return.  If not, raise MixProtocolBadAuth.
         """
+        
         # First, make sure the certificate is neither premature nor expired.
         try:
             tls.check_cert_alive()
         except _ml.TLSError, e:
-            raise MixProtocolBadAuth("Invalid certificate: %s" % str(e))
+            raise MixProtocolBadAuth("Invalid certificate from %s: %s" % (
+                serverName, str(e)))
 
         # If we don't care whom we're talking to, we don't need to check
         # them out.
@@ -293,15 +311,13 @@ class PeerCertificateCache:
         # compatibility as well.
         if targetKeyID == hashed_peer_pk:
             raise MixProtocolBadAuth(
-               "Pre-0.0.4 (non-rotatable) certificate from server at %s" %
-               address)
+               "Pre-0.0.4 (non-rotatable) certificate from %s" % serverName)
 
         try:
             if targetKeyID == self.cache[hashed_peer_pk]:
                 # We recognize the key, and have already seen it to be
                 # signed by the target identity.
-                LOG.trace("Got a cached certificate from server at %s",
-                          address)
+                LOG.trace("Got a cached certificate from %s", serverName)
                 return # All is well.
             else:
                 # We recognize the key, but some other identity signed it.
@@ -315,13 +331,12 @@ class PeerCertificateCache:
         try:
             identity = tls.verify_cert_and_get_identity_pk()
         except _ml.TLSError, e:
-            raise MixProtocolBadAuth("Invalid KeyID from server at %s: %s"
-                                   %(address, e))
+            raise MixProtocolBadAuth("Invalid KeyID (allegedly) from %s: %s"
+                                   %serverName)
 
         # Okay, remember who has signed this certificate.
         hashed_identity = sha1(identity.encode_key(public=1))
-        LOG.trace("Remembering valid certificate for server at %s",
-                  address)
+        LOG.trace("Remembering valid certificate for %s", serverName)
         self.cache[hashed_peer_pk] = hashed_identity
 
         # Note: we don't need to worry about two identities signing the
@@ -332,4 +347,4 @@ class PeerCertificateCache:
 
         # Was the signer the right person?
         if hashed_identity != targetKeyID:
-            raise MixProtocolBadAuth("Invalid KeyID for server at %s" %address)
+            raise MixProtocolBadAuth("Invalid KeyID for %s" % serverName)

@@ -106,7 +106,7 @@ def connectWithTimeout(sock,dest,timeout=None):
                 return sock.connect(dest)
             except socket.error, e:
                 if e[0] in IN_PROGRESS_ERRNOS:
-                    raise TimeoutError()
+                    raise TimeoutError("Connection timed out")
                 else:
                     raise
         finally:
@@ -125,7 +125,7 @@ def connectWithTimeout(sock,dest,timeout=None):
             except select.error, e:
                 raise
             if not wfds:
-                raise TimeoutError()
+                raise TimeoutError("Connection timed out")
 ##             try:
 ##                 sock.connect(dest)
 ##             except select.error, e:
@@ -287,13 +287,13 @@ def nameIsStaticIP(name):
         try:
             val = normalizeIP6(name)
             return (AF_INET6, val, time.time())
-        except ValueError, e:
+        except ValueError:
             return None
     elif name and name[0].isdigit():
         try:
             val = normalizeIP4(name)
             return (AF_INET, val, time.time())
-        except ValueError, e:
+        except ValueError:
             return None
     else:
         return None

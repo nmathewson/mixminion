@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.60 2003/11/07 10:43:18 nickm Exp $
+# $Id: Main.py,v 1.61 2003/11/19 09:48:09 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -252,6 +252,13 @@ def main(args):
     # and args[2:] are passed to the command we select.
 
     correctPath(args[0])
+
+##     if len(args) > 2 and args[1] == 'mixminiond':
+##         if _COMMANDS.has_key("server-"+args[2]):
+##             args[1:3] = "server-"+args[2]
+##         else:
+##             printUsage()
+##             sys.exit(1)
 
     # Check whether we have a recognized command.
     if len(args) == 1  or not _COMMANDS.has_key(args[1]):

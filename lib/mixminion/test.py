@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.164 2003/11/10 04:12:20 nickm Exp $
+# $Id: test.py,v 1.165 2003/11/19 09:48:10 nickm Exp $
 
 """mixminion.tests
 
@@ -2030,7 +2030,7 @@ class BuildMessageTests(TestCase):
 
         message = consMsg(secrets1, secrets2, h1, h2, pld)
 
-        self.assertEquals(len(message), mixminion.Packet.MESSAGE_LEN)
+        self.assertEquals(len(message), mixminion.Packet.PACKET_LEN)
         msg = mixminion.Packet.parsePacket(message)
         head1, head2, payload = msg.header1, msg.header2, msg.payload
         self.assert_(h1 == head1)
@@ -2057,7 +2057,7 @@ class BuildMessageTests(TestCase):
         ######
         ### Reply case
         message = consMsg(secrets1, None, h1, h2, pld)
-        self.assertEquals(len(message), mixminion.Packet.MESSAGE_LEN)
+        self.assertEquals(len(message), mixminion.Packet.PACKET_LEN)
         msg = mixminion.Packet.parsePacket(message)
         head1, head2, payload = msg.header1, msg.header2, msg.payload
         self.assert_(h1 == head1)
@@ -2550,7 +2550,7 @@ class PacketHandlerTests(TestCase):
                     routinginfo: sequence of expected routinginfo, excl tags
                     payload: beginning of expected final payload."""
         for sp, rt, ri in zip(sps,routingtypes,routinginfo):
-            res = sp.processMessage(m)
+            res = sp.processPacket(m)
             self.assert_(isinstance(res, DeliveryPacket) or
                          isinstance(res, RelayedPacket))
             if rt in (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE):
@@ -2753,23 +2753,23 @@ class PacketHandlerTests(TestCase):
         m = bfm(zPayload, MBOX_TYPE, "hello\000bye",
                 [self.server2, server1X, self.server3],
                 [server1X, self.server2, self.server3])
-        self.failUnlessRaises(ParseError, self.sp2.processMessage, m)
+        self.failUnlessRaises(ParseError, self.sp2.processPacket, m)
 
         # Duplicate messages need to fail.
         m = bfm(zPayload, SMTP_TYPE, "nobody@invalid",
                 [self.server1, self.server2], [self.server3])
-        self.sp1.processMessage(m)
-        self.failUnlessRaises(ContentError, self.sp1.processMessage, m)
+        self.sp1.processPacket(m)
+        self.failUnlessRaises(ContentError, self.sp1.processPacket, m)
 
         # Duplicate reply blocks need to fail
         reply,s,tag = brbi([self.server3], SMTP_TYPE, "fred@invalid")
         yPayload = BuildMessage.encodeMessage("Y",0)[0]
         m = brm(yPayload, [self.server2], reply)
         m2 = brm(yPayload, [self.server1], reply)
-        m = self.sp2.processMessage(m).getPacket()
-        self.sp3.processMessage(m)
-        m2 = self.sp1.processMessage(m2).getPacket()
-        self.failUnlessRaises(ContentError, self.sp3.processMessage, m2)
+        m = self.sp2.processPacket(m).getPacket()
+        self.sp3.processPacket(m)
+        m2 = self.sp1.processPacket(m2).getPacket()
+        self.failUnlessRaises(ContentError, self.sp3.processPacket, m2)
 
         # Even duplicate secrets need to go.
         prng = AESCounterPRNG(" "*16)
@@ -2778,29 +2778,29 @@ class PacketHandlerTests(TestCase):
         reply2,s,t = brbi([self.server2], MBOX_TYPE, "foo",0,prng)
         m = brm(yPayload, [self.server3], reply1)
         m2 = brm(yPayload, [self.server3], reply2)
-        m = self.sp3.processMessage(m).getPacket()
-        self.sp1.processMessage(m)
-        m2 = self.sp3.processMessage(m2).getPacket()
-        self.failUnlessRaises(ContentError, self.sp2.processMessage, m2)
+        m = self.sp3.processPacket(m).getPacket()
+        self.sp1.processPacket(m)
+        m2 = self.sp3.processPacket(m2).getPacket()
+        self.failUnlessRaises(ContentError, self.sp2.processPacket, m2)
 
         # Drop gets dropped.
         m = bfm(zPayload, DROP_TYPE, "", [self.server2], [self.server2])
-        m = self.sp2.processMessage(m).getPacket()
-        res = self.sp2.processMessage(m)
+        m = self.sp2.processPacket(m).getPacket()
+        res = self.sp2.processPacket(m)
         self.assertEquals(res,None)
 
         # Wrong server.
         m = bfm(zPayload, DROP_TYPE, "", [self.server1], [self.server2])
-        self.failUnlessRaises(CryptoError, self.sp2.processMessage, m)
-        self.failUnlessRaises(CryptoError, self.sp2_3.processMessage, m)
+        self.failUnlessRaises(CryptoError, self.sp2.processPacket, m)
+        self.failUnlessRaises(CryptoError, self.sp2_3.processPacket, m)
 
         # Plain junk in header
         m_x = ("XY"*64)+m[128:]
-        self.failUnlessRaises(CryptoError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(CryptoError, self.sp1.processPacket, m_x)
 
         # Bad message length
         m_x = m+"Z"
-        self.failUnlessRaises(ParseError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ParseError, self.sp1.processPacket, m_x)
 
         # Bad internal type
         try:
@@ -2813,43 +2813,43 @@ class PacketHandlerTests(TestCase):
             m_x = bfm(zPayload, 500, "", [self.server1], [self.server2])
         finally:
             SWAP_FWD_IPV4_TYPE = save
-        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ContentError, self.sp1.processPacket, m_x)
 
         # Subhead with bad length
         m_x = pk_encrypt("foo", self.pk1)+m[256:]
-        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ContentError, self.sp1.processPacket, m_x)
 
         # Subhead we can't parse.
         m_x = pk_encrypt("f"*(256-42), self.pk1)+m[256:]
-        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ContentError, self.sp1.processPacket, m_x)
 
         # Bad IPV4 info
         subh_real = pk_decrypt(m[:256], self.pk1)
         subh = parseSubheader(subh_real)
         subh.setRoutingInfo(subh.routinginfo + "X")
         m_x = pk_encrypt(subh.pack()+subh.underflow[:-1], self.pk1)+m[256:]
-        self.failUnlessRaises(ParseError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ParseError, self.sp1.processPacket, m_x)
 
         # Bad Major or Minor
         subh = parseSubheader(subh_real)
         subh.major = 255
         m_x = pk_encrypt(subh.pack()+subh.underflow, self.pk1)+m[256:]
-        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ContentError, self.sp1.processPacket, m_x)
 
         # Bad digest
         subh = parseSubheader(subh_real)
         subh.digest = " "*20
         m_x = pk_encrypt(subh.pack()+subh.underflow, self.pk1)+m[256:]
-        self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
+        self.failUnlessRaises(ContentError, self.sp1.processPacket, m_x)
 
         # Corrupt payload
         m = bfm(zPayload, MBOX_TYPE, "Z", [self.server1, self.server2],
                 [self.server3])
         m_x = m[:-30] + " "*30
         assert len(m_x) == len(m)
-        m_x = self.sp1.processMessage(m_x).getPacket()
-        m_x = self.sp2.processMessage(m_x).getPacket()
-        self.failUnlessRaises(CryptoError, self.sp3.processMessage, m_x)
+        m_x = self.sp1.processPacket(m_x).getPacket()
+        m_x = self.sp2.processPacket(m_x).getPacket()
+        self.failUnlessRaises(CryptoError, self.sp3.processPacket, m_x)
 
 #----------------------------------------------------------------------
 # FILESTORE and QUEUE
@@ -3707,28 +3707,28 @@ class MMTPTests(TestCase):
         self.doTest(self._testRejected)
 
     def _testBlockingTransmission(self):
-        server, listener, messagesIn, keyid = _getMMTPServer()
+        server, listener, packetsIn, keyid = _getMMTPServer()
         self.listener = listener
         self.server = server
 
-        messages = ["helloxxx"*4096, "helloyyy"*4096]
+        packets = ["helloxxx"*4096, "helloyyy"*4096]
 
         # Send m1, then junk, then renegotiate, then m2.
         server.process(0.1)
         routing = IPV4Info("127.0.0.1", TEST_PORT, keyid)
         t = threading.Thread(None,
-                             mixminion.MMTPClient.sendMessages,
+                             mixminion.MMTPClient.sendPackets,
                              args=(routing,
-                             [messages[0],"JUNK","RENEGOTIATE",messages[1]]))
+                             [packets[0],"JUNK","RENEGOTIATE",packets[1]]))
         t.start()
-        while len(messagesIn) < 2:
+        while len(packetsIn) < 2:
             server.process(0.1)
         t.join()
 
         for _ in xrange(3):
             server.process(0.1)
 
-        self.failUnless(messagesIn == messages)
+        self.failUnless(packetsIn == packets)
         self.assertEquals(1, server.nJunkPackets)
 
         # Now, with bad keyid.
@@ -3736,8 +3736,8 @@ class MMTPTests(TestCase):
         t = threading.Thread(None,
                              self.failUnlessRaises,
                              args=(MixProtocolError,
-                                   mixminion.MMTPClient.sendMessages,
-                                   routing, messages))
+                                   mixminion.MMTPClient.sendPackets,
+                                   routing, packets))
         t.start()
         while t.isAlive():
             server.process(0.1)
@@ -3773,7 +3773,7 @@ class MMTPTests(TestCase):
         try:
             try:
                 routing = IPV4Info("127.0.0.1", TEST_PORT, "Z"*20)
-                mixminion.MMTPClient.sendMessages(routing, ["JUNK"],
+                mixminion.MMTPClient.sendPackets(routing, ["JUNK"],
                                                    connectTimeout=1)
                 timedout = 0
             except mixminion.MMTPClient.TimeoutError:
@@ -3787,14 +3787,14 @@ class MMTPTests(TestCase):
         self.assert_(timedout)
 
     def _testNonblockingTransmission(self):
-        server, listener, messagesIn, keyid = _getMMTPServer()
+        server, listener, packetsIn, keyid = _getMMTPServer()
         self.listener = listener
         self.server = server
 
         # Send m1, then junk, then renegotiate, then junk, then m2.
         tlscon = mixminion.server.MMTPServer.SimpleTLSConnection
-        messages = ["helloxxx"*4096, "helloyyy"*4096]
-        deliv = [FakeDeliverable(m) for m in messages]
+        packets = ["helloxxx"*4096, "helloyyy"*4096]
+        deliv = [FakeDeliverable(m) for m in packets]
         async = mixminion.server.MMTPServer.AsyncServer()
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid,
@@ -3811,7 +3811,7 @@ class MMTPTests(TestCase):
 
         c = None
         t.start()
-        while len(messagesIn) < 2:
+        while len(packetsIn) < 2:
             if c is None and len(server.readers) > 1:
                 c = [ c for c in server.readers.values() if
                       isinstance(c, tlscon) ]
@@ -3821,8 +3821,8 @@ class MMTPTests(TestCase):
         t.join()
         endTime = time.time()
 
-        self.assertEquals(len(messagesIn), len(messages))
-        self.failUnless(messagesIn == messages)
+        self.assertEquals(len(packetsIn), len(packets))
+        self.failUnless(packetsIn == packets)
         self.failUnless(c is not None)
         self.failUnless(len(c) == 1)
         self.failUnless(startTime <= c[0].lastActivity <= endTime)
@@ -3831,7 +3831,7 @@ class MMTPTests(TestCase):
         self.assert_(deliv[1]._succeeded)
 
         # Again, with bad keyid.
-        deliv = [FakeDeliverable(m) for m in messages]
+        deliv = [FakeDeliverable(p) for p in packets]
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
             _getTLSContext(0), "127.0.0.1", TEST_PORT, "Z"*20,
             deliv[:], None)
@@ -3856,11 +3856,11 @@ class MMTPTests(TestCase):
         self.assert_(deliv[1]._failed)
 
     def _testTimeout(self):
-        server, listener, messagesIn, keyid = _getMMTPServer()
+        server, listener, packetsIn, keyid = _getMMTPServer()
         self.listener = listener
         self.server = server
 
-        # This function wraps MMTPClient.sendMessages, but catches exceptions.
+        # This function wraps MMTPClient.sendPackets but catches exceptions.
         # Since we're going to run this function in a thread, we pass the
         # exception back through a list argument.
         def sendSlowlyAndCaptureException(exlst, pausing, targetIP, targetPort,
@@ -3891,7 +3891,7 @@ class MMTPTests(TestCase):
         timedOut = 0 # flag: have we really timed out?
         try:
             suspendLog() # stop logging, but wait for the timeout message.
-            while len(messagesIn) < 2:
+            while len(packetsIn) < 2:
                 server.process(0.1)
                 # If the number of connections changes around the call
                 # to tryTimeout, the timeout has occurred.
@@ -3907,7 +3907,7 @@ class MMTPTests(TestCase):
         # Did we log the timeout?
         self.assert_(stringContains(logMessage, "timed out"))
         # Was the one message we expected in fact transmitted?
-        self.assertEquals([messagesIn[0]], ["helloxxx"*4096])
+        self.assertEquals([packetsIn[0]], ["helloxxx"*4096])
 
         # Now stop the transmitting thread.  It will notice that its
         # connection has been forcibly closed.
@@ -3924,18 +3924,18 @@ class MMTPTests(TestCase):
             server.process(0.1)
 
     def _testRejected(self):
-        server, listener, messagesIn, keyid = _getMMTPServer(reject=1)
+        server, listener, packetsIn, keyid = _getMMTPServer(reject=1)
         self.listener = listener
         self.server = server
 
-        messages = ["helloxxx"*4096, "helloyyy"*4096]
-        # Send 2 messages -- both should be rejected.
+        packets = ["helloxxx"*4096, "helloyyy"*4096]
+        # Send 2 packets -- both should be rejected.
         server.process(0.1)
         routing = IPV4Info("127.0.0.1", TEST_PORT, keyid)
         ok=[0];done=[0]
-        def _t(routing=routing, messages=messages,ok=ok,done=done):
+        def _t(routing=routing, packets=packets, ok=ok, done=done):
             try:
-                mixminion.MMTPClient.sendMessages(routing,messages)
+                mixminion.MMTPClient.sendPackets(routing,packets)
             except mixminion.Common.MixProtocolReject:
                 ok[0] = 1
             done[0] = 1
@@ -3949,11 +3949,11 @@ class MMTPTests(TestCase):
             server.process(0.1)
 
         self.failUnless(ok[0])
-        self.failUnless(len(messagesIn) == 0)
+        self.failUnless(len(packetsIn) == 0)
 
         # Send m1, then junk, then renegotiate, then junk, then m2.
-        messages = ["helloxxx"*4096, "helloyyy"*4096]
-        deliv = [FakeDeliverable(m) for m in messages]
+        packets = ["helloxxx"*4096, "helloyyy"*4096]
+        deliv = [FakeDeliverable(p) for p in packets]
         async = mixminion.server.MMTPServer.AsyncServer()
 
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
@@ -3971,7 +3971,7 @@ class MMTPTests(TestCase):
         while t.isAlive():
             server.process(0.1)
         t.join()
-        self.assertEquals(len(messagesIn), 0)
+        self.assertEquals(len(packetsIn), 0)
         self.assertEquals(deliv[0]._retriable, 1)
         self.assertEquals(deliv[1]._retriable, 1)
 
@@ -4388,11 +4388,18 @@ Allow: *
 Enabled = yes
 Allow: *
 Retry: every 1 hour for 1 day, every 1 day for 1 week
+"""
 
+MBOX_SEC = """
 [Delivery/MBOX]
-Enabled: no
+Enabled: yes
+AddressFile: %s
+ReturnAddress: a@b.c
+RemoveContact: b@c.d
 Retry: every 1 hour for 1 day, every 1 day for 1 week
+"""
 
+FRAGMENTED_SEC = """
 [Delivery/Fragmented]
 Enabled yes
 MaximumSize: 100k
@@ -4459,9 +4466,45 @@ class ServerInfoTests(TestCase):
                                            ])
         eq(info['Delivery/MBOX'].get('Version'), None)
 
+        # Now add frag and mbox
+        af = mix_mktemp()
+        writeFile(af, "")
+        try:
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(
+                string=(SERVER_CONFIG % mix_mktemp()+FRAGMENTED_SEC+
+                        (MBOX_SEC%af)))
+        finally:
+            resumeLog()
+        if not os.path.exists(d):
+            os.mkdir(d, 0700)
+
+        inf = generateServerDescriptorAndKeys(conf,
+                                              identity,
+                                              d,
+                                              "key2",
+                                              d)
+        info = mixminion.ServerInfo.ServerInfo(string=inf)
+        eq(info['Delivery/MBOX'].get('Version'), '0.1')
         eq(info['Delivery/Fragmented'].get('Version'), '0.1')
         eq(info['Delivery/Fragmented'].get('Maximum-Fragments'), 6)
-        
+
+        # Test features
+        rfn = mixminion.Config.resolveFeatureName
+        SI = mixminion.ServerInfo.ServerInfo
+        self.assertEquals(rfn("softwarE",SI), ("Server", "Software"))
+        self.assertEquals(rfn("delivery/mbox:version",SI),
+                          ("Delivery/MBOX", "Version"))
+        self.assertEquals(rfn("caps",SI), ('-','caps'))
+        self.assertRaises(UIError, rfn, "version", SI)
+        self.assertRaises(UIError, rfn, "versiojdkasldj", SI)
+        self.assertRaises(UIError, rfn, "Server:foob", SI)
+        self.assertRaises(UIError, rfn, "Beep:version", SI)
+        self.assertEquals(info.getFeature("Server", "Packet-Key"),
+                          "<public key>")
+        self.assertEquals(info.getFeature("Incoming/MMTP", "Port"), "48099")
+        self.assertEquals(info.getFeature("-", "caps"), "mbox relay frag")
+
         # Check the more complex helpers.
         self.assert_(info.isValidated())
         self.assertEquals(info.getIntervalSet(),
@@ -4503,7 +4546,7 @@ class ServerInfoTests(TestCase):
         self.assert_(info.isNewerThan(time.time()-60*60))
         self.assert_(not info.isNewerThan(time.time()+60))
 
-        self.assertUnorderedEq(info.getCaps(), ["relay", "frag"])
+        self.assertUnorderedEq(info.getCaps(), ["frag", "relay", "mbox"])
 
         self.assertEquals(info.getIncomingMMTPProtocols(), ["0.3"])
         self.assertEquals(info.getOutgoingMMTPProtocols(), ["0.3"])
@@ -4528,9 +4571,9 @@ class ServerInfoTests(TestCase):
         self.assert_(stringContains(s,"Unrecognized key Unexpected-Key on line"))
 
         # Now make sure everything was saved properly
-        keydir = os.path.join(d, "key_key1")
+        keydir = os.path.join(d, "key_key2")
         eq(inf, readFile(os.path.join(keydir, "ServerDesc")))
-        mixminion.server.ServerKeys.ServerKeyset(d, "key1", d) # Can we load?
+        mixminion.server.ServerKeys.ServerKeyset(d, "key2", d) # Can we load?
         packetKey = Crypto.pk_PEM_load(
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
@@ -4679,6 +4722,7 @@ IP: 192.168.100.4
         info3 = key3.getServerDescriptor()
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver4")
         eq(info3['Incoming/MMTP']['IP'], "192.168.100.4")
+
 
 
     def test_directory(self):
@@ -5891,6 +5935,7 @@ class DNSFarmTests(TestCase):
             lock.release()
         try:
             DELAY = 0.2
+            LATENCY = 1.0
             overrideDNS({'foo'    : '10.2.4.11',
                          'bar'    : '18:0FFF::4:1',
                          'baz.com': '10.99.22.8'},
@@ -5912,14 +5957,14 @@ class DNSFarmTests(TestCase):
                               (socket.AF_INET, '10.2.4.11'))
             self.assertEquals(receiveDict['bar'][:2],
                               (mixminion.NetUtils.AF_INET6, '18:0FFF::4:1'))
-            self.assertFloatEq(receiveDict['foo'][2]-start, DELAY, .3)
-            self.assertFloatEq(receiveDict['bar'][2]-start, DELAY, .3)
+            self.assert_(DELAY <= receiveDict['foo'][2]-start <= DELAY+LATENCY)
+            self.assert_(DELAY <= receiveDict['bar'][2]-start <= DELAY+LATENCY)
             self.assertEquals(receiveDict['nowhere.noplace'][0], "NOENT")
             self.assertEquals(cache.getNonblocking("foo"),
                               receiveDict['foo'])
             self.assertEquals(cache.getNonblocking("baz.com")[:2],
                               (socket.AF_INET, '10.99.22.8'))
-            self.assertFloatEq(receiveDict['baz.com'][2]-start, DELAY*1.25, .3)
+            self.assert_(DELAY*1.25 <= receiveDict['baz.com'][2]-start <= DELAY*1.24 + LATENCY)
             cache.cleanCache(receiveDict['foo'][2]+
                              mixminion.server.DNSFarm.MAX_ENTRY_TTL+.001)
             self.assertEquals(cache.getNonblocking('foo'), None)
@@ -6155,7 +6200,7 @@ class ClientUtilTests(TestCase):
         self.assertEquals({9:10,11:12},
                           CU.readEncryptedPickled(f2,"pswd","ZZZ"))
         
-        # Test LazyEncryptedPickle
+        # Test LazyEncryptedStore
         class DummyPasswordManager(CU.PasswordManager):
             def __init__(self,d):
                 mixminion.ClientUtils.PasswordManager.__init__(self)
@@ -6167,8 +6212,8 @@ class ClientUtilTests(TestCase):
 
         f3 = os.path.join(d, "Baz")
         dpm = DummyPasswordManager({"Password1" : "p1"})
-        lep = CU.LazyEncryptedPickled(f3, dpm, "Password1", "Q:", "N:",
-                                     "magic0", lambda: "x"*3)
+        lep = CU.LazyEncryptedStore(f3, dpm, "Password1", "Q:", "N:",
+                                    "magic0", lambda: "x"*3)
         # Don't create.
         self.assert_(not lep.isLoaded())
         lep.load(create=0)
@@ -6178,7 +6223,7 @@ class ClientUtilTests(TestCase):
         self.assertEquals("x"*3, lep.get())
         self.assertEquals("x"*3, CU.readEncryptedPickled(f3,"p1","magic0"))
 
-        lep = CU.LazyEncryptedPickled(f3, dpm, "Password1", "Q:", "N:",
+        lep = CU.LazyEncryptedStore(f3, dpm, "Password1", "Q:", "N:",
                                      "magic0", lambda: "x"*3)
         lep.load()
         self.assertEquals("x"*3, lep.get())
@@ -6269,16 +6314,8 @@ class ClientDirectoryTests(TestCase):
         ks = mixminion.ClientDirectory.ClientDirectory(dirname)
 
         ## Write the descriptors to disk.
+        impdirname = self.writeDescriptorsToDisk()
         edesc = getExampleServerDescriptors()
-        impdirname = mix_mktemp()
-        createPrivateDir(impdirname)
-        for server, descriptors in edesc.items():
-            for idx in xrange(len(descriptors)):
-                fname = os.path.join(impdirname, "%s%s" % (server,idx))
-                writeFile(fname, descriptors[idx])
-                f = gzip.GzipFile(fname+".gz", 'wb')
-                f.write(descriptors[idx])
-                f.close()
 
         ## Test empty keystore
         eq(None, ks.getServerInfo("Fred"))
@@ -6718,6 +6755,103 @@ class ClientDirectoryTests(TestCase):
         ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
         raises(MixError, ks.getServerInfo, "Lola")
 
+    def testFeatureMaps(self):
+        from mixminion.ClientDirectory import compressFeatureMap
+        from mixminion.ClientDirectory import formatFeatureMap
+        d = self.writeDescriptorsToDisk()
+        direc = mixminion.ClientDirectory.ClientDirectory(mix_mktemp())
+        self.loadDirectory(direc, d)
+        edesc = getExampleServerDescriptors()
+
+        bob3 = mixminion.ServerInfo.ServerInfo(string=edesc['Bob'][3])
+        bob4 = mixminion.ServerInfo.ServerInfo(string=edesc['Bob'][4])
+        features1 = [ 'software' , 'caps', 'status' ]
+        # Simple tests for getFeatureMap
+        fm = direc.getFeatureMap(features1)
+        self.assertUnorderedEq(fm.keys(), ['Fred','Lola','Alice','Bob','Lisa'])
+        self.assertEquals(len(fm['Bob']), 2)
+        self.assertUnorderedEq(fm['Bob'].keys(),
+                               [(bob3['Server']['Valid-After'],
+                                 bob3['Server']['Valid-Until']),
+                                (bob4['Server']['Valid-After'],
+                                 bob4['Server']['Valid-Until'])])
+        self.assertEquals(fm['Bob'].values()[0],
+                          { 'software' : 'Mixminion %s' %mixminion.__version__,
+                            'caps' : 'relay',
+                            'status' : '(not recommended)' })
+
+        # Now let's try compressing.
+        fm = { 'Alice' : { (100,200) : { "A" : "xx", "B" : "yy" },
+                           (200,300) : { "A" : "xx", "B" : "yy" },
+                           (350,400) : { "A" : "xx", "B" : "yy" } },
+               'Bob'   : { (100,200) : { "A" : "zz", "B" : "ww" },
+                           (200,300) : { "A" : "zz", "B" : "kk" } } }
+        fm2 = compressFeatureMap(fm, ignoreGaps=0, terse=0)
+        self.assertEquals(fm2,
+            { 'Alice' : { (100,300) : { "A" : "xx", "B" : "yy" },
+                          (350,400) : { "A" : "xx", "B" : "yy" } },
+              'Bob'   : { (100,200) : { "A" : "zz", "B" : "ww" },
+                          (200,300) : { "A" : "zz", "B" : "kk" } } })
+        fm3 = compressFeatureMap(fm, ignoreGaps=1, terse=0)
+        self.assertEquals(fm3,
+            { 'Alice' : { (100,400) :  { "A" : "xx", "B" : "yy" } },
+              'Bob'   : { (100,200) : { "A" : "zz", "B" : "ww" },
+                          (200,300) : { "A" : "zz", "B" : "kk" } } })
+
+        fm4 = compressFeatureMap(fm, terse=1)
+        self.assertEquals(fm4,
+            { 'Alice' : { (100,400) : { "A" : "xx", "B" : "yy" } },
+              'Bob'   : { (100,300) : { "A" : "zz", "B" : "ww / kk" } } })
+
+        # Test formatFeatureMap.
+        self.assertEquals(formatFeatureMap(["A","B"],fm4,showTime=0,cascade=0),
+          [ "Alice:xx yy", "Bob:zz ww / kk" ])
+        self.assertEquals(formatFeatureMap(["A","B"],fm3,showTime=1,cascade=0),
+          [ "Alice:1970/01/01 to 1970/01/01:xx yy",
+            "Bob:1970/01/01 to 1970/01/01:zz ww",
+            "Bob:1970/01/01 to 1970/01/01:zz kk" ])
+
+        day1 = 24*60*60
+        day2 = 2*24*60*60
+        day3 = 3*24*60*60
+        fmx = { 'Alice' : { (day1,day3)  : { "A" : "aa", "B" : "bb" } },
+                'Bob' : { (day1,day2) : { "A" : "a1", "B" : "b1" },
+                          (day2,day3) : { "A" : "a2", "B" : "b2" } } }
+        self.assertEquals(formatFeatureMap(["A","B"],fmx,cascade=1,sep="##"),
+          [ "Alice:", "  [1970/01/02 to 1970/01/04] aa##bb",
+            "Bob:",
+            "  [1970/01/02 to 1970/01/03] a1##b1",
+            "  [1970/01/03 to 1970/01/04] a2##b2" ])
+        
+        self.assertEquals(formatFeatureMap(["A","B"],fmx,showTime=1,cascade=2),
+          [ "Alice:", "  [1970/01/02 to 1970/01/04]", "    A:aa", "    B:bb",
+            "Bob:",
+            "  [1970/01/02 to 1970/01/03]", "    A:a1", "    B:b1",
+            "  [1970/01/03 to 1970/01/04]", "    A:a2", "    B:b2" ])
+
+    def writeDescriptorsToDisk(self):
+        edesc = getExampleServerDescriptors()
+        d = mix_mktemp()
+        createPrivateDir(d)
+        for server, descs in edesc.items():
+            for idx in xrange(len(descs)):
+                fname = os.path.join(d, "%s%s"%(server,idx))
+                writeFile(fname, descs[idx])
+                f = gzip.GzipFile(fname+".gz", 'wb')
+                f.write(descs[idx])
+                f.close()
+        return d
+
+    def loadDirectory(self, direc, d, now=None):
+        identity = getRSAKey(0,2048)
+        fingerprint = Crypto.pk_fingerprint(identity)
+        fname = getDirectory(
+            [os.path.join(d, s) for s in
+             ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
+              "Bob3", "Bob4", "Lisa1", "Lisa2") ], identity)
+        mixminion.ClientDirectory.MIXMINION_DIRECTORY_URL = fileURL(fname)
+        mixminion.ClientDirectory.MIXMINION_DIRECTORY_FINGERPRINT = fingerprint
+        direc.updateDirectory(now=now)
 
     def assertSameSD(self, s1, s2):
         self.assert_(self.isSameServerDesc(s1,s2))
@@ -6759,8 +6893,9 @@ class ClientMainTests(TestCase):
         parseEq("drop", DROP_TYPE, "", None)
         parseEq("test:foobar", 0xFFFE, "foobar", None)
         parseEq("test", 0xFFFE, "", None)
-        parseEq("0x999:zymurgy", 0x999, "zymurgy", None)
-        parseEq("0x999:", 0x999, "", None)
+        parseEq("0x0999:zymurgy", 0x999, "zymurgy", None)
+        parseEq("0x0999", 0x999, "", None)
+        parseEq("0x0999:", 0x999, "", None)
 
         def parseFails(s, f=self.failUnlessRaises):
             f(ParseError, mixminion.ClientDirectory.parseAddress, s)
@@ -6778,7 +6913,9 @@ class ClientMainTests(TestCase):
         parseFails(":oom") # Missing module
         parseFails("0xZZ:zymurgy") # Bad hex literal
         parseFails("0xZZ") # Bad hex literal, no data.
-        parseFails("0x9999") # No data
+        parseFails("0x999")
+        parseFails("0x99999")
+        parseFails("0x9999z")
         parseFails("0xFEEEF:zymurgy") # Hex literal out of range
 
 
@@ -6848,7 +6985,7 @@ class ClientMainTests(TestCase):
 
         pathSpec1 = parsePath(usercfg, "lola,joe:alice,joe")
 
-        ##  Test generateForwardMessage.
+        ##  Test generateForwardPacket.
         # We replace 'buildForwardPacket' to make this easier to test.
         replaceFunction(mixminion.BuildMessage, "buildForwardPacket",
                         lambda *a, **k:"X")
@@ -6862,13 +6999,13 @@ class ClientMainTests(TestCase):
                 directory,
                 parseAddress("joe@cledonism.net"),
                 pathSpec1,
-                payload, time.time(), time.time()+200)
+                payload, 0, time.time(), time.time()+200)
             client.generateForwardPackets(
                 directory,
                 parseAddress("smtp:joe@cledonism.net"),
                 pathSpec1,
                 "Hey Joe, where you goin' with that gun in your hand?",
-                time.time(), time.time()+200)
+                0, time.time(), time.time()+200)
 
             for fn, args, kwargs in getCalls():
                 self.assertEquals(fn, "buildForwardPacket")
@@ -6885,14 +7022,13 @@ class ClientMainTests(TestCase):
                 directory,
                 parseAddress("mbox:granola"),
                 parsePath(usercfg, "lola,joe:alice,lola"),
-                payload, time.time(), time.time()+200)
+                payload, 0, time.time(), time.time()+200)
             # And an mbox message with a last hop implicit in the address
             client.generateForwardPackets(
                 directory,
                 parseAddress("mbox:granola@Lola"),
                 parsePath(usercfg, "Lola,Joe:Alice"),
-                payload, time.time(), time.time()+200)
-                
+                payload, 0, time.time(), time.time()+200)
 
             for fn, args, kwargs in getCalls():
                 self.assertEquals(fn, "buildForwardPacket")
@@ -6908,13 +7044,13 @@ class ClientMainTests(TestCase):
             undoReplacedAttributes()
             clearCalls()
 
-        ### Now try some failing cases for generateForwardMessage:
+        ### Now try some failing cases for generateForwardPackets
 
         # Temporarily replace BlockingClientConnection so we can try the client
         # without hitting the network.
         class FakeBCC:
             PROTOCOL_VERSIONS=["0.3"]
-            def __init__(self, family, addr, port, keyid):
+            def __init__(self, family, addr, port, keyid, serverName=None):
                 global BCC_INSTANCE
                 BCC_INSTANCE = self
                 self.family = family
@@ -7171,7 +7307,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(PacketTests))
+        suite.addTest(tc(ServerInfoTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -7214,7 +7350,7 @@ def testAll(name, args):
 
     #DOCDOC
     if os.environ.get("MM_COVERAGE"):
-        allmods = [ mod for name, mod in sys.modules.items() 
+        allmods = [ mod for name, mod in sys.modules.items()
                     if (mod is not None and 
                         name.startswith("mixminion") and
                         name != 'mixminion._minionlib') ]

@@ -22,6 +22,7 @@ import mixminion.Filestore
 
 from mixminion.Common import LOG, MixError, UIError, createPrivateDir, \
      floorDiv, previousMidnight, readFile, writeFile
+from mixminion.ServerInfo import displayServer
 
 #----------------------------------------------------------------------
 class BadPassword(MixError):
@@ -193,12 +194,12 @@ def writeEncryptedPickled(fname, password, magic, obj):
     data = cPickle.dumps(obj, 1)
     writeEncryptedFile(fname, password, magic, data)
 
-class LazyEncryptedPickled:
-    """Wrapper for a file containing an encrypted pickled object, to
+class LazyEncryptedStore:
+    """Wrapper for a file containing an encrypted object, to
        perform password querying and loading on demand."""
     def __init__(self, fname, pwdManager, pwdName, queryPrompt, newPrompt,
                  magic, initFn):
-        """Create a new LazyEncryptedPickled
+        """Create a new LazyEncryptedStore
               fname -- The name of the file to hold the encrypted object.
               pwdManager -- A PasswordManager instance.
               pwdName, queryPrompt, newPrompt -- Arguments used when getting
@@ -281,6 +282,10 @@ class LazyEncryptedPickled:
         assert self.loaded and self.password is not None
         writeEncryptedPickled(self.fname, self.password, self.magic,
                               self.object)
+    def _encode(self,obj):
+        return cPickle.dumps(obj,1)
+    def _decode(self,obj):
+        return cPickle.loads(obj,1)
         
 # ----------------------------------------------------------------------
 
@@ -501,8 +506,8 @@ class ClientQueue:
             days = floorDiv(now - oldest, 24*60*60)
             if days < 1:
                 days = "<1"
-            print "%2d packets for server at %s:%s (oldest is %s days old)"%(
-                count, s.ip, s.port, days)
+            print "%2d packets for %s (oldest is %s days old)"%(
+                count, displayServer(s), days)
 
     def cleanQueue(self, maxAge=None, now=None):
         """Remove all packets older than maxAge seconds from this queue."""

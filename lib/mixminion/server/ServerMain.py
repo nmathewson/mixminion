@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.100 2003/11/10 04:12:20 nickm Exp $
+# $Id: ServerMain.py,v 1.101 2003/11/19 09:48:10 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -13,7 +13,7 @@
 ## Directory layout:
 #    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
 #                            mix/ [Mix pool]
-#                            outgoing/ [Messages for mmtp delivery]
+#                            outgoing/ [Packets for mmtp delivery]
 #                            deliver/*/ [Messages for delivery via modules]
 #                      tls/dhparam [Diffie-Hellman parameters]
 #                      hashlogs/hash_1*  [HashLogs of packet hashes
@@ -123,14 +123,14 @@ is too old to recognize."""
 class IncomingQueue(mixminion.Filestore.StringStore):
     """A Queue to accept packets from incoming MMTP connections,
        and hold them until they can be processed.  As packets arrive, and
-       are stored to disk, we notify a message queue so that another thread
+       are stored to disk, we notify a MessageQueue so that another thread
        can read them."""
     ## Fields:
     # packetHandler -- an instance of PacketHandler.
     # mixPool -- an instance of MixPool
     # processingThread -- an instance of ProcessingThread
     def __init__(self, location, packetHandler):
-        """Create an IncomingQueue that stores its messages in <location>
+        """Create an IncomingQueue that stores its packets in <location>
            and processes them through <packetHandler>."""
         mixminion.Filestore.StringStore.__init__(self, location, create=1)
         self.packetHandler = packetHandler
@@ -143,27 +143,31 @@ class IncomingQueue(mixminion.Filestore.StringStore):
         for h in self.getAllMessages():
             assert h is not None
             self.processingThread.addJob(
-                lambda self=self, h=h: self.__deliverMessage(h))
+                lambda self=self, h=h: self.__deliverPacket(h))
 
-    def queueMessage(self, msg):
-        """Add a message for delivery"""
-        h = mixminion.Filestore.StringStore.queueMessage(self, msg)
-        LOG.trace("Inserting message IN:%s into incoming queue", h)
+    def queuePacket(self, pkt):
+        """Add a packet for delivery"""
+        h = mixminion.Filestore.StringStore.queueMessage(self, pkt)
+        LOG.trace("Inserting packet IN:%s into incoming queue", h)
         assert h is not None
         self.processingThread.addJob(
-            lambda self=self, h=h: self.__deliverMessage(h))
+            lambda self=self, h=h: self.__deliverPacket(h))
 
-    def __deliverMessage(self, handle):
-        """Process a single message with a given handle, and insert it into
+    def queueMessage(self, m):
+        # Never call this directly.
+        assert 0
+
+    def __deliverPacket(self, handle):
+        """Process a single packet with a given handle, and insert it into
            the Mix pool.  This function is called from within the processing
            thread."""
         ph = self.packetHandler
-        message = self.messageContents(handle)
+        packet = self.messageContents(handle)
         try:
-            res = ph.processMessage(message)
+            res = ph.processPacket(packet)
             if res is None:
                 # Drop padding before it gets to the mix.
-                LOG.debug("Padding message IN:%s dropped", handle)
+                LOG.debug("Padding packet IN:%s dropped", handle)
                 self.removeMessage(handle)
             else:
                 if res.isDelivery():
@@ -171,14 +175,14 @@ class IncomingQueue(mixminion.Filestore.StringStore):
 
                 self.mixPool.queueObject(res)
                 self.removeMessage(handle)
-                LOG.debug("Processed message IN:%s; inserting into mix pool",
+                LOG.debug("Processed packet IN:%s; inserting into mix pool",
                           handle)
         except mixminion.Crypto.CryptoError, e:
-            LOG.warn("Invalid PK or misencrypted header in message IN:%s: %s",
+            LOG.warn("Invalid PK or misencrypted header in packet IN:%s: %s",
                      handle, e)
             self.removeMessage(handle)
         except mixminion.Packet.ParseError, e:
-            LOG.warn("Malformed message IN:%s dropped: %s", handle, e)
+            LOG.warn("Malformed packet IN:%s dropped: %s", handle, e)
             self.removeMessage(handle)
         except mixminion.server.PacketHandler.ContentError, e:
             LOG.warn("Discarding bad packet IN:%s: %s", handle, e)
@@ -189,7 +193,7 @@ class IncomingQueue(mixminion.Filestore.StringStore):
             self.removeMessage(handle)
 
 class MixPool:
-    """Wraps a mixminion.server.ServerQueue.*MixPool to send messages
+    """Wraps a mixminion.server.ServerQueue.*MixPool to send packets
        to an exit queue and a delivery queue.  The files in the
        MixPool are instances of RelayedPacket or DeliveryPacket from
        PacketHandler.
@@ -238,23 +242,23 @@ class MixPool:
         return self.queue.queueObject(obj)
 
     def count(self):
-        "Return the number of messages in the pool"
+        "Return the number of packets in the pool"
         return self.queue.count()
 
     def connectQueues(self, outgoing, manager):
         """Sets the queue for outgoing mixminion packets, and the
-           module manager for deliverable messages."""
+           module manager for deliverable packets."""
         self.outgoingQueue = outgoing
         self.moduleManager = manager
 
     def mix(self):
-        """Get a batch of messages, and queue them for delivery as
+        """Get a batch of packets, and queue them for delivery as
            appropriate."""
         if self.queue.count() == 0:
-            LOG.trace("No messages in the mix pool")
+            LOG.trace("No packets in the mix pool")
             return
         handles = self.queue.getBatch()
-        LOG.debug("%s messages in the mix pool; delivering %s.",
+        LOG.debug("%s packets in the mix pool; delivering %s.",
                   self.queue.count(), len(handles))
 
         for h in handles:
@@ -265,16 +269,16 @@ class MixPool:
             if packet.isDelivery():
                 h2 = self.moduleManager.queueDecodedMessage(packet)
                 if h2:
-                    LOG.debug("  (sending message MIX:%s to exit modules as MOD:%s)"
+                    LOG.debug("  (sending packet MIX:%s to exit modules as MOD:%s)"
                               , h, h2)
                 else:
-                    LOG.debug("  (exit modules received message MIX:%s without queueing.)", h)
+                    LOG.debug("  (exit modules received packet MIX:%s without queueing.)", h)
             else:
                 address = packet.getAddress()
                 h2 = self.outgoingQueue.queueDeliveryMessage(packet, address)
-                LOG.debug("  (sending message MIX:%s to MMTP server as OUT:%s)"
+                LOG.debug("  (sending packet MIX:%s to MMTP server as OUT:%s)"
                           , h, h2)
-            # In any case, we're through with this message now.
+            # In any case, we're through with this packet now.
             self.queue.removeMessage(h)
 
     def getNextMixTime(self, now):
@@ -283,7 +287,7 @@ class MixPool:
         return now + self.queue.getInterval()
 
 class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
-    """DeliveryQueue to send messages via outgoing MMTP connections.  All
+    """DeliveryQueue to send packets via outgoing MMTP connections.  All
        methods on this class are called from the main thread.  The underlying
        objects in this queue are instances of RelayedPacket.
 
@@ -295,7 +299,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
     # incomingQueue -- pointer to IncomingQueue object to be used for
     #        self->self communication.
     def __init__(self, location, (ip,port,keyid)):
-        """Create a new OutgoingQueue that stores its messages in a given
+        """Create a new OutgoingQueue that stores its packets in a given
            location."""
         mixminion.server.ServerQueue.DeliveryQueue.__init__(self, location)
         self.server = None
@@ -309,7 +313,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
 
     def connectQueues(self, server, incoming):
         """Set the MMTPServer and IncomingQueue that this
-           OutgoingQueue informs of its deliverable messages."""
+           OutgoingQueue informs of its deliverable packets."""
 
         self.server = server
         self.incomingQueue = incoming
@@ -317,7 +321,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
     def _deliverMessages(self, msgList):
         "Implementation of abstract method from DeliveryQueue."
         # Map from addr -> [ (handle, msg) ... ]
-        msgs = {}
+        pkts = {}
         for pending in msgList:
             try:
                 addr = pending.getAddress()
@@ -325,24 +329,24 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
                     addr = pending.getMessage().getAddress()
             except mixminion.Filestore.CorruptedFile:
                 continue
-            msgs.setdefault(addr, []).append(pending)
-        for routing, messages in msgs.items():
+            pkts.setdefault(addr, []).append(pending)
+        for routing, packets in pkts.items():
             if self.keyID == routing.keyinfo:
-                for pending in messages:
-                    LOG.trace("Delivering message OUT:%s to myself.",
+                for pending in packets:
+                    LOG.trace("Delivering packet OUT:%s to myself.",
                               pending.getHandle())
-                    self.incomingQueue.queueMessage(
+                    self.incomingQueue.queuePacket(
                         pending.getMessage().getPacket())
                     pending.succeeded()
                 continue
 
             deliverable = [
                 mixminion.server.MMTPServer.DeliverablePacket(pending)
-                for pending in messages ]
-            LOG.trace("Delivering messages OUT:[%s] to %s",
-                      " ".join([p.getHandle() for p in messages]),
+                for pending in packets ]
+            LOG.trace("Delivering packets OUT:[%s] to %s",
+                      " ".join([p.getHandle() for p in packets]),
                       routing)
-            self.server.sendMessagesByRouting(routing, deliverable)
+            self.server.sendPacketsByRouting(routing, deliverable)
 
 class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     """Implementation of mixminion.server.MMTPServer that knows about
@@ -351,8 +355,8 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
        All methods in this class are run from the main thread.
        """
     ## Fields:
-    # incomingQueue -- a Queue to hold messages we receive
-    # outgoingQueue -- a DeliveryQueue to hold messages to be sent.
+    # incomingQueue -- a Queue to hold packetts we receive
+    # outgoingQueue -- a DeliveryQueue to hold packets to be sent.
     def __init__(self, config, servercontext):
         mixminion.server.MMTPServer.MMTPAsyncServer.__init__(
             self, config, servercontext)
@@ -361,8 +365,8 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
         self.incomingQueue = incoming
         self.outgoingQueue = outgoing
 
-    def onMessageReceived(self, msg):
-        self.incomingQueue.queueMessage(msg)
+    def onPacketReceived(self, pkt):
+        self.incomingQueue.queuePacket(pkt)
         # FFFF Replace with server.
         EventStats.log.receivedPacket()
 
@@ -600,12 +604,12 @@ class MixminionServer(_Scheduler):
     #    and places them in mixPool.
     # packetHandler: Instance of PacketHandler.  Used by incomingQueue to
     #    decrypt, check, and re-pad received packets.
-    # mixPool: Instance of MixPool.  Holds processed messages, and
+    # mixPool: Instance of MixPool.  Holds processed packets, and
     #    periodically decides which ones to deliver, according to some
     #    batching algorithm.
     # moduleManager: Instance of ModuleManager.  Map routing types to
     #    outgoing queues, and processes non-MMTP exit messages.
-    # outgoingQueue: Holds messages waiting to be send via MMTP.
+    # outgoingQueue: Holds packets waiting to be send via MMTP.
     # cleaningThread: Thread used to remove packets in the background
     # processingThread: Thread to handle CPU-intensive activity without
     #    slowing down network interactivity.
@@ -688,14 +692,14 @@ The original error message was '%s'."""%e)
         incomingDir = os.path.join(queueDir, "incoming")
         LOG.debug("Initializing incoming queue")
         self.incomingQueue = IncomingQueue(incomingDir, self.packetHandler)
-        LOG.debug("Found %d pending messages in incoming queue",
+        LOG.debug("Found %d pending packets in incoming queue",
                   self.incomingQueue.count())
 
         mixDir = os.path.join(queueDir, "mix")
 
         LOG.trace("Initializing Mix pool")
         self.mixPool = MixPool(config, mixDir)
-        LOG.debug("Found %d pending messages in Mix pool",
+        LOG.debug("Found %d pending packets in Mix pool",
                        self.mixPool.count())
 
         outgoingDir = os.path.join(queueDir, "outgoing")
@@ -703,7 +707,7 @@ The original error message was '%s'."""%e)
         self.outgoingQueue = OutgoingQueue(outgoingDir,
                                (publishedIP, publishedPort, publishedKeyID))
         self.outgoingQueue.configure(config)
-        LOG.debug("Found %d pending messages in outgoing queue",
+        LOG.debug("Found %d pending packets in outgoing queue",
                        self.outgoingQueue.count())
 
         self.cleaningThread = CleaningThread()
@@ -866,7 +870,7 @@ The original error message was '%s'."""%e)
 
     def doMix(self):
         """Called when the server's mix is about to fire.  Picks some
-           messages to send, and sends them to the appropriate queues.
+           packets to send, and sends them to the appropriate queues.
         """
         
         now = time.time()
@@ -878,13 +882,13 @@ The original error message was '%s'."""%e)
             self.packetHandler.syncLogs()
 
             LOG.trace("Mix interval elapsed")
-            # Choose a set of outgoing messages; put them in
+            # Choose a set of outgoing packets; put them in
             # outgoingqueue and modulemanager
             self.mixPool.mix()
         finally:
             self.mixPool.unlock()
 
-        # Send outgoing messages
+        # Send outgoing packets
         self.outgoingQueue.sendReadyMessages()
         # Send exit messages
         self.moduleManager.sendReadyMessages()

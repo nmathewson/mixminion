@@ -92,18 +92,19 @@ class ClientDirectory:
         finally:
             mixminion.ClientMain.clientUnlock() # XXXX
 
-    def updateDirectory(self, forceDownload=0, now=None):
+    def updateDirectory(self, forceDownload=0, timeout=None, now=None):
         """Download a directory from the network as needed."""
         if now is None:
             now = time.time()
 
         if forceDownload or self.lastDownload < previousMidnight(now):
-            self.downloadDirectory()
+            self.downloadDirectory(timeout=timeout)
         else:
             LOG.debug("Directory is up to date.")
-    def downloadDirectory(self, timeout=15):
+
+    def downloadDirectory(self, timeout=None):
         """Download a new directory from the network, validate it, and
-           rescan its servers."""
+           rescan its servers. DOCDOC timeout"""
         # Start downloading the directory.
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
@@ -127,7 +128,7 @@ class ClientDirectory:
                 if mixminion.NetUtils.exceptionIsTimeout(e):
                     raise UIError("Connection to directory server timed out")
                 else:
-                    raise UIError("Error connecting: %s"%e)
+                    raise UIError("Error connecting to directory server: %s"%e)
         finally:
             if timeout:
                 mixminion.NetUtils.unsetGlobalTimeout()
@@ -276,6 +277,10 @@ class ClientDirectory:
                 self.clientVersions, self.serverList, self.fullServerList,
                 self.digestMap)
         writePickled(os.path.join(self.dir, "cache"), data)
+
+    def _installAsKeyIDResolver(self):
+        """DOCDOC"""
+        mixminion.ServerInfo._keyIDToNicknameFn = self.getNicknameByKeyID
 
     def importFromFile(self, filename):
         """Import a new server descriptor stored in 'filename'"""
@@ -453,9 +458,9 @@ class ClientDirectory:
         if not s:
             return None
         r = []
-        for d in s:
-            if d.getNickname().lower() not in r:
-                r.append(d.getNickname())
+        for (desc,_) in s:
+            if desc.getNickname().lower() not in r:
+                r.append(desc.getNickname())
         return "/".join(r)
 
     def getNameByRelay(self, routingType, routingInfo):
@@ -858,6 +863,7 @@ def compressFeatureMap(featureMap, ignoreGaps=0, terse=0):
         if not result[nickname]: continue
         
         ritems = result[nickname].items()
+        ritems.sort()
         minva = min([ va for (va,vu),features in ritems ])
         maxvu = max([ vu for (va,vu),features in ritems ])
         rfeatures = {}
@@ -910,7 +916,7 @@ def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" "):
                         sep.join([fmap[f] for f in features])))
             elif cascade==2:
                 if showTime:
-                    lines.append("  [%s]"%ftime)    
+                    lines.append("  [%s]"%ftime)
                 for f in features:
                     v = fmap[f]
                     lines.append("    %s:%s"%(f,v))
@@ -928,6 +934,9 @@ def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" "):
 KNOWN_STRING_EXIT_TYPES = [
     "mbox", "smtp", "drop"
 ]
+
+# Map from (type, nickname) to 1 for servers we've already warned about.
+WARN_HISTORY = {}
 
 class ExitAddress:
     """An ExitAddress represents the target of a Mixminion message or SURB.
@@ -1060,8 +1069,11 @@ class ExitAddress:
             pass
         else:
             if not verbose: return
+            if WARN_HISTORY.has_key((self.exitType, nickname)):
+                return
             LOG.warn("No way to tell if server %s supports exit type %s.",
                      nickname, self.getPrettyExitType())
+            WARN_HISTORY[(self.exitType, nickname)] = 1
 
     def getPrettyExitType(self):
         """Return a human-readable representation of the exit type."""
@@ -1114,11 +1126,23 @@ def parseAddress(s):
            OR <email address> (smtp is implicit)
            OR drop
            OR 0x<routing type>:<routing info>
+           OR 0x<routing type>
     """
     if s.lower() == 'drop':
         return ExitAddress('drop',"")
     elif s.lower() == 'test':
         return ExitAddress(0xFFFE, "")
+    elif s.startswith("0x") or s.startswith("0X"):
+        # Address of the form 0xABCD and 0xABCD:address
+        if len(s) < 6 or (len(s)>=7 and s[6] != ':'):
+            raise ParseError("Invalid address %r"%s)
+        try:
+            tp = int(s[2:6],16)
+        except ValueError:
+            raise ParseError("Invalid hexidecimal value %r"%s[2:6])
+        if not (0x0000 <= tp <= 0xFFFF):
+            raise ParseError("Invalid type: 0x%04x"%tp)
+        return ExitAddress(tp, s[7:])
     elif ':' not in s:
         if isSMTPMailbox(s):
             return ExitAddress('smtp', s)
@@ -1126,15 +1150,7 @@ def parseAddress(s):
             raise ParseError("Can't parse address %s"%s)
     tp,val = s.split(':', 1)
     tp = tp.lower()
-    if tp.startswith("0x"):
-        try:
-            tp = int(tp[2:], 16)
-        except ValueError:
-            raise ParseError("Invalid hexidecimal value %s"%tp)
-        if not (0x0000 <= tp <= 0xFFFF):
-            raise ParseError("Invalid type: 0x%04x"%tp)
-        return ExitAddress(tp, val)
-    elif tp == 'mbox':
+    if tp == 'mbox':
         if "@" in val:
             mbox, server = val.split("@",1)
             return ExitAddress('mbox', parseMBOXInfo(mbox).pack(), server)
@@ -1168,6 +1184,10 @@ class PathElement:
         """Return the fewest number of servers that this element might
            contain."""
         raise NotImplemented()
+    def getAvgLength(self):
+        """Return the likeliest number of servers for this element to
+           contain."""
+        return self.getMinLength()
 
 class ServerPathElement(PathElement):
     """A path element for a single server specified by filename or nickname"""
@@ -1225,10 +1245,15 @@ class RandomServersPathElement(PathElement):
         else:
             prng = mixminion.Crypto.getCommonPRNG()
             n = int(prng.getNormal(self.approx,1.5)+0.5)
+            if n < 1: n = 1
         return [ None ] * n
     def getMinLength(self):
-        #XXXX006 need getAvgLength too, probably.  Ugh.
         if self.n is not None: 
+            return self.n
+        else:
+            return 1
+    def getAvgLength(self):
+        if self.n is not None:
             return self.n
         else:
             return self.approx
@@ -1239,13 +1264,13 @@ class RandomServersPathElement(PathElement):
         else:
             return "RandomServersPathElement(approx=%r)"%self.approx
     def __str__(self):
-        if self.n == 1:
-            return "?"
-        elif self.n > 1:
-            return "*%d"%self.n
-        else:
+        if self.n is None:
             assert self.approx
             return "~%d"%self.approx
+        elif self.n == 1:
+            return "?"
+        else:
+            return "*%d"%self.n
 
 #----------------------------------------------------------------------
 class PathSpecifier:
@@ -1400,7 +1425,7 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
         if "*" in pathEntries[starPos+1:]:
             raise UIError("Only one '*' is permitted in a single path")
         approxHops = reduce(operator.add,
-                            [ ent.getMinLength() for ent in pathEntries
+                            [ ent.getAvgLength() for ent in pathEntries
                               if ent not in ("*", "<swap>") ], 0)
         myNHops = nHops or defaultNHops or 6
         extraHops = max(myNHops-approxHops, 0)
@@ -1429,6 +1454,17 @@ def parsePath(config, path, nHops=None, isReply=0, isSURB=0,
         firstLegLen = 0
         lateSplit = 1
 
+    # This is a kludge to convert paths of the form ~N to ?,~(N-1) when we've
+    # got a full path.
+    if (len(pathEntries) == 1
+        and not halfPath
+        and isinstance(pathEntries[0], RandomServersPathElement)
+        and pathEntries[0].approx):
+        n_minus_1 = max(pathEntries[0].approx-1,0)
+        pathEntries = [ RandomServersPathElement(n=1),
+                        RandomServersPathElement(approx=n_minus_1) ]
+        lateSplit = 1 # XXXX Is this redundant?
+        
     # Split the path into 2 legs.
     path1, path2 = pathEntries[:firstLegLen], pathEntries[firstLegLen:]
 

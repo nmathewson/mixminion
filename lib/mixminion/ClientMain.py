@@ -30,10 +30,11 @@ from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
      parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE, \
      parseMessageAndHeaders
+from mixminion.ServerInfo import displayServer
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
-# concurrent access to the directory cache, message queue, or SURB log.
+# concurrent access to the directory cache, packet queue, or SURB log.
 _CLIENT_LOCKFILE = None
 
 def clientLock():
@@ -68,7 +69,7 @@ class ClientKeyring:
             passwordManager = mixminion.ClientUtils.CLIPasswordManager()
         createPrivateDir(keyDir)
         fn = os.path.join(keyDir, "keyring")
-        self.keyring = mixminion.ClientUtils.LazyEncryptedPickled(
+        self.keyring = mixminion.ClientUtils.LazyEncryptedStore(
             fn, passwordManager, pwdName="ClientKeyring",
             queryPrompt="Enter password for keyring:",
             newPrompt="Entrer new keyring password:",
@@ -145,7 +146,8 @@ def installDefaultConfig(fname):
 #FileParanoia: yes
 
 [DirectoryServers]
-# Not yet implemented
+DirectoryTimeout: 1 minute
+# Other options not yet implemented
 
 [User]
 ## By default, mixminion puts your files in ~/.mixminion.  You can override
@@ -167,8 +169,7 @@ def installDefaultConfig(fname):
 #SURBPath: ?,?,?,FavoriteExit
 
 [Network]
-ConnectionTimeout: 20 seconds
-
+ConnectionTimeout: 60 seconds
 """)
 
 class MixminionClient:
@@ -197,16 +198,28 @@ class MixminionClient:
         self.prng = mixminion.Crypto.getCommonPRNG()
         self.queue = mixminion.ClientUtils.ClientQueue(os.path.join(userdir, "queue"))
 
-    def _sortPackets(self, packets):
-        """[(packet,firstHop),...] -> [ (routing, [packet,...]), ...]"""
-        r = {}
+    def _sortPackets(self, packets, shuffle=1):
+        """Helper function.  Takes a list of tuples of (packet, routingInfo),
+           groups packets with the same routingInfos, and returns a list of
+           tuples of (routingInfo, [packet list]).
+
+           If 'shuffle' is true, then the packets within each list, and the
+           tuples themselves, are returned in a scrambled order.
+        """
+        d = {}
         for packet, firstHop in packets:
             ri = firstHop.getRoutingInfo()
-            r.setdefault(ri,[]).append(packet)
-        return r.items()
+            d.setdefault(ri,[]).append(packet)
+        result = d.items()
+        if shuffle:
+            self.prng.shuffle(result)
+            for _, pktList in result:
+                self.prng.shuffle(pktList)
+        return result
 
     def sendForwardMessage(self, directory, address, pathSpec, message,
-                           startAt, endAt, forceQueue=0, forceNoQueue=0):
+                           startAt, endAt, forceQueue=0, forceNoQueue=0,
+                           forceNoServerSideFragments=0):
         """Generate and send a forward message.
             address -- the results of a parseAddress call
             payload -- the contents of the message to send
@@ -215,17 +228,21 @@ class MixminionClient:
             forceQueue -- if true, do not try to send the message; simply
                queue it and exit.
             forceNoQueue -- if true, do not queue the message even if delivery
-               fails."""
+               fails.
+
+            DOCDOC forceNoServerSideFragments
+        """
         assert not (forceQueue and forceNoQueue)
 
         allPackets = self.generateForwardPackets(
-            directory, address, pathSpec, message, startAt, endAt)
+            directory, address, pathSpec, message, forceNoServerSideFragments,
+            startAt, endAt)
 
         for routing, packets in self._sortPackets(allPackets):
             if forceQueue:
-                self.queueMessages(packets, routing)
+                self.queuePackets(packets, routing)
             else:
-                self.sendMessages(packets, routing, noQueue=forceNoQueue)
+                self.sendPackets(packets, routing, noQueue=forceNoQueue)
 
     def sendReplyMessage(self, directory, address, pathSpec, surbList, message,
                          startAt, endAt, forceQueue=0,
@@ -248,9 +265,9 @@ class MixminionClient:
 
         for routing, packets in self._sortPackets(allPackets):
             if forceQueue:
-                self.queueMessages(packets, routing)
+                self.queuePackets(packets, routing)
             else:
-                self.sendMessages(packets, routing, noQueue=forceNoQueue)
+                self.sendPackets(packets, routing, noQueue=forceNoQueue)
 
     def generateReplyBlock(self, address, servers, name="", expiryTime=0):
         """Generate an return a new ReplyBlock object.
@@ -269,26 +286,27 @@ class MixminionClient:
         return block
 
     def generateForwardPackets(self, directory, address, pathSpec, message,
-                               startAt, endAt):
-        """Generate a forward message, but do not send it.  Returns a
-           list of tuples of (the packet body, a ServerInfo for the
-           first hop.)
-
+                               noSSFragments, startAt, endAt):
+        """Generate packets for a forward message, but do not send
+           them.  Return a list of tuples of (the packet body, a
+           ServerInfo for the first hop.)
+           
            DOCDOC
             """
-
-        #XXXX006 handle user-side fragmentation.
-
         #XXXX006 we need to factor this long-message logic out to the
         #XXXX006 common code.  For now, this is a temporary measure.
-        fragmentedMessagePrefix = address.getFragmentedMessagePrefix()
+
+        if noSSFragments:
+            fragmentedMessagePrefix = ""
+        else:
+            fragmentedMessagePrefix = address.getFragmentedMessagePrefix()
         LOG.info("Generating payload(s)...")
         r = []
         if address.hasPayload():
             payloads = mixminion.BuildMessage.encodeMessage(message, 0,
                                 fragmentedMessagePrefix)
             if len(payloads) > 1:
-                address.setFragmented(1,len(payloads))
+                address.setFragmented(not noSSFragmented, len(payloads))
             else:
                 address.setFragmented(0,1)
         else:
@@ -302,17 +320,17 @@ class MixminionClient:
         for p, (path1,path2) in zip(payloads, directory.generatePaths(
             len(payloads), pathSpec, address, startAt, endAt)):
 
-            msg = mixminion.BuildMessage.buildForwardPacket(
+            pkt = mixminion.BuildMessage.buildForwardPacket(
                 p, routingType, routingInfo, path1, path2,
                 self.prng)
-            r.append( (msg, path1[0]) )
+            r.append( (pkt, path1[0]) )
 
         return r
 
     def generateReplyPackets(self, directory, address, pathSpec, message,
                              surbList, startAt, endAt):
         """Generate a reply message, but do not send it.  Returns
-           a tuple of (the message body, a ServerInfo for the first hop.)
+           a tuple of (packet body, ServerInfo for the first hop.)
 
             address -- the results of a parseAddress call
             payload -- the contents of the message to send  (None for DROP
@@ -321,7 +339,7 @@ class MixminionClient:
             surbList -- a list of SURBs to consider for the second leg of
                the path.  We use the first one that is neither expired nor
                used, and mark it used.
-               DOCDOC
+               DOCDOC: generates multiple packets
             """
         #XXXX write unit tests
         assert address.isReply
@@ -342,11 +360,11 @@ class MixminionClient:
                                           startAt,endAt)):
                 assert path1 and not path2
                 LOG.info("Generating packet...")
-                msg = mixminion.BuildMessage.buildReplyPacket(
+                pkt = mixminion.BuildMessage.buildReplyPacket(
                     payload, path1, surb, self.prng)
                 
                 surbLog.markSURBUsed(surb)
-                result.append( (msg, path1[0]) )
+                result.append( (pkt, path1[0]) )
             
         finally:
             surbLog.close() #implies unlock
@@ -376,18 +394,18 @@ class MixminionClient:
         except MixProtocolError, e:
             return 0, "Couldn't connect to server: %s" % e
 
-    def sendMessages(self, msgList, routingInfo, noQueue=0, lazyQueue=0,
+    def sendPackets(self, pktList, routingInfo, noQueue=0, lazyQueue=0,
                      warnIfLost=1):
         """Given a list of packets and an IPV4Info object, sends the
            packets to the server via MMTP.
 
-           If noQueue is true, do not queue the message even on failure.
-           If lazyQueue is true, only queue the message on failure.
-           Otherwise, insert the message in the queue, and remove it on
+           If noQueue is true, do not queue the packets even on failure.
+           If lazyQueue is true, only queue the packets on failure.
+           Otherwise, insert the packets in the queue, and remove them on
            success.
 
            If warnIfLost is true, log a warning if we fail to deliver
-           the message, and we don't queue it.
+           the packets, and we don't queue them.
 
            DOCDOC never raises
            """
@@ -401,23 +419,21 @@ class MixminionClient:
         if noQueue or lazyQueue:
             handles = []
         else:
-            handles = self.queueMessages(msgList, routingInfo)
+            handles = self.queuePackets(pktList, routingInfo)
 
-        if len(msgList) > 1:
+        if len(pktList) > 1:
             mword = "packets"
         else:
             mword = "packet"
 
         try:
-            success = 0
             try:
                 # May raise TimeoutError
                 LOG.info("Connecting...")
-                mixminion.MMTPClient.sendMessages(routingInfo,
-                                                  msgList,
-                                                  timeout)
+                mixminion.MMTPClient.sendPackets(routingInfo,
+                                                 pktList,
+                                                 timeout)
                 LOG.info("... %s sent", mword)
-                success = 1
             except:
                 e = sys.exc_info()
                 if noQueue and warnIfLost:
@@ -425,30 +441,31 @@ class MixminionClient:
                 elif lazyQueue:
                     LOG.info("Error while delivering %s; %s queued",
                              mword,mword)
-                    self.queueMessages(msgList, routingInfo)
+                    self.queuePackets(pktList, routingInfo)
                 else:
                     LOG.info("Error while delivering %s; leaving in queue",
                              mword)
                 LOG.info("Error was: %s",e[1])
-                return
-            try:
-                clientLock()
-                for h in handles:
-                    if self.queue.packetExists(h):
-                        self.queue.removePacket(h)
-                if handles:
-                    self.queue.cleanQueue()
-            finally:
-                clientUnlock()
+            else:
+                try:
+                    clientLock()
+                    for h in handles:
+                        if self.queue.packetExists(h):
+                            self.queue.removePacket(h)
+                    if handles:
+                        self.queue.cleanQueue()
+                finally:
+                    clientUnlock()
         except MixProtocolError, e:
             raise UIError(str(e))
 
-    def flushQueue(self, maxMessages=None):
-        """Try to send end all messages in the queue to their destinations.
+    def flushQueue(self, maxPackets=None):
+        """Try to send all packets in the queue to their destinations.
+           DOCDOC maxPackets
         """
         #XXXX write unit tests
 
-        class MessageProxy:
+        class PacketProxy:
             def __init__(self,h,queue):
                 self.h = h
                 self.queue = queue
@@ -457,48 +474,36 @@ class MixminionClient:
             def __cmp__(self,other):
                 return cmp(id(self),id(other))
 
-        LOG.info("Flushing message queue")
+        LOG.info("Flushing packet queue")
         clientLock()
         try:
             handles = self.queue.getHandles()
-            LOG.info("Found %s pending messages", len(handles))
-            if maxMessages is not None:
+            LOG.info("Found %s pending packets", len(handles))
+            if maxPackets is not None:
                 handles = mixminion.Crypto.getCommonPRNG().shuffle(handles,
-                                                               maxMessages)
+                                                               maxPackets)
             LOG.info("Flushing %s", len(handles))
-            messagesByServer = {}
+            packets = []
             for h in handles:
                 try:
                     routing = self.queue.getRouting(h)
                 except mixminion.Filestore.CorruptedFile: 
                     continue
-                message = MessageProxy(h,self.queue)
-                messagesByServer.setdefault(routing, []).append((message, h))
+                packet = PacketProxy(h,self.queue)
+                packets.append((packet,routing))
         finally:
             clientUnlock()
 
         sentSome = 0; sentAll = 1
-        for routing in messagesByServer.keys():
-            LOG.info("Sending %s messages to %s:%s...",
-                     len(messagesByServer[routing]), routing.ip, routing.port)
-            msgs = [ m for m, _ in messagesByServer[routing] ]
-            handles = [ h for _, h in messagesByServer[routing] ]
+        for routing, packets in self._sortPackets(packets):
+            LOG.info("Sending %s packets to %s...",
+                     len(packets), displayServer(routing))
             try:
-                self.sendMessages(msgs, routing, noQueue=1, warnIfLost=0)
-##                 #XXXX006 is this part needed?
-##                 try:
-##                     clientLock()
-##                     for h in handles:
-##                         if self.queue.packetExists(h):
-##                             self.queue.removePacket(h)
-##                     if handles:
-##                         self.queue.cleanQueue()
-##                 finally:
-##                     clientUnlock()
+                self.sendPackets(packets, routing, noQueue=1, warnIfLost=0)
                 sentSome = 1
             except MixError, e:
-                LOG.error("Can't deliver messages to %s:%s: %s; leaving messages in queue",
-                          routing.ip, routing.port, str(e))
+                LOG.error("Can't deliver packets to %s: %s; leaving in queue",
+                          displayServer(routing), str(e))
                 sentAll = 0
 
         if sentAll:
@@ -506,10 +511,10 @@ class MixminionClient:
         elif sentSome:
             LOG.info("Queue partially flushed")
         else:
-            LOG.info("No messages delivered")
+            LOG.info("No packets delivered")
 
     def cleanQueue(self, maxAge, now=None):
-        """Remove all messages older than maxAge seconds from the
+        """Remove all packets older than maxAge seconds from the
            client queue."""
         try:
             clientLock()
@@ -517,28 +522,30 @@ class MixminionClient:
         finally:
             clientUnlock()
 
-    def queueMessages(self, msgList, routing):
-        """Insert all the messages in msgList into the queue, to be sent
-           to the server identified by the IPV4Info object 'routing'.
+    def queuePackets(self, pktList, routing):
+        """Insert all the packets in pktList into the queue, to be sent
+           to the server identified by the IPV4Info or MMTPHostInfo object
+           'routing'.
         """
         #XXXX write unit tests
-        LOG.trace("Queueing messages")
+        LOG.trace("Queueing packets")
         handles = []
         try:
             clientLock()
-            for msg in msgList:
-                h = self.queue.queuePacket(str(msg), routing)
+            for pkt in pktList:
+                h = self.queue.queuePacket(str(pkt), routing)
                 handles.append(h)
         finally:
             clientUnlock()
-        if len(msgList) > 1:
-            LOG.info("Messages queued")
+        if len(pktList) > 1:
+            LOG.info("Pacekts queued")
         else:
-            LOG.info("Message queued")
+            LOG.info("Packet queued")
         return handles
 
+    #XXXX006 rename to decodePacket ?
     def decodeMessage(self, s, force=0, isatty=0):
-        """Given a string 's' containing one or more text-encoed messages,
+        """Given a string 's' containing one or more text-encoded messages,
            return a list containing the decoded messages.
 
            Raise ParseError on malformatted messages.  Unless 'force' is
@@ -811,13 +818,16 @@ class CLIArgumentParser:
             assert self.wantConfig
             LOG.debug("Configuring server list")
             self.directory = mixminion.ClientDirectory.ClientDirectory(userdir)
+            self.directory._installAsKeyIDResolver()
 
         if self.wantDownload:
             assert self.wantClientDirectory
+            timeout = int(self.config['DirectoryServers']['DirectoryTimeout'])
             if self.download != 0:
                 try:
                     clientLock()
-                    self.directory.updateDirectory(forceDownload=self.download)
+                    self.directory.updateDirectory(forceDownload=self.download,
+                                                   timeout=timeout)
                 finally:
                     clientUnlock()
 
@@ -991,6 +1001,7 @@ def runClient(cmd, args):
 
     inFile = None
     h_subject = h_from = h_irt = h_references = None
+    no_ss_fragment = 0
     for opt,val in options:
         if opt in ('-i', '--input'):
             inFile = val
@@ -1002,6 +1013,8 @@ def runClient(cmd, args):
             h_irt = val
         elif opt == '--references':
             h_references = val
+        elif opt == '?????????':
+            no_ss_fragment = 1
 
     if args:
         sendUsageAndExit(cmd,"Unexpected arguments")
@@ -1087,9 +1100,8 @@ def runClient(cmd, args):
     else:
         client.sendForwardMessage(
             parser.directory, parser.exitAddress, parser.pathSpec,
-            message, parser.startAt, parser.endAt, forceQueue, forceNoQueue)
-            
-            
+            message, parser.startAt, parser.endAt, forceQueue, forceNoQueue,
+            no_ss_fragment)
 
 _PING_USAGE = """\
 Usage: mixminion ping [options] serverName
@@ -1202,11 +1214,11 @@ EXAMPLES:
 
 def listServers(cmd, args):
     """[Entry point] Print info about """
-    options, args = getopt.getopt(args, "hf:D:vF:c:TVs:",
+    options, args = getopt.getopt(args, "hf:D:vF:TVs:cC",
                                   ['help', 'config=', "download-directory=",
-                                   'verbose', 'feature=', 'cascade=',
+                                   'verbose', 'feature=', 
                                    'with-time', "no-collapse", "valid",
-                                   "separator="])
+                                   "separator=", "cascade","cascade-features"])
     try:
         parser = CLIArgumentParser(options, wantConfig=1,
                                    wantClientDirectory=1,
@@ -1223,13 +1235,6 @@ def listServers(cmd, args):
     for opt,val in options:
         if opt in ('-F', '--feature'):
             features.extend(val.split(","))
-        elif opt in ('-c', '--cascade'):
-            try:
-                cascade = int(val)
-            except ValueError:
-                raise UIError("%s requires an integer"%opt)
-            if not (0 <= cascade <= 2):
-                raise UIError("Cascade level must be between 0 and 2")
         elif opt == ('-T'):
             showTime += 1
         elif opt == ('--with-time'):
@@ -1240,6 +1245,10 @@ def listServers(cmd, args):
             validOnly = 1
         elif opt in ('-s', '--separator'):
             separator = val
+        elif opt in ('-c', '--cascade'):
+            cascade = 1
+        elif opt in ('-C', '--cascade-features'):
+            cascade = 2
 
     if not features:
         if validOnly:
@@ -1310,9 +1319,11 @@ def updateServers(cmd, args):
 
     parser.init()
     directory = parser.directory
+    config = parser.config
+    timeout = int(config['DirectoryServers']['DirectoryTimeout'])
     try:
         clientLock()
-        directory.updateDirectory(forceDownload=1)
+        directory.updateDirectory(forceDownload=1, timeout=timeout)
     finally:
         clientUnlock()
     print "Directory updated"
@@ -1556,10 +1567,10 @@ Usage: %(cmd)s [options]
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
-  -n <n>, --count=<n>        Send no more than <n> messages from the queue.
+  -n <n>, --count=<n>        Send no more than <n> packets from the queue.
 
 EXAMPLES:
-  Try to send all currently queued messages.
+  Try to send all currently queued packets.
       %(cmd)s
 """.strip()
 
@@ -1593,10 +1604,10 @@ Usage: %(cmd)s <-d n|--days=n> [options]
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
-  -d <n>, --days=<n>         Remove all messages older than <n> days old.
+  -d <n>, --days=<n>         Remove all packets older than <n> days old.
 
 EXAMPLES:
-  Remove all pending messages older than one week.
+  Remove all pending packets older than one week.
       %(cmd)s -d 7
 """.strip()
 
@@ -1638,11 +1649,12 @@ EXAMPLES:
 """.strip()
 
 def listQueue(cmd, args):
-    options, args = getopt.getopt(args, "hvf:",
-                                  ["help", "verbose", "config=", ])
+    options, args = getopt.getopt(args, "hvf:D:",
+                                  ["help", "verbose", "config=",
+                                   'download-directory=',])
     try:
         parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
-                                   wantClient=1)
+                                   wantClient=1, wantClientDirectory=1)
     except UsageError, e:
         e.dump()
         print _LIST_QUEUE_USAGE % { 'cmd' : cmd }

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.61 2003/11/10 04:12:20 nickm Exp $
+# $Id: ServerInfo.py,v 1.62 2003/11/19 09:48:09 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -8,10 +8,11 @@
    descriptors.
    """
 
-__all__ = [ 'ServerInfo', 'ServerDirectory' ]
+__all__ = [ 'ServerInfo', 'ServerDirectory', 'displayServer' ]
 
 import re
 import time
+import types
 
 import mixminion.Config
 import mixminion.Crypto
@@ -38,6 +39,48 @@ MAX_IDENTITY_BYTES = 4096 >> 3
 PACKET_KEY_BYTES = 2048 >> 3
 # Length of MMTP key
 MMTP_KEY_BYTES = 1024 >> 3
+
+# ----------------------------------------------------------------------
+def displayServer(s):
+    """DOCDOC"""
+    #XXXX006 unit tests are needed
+    if isinstance(s, types.StringType):
+        return s
+    elif isinstance(s, ServerInfo):
+        if s.getHostname():
+            addr = "%s:%s" % (s.getHostname(), s.getPort())
+        else:
+            addr = "%s:%s" % (s.getIP(), s.getPort())
+        nickname = "'%s'" % s.getNickname()
+    elif isinstance(s, (mixminion.Packet.IPV4Info,
+                       mixminion.Packet.MMTPHostInfo)):
+        nickname = getNicknameByKeyID(s.keyinfo)
+        if nickname:
+            nickname = "'%s'" % nickname
+        else:
+            nickname = 'server'
+        if isinstance(s, mixminion.Packet.IPV4Info):
+            addr = "%s:%s" % (s.ip, s.port)
+        else:
+            addr = "%s:%s" % (s.hostname, s.port)
+    elif s is None:
+        return "unknown server"
+    else:
+        assert 0
+
+    return "%s at %s" % (nickname, addr)
+
+def getNicknameByKeyID(keyid):
+    """DOCDOC"""
+    if _keyIDToNicknameFn:
+        return _keyIDToNicknameFn(keyid)
+    else:
+        return None
+
+#DOCDOC
+_keyIDToNicknameFn = None
+
+# ----------------------------------------------------------------------
 
 # tmp alias to make this easier to spell.
 C = mixminion.Config

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.30 2003/11/10 04:12:20 nickm Exp $
+# $Id: PacketHandler.py,v 1.31 2003/11/19 09:48:10 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -26,7 +26,7 @@ class PacketHandler:
     """Class to handle processing packets.  Given an incoming packet,
        it removes one layer of encryption, does all necessary integrity
        checks, swaps headers if necessary, re-pads, and decides whether
-       to drop the message, relay the message, or send the message to
+       to drop the packet, relay the packet, or send the packet to
        an exit handler."""
     ## Fields:
     # privatekeys: a list of 2-tuples of
@@ -90,11 +90,11 @@ class PacketHandler:
         finally:
             self.lock.release()
 
-    def processMessage(self, msg):
-        """Given a 32K mixminion message, processes it completely.
+    def processPacket(self, msg):
+        """Given a 32K mixminion packet, processes it completely.
 
            Return one of:
-                    None [if the message should be dropped.]
+                    None [if the packet should be dropped.]
                     a DeliveryPacket object
                     a RelayedPacket object
 
@@ -103,9 +103,9 @@ class PacketHandler:
            unhandleable.
 
            WARNING: This implementation does nothing to prevent timing
-           attacks: dropped messages, messages with bad digests, replayed
-           messages, and exit messages are all processed faster than
-           forwarded messages.  You must prevent timing attacks elsewhere."""
+           attacks: dropped packets, packets with bad digests, replayed
+           packets, and exit packets are all processed faster than
+           forwarded packets.  You must prevent timing attacks elsewhere."""
 
         # Break into headers and payload
         pkt = Packet.parsePacket(msg)
@@ -148,13 +148,13 @@ class PacketHandler:
         if subh.digest != Crypto.sha1(header1):
             raise ContentError("Invalid digest")
 
-        # Get ready to generate message keys.
+        # Get ready to generate packet keys.
         keys = Crypto.Keyset(subh.secret)
 
         # Replay prevention
         replayhash = keys.get(Crypto.REPLAY_PREVENTION_MODE, Crypto.DIGEST_LEN)
         if hashlog.seenHash(replayhash):
-            raise ContentError("Duplicate message detected.")
+            raise ContentError("Duplicate packet detected.")
         else:
             hashlog.logHash(replayhash)
 
@@ -235,14 +235,14 @@ class PacketHandler:
         # Build the address object for the next hop
         address = Packet.parseRelayInfoByType(rt, subh.routinginfo)
 
-        # Construct the message for the next hop.
+        # Construct the packet for the next hop.
         pkt = Packet.Packet(header1, header2, payload).pack()
 
         return RelayedPacket(address, pkt)
 
 class RelayedPacket:
     """A packet that is to be relayed to another server; returned by
-       returned by PacketHandler.processMessage."""
+       returned by PacketHandler.processPacket."""
     ## Fields:
     # address -- an instance of IPV4Info
     # msg -- a 32K packet.
@@ -269,7 +269,7 @@ class RelayedPacket:
 
 class DeliveryPacket:
     """A packet that is to be delivered via some exit module; returned by
-       PacketHandler.processMessage"""
+       PacketHandler.processPacket"""
     ##Fields:
     # exitType -- a 2-byte integer indicating which exit module to use.
     # address -- a string encoding the address to deliver to.

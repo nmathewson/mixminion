@@ -1,9 +1,9 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.64 2003/11/10 04:12:20 nickm Exp $
+# $Id: Packet.py,v 1.65 2003/11/19 09:48:09 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
-   messages and related structures.
+   messages, packets, and related structures.
 
    For functions that handle client-side generation and decoding of
    packets, see BuildMessage.py.  For functions that handle
@@ -49,12 +49,12 @@ if sys.version_info[:3] < (2,2,0):
 # Major and minor number for the understood packet format.
 MAJOR_NO, MINOR_NO = 0,3
 
-# Length of a Mixminion message
-MESSAGE_LEN = 1 << 15
+# Length of a Mixminion packet
+PACKET_LEN = 1 << 15
 # Length of a header section
 HEADER_LEN  = 128 * 16
 # Length of a single payload
-PAYLOAD_LEN = MESSAGE_LEN - HEADER_LEN*2
+PAYLOAD_LEN = PACKET_LEN - HEADER_LEN*2
 
 # Bytes taken up by OAEP padding in RSA-encrypted data
 OAEP_OVERHEAD = 42
@@ -79,10 +79,10 @@ TAG_LEN = 20
 #----------------------------------------------------------------------
 # Values for the 'Routing type' subheader field
 # Mixminion types
-DROP_TYPE          = 0x0000     # Drop the current message
-FWD_IPV4_TYPE      = 0x0001 # Forward the msg to an IPV4 addr via MMTP
+DROP_TYPE          = 0x0000 # Drop the packet
+FWD_IPV4_TYPE      = 0x0001 # Forward the packet to an IPV4 addr via MMTP
 SWAP_FWD_IPV4_TYPE = 0x0002 # SWAP, then FWD_IPV4
-FWD_HOST_TYPE      = 0x0003 # Forward the msg to a hostname, via MMTP.
+FWD_HOST_TYPE      = 0x0003 # Forward the pkt to a hostname, via MMTP.
 SWAP_FWD_HOST_TYPE = 0x0004 # SWAP, then FWD_HOST
 
 # Exit types
@@ -112,8 +112,8 @@ class ParseError(MixError):
 def parsePacket(s):
     """Given a 32K string, returns a Packet object that breaks it into
        two headers and a payload."""
-    if len(s) != MESSAGE_LEN:
-        raise ParseError("Bad message length")
+    if len(s) != PACKET_LEN:
+        raise ParseError("Bad packet length")
 
     return Packet(s[:HEADER_LEN],
                    s[HEADER_LEN:HEADER_LEN*2],
@@ -124,13 +124,13 @@ class Packet:
 
        Fields: header1, header2, payload"""
     def __init__(self, header1, header2, payload):
-        """Create a new Message object from three strings."""
+        """Create a new Packet object from three strings."""
         self.header1 = header1
         self.header2 = header2
         self.payload = payload
 
     def pack(self):
-        """Return the 32K string value of this message."""
+        """Return the 32K string value of this packet."""
         return "".join([self.header1,self.header2,self.payload])
 
 def parseHeader(s):
@@ -532,15 +532,18 @@ class ReplyBlock:
         self.encryptionKey = key
 
     def format(self):
+        from mixminion.ServerInfo import displayServer
         hash = binascii.b2a_hex(sha1(self.pack()))
         expiry = formatTime(self.timestamp)
         if self.routingType == SWAP_FWD_IPV4_TYPE:
-            server = parseIPV4Info(self.routingInfo).format()
+            routing = parseIPV4Info(self.routingInfo)
+        elif self.routingType == SWAP_FWD_HOST_TYPE:
+            routing = parseMMTPHostInfo(self.routingInfo)
         else:
-            server = "????"
+            routing = None
         return """Reply block hash: %s
 Expires at: %s GMT
-First server is: %s""" % (hash, expiry, server)
+First server is: %s""" % (hash, expiry, displayServer(routing))
 
     def pack(self):
         """Returns the external representation of this reply block"""

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.59 2003/11/07 07:03:28 nickm Exp $
+# $Id: Modules.py,v 1.60 2003/11/19 09:48:10 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -549,6 +549,15 @@ class FragmentModule(DeliveryModule):
                    'MaximumSize' : ('REQUIRE', "size", None),
                    'MaximumInterval' : ('ALLOW', "interval", "2 days" )
                    } }
+    
+    def validateConfig(self, config, lines, contents):
+        frag = config.get('Delivery/Fragmented', {}).get("Enabled")
+        mbox = config.get('Delivery/MBOX', {}).get("Enabled")
+        smtp = config.get('Delivery/SMTP', {}).get("Enabled")
+        smtpmm = config.get('Delivery/SMTP-Via-Mixmaster', {}).get("Enabled")
+        if frag and not (mbox or smtp or smtpmm):
+            raise ConfigError("You've specified Fragmented delivery, but no actual delivery method.  This doesn't make much sense.")
+        
     def getRetrySchedule(self):
         return [ ]
     def configure(self, config, manager):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.65 2003/11/10 04:12:20 nickm Exp $
+# $Id: Config.py,v 1.66 2003/11/19 09:48:09 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -55,8 +55,6 @@ import calendar
 import binascii
 import os
 import re
-import socket # for inet_aton and error
-import string # for atoi
 try:
     import pwd
 except ImportError:
@@ -547,16 +545,16 @@ def _readRestrictedConfigFile(contents):
 
     return sections
 
-def _formatEntry(key,val,w=79,ind=4):
+def _formatEntry(key,val,w=79,ind=4,strict=0):
     """Helper function.  Given a key/value pair, returns a NL-terminated
        entry for inclusion in a configuration file, such that no line is
        avoidably longer than 'w' characters, and with continuation lines
        indented by 'ind' spaces.
     """
-    ind_s = " "*(ind-1)
-    if len(str(val))+len(key)+2 <= 79:
+    if strict or len(str(val))+len(key)+2 <= 79:
         return "%s: %s\n" % (key,val)
 
+    ind_s = " "*(ind-1)
     lines = [  ]
     linecontents = [ "%s:" % key ]
     linelength = len(linecontents[0])
@@ -903,8 +901,12 @@ class _ConfigFile:
         for s in self._sectionNames:
             lines.append("[%s]\n"%s)
             for k,v in self._sectionEntries[s]:
-                lines.append(_formatEntry(k,v))
-            lines.append("\n")
+                tp = self._syntax[s][k][1]
+                if tp:
+                    v = self.CODING_FNS[tp][1](v)
+                lines.append(_formatEntry(k,v,strict=self._restrictFormat))
+            if not self._restrictFormat:
+                lines.append("\n")
 
         return "".join(lines)
 
@@ -922,7 +924,8 @@ class ClientConfig(_ConfigFile):
         'DirectoryServers' :
                    { '__SECTION__' : ('REQUIRE', None, None),
                      'ServerURL' : ('ALLOW*', None, None),
-                     'MaxSkew' : ('ALLOW', "interval", "10 minutes") },
+                     'MaxSkew' : ('ALLOW', "interval", "10 minutes"),
+                     'DirectoryTimeout' : ('ALLOW', "interval", "1 minute") },
         'User' : { 'UserDir' : ('ALLOW', "filename", "~/.mixminion" ) },
         'Security' : { 'PathLength' : ('ALLOW', "int", "8"),
                        'SURBAddress' : ('ALLOW', None, None),
@@ -932,7 +935,7 @@ class ClientConfig(_ConfigFile):
                        'ReplyPath' : ('ALLOW', None, "*4"),
                        'SURBPath' : ('ALLOW', None, "*4"),
                        },
-        'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", None) }
+        'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", "2 minutes")}
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)

@@ -44,7 +44,7 @@ TCP latency, and me.)
                                 o Unit tests
                         o ServerInfo changes
                                 o Implement
-                                . Unit tests
+                                o Unit tests
                         o Path generation changes
                                 o Implement stub canRelayTo and getRoutingFor
                                   in ServerInfo.
@@ -80,8 +80,10 @@ TCP latency, and me.)
                         o Write the code
                         o Hand-test multi-packet and single-packet fwd
                           messages and replies.
-        . UI improvements:
-                . Add some convenient way to list arbitrary server features.
+        o Security
+                o Make sure clients always shuffle packets before delivery.
+        o UI improvements:
+                o Add some convenient way to list arbitrary server features.
                         o Refactor Config to have a richer idea of types
                         o Add 'features' to Config.
                         o Add featureMap manipulation functionality to 
@@ -89,29 +91,35 @@ TCP latency, and me.)
                         o Formatting for featuremap
                         o CLI for new listservers
                         o Replace old listservers
-                        - Unit tests for features
-                        - Unit tests for featureMaps
-                - Timeouts should say 'timeout', not EINTR.
-                - Timeouts should be user-configurable.
+                        o Make CLI have three different format flags, not
+                          the current impenetrable --cascade={0|1|2}.
+                        o Unit tests for features
+                        o Unit tests for featureMaps
+                o Handle the exit address '0xFFFE' as before.  
+                o Only warn about unknown types once.
+                o Timeouts should say 'timeout', not EINTR.
+                o Timeouts should be user-configurable.
                 D Logging UIErrors isn't a bad idea.
                 o Make UIErrors _look_ like log messages when they hit the
                   console.
-                - Separate 'mixminiond' wrapper; 'mixminion server-foo'
+                D Separate 'mixminiond' wrapper; 'mixminion server-foo'
                   confuses folk.
-                - SSL's "Unexpected error: wrong version number"
+                o SSL's "Unexpected error: wrong version number"
                   message is confusing.
                 o Better error message when opening db with unsupported
                   database type.
-                . List servers by nickname, not by IP (partial solution for
+                o List servers by nickname, not by IP (partial solution for
                   clients only, but make expandable to servers once they
                   download directories.)
-                - Make TRACE mode less verbose, or make DEBUG mode more
-                useful.
-        - Fragmentation logic fixes
+                D List servers by nickname, not by IP, even in server logs.
+                o Make TRACE mode less verbose, or make DEBUG mode more
+                  useful.
+        . Fragmentation logic fixes
                 o Make the fragment path selection not suck.
                 o Send logic for client
-                - Deliver non-FRAGMENT fragment messages
-                - Don't allow 'FRAGMENT' exit type if no exit modules are
+                . Deliver non-FRAGMENT fragment messages
+                . Option to send messages for client-side reassembly
+                o Don't allow 'FRAGMENT' exit type if no exit modules are
                   supported.
                 - Catch wild mismatches between Max-Packets on FRAGMENT
                   and Max-Size on SMTP/MBOX/etc.
@@ -135,8 +143,6 @@ TCP latency, and me.)
                           for all types
                 X Support SURB secret exchange format
                 - Specify SURB keyring format; support loading new format.
-        - Security
-               - Make sure clients always shuffle packets before delivery.
         - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
