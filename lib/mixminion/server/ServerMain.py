@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.48 2003/04/13 15:54:42 nickm Exp $
+# $Id: ServerMain.py,v 1.49 2003/04/22 02:07:34 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -583,7 +583,10 @@ class MixminionServer:
             elif event == 'WAIT':
                 # Every few minutes, we reap zombies.  Why, you ask?  Isn't
                 # catching sigchild enough?  Nope -- sometimes buggy delivery
-                # software forks, 
+                # software forks, stays along long enough to ignore a child's
+                # SIGCHLD, then dies itself.  Or something -- in any case, we
+                # sure seem to be leaving a bunch of zombie mixmaster processes
+                # around.  This should fix it.
                 waitForChildren(blocking=0)
                 insort(scheduledEvents, (now + 180, "WAIT"))
             elif event == 'MIX':
