@@ -1,4 +1,4 @@
-$Id: HACKING,v 1.25 2004/04/04 17:58:28 nickm Exp $
+$Id: HACKING,v 1.26 2004/05/10 16:46:21 nickm Exp $
 Hacking Mixminion
 
 HOW TO CONTRIBUTE PATCHES:
@@ -155,6 +155,9 @@ HARD HACKING:
       - Freebies like windows portability, bandwidth throttling, etc.
         (Investigate more)
   (Difficulty: moderate.  Invasiveness: moderate.)
+
+- After porting to GnuTLS or NSS, separate out all of the C code to its own
+  process!  Feel free to refactor the code while you're at it.
 
 - We could really use a nymserver.
 

@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.10 2004/05/01 03:57:00 nickm Exp $
+.\" $Id: mixminion.1,v 1.1 2004/05/10 16:46:21 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -469,7 +469,7 @@ compatible client.
 Run mixminion's internal self-tests.
 .It Cm version
 Print the version of the current software.
-.It Cm benchmark
+.It Cm benchmarks
 Run mixminion's internal timing tests.
 .It Cm shell
 Open a mini command-line interpreter for interactive operations.
@@ -780,6 +780,7 @@ is unique within all sections, then you may omit the
 .Ar section Ns Cm :
 portion of the feature.
 .Pp
+.\" Mention that the others aren't useful.
 A few useful features include:
 .Bl -tag -width ".Cm software"
 .It caps
@@ -941,7 +942,7 @@ and writing to standard output:
 Generate a single SURB, writing it to standard ouput:
 .D1 Ic mixminion generate-surb -t <your-address>
 Generate 10 SURBs, writing them to a file:
-.D1 Ic mixminion generate-surb -t <your-address> -o surbs.txt
+.D1 Ic mixminion generate-surb -n 10 -t <your-address> -o surbs.txt
 Generate a single SURB, using three randomly chosen servers then
 ending at frell:
 .D1 Ic mixminion generate-surb -t <your-address> -P '*3,frell'

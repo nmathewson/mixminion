@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.99 2004/04/04 18:44:07 nickm Exp $
+# $Id: setup.py,v 1.100 2004/05/10 16:46:21 nickm Exp $
 import sys
 
 #
@@ -526,10 +526,10 @@ if 'py2exe' in sys.argv:
         }
 elif sys.platform != 'win32':
     EXTRA = {
-        'data_files' : [("share/man/man1", ["etc/mixminion.1"]),
-                        ("share/man/man5", ["etc/mixminionrc.5",
-                                      "etc/mixminiond.conf.5"]),
-                        ("share/man/man8", ["etc/mixminiond.8"])]
+        'data_files' : [("share/man/man1", ["doc/mixminion.1"]),
+                        ("share/man/man5", ["doc/mixminionrc.5",
+                                      "doc/mixminiond.conf.5"]),
+                        ("share/man/man8", ["doc/mixminiond.8"])]
         }
 else:
     EXTRA = {}

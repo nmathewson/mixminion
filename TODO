@@ -19,7 +19,9 @@ For 0.0.8:
                 o Refactor ClientDirectory to be more modular
                 - Retrying needs to be per-destination, not per-packet.
         - Distributed directories
-        - Bugs
+        . Bugs
+                o Make tests pass with bizarre umasks.  (Try 0077, 0000,
+                  etc.)
                 - Make build process mention where to download openssl if
                   neither wget nor curl is found.
                 - Make client run and unittests not die when there is no
@@ -31,8 +33,6 @@ For 0.0.8:
                   it can confuse the unit tests and maybe worse.  We can
                   catch it by looking at time.gmtime(78969600) and seeing
                   whether we get (1972,7,3,0,0,0) or one second before.
-                - Make tests pass with bizarre umasks.  (Try 0077, 0000,
-                  etc.)
                 - Drop support for pre-0.0.6 servers; Don't generate IPV4Info
                   any more.
         - Documentation
@@ -232,6 +232,7 @@ Features for "1.0" (some research/specification required):
                 - Only pick from the directory when picking
                   random servers.
                 - Notice Allow/Deny.
+                - Allow 'oneof' elements in paths.
         - UI issues
                 - Notice when out of disk space, die more cleanly.
                   (support max-disk-usage).
