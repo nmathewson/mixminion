@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.135 2003/07/10 21:16:05 nickm Exp $
+# $Id: test.py,v 1.136 2003/07/10 23:11:15 nickm Exp $
 
 """mixminion.tests
 
@@ -115,12 +115,9 @@ def floatEq(f1,f2):
         return abs(f1-f2) < .00001
 
 def fileURL(fname):
+    """DOCDOC"""
     fname = os.path.abspath(fname)
-    if sys.platform == 'win32':
-        drive, path = os.path.splitdrive(fname)
-        return "file:%s" % fname 
-    else:
-        return "file://%s"%fname
+    return "file:%s"%fname
 
 #----------------------------------------------------------------------
 # RSA key caching functionality
