@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.83 2003/05/30 00:01:57 nickm Exp $
+# $Id: ClientMain.py,v 1.84 2003/05/30 02:07:41 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -44,10 +44,8 @@ from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
-MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory_TEST.gz"
-#MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
-# XXXX004 This change is temporary
-MIXMINION_DIRECTORY_FINGERPRINT = "67BE06E7C2ADCCE3F389675F8796EAF681B9875F"
+MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
+MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
@@ -2083,7 +2081,7 @@ EXAMPLES:
       %(cmd)s -D no -t user@domain -i data
 """.strip()
 
-def usageAndExit(cmd, error=None):
+def sendUsageAndExit(cmd, error=None):
     if error:
         print >>sys.stderr, "ERROR: %s"%error
         print >>sys.stderr, "For usage, run 'mixminion send --help'"
@@ -2098,8 +2096,6 @@ def usageAndExit(cmd, error=None):
   --no-queue                 Do not attempt to pool the message.""" }
     sys.exit(0)
 
-# NOTE: This isn't the final client interface.  Many or all options will
-#     change between now and 1.0.0
 def runClient(cmd, args):
     #DOCDOC Comment this function
     queueMode = 0
@@ -2116,7 +2112,7 @@ def runClient(cmd, args):
               "input=", "pool", "no-pool", "queue", "no-queue" ])
 
     if not options:
-        usageAndExit(cmd)
+        sendUsageAndExit(cmd)
 
     inFile = None
     for opt,val in options:
@@ -2124,7 +2120,7 @@ def runClient(cmd, args):
             inFile = val
 
     if args:
-        usageAndExit(cmd,"Unexpected arguments")
+        sendUsageAndExit(cmd,"Unexpected arguments")
 
     try:
         parser = CLIArgumentParser(options, wantConfig=1,wantClientDirectory=1,
@@ -2136,7 +2132,7 @@ def runClient(cmd, args):
             raise UsageError("Can't use both --queue and --no-queue")
     except UsageError, e:
         e.dump()
-        usageAndExit(cmd)
+        sendUsageAndExit(cmd)
 
     if inFile in (None, '-') and '-' in parser.replyBlockFiles:
         raise UIError(
@@ -2219,7 +2215,6 @@ def runPing(cmd, args):
 
     if len(args) == 0:
         raise UsageError("(No servers provided)")
-
 
     print "==========================================================="
     print "WARNING: Pinging a server is potentially dangerous, since"
