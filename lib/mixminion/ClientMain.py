@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.44 2003/01/17 06:18:06 nickm Exp $
+# $Id: ClientMain.py,v 1.45 2003/02/04 02:38:23 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -21,6 +21,7 @@ __all__ = []
 
 import cPickle
 import getopt
+import getpass
 import os
 import socket
 import stat
@@ -35,6 +36,7 @@ from mixminion.Common import IntervalSet, LOG, floorDiv, MixError, \
      MixFatalError, ceilDiv, createPrivateDir, isSMTPMailbox, formatDate, \
      formatFnameTime, formatTime, openUnique, previousMidnight, \
      readPossiblyGzippedFile
+from mixminion.Crypto import sha1, ctr_crypt, trng
 
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
@@ -766,6 +768,79 @@ def parsePath(keystore, config, path, address, nHops=None,
     return resolvePath(keystore, address, enterPath, exitPath,
                        myNHops, myNSwap, startAt, endAt)
 
+class ClientKeyring:
+    "DOCDOC"
+    def __init__(self, keyDir):
+        self.keyDir = keyDir
+        createPrivateDir(self.keyDir)
+        self.surbKey = None
+
+    def getSURBKey(self):
+        if self.surbKey is not None:
+            return self.surbKey
+        fn = os.path.join(self.keyDir, "SURBKey")
+        self.surbKey = self._getKey(fn, magic="SURBKEY0", which="reply block")
+        return self.surbKey
+
+    def _getKey(self, fn, magic, which, bytes=20):
+        if os.path.exists(fn):
+            self._checkMagic(fn, magic)
+            while 1:
+                p = self._getPassword(which)
+                try:
+                    return self._load(fn, magic, p)
+                except MixError, e:
+                    LOG.error("Cannot load key", e)
+        else:
+            LOG.warn("No %s key found; generating.", which)
+            key = trng(bytes)
+            p = self._getNewPassword(which)
+            self._save(fn, key, magic, p)
+            return key
+
+    def _checkMagic(fn, magic):
+        f = open(rn, 'rb')
+        s = f.read()
+        f.close()
+        if not s.startswith(magic):
+            raise MixError("Invalid magic on key file")
+
+    def _save(self, fn, data, magic, password):
+        # File holds magic, enc(sha1(password)[:16],data+sha1(data+magic))
+        # XXXX Gosh, that's a lousy key scheme.
+        f = open(fn, 'wb')
+        f.write(magic)
+        f.write(ctr_crypt(data+sha1(data+magic), sha1(password)[:16]))
+        f.close()
+    
+    def _load(self, fn, magic, password):
+        f = open(fn, 'rb')
+        s = f.read()
+        f.close()
+        if not s.startswith(magic):
+            raise MixError("Invalid key file")
+        s = s[len(magic):]
+        s = ctr_crypt(s, sha1(password)[:16])
+        data, hash = s[:-20], s[-20:]
+        if hash != sha1(data+magic):
+            raise MixError("Incorrect password")
+        return data
+        
+    def _getPassword(self, which):
+        s = "Enter password for %s:"%which
+        p = getpass.getpass(s)
+        return p
+
+    def _getNewPassword(self, which):
+        s1 = "Enter new password for %s:"%which
+        s2 = "Verify password:".rjust(len(s1))
+        while 1:
+            p1 = getpass.getpass(s1)
+            p2 = getpass.getpass(s2)
+            if p1 == p2:
+                return p1
+            print "Passwords do not match."
+
 def installDefaultConfig(fname):
     """Create a default, 'fail-safe' configuration in a given file"""
     LOG.warn("No configuration file found. Installing default file in %s",
@@ -802,6 +877,8 @@ class MixminionClient:
     ## Fields:
     # config: The ClientConfig object with the current configuration
     # prng: A pseudo-random number generator for padding and path selection
+    # keyDir: DOCDOC
+    # surbKey: DOCDOC
     def __init__(self, conf):
         """Create a new MixminionClient with a given configuration"""
         self.config = conf
@@ -809,6 +886,8 @@ class MixminionClient:
         # Make directories
         userdir = os.path.expanduser(self.config['User']['UserDir'])
         createPrivateDir(userdir)
+        keyDir = os.path.join(userdir, "keys")
+        self.keys = ClientKeyring(keyDir)
 
         # Initialize PRNG
         self.prng = mixminion.Crypto.getCommonPRNG()
@@ -826,15 +905,24 @@ class MixminionClient:
 
         self.sendMessages([message], firstHop)
 
+    def generateReplyBlock(self, address, servers, expiryTime=0):
+        #DOCDOC
+        key = self.keys.getSURBKey()
+        exitType, exitInfo, _ = address.getRouting()
+        
+        block = mixminion.BuildMessage.buildReplyBlock(
+            servers, exitType, exitInfo, key, expiryTime)
+
+        return block
+
     def generateForwardMessage(self, address, payload, servers1, servers2):
         """Generate a forward message, but do not send it.  Returns
            a tuple of (the message body, a ServerInfo for the first hop.)
 
             address -- the results of a parseAddress call
-            payload -- the contents of the message to send
+            payload -- the contents of the message to send  (None for DROP
+              messages)
             path1,path2 -- lists of servers.
-
-            DOCDOC payload == None.
             """
 
         routingType, routingInfo, _ = address.getRouting()

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.23 2003/01/17 06:18:06 nickm Exp $
+# $Id: Packet.py,v 1.24 2003/02/04 02:38:23 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -9,23 +9,27 @@
    packets, see BuildMessage.py.  For functions that handle
    server-side processing of packets, see PacketHandler.py."""
 
-__all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
-            'parseMessage', 'parseHeader', 'parseSubheader',
+__all__ = [ 'ParseError', 'Message', 'Header', 'Subheader', 'parseMessage',
+            'parseHeader', 'parseSubheader',
             'getTotalBlocksForRoutingInfoLen', 'parsePayload',
-            'SingletonPayload', 'FragmentPayload', 'ReplyBlock',
-            'IPV4Info', 'SMTPInfo', 'MBOXInfo', 'parseIPV4Info',
-            'parseSMTPInfo', 'parseMBOXInfo', 'ReplyBlock',
-            'parseReplyBlock', 'ENC_SUBHEADER_LEN', 'HEADER_LEN',
+            'SingletonPayload', 'FragmentPayload', 'ReplyBlock', 'IPV4Info',
+            'SMTPInfo', 'MBOXInfo', 'parseIPV4Info', 'parseSMTPInfo',
+            'parseMBOXInfo', 'ReplyBlock', 'parseReplyBlock',
+            'parseTextReplyBlocks', 'ENC_SUBHEADER_LEN', 'HEADER_LEN',
             'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO', 'SECRET_LEN', 'TAG_LEN',
             'SINGLETON_PAYLOAD_OVERHEAD', 'OAEP_OVERHEAD',
-            'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD',
-            'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
-            'SMTP_TYPE', 'MBOX_TYPE', 'MIN_EXIT_TYPE'
-]
+            'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD', 'DROP_TYPE',
+            'FWD_TYPE', 'SWAP_FWD_TYPE', 'SMTP_TYPE', 'MBOX_TYPE',
+            'MIN_EXIT_TYPE'
+          ]
 
+import base64
+import binascii
+import re
 import struct
 from socket import inet_ntoa, inet_aton
-from mixminion.Common import MixError, floorDiv, isSMTPMailbox
+import mixminion.BuildMessage
+from mixminion.Common import MixError, floorDiv, isSMTPMailbox, LOG
 
 # Major and minor number for the understood packet format.
 MAJOR_NO, MINOR_NO = 0,1  #XXXX003 Bump minor_no for 0.0.3
@@ -392,9 +396,33 @@ class FragmentPayload(_Payload):
 #   routingInfo for the last server.
 RB_UNPACK_PATTERN = "!4sBBL%dsHH%ss" % (HEADER_LEN, SECRET_LEN)
 MIN_RB_LEN = 30+HEADER_LEN
+RB_TEXT_START = "======= BEGIN TYPE III REPLY BLOCK ========"
+RB_TEXT_END   = "======== END TYPE III REPLY BLOCK ========="
+RB_TEXT_RE = re.compile(RB_TEXT_START+
+                        r'[\r\n]+Version: (\d+.\d+)\s*[\r\n]+(.*)[\r\n]+'+
+                        RB_TEXT_END, re.M) 
+
+def parseTextReplyBlocks(s):
+    """DOCDOC"""
+    idx = 0
+    blocks = []
+    while 1:
+        idx = s.find(RB_TEXT_START, idx)
+        if idx == -1:
+            break
+        m = RB_TEXT_RE.match(s, idx)
+        if not m:
+            raise ParseError("Misformatted reply block")
+        version, text = m.group(1), m.group(2)
+        if version != '0.1':
+            LOG.warn("Unrecognized reply block version: %s", version)
+        val = binascii.a2b_base64(text)
+        blocks.append(parseReplyBlock(val))
+        idx = m.end()
+    return blocks
 
 def parseReplyBlock(s):
-    """Return a new ReplyBlock object for an encoded reply block"""
+    """Return a new ReplyBlock object for an encoded reply block."""        
     if len(s) < MIN_RB_LEN:
         raise ParseError("Reply block too short")
     try:
@@ -435,6 +463,12 @@ class ReplyBlock:
                            len(self.routingInfo), self.routingType,
                            self.encryptionKey) + self.routingInfo
 
+    def packAsText(self):
+        text = binascii.b2a_base64(self.pack())
+        if not text.endswith("\n"):
+            text += "\n"
+        return "%s\nVersion: 0.1\n%s%s\n"%(RB_TEXT_START,text,RB_TEXT_END)
+    
 #----------------------------------------------------------------------
 # Routing info
 
@@ -513,3 +547,113 @@ class MBOXInfo:
     def pack(self):
         """Return the external representation of this routing info."""
         return self.user
+
+#----------------------------------------------------------------------
+# Ascii-encoded packets
+
+MESSAGE_START_LINE = "======= TYPE III ANONYMOUS MESSAGE BEGINS ========"
+MESSAGE_END_LINE   = "======== TYPE III ANONYMOUS MESSAGE ENDS ========="
+_FIRST_LINE_RE = re.compile(r'''^Decoding-handle:\s(.*)\r*\n|
+                                 Message-type:\s(.*)\r*\n''', re.X+re.S)
+_LINE_RE = re.compile(r'[^\r\n]+\r*\n', re.S)
+
+def _nextLine(s, idx):
+    m = _LINE_RE.match(s)
+    if m is None:
+        return len(s)
+    else:
+        return m.end()
+
+def getMessageContents(msg,force=0,idx=0):
+    """ Returns
+            ( 'TXT'|'ENC'|'LONG'|'BIN', tag|None, message, end-idx )
+    """
+    idx = msg.find(MESSAGE_START_LINE)
+    if idx < 0:
+        raise ParseError("No begin line found")
+    endIdx = msg.find(MESSAGE_END_LINE, idx)
+    if endIdx < 0:
+        raise ParseError("No end line found")
+    idx = _nextLine(msg, idx)
+    firstLine = msg[idx:_nextLine(msg, idx)]
+    m = _FIRST_LINE_RE.match(firstLine)
+    if m is None:
+        msgType = 'TXT'
+    elif m.group(1):
+        ascTag = m.group(1)
+        msgType = "ENC" #XXXX003 refactor
+        idx = firstLine
+    elif m.group(2):
+        if m.group(2) == 'overcompressed':
+            msgType = 'LONG' #XXXX003 refactor
+        elif m.group(2) == 'binary':
+            msgType = 'BIN' #XXXX003 refactor
+        else:
+            raise ParseError("Unknown message type: %r"%m.group(2))
+        idx = firstLine
+
+    msg = msg[idx:endIdx]
+    endIdx = _nextLine(endIdx)
+
+    if msgType == 'TXT':
+        return 'TXT', None, msg, endIdx
+
+    msg = binascii.a2b_base64(msg) #XXXX May raise
+    if msgType == 'BIN':
+        return 'BIN', None, msg, endIdx
+    elif msgType == 'LONG':
+        if force:
+            msg = mixminion.BuildMessage.uncompressData(msg) #XXXX may raise
+        return 'LONG', None, msg, endIdx
+    elif msgType == 'ENC':
+        tag = binascii.a2b_base64(ascTag)
+        return 'ENC', tag, msg, endIdx
+    else:
+        raise MixFatalError("unreached")
+
+class AsciiEncodedMessage:
+    def __init__(self, contents, messageType, tag=None):
+        assert messageType in ('TXT', 'ENC', 'LONG', 'BIN')
+        assert tag is None or (messageType == 'ENC' and len(tag) == 20)
+        self.contents = contents
+        self.messageType = messageType
+        self.tag = tag
+    def isBinary(self):
+        return self.messageType == 'BIN'
+    def isText(self):
+        return self.messageType == 'TXT'
+    def isEncrypted(self):
+        return self.messageType == 'ENC'
+    def isOvercompressed(self):
+        return self.messageType == 'LONG'
+    def getContents(self):
+        return self.contents
+    def getTag(self):
+        return self.tag
+    def pack(self):
+        c = self.contents
+        preNL = ""
+
+        if self.messageType != 'TXT':
+            c = base64.encodestring(c)
+        else:
+            if (c.startswith("Decoding-handle:") or
+                c.startswith("Message-type:")):
+                preNL = "\n"
+                
+        preNL = postNL = ""
+        if self.messageType == 'TXT':
+            tagLine = ""
+        elif self.messageType == 'ENC':
+            ascTag = binascii.b2a_base64(self.tag).strip()
+            tagLine = "Decoding-handle: %s\n" % ascTag
+        elif self.messageType == 'LONG':
+            tagLine = "Message-type: overcompressed\n"
+        elif self.messageType == 'BIN':
+            tagLine = "Message-type: binary\n"
+
+        if c[-1] != '\n':
+            postNL = "\n"
+
+        return "%s\n%s%s%s%s%s\n" % (
+            MESSAGE_START_LINE, tagLine, preNL, c, postNL, MESSAGE_END_LINE)

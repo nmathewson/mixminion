@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.75 2003/01/17 06:18:06 nickm Exp $
+# $Id: test.py,v 1.76 2003/02/04 02:38:23 nickm Exp $
 
 """mixminion.tests
 
@@ -18,6 +18,7 @@ import cStringIO
 import gzip
 import os
 import re
+import socket
 import stat
 import sys
 import threading
@@ -1688,7 +1689,7 @@ class BuildMessageTests(unittest.TestCase):
         ## Stateless replies
         reply = brb([self.server3, self.server1, self.server2,
                       self.server1, self.server3], MBOX_TYPE,
-                     "fred", "Tyrone Slothrop", 0)
+                     "fred", "Tyrone Slothrop", 3)
 
         sec,(loc,), _ = self.do_header_test(reply.header, pks_1, None,
                             (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
@@ -1696,6 +1697,32 @@ class BuildMessageTests(unittest.TestCase):
 
         self.assertEquals(loc[20:], "fred")
 
+        # (Test reply block formats)
+        self.assertEquals(reply.timestamp, 3)
+        self.assertEquals(reply.routingType, SWAP_FWD_TYPE)
+        self.assertEquals(reply.routingInfo,
+                          self.server3.getRoutingInfo().pack())
+        self.assertEquals(reply.pack(),
+                          "SURB\x00\x01\x00\x00\x00\x03"+reply.header+
+                         "\x00"+chr(len(self.server3.getRoutingInfo().pack()))+
+                          "\x00\x02"+reply.encryptionKey+
+                          self.server3.getRoutingInfo().pack())
+        self.assertEquals(reply.pack(), parseReplyBlock(reply.pack()).pack())
+        txt = reply.packAsText()
+        self.assert_(txt.startswith(
+            "======= BEGIN TYPE III REPLY BLOCK ========\nVersion: 0.1\n"))
+        self.assert_(txt.endswith(
+            "\n======== END TYPE III REPLY BLOCK =========\n"))
+        parsed = parseTextReplyBlocks(txt)
+        self.assertEquals(1, len(parsed))
+        self.assertEquals(reply.pack(), parsed[0].pack())
+        parsed2 = parseTextReplyBlocks((txt+"   9999 \n")*2)
+        self.assertEquals(2, len(parsed2))
+        self.assertEquals(reply.pack(), parsed2[1].pack())
+
+        #XXXX003 test failing cases for parseTextReplyBlocks
+        
+        # Test decoding
         seed = loc[:20]
         prng = AESCounterPRNG(sha1(seed+"Tyrone SlothropGenerate")[:16])
         sec.reverse()
@@ -2784,9 +2811,24 @@ class MMTPTests(unittest.TestCase):
         t.join()
 
     def testStallingTransmission(self):
+        def threadfn(pausing):
+            # helper fn to run in a different thread: bind a socket,
+            # but don't listen.
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("127.0.0.1", TEST_PORT))
+            while pausing[0] > 0:
+                time.sleep(.1)
+                pausing[0] -= .1
+            time.sleep(2)
+            sock.close()
+        pausing = [3]
+        t = threading.Thread(None, threadfn, args=(pausing,))
+        t.start()
+        
         now = time.time()
         try:
-            mixminion.MMTPClient.sendMessages("0.0.0.1",
+            mixminion.MMTPClient.sendMessages("127.0.0.1",
                                               #Is there a better IP????
                                               TEST_PORT, "Z"*20, ["JUNK"],
                                               connectTimeout=1)
@@ -2795,6 +2837,8 @@ class MMTPTests(unittest.TestCase):
             pass
         passed = time.time() - now
         self.assert_(passed < 2)
+        pausing[0] = 0
+        t.join()
 
     def _testNonblockingTransmission(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
@@ -3842,10 +3886,10 @@ Foo: 100
         ####
         # Tests escapeMessageForEmail
         self.assert_(stringContains(eme(FDPFast('plain',message)), message))
-        expect = "BEGINS ========\n"+\
+        expect = "BEGINS ========\nMessage-type: binary\n"+\
                  base64.encodestring(binmessage)+"====="
         self.assert_(stringContains(eme(FDPFast('plain',binmessage)), expect))
-        expect = "BEGINS ========\nDecoding handle: "+\
+        expect = "BEGINS ========\nDecoding-handle: "+\
                  base64.encodestring(tag)+\
                  base64.encodestring(binmessage)+"====="
         self.assert_(stringContains(eme(FDPFast('enc',binmessage,tag)),
@@ -3875,7 +3919,7 @@ This message is not in plaintext.  It's either 1) a reply; 2) a forward
 message encrypted to you; or 3) junk.
 
 ======= TYPE III ANONYMOUS MESSAGE BEGINS ========
-Decoding handle: eHh4eHh4eHh4eHh4eHh4eHh4eHg=
+Decoding-handle: eHh4eHh4eHh4eHh4eHh4eHh4eHg=
 7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v
 +s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6
 zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3g==
@@ -5163,7 +5207,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(BuildMessageTests))
         return suite
 
     suite.addTest(tc(MiscTests))
