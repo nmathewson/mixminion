@@ -1,9 +1,10 @@
 mixminion (0XXXXXXXX) experimental; urgency=low
 
-  * Update debian/copyright: Mixminion relicensed to MIT.
+  * Update debian/copyright: Mixminion relicensed to MIT.  Also, it is 2005
+    now.  Update copyright notices.
   * No longer start description synopsis with a capital letter.
 
- -- Peter Palfrader <weasel@debian.org>  Mon, 10 Jan 2005 15:54:32 +0100
+ -- Peter Palfrader <weasel@debian.org>  Mon, 10 Jan 2005 15:55:20 +0100
 
 mixminion (0.0.7.1-2) experimental; urgency=low
 
