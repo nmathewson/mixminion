@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.10 2003/01/04 20:42:38 nickm Exp $
+# $Id: Modules.py,v 1.11 2003/01/05 01:32:45 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -33,6 +33,7 @@ from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
      isPrintingAscii
 from mixminion.BuildMessage import CompressedDataTooLong
+from mixminion.Packet import ParseError
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -387,16 +388,34 @@ class DropModule(DeliveryModule):
 #----------------------------------------------------------------------
 class EmailAddressSet:
     """A set of email addresses stored on disk, for use in blacklisting email
-       addresses. DOCDOC"""
-    #XXXX002 test
+       addresses.  The file format is line-based.  Lines starting with #
+       and empty lines are ignored.  Whitespace is ignored.  All other
+       lines take the format 'command value', where command is one of the
+       following...
+             address: match an email address, exactly.  "Address fred@fred"
+               matches "fred@fred" and 'FRED@FRED'.
+             user: match the part of an email address before the @, exactly.
+               "User fred" matches "fred@fred" and "fred@alice", but not
+               "bob@fred" or "mr-fred@alice".
+             domain: match the part of an email address after the @, exactly.
+               "Domain fred" matches "bob@fred" but not "bob@fred.com" or
+               "bob@host.fred".
+             subdomains: match the part of an email address after the @,
+               or any parent domain thereof.  "Subdomains fred.com" matches
+               "bob@fred.com" and "bob@host.fred.com", but not "bob@com".
+             pattern: match the email address if the provided regex appears
+               anywhere in it.  "Pattern /./" matches everything;
+               "Pattern /(..)*/" matches all addresses with an even number
+               of characters.
+    """
     ## Fields
-    # addresses -- A dict whose keys are lowercased email addresses
-    # domains -- A dict whose keys are lowercased domains ("foo.bar.baz")
-    #   DOCDOC sub
+    # addresses -- A dict whose keys are lowercased email addresses ("foo@bar")
+    # domains -- A dict whose keys are lowercased domains ("foo.bar.baz").
+    #   If the value for a key is 'SUB', all subdomains are also included.
     # users -- A dict whose keys are lowercased users ("foo")
     # patterns -- A list of regular expression objects.
     def __init__(self, fname=None, string=None):
-        """Read the address set from a file or a string. DOCDOC"""
+        """Read the address set from a file or a string."""
         if string is None:
             f = open(fname, 'r')
             string = f.read()
@@ -422,32 +441,33 @@ class EmailAddressSet:
             arg = line[1].strip()
             if cmd == 'address':
                 if not isSMTPMailbox(arg):
-                    LOG.warn("Address %s on %s doesn't look valid to me.",
-                             arg, lineno)
+                    raise ConfigError("Address %s on %s doesn't look valid"%(
+                        arg, lineno))
                 self.addresses[arg.lower()] = 1
             elif cmd == 'user':
                 if not isSMTPMailbox(arg+"@x"):
-                    LOG.warn("User %s on %s doesn't look valid to me.",
-                             arg, lineno)
+                    raise ConfigError("User %s on %s doesn't look valid"%(
+                        arg, lineno))
                 self.users[arg.lower()] = 1
             elif cmd == 'domain':
                 if not isSMTPMailbox("x@"+arg):
-                    LOG.warn("Domain %s on %s doesn't look valid to me.",
-                             arg, lineno)
+                    raise ConfigError("Domain %s on %s doesn't look valid"%(
+                        arg, lineno))
                 if not self.domains.has_key(arg.lower()):
                     self.domains[arg.lower()] = 1
             elif cmd == 'subdomains':
                 if not isSMTPMailbox("x@"+arg):
-                    LOG.warn("Domain %s on %s doesn't look valid to me.",
-                             arg, lineno)
+                    raise ConfigError("Domain %s on %s doesn't look valid"%(
+                        arg, lineno))
                 self.domains[arg.lower()] = 'SUB'
             elif cmd == 'pattern':
-                if not arg[0] == '/' and arg[-1] == '/':
-                    raise ConfigError("Pattern %s on %s is missing /s.",
-                                      arg, lineno)
+                if arg[0] != '/' or arg[-1] != '/':
+                    raise ConfigError("Pattern %s on %s is missing /s."%(
+                                      arg, lineno))
                 arg = arg[1:-1]
                 # FFFF As an optimization, we may be able to coalesce some
-                # FFFF of these patterns.  I doubt this will become 
+                # FFFF of these patterns.  I doubt this will become part of
+                # FFFF the critical path any time soon, though.
                 self.patterns.append(re.compile(arg, re.I))
             else:
                 raise ConfigError("Unrecognized command %s on line %s",
@@ -457,29 +477,33 @@ class EmailAddressSet:
         """Return true iff this this address set contains the address
            'address'.
 
-           The result will only be accurate if 'address' is a
-           valid restricted RFC822 address as checked by isSMTPMailbox.
+           *REQUIRES* that 'address' is a valid restricted RFC822
+           address as checked by isSMTPMailbox.  If not, behavior is
+           undefined.
         """
-        #DOCDOC
+        # Is the address blocked?
         lcaddress = address.lower()
         if self.addresses.has_key(lcaddress):
             return 1
 
+        # What about its user or domain parts?
         user, dom = lcaddress.split("@", 1)
         if self.users.has_key(user) or self.domains.has_key(dom):
             return 1
 
+        # Is it the subdomain of a blocked domain?
         domparts = dom.split(".")
-        domparts.reverse()
-        dom = domparts[0]
-        if self.domains.get(
-        for d in domparts[1:]:
+        for idx in range(len(domparts)):
+            subdom = ".".join(domparts[idx:])
+            if self.domains.get(subdom,None) == 'SUB':
+                return 1
 
-
+        # Does it match any patterns?
         for pat in self.patterns:
             if pat.search(address):
                 return 1
 
+        # Then it must be okay.
         return 0
                 
 #----------------------------------------------------------------------
@@ -639,13 +663,14 @@ class SMTPModule(DeliveryModule):
         return [ mixminion.Packet.SMTP_TYPE ]
 
 class DirectSMTPModule(SMTPModule):
-    #XXXX DOCDOC!!!!
-    # server
-    # blacklist
-    # server
-    # header
-    # returnAddress
-    #XXXX002 test
+    """Module that delivers SMTP messages via a local MTA."""
+    ## Fields
+    # server -- Name of the MTA server.
+    # header -- The string, minus "To:"-line, that gets prepended to all
+    #    outgoing messages.
+    # returnAddress -- The address to use in the "From:" line.
+    # blacklist -- An EmailAddressSet of addresses to which we refuse
+    #   to deliver messages.
     def __init__(self):
         SMTPModule.__init__(self)
 
@@ -653,8 +678,8 @@ class DirectSMTPModule(SMTPModule):
         return { "Delivery/SMTP" :
                  { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
                    'BlacklistFile' : ('ALLOW', None, None), 
-                   'SMTPServer' : ('ALLOW', None, 'localhost'), #Required on e
-                   'Messsage' : ('ALLOW', None, ""),
+                   'SMTPServer' : ('ALLOW', None, 'localhost'),
+                   'Message' : ('ALLOW', None, ""),
                    'ReturnAddress': ('ALLOW', None, None), #Required on e
                    'SubjectLine' : ('ALLOW', None,
                                     'Type-III Anonymous Message'),
@@ -670,7 +695,7 @@ class DirectSMTPModule(SMTPModule):
             if not sec.get(field):
                 raise ConfigError("Missing field %s in [Delivery/SMTP]"%field)
         fn = sec.get('BlacklistFile')
-        if fn and not not os.path.exists(fn):
+        if fn and not os.path.exists(fn):
             raise ConfigError("Blacklist file %s seems not to exist"%fn)
         if not isSMTPMailbox(sec['ReturnAddress']):
             LOG.warn("Return address (%s) doesn't look like an email address",
@@ -687,18 +712,24 @@ class DirectSMTPModule(SMTPModule):
             self.blacklist = EmailAddressSet(fname=sec['BlacklistFile'])
         else:
             self.blacklist = None
-        message = textwrap.wrap(sec.get('Message',"")).strip()
-        subject = sec['Subject']
+        message = "\n".join(textwrap.wrap(sec.get('Message',""))).strip()
+        subject = sec['SubjectLine']
         self.returnAddress = sec['ReturnAddress']
 
         self.header = "From: %s\nSubject: %s\n\n%s" %(
             self.returnAddress, subject, message)
 
+        manager.enableModule(self)
+        
     def processMessage(self, message, tag, exitType, address):
         assert exitType == mixminion.Packet.SMTP_TYPE
         LOG.trace("Received SMTP message")
         # parseSMTPInfo will raise a parse error if the mailbox is invalid.
-        address = mixminion.Packet.parseSMTPInfo(address).email
+        try:
+            address = mixminion.Packet.parseSMTPInfo(address).email
+        except ParseError:
+            LOG.warn("Dropping SMTP message to invalid address %r", address)
+            return DELIVER_FAIL_NORETRY
 
         # Now, have we blacklisted this address?
         if self.blacklist and self.blacklist.contains(address):
@@ -773,7 +804,11 @@ class MixmasterSMTPModule(SMTPModule):
         """Insert a message into the Mixmaster queue"""
         assert exitType == mixminion.Packet.SMTP_TYPE
         # parseSMTPInfo will raise a parse error if the mailbox is invalid.
-        info = mixminion.Packet.parseSMTPInfo(smtpAddress)
+        try:
+            info = mixminion.Packet.parseSMTPInfo(smtpAddress)
+        except ParseError:
+            LOG.warn("Dropping SMTP message to invalid address %r",smtpAddress)
+            return DELIVER_FAIL_NORETRY
 
         msg = _escapeMessageForEmail(message, tag)
         handle = self.tmpQueue.queueMessage(msg)
@@ -838,7 +873,7 @@ def _escapeMessageForEmail(msg, tag):
                             or a reply]
                          None [if the message is in plaintext]
                          'err' [if the message was invalid.]
-                         'long' [if the message might be a zlib bomb'.
+                         'long' [if the message might be a zlib bomb'].
 
        Returns None on an invalid message."""
     m = _escapeMessage(msg, tag, text=1)
@@ -863,10 +898,15 @@ it, but it was compressed by more than a factor of 20, which makes me nervous.
     else:
         tag = ""
 
+    if msg and msg[-1] != '\n':
+        extra_newline = "\n"
+    else:        
+        extra_newline = ""
+        
     return """\
 %s======= TYPE III ANONYMOUS MESSAGE BEGINS ========
-%s%s======== TYPE III ANONYMOUS MESSAGE ENDS =========
-""" %(junk_msg, tag, msg)
+%s%s%s======== TYPE III ANONYMOUS MESSAGE ENDS =========
+""" %(junk_msg, tag, msg, extra_newline)
 
 def _escapeMessage(message, tag, text=0):
     """Helper: given a decoded message (and possibly its tag), determine
@@ -883,7 +923,7 @@ def _escapeMessage(message, tag, text=0):
                             or a reply]
                          None [if the message is in plaintext]
                          'err' [if the message was invalid.]
-                         'long' [if the message might be a zlib bomb'.
+                         'long' [if the message might be a zlib bomb'].
           text -- flag: if true, non-TXT messages must be base64-encoded.
     """
     if tag == 'err':
