@@ -21,11 +21,17 @@ TCP latency, and me.)
                         o Implement
                         o Integrate
                         . Test
-        - Infrastructure -- high level
-                - Separate directory downloading, directory caching, path
+        . Infrastructure -- high level
+                o Separate directory downloading, directory caching, path
                   parsing, and path generation into a new module.
-                - Separate SURB logging, keystores, and client queues into
+                o Separate SURB logging, keystores, and client queues into
                   client support module.
+                - Refactor path selection to have a nicer interface.
+                        - Generic, cross-module notion of "address".
+                        - Better capability infrastructure.
+                        - Separate parsing path str into specifier list, 
+                          checking specifier list for sanity, and generating
+                          path from specifier list.
                 - Rewrite ClientMain path generation to do the right
                   thing with multi-packet messages
                 - Have callers of Packet/BuildMessage/DeliveryPacket
@@ -34,9 +40,12 @@ TCP latency, and me.)
                   cases of a thread pool abstraction
         - UI improvements:
                 - Add some convenient way to list arbitrary server features.
-                - Separate 'mixminiond' wrapper; 'mixminiond' confuses folk.
+                - Separate 'mixminiond' wrapper; 'mixminion server-foo'
+                  confuses folk.
                 - SSL's "Unexpected error: wrong version number"
                   message is confusing.
+                - Better error message when opening db with unsupported
+                  database type.
                 - List servers by nickname, not by IP.
                 - Make TRACE mode less verbose, or make DEBUG mode more useful.
         - Large reply messages and efwd messages
@@ -56,9 +65,15 @@ TCP latency, and me.)
                 - Py2EXE support
         - Dynamic IP support
                 - Change IPv4/IPv6 delivery methods to use DNS if desired.
-                - Servers redirect to latest IP if old IP is down.  (Dynamic
-                  IP support, after a fashion.)
-        - Specification
+                  [Migration plan: Supplement 'IP' with 'Hostname' in
+                   ServerInfo.  If we're routing S1->S2, and both have
+                   'Hostname', use FWD/HOST.  Else use FWD/IPv4.  In 0.0.7,
+                   drop FWD/IPv4 support, and remove IP from ServerInfo.]
+                        - Implement DNS farm
+                        - ServerInfo changes
+                        - Path generation changes
+                        - Implement *FWD/HOST
+         - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
                 - Clear up specification for multiple addrs on MAIL
@@ -78,7 +93,10 @@ Reach for 0.0.6:
                 - RFC822 interface and maildir-style exit module to help
                   integrators.
         - MMTP
-               - Make MMTP bursty
+                - Make MMTP bursty
+        - Dynamic IP support
+                - Servers redirect to latest IP if old IP is down.  (Dynamic
+                  IP support, after a fashion.)
         - Manual pages
                 - Re-do man page to be generated from common source
                   on all platforms (George.)

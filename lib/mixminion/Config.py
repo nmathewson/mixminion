@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.57 2003/09/03 15:49:58 nickm Exp $
+# $Id: Config.py,v 1.58 2003/09/28 05:27:56 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -775,6 +775,7 @@ class _ConfigFile:
         return "".join(lines)
 
 class ClientConfig(_ConfigFile):
+    #XXXX Should this go into ClientUtils or something?
     _restrictFormat = 0
     _restrictKeys = _restrictSections = 1
     _syntax = {

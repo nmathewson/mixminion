@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.154 2003/09/12 15:52:46 nickm Exp $
+# $Id: test.py,v 1.155 2003/09/28 05:27:56 nickm Exp $
 
 """mixminion.tests
 
@@ -5896,7 +5896,7 @@ class ClientUtilTests(TestCase):
 
         #XXXX006 finish testing corner cases and pickles.
 
-class ClientMainTests(TestCase):
+class ClientDirectoryTests(TestCase):
     def testClientDirectory(self):
         """Check out ClientMain's directory implementation"""
         eq = self.assertEquals
@@ -5904,7 +5904,7 @@ class ClientMainTests(TestCase):
         ServerInfo = mixminion.ServerInfo.ServerInfo
 
         dirname = mix_mktemp()
-        ks = mixminion.ClientMain.ClientDirectory(dirname)
+        ks = mixminion.ClientDirectory.ClientDirectory(dirname)
 
         ## Write the descriptors to disk.
         edesc = getExampleServerDescriptors()
@@ -5942,7 +5942,7 @@ class ClientMainTests(TestCase):
             self.assertRaises(MixError, ks.getServerInfo, "Joe", startAt=now,
                               endAt=now+6*oneDay)
             if i in (0,1,2):
-                ks = mixminion.ClientMain.ClientDirectory(dirname)
+                ks = mixminion.ClientDirectory.ClientDirectory(dirname)
             if i == 1:
                 ks.rescan()
             if i == 2:
@@ -5978,8 +5978,8 @@ class ClientMainTests(TestCase):
 
         # Replace the real URL and fingerprint with the ones we have; for
         # unit testing purposes, we can't rely on an http server.
-        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = fileURL(fname)
-        mixminion.ClientMain.MIXMINION_DIRECTORY_FINGERPRINT = fingerprint
+        mixminion.ClientDirectory.MIXMINION_DIRECTORY_URL = fileURL(fname)
+        mixminion.ClientDirectory.MIXMINION_DIRECTORY_FINGERPRINT = fingerprint
 
         # Reload the directory.
         ks.updateDirectory(now=now)
@@ -5991,7 +5991,7 @@ class ClientMainTests(TestCase):
                               edesc["Bob"][4])
 
             if i in (0,1,2):
-                ks = mixminion.ClientMain.ClientDirectory(dirname)
+                ks = mixminion.ClientDirectory.ClientDirectory(dirname)
             if i == 1:
                 ks.rescan()
             if i == 2:
@@ -6015,7 +6015,7 @@ class ClientMainTests(TestCase):
             [os.path.join(impdirname, s) for s in
              ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
               "Bob3", "Bob4", "Lisa1", "Lisa2") ], identity)
-        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = fileURL(fname)
+        mixminion.ClientDirectory.MIXMINION_DIRECTORY_URL = fileURL(fname)
         ks.updateDirectory(forceDownload=1)
         # Previous entries.
         self.assertSameSD(ks.getServerInfo("Alice"), edesc["Alice"][0])
@@ -6082,7 +6082,7 @@ class ClientMainTests(TestCase):
             neq(p[1].getNickname(), "Alice")
             neq(p[1].getNickname(), "Joe")
             # 2b. With 3 <= servers < length
-            ks2 = mixminion.ClientMain.ClientDirectory(mix_mktemp())
+            ks2 = mixminion.ClientDirectory.ClientDirectory(mix_mktemp())
             ks2.importFromFile(os.path.join(impdirname, "Joe0"))
             ks2.importFromFile(os.path.join(impdirname, "Alice0"))
             ks2.importFromFile(os.path.join(impdirname, "Lisa1"))
@@ -6159,7 +6159,7 @@ class ClientMainTests(TestCase):
         self.assertSameSD(p[-1], alice[0]) # We ignore endCap with endServers
 
         ### Now try parsePath.  This should exercise resolvePath as well.
-        ppath = mixminion.ClientMain.parsePath
+        ppath = mixminion.ClientDirectory.parsePath
         paddr = mixminion.ClientMain.parseAddress
         email = paddr("smtp:lloyd@dobler.com")
         mboxWithServer = paddr("mbox:Granola@Lola")
@@ -6342,10 +6342,30 @@ class ClientMainTests(TestCase):
 
         ## Now try clean()
         ks.clean() # Should do nothing.
-        ks = mixminion.ClientMain.ClientDirectory(dirname)
+        ks = mixminion.ClientDirectory.ClientDirectory(dirname)
         ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
         raises(MixError, ks.getServerInfo, "Lola")
 
+
+    def assertSameSD(self, s1, s2):
+        self.assert_(self.isSameServerDesc(s1,s2))
+
+    def isSameServerDesc(self, s1, s2):
+        """s1 and s2 are either ServerInfo objects or strings containing server
+           descriptors. Returns 1 iff their digest fields match"""
+        ds = []
+        for s in s1, s2:
+            if type(s) == types.StringType:
+                m = re.search(r"^Digest: (\S+)\n", s, re.M)
+                assert m
+                ds.append(base64.decodestring(m.group(1)))
+            elif isinstance(s, mixminion.ServerInfo.ServerInfo):
+                ds.append(s.getDigest())
+            else:
+                return 0
+        return ds[0] == ds[1]
+
+class ClientMainTests(TestCase):
     def testAddress(self):
         def parseEq(s, tp, addr, server, eq=self.assertEquals):
             "Helper: return true iff parseAddress(s).getRouting() == t,s,a."
@@ -6389,9 +6409,9 @@ class ClientMainTests(TestCase):
         parseFails("0x9999") # No data
         parseFails("0xFEEEF:zymurgy") # Hex literal out of range
 
-    def testSURBLog(self):
+    def testSURBLog(self): #XXXX move this.
         brb = BuildMessage.buildReplyBlock
-        SURBLog = mixminion.ClientMain.SURBLog
+        SURBLog = mixminion.ClientUtils.SURBLog
         ServerInfo = mixminion.ServerInfo.ServerInfo
         dirname = mix_mktemp()
         fname = os.path.join(dirname, "surblog")
@@ -6571,24 +6591,6 @@ class ClientMainTests(TestCase):
         finally:
             undoReplacedAttributes()
             clearCalls()
-
-    def assertSameSD(self, s1, s2):
-        self.assert_(self.isSameServerDesc(s1,s2))
-
-    def isSameServerDesc(self, s1, s2):
-        """s1 and s2 are either ServerInfo objects or strings containing server
-           descriptors. Returns 1 iff their digest fields match"""
-        ds = []
-        for s in s1, s2:
-            if type(s) == types.StringType:
-                m = re.search(r"^Digest: (\S+)\n", s, re.M)
-                assert m
-                ds.append(base64.decodestring(m.group(1)))
-            elif isinstance(s, mixminion.ServerInfo.ServerInfo):
-                ds.append(s.getDigest())
-            else:
-                return 0
-        return ds[0] == ds[1]
 
 #----------------------------------------------------------------------
 class FragmentTests(TestCase):
@@ -6780,7 +6782,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientMainTests))
+        suite.addTest(tc(ClientDirectoryTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -6799,6 +6801,7 @@ def testSuite():
                    EventStatsTests,
            
                    ModuleTests,
+                   ClientDirectoryTests,
                    ClientMainTests,
                    ServerKeysTests,
                    ServerMainTests,
