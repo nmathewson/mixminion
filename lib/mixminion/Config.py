@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.69 2003/11/28 04:14:04 nickm Exp $
+# $Id: Config.py,v 1.70 2003/12/04 05:50:36 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -935,6 +935,15 @@ class _ConfigFile:
 
         return "".join(lines)
 
+
+if sys.platform == 'win32':
+    # Windows prefers to put configuration in different places, depending
+    # on your version, but it doesn't get the idea of dotfiles.
+    DEFAULT_USER_DIR = "~/mixminion"
+else:
+    # Unix prefers to put configuration in hidden directories in your homedir.
+    DEFAULT_USER_DIR = "~/.mixminion"
+
 class ClientConfig(_ConfigFile):
     #XXXX Should this go into ClientUtils or something?
     _restrictFormat = 0
@@ -951,7 +960,7 @@ class ClientConfig(_ConfigFile):
                      'ServerURL' : ('ALLOW*', None, None),
                      'MaxSkew' : ('ALLOW', "interval", "10 minutes"),
                      'DirectoryTimeout' : ('ALLOW', "interval", "1 minute") },
-        'User' : { 'UserDir' : ('ALLOW', "filename", "~/.mixminion" ) },
+        'User' : { 'UserDir' : ('ALLOW', "filename", DEFAULT_USER_DIR) },
         'Security' : { 'PathLength' : ('ALLOW', "int", "8"),
                        'SURBAddress' : ('ALLOW', None, None),
                        'SURBPathLength' : ('ALLOW', "int", "4"),

@@ -145,6 +145,11 @@ def installDefaultConfig(fname):
     LOG.warn("No configuration file found. Installing default file in %s",
                   fname)
 
+    fields = { 'ud_default' : '~/.mixminion' }
+
+    if sys.platform == 'win32':
+        fields['ud_default'] = 'mixminion'
+
     writeFile(os.path.expanduser(fname),
               """\
 # This file contains your options for the mixminion client.
@@ -161,9 +166,9 @@ DirectoryTimeout: 1 minute
 # Other options not yet implemented
 
 [User]
-## By default, mixminion puts your files in ~/.mixminion.  You can override
+## By default, mixminion puts your files in %(ud_default)s,  You can override
 ## this directory here.
-#UserDir: ~/.mixminion
+#UserDir: %(ud_default)s
 
 [Security]
 ## Address to use by default when generating reply blocks
@@ -181,7 +186,7 @@ DirectoryTimeout: 1 minute
 
 [Network]
 ConnectionTimeout: 60 seconds
-""")
+""" % fields)
 
 class MixminionClient:
     #XXXX Once ClientAPI is more solid, this class should be folded into it.
