@@ -243,8 +243,10 @@ not yet ready to replace type I.]
                   missing links would be sufficient.)
         - Client support
                 - Support for sending multiple copies of a packet?
-                - Automatically remove old messages from client queue.
-                - Flush messages to a single mix.
+                - Automatically remove old messages from client queue. (Add
+                  'warn after' and 'delete after' configuration options'.)
+                - Flush messages to a single mix, or set of mixes.
+                - Clean messages for a single mix, or set of mixes.
                 - Support to remove servers from imported set, or to block
                   servers from directory.
                 - Avoid timing distinguishability attack related to

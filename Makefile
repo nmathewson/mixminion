@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.57 2003/11/28 04:14:03 nickm Exp $
+# $Id: Makefile,v 1.58 2003/12/08 02:29:39 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -175,6 +175,9 @@ signdist: sdist
 OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7c.tar.gz
 OPENSSL_FILE = openssl-0.9.7c.tar.gz
 OPENSSL_SRC = ./contrib/openssl
+OPENSSL_SHA = 80cbd896850455d09544cc05e01b147b3e85399e
+# I have verified that the above digest matches the tarball signed by the
+# openssl maintainer.  If you are paranoid, you should doublecheck. -Nick.
 
 download-openssl:
 	@if [ -x "`which wget 2>&1`" ] ; then                             \
@@ -206,11 +209,22 @@ $(OPENSSL_SRC)/libcrypto.a: $(OPENSSL_SRC)/config
 # It checks 1) whether there is a single, unique openssl-foo.tar.gz
 #           2) whether contrib/openssl is a real file or directory
 unpack-openssl:
-	@cd ./contrib;                                                      \
+	@$(FINDPYTHON);                                                     \
+	cd ./contrib;                                                       \
 	if [ -d ./openssl -a ! -h ./openssl ]; then                         \
 	    echo "Ouch. contrib/openssl seems not to be a symlink: "        \
 	         "I'm afraid to delete it." ;                               \
 	    exit;                                                           \
+	fi;                                                                 \
+	if [ -f $(OPENSSL_FILE) ]; then                                     \
+            SHA=`$$PYTHON -c "import sha;print sha.sha(open(\"$(OPENSSL_FILE)\").read()).hexdigest()"`; \
+	    if [ "$$SHA" != "$(OPENSSL_SHA)" ]; then                        \
+                echo "Unexpected digest on $(OPENSSL_FILE)!";               \
+	        exit;                                                       \
+            fi;                                                             \
+	    echo "Digest on $(OPENSSL_FILE) is correct.";                   \
+	else                                                                \
+            echo "Did not found expected version of $(OPENSSL_FILE); not checking digest."; \
 	fi;                                                                 \
 	TGZ=`ls openssl-*.tar.gz` ;                                         \
 	if [ "x$$TGZ" = "x" ]; then                                         \
