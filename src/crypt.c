@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.32 2003/10/09 03:56:30 nickm Exp $ */
+/* $Id: crypt.c,v 1.33 2003/10/13 17:11:09 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -1243,7 +1243,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
         X509_NAME *name_issuer = NULL;
         int nid;
         PyObject *retval;
-        time_t time;
+        time_t _time;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs,
                                          "sO!O!ssdd:generate_cert",
@@ -1275,8 +1275,10 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
                 goto error;
         if (!(X509_set_version(x509, 2)))
                 goto error;
-        /* XXXX006 This is not correct, and probably needs to change. */
-        if (!(ASN1_INTEGER_set(X509_get_serialNumber(x509),0L)))
+
+        /* Seconds since jan 1 2003. */
+        _time = time(NULL) - 1041397200;
+        if (!(ASN1_INTEGER_set(X509_get_serialNumber(x509),(long)_time)))
                 goto error;
 
 #define SET_PART(n, part, val)                                   \
@@ -1299,11 +1301,11 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
         if (!(X509_set_subject_name(x509, name)))
                 goto error;
 
-        time = (time_t) start_time;
-        if (!X509_time_adj(X509_get_notBefore(x509),0,&time))
+        _time = (time_t) start_time;
+        if (!X509_time_adj(X509_get_notBefore(x509),0,&_time))
                 goto error;
-        time = (time_t) end_time;
-        if (!X509_time_adj(X509_get_notAfter(x509),0,&time))
+        _time = (time_t) end_time;
+        if (!X509_time_adj(X509_get_notAfter(x509),0,&_time))
                 goto error;
         if (!(X509_set_pubkey(x509, pkey)))
                 goto error;
