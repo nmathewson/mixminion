@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.77 2003/06/10 14:12:31 nickm Exp $
+# $Id: ServerMain.py,v 1.78 2003/06/10 14:28:49 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -626,7 +626,8 @@ class MixminionServer(_Scheduler):
         exists = getHomedirVersion(config)
 
         createPrivateDir(homeDir)
-        if not exists:
+        if exists != SERVER_HOMEDIR_VERSION:
+            # If we reach this point, the homedir is uninitialized.
             writeFile(os.path.join(homeDir, "version"),
                       SERVER_HOMEDIR_VERSION, 0644)
 
