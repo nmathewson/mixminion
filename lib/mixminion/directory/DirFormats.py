@@ -1,5 +1,5 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirFormats.py,v 1.3 2004/12/13 06:01:59 nickm Exp $
+# $Id: DirFormats.py,v 1.4 2004/12/13 07:06:10 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -15,7 +15,8 @@ from mixminion.Common import formatBase64, formatDate, floorDiv, LOG, \
      MixError, previousMidnight
 
 from mixminion.Config import ConfigError
-from mixminion.Crypto import pk_sign, sha1, pk_encode_public_key
+from mixminion.Crypto import pk_sign, sha1, pk_encode_public_key, \
+     pk_fingerprint
 
 def _generateDirectory(identity, status,
                       servers, goodServerNames,
@@ -25,7 +26,7 @@ def _generateDirectory(identity, status,
     assert status in ("vote", "consensus")
     va = formatDate(previousMidnight(validAfter))
     vu = formatDate(previousMidnight(validAfter)+24*60*60+5)
-    rec = goodServerNames[:]
+    rec = [ s.lower() for s in goodServerNames[:] ]
     rec.sort()
     rec = ", ".join(rec)
     v = []
@@ -88,7 +89,7 @@ def generateConsensusDirectory(identity, voters, validAfter, directories,
     # directories is (source, stringable) list
 
     # First -- whom shall we vote with?
-    goodDirectories = [] # (src, stringable)
+    goodDirectories = {} # {fingerprint: (src,SignedDirectory)}
     serverMap = {} # digest->server info
     serversByDir = {} # keyid->list of digest
     for src, val in directories:
@@ -110,29 +111,33 @@ def generateConsensusDirectory(identity, voters, validAfter, directories,
 
         # Remember server descs minimally to save room.
         sig = directory.getSignatures()[0]
-        ident = sig['Signed-Directory']['Directory-Identity']
-        keyid = sha1(pk_encode_public_key(ident))
-        serversByDir[keyid] = []
+        fp = pk_fingerprint(sig['Signed-Directory']['Directory-Identity'])
+        serversByDir[fp] = []
         for s in directory.getAllServers():
             d = s.getDigest()
-            serversByDir[keyid].append(d)
+            serversByDir[fp].append(d)
             if not serverMap.has_key(d):
                 serverMap[d] = s
 
         del directory.servers[:] # Save RAM
-        goodDirectories.append((src, directory))
+        if goodDirectories.has_key(fp):
+            LOG.warn("Multiple directories with fingerprint %s; ignoring one from %s",
+                     fp, goodDirectories[fp][0])
+        goodDirectories[fp] = (src, directory)
+
+    goodVotes = [ v for _,v in goodDirectories.values() ]
 
     # Next -- what is the result of the vote? (easy cases)
     threshold = floorDiv(len(voters)+1, 2)
     includedClientVersions = commonElements(
-      [d['Recommended-Software']['MixminionClient'] for _,d in goodDirectories],
-      threshold)
+        [ d['Recommended-Software']['MixminionClient'] for d in goodVotes ],
+        threshold)
     includedServerVersions = commonElements(
-      [d['Recommended-Software']['MixminionServer'] for _,d in goodDirectories],
-      threshold)
+        [ d['Recommended-Software']['MixminionServer'] for d in goodVotes ],
+        threshold)
     includedRecommended = commonElements(
-      [d['Directory-Info']['Recommended-Servers'] for _,d in goodDirectories],
-      threshold)
+        [ d['Directory-Info']['Recommended-Servers'] for d in goodVotes ],
+        threshold)
 
     # Hard part -- what servers go in?
 
@@ -167,19 +172,26 @@ def generateConsensusDirectory(identity, voters, validAfter, directories,
     for ident in includedIdentities:
         servers = [ serverMap[digest] for digest in digestsByIdent[ident].keys()]
         for s in servers:
-            if s['Server']['ValidUntil'] < validAfter:
+            if s['Server']['Valid-Until'] < validAfter:
                 continue
-            elif s['Server']['ValidAfter'] - MAX_WINDOW > validAfter:
+            elif s['Server']['Valid-After'] - MAX_WINDOW > validAfter:
                 continue
             elif s.isSupersededBy(servers):
                 continue
             includedServers.append(s)
 
     # Generate and sign the result.
-    return generateDirectory(identity, "consensus",
+    val = _generateDirectory(identity, "consensus",
                              includedServers, includedRecommended,
                              voters, validAfter,
                              includedClientVersions, includedServerVersions)
+    try:
+        directory = mixminion.ServerInfo.SignedDirectory(
+            string=val, validatedDigests=validatedDigests)
+    except ConfigError,e:
+        raise MixError("Generated a consensus directory we cannot parse: %s"%e)
+
+    return val
 
 MAX_WINDOW = 30*24*60*60
 

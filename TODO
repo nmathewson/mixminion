@@ -61,9 +61,9 @@ For 0.0.8:
                        - Document how to change directory config
                 . Test everything
                        . Test generating and parsing vote directory
-                       - Test computing result of vote
-                       - Test generating consensus directory
-                       - Test parsing consensus directory
+                       . Test computing result of vote
+                       . Test generating consensus directory
+                       . Test parsing consensus directory
                        - Test actual directory code.
         . Bugs
                 o Make tests pass with bizarre umasks.  (Try 0077, 0000,
@@ -72,6 +72,8 @@ For 0.0.8:
                   not in ServerList.py
                 o Make build process mention where to download openssl if
                   neither wget nor curl is found.
+                - Let server admins configure return addresses with default
+                  real-names, even if users can override.
                 - Make client run and unittests not die when there is no
                   thread module.
                 o Have -P *5 -t mbox:foo@server always always mean
@@ -191,6 +193,7 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
                 - Timeout connections more aggressively under heavy load
                 - What else?
         - Disable heinously insecure operating modes.
+        - Log which file has configuration; option to dump config
 
 Other features for "1.0" (no research required):
         - Full statistics

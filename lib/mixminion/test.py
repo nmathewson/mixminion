@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.213 2004/12/13 06:01:58 nickm Exp $
+# $Id: test.py,v 1.214 2004/12/13 07:06:10 nickm Exp $
 
 """mixminion.tests
 
@@ -5232,6 +5232,7 @@ IP: 192.168.100.4
 
     def testNewDirectoryFormats(self):
         DF = mixminion.directory.DirFormats
+        SI = mixminion.ServerInfo
         examples = getExampleServerDescriptors()
         id0 = getRSAKey(1,2048)
         id1 = getRSAKey(3,2048)
@@ -5250,11 +5251,51 @@ IP: 192.168.100.4
                examples['Joe'][0], examples['Alice'][0] ]
         vd1 = {}
         s_vote1 = DF.generateVoteDirectory(
-            id0, s1, [ "Fred", "Lola", "Joe" ],
-            voters, va, ["0.0.8", "0.0.8.1"], ["0.0.8.1"], validatedDigests=vd1)
+            id0, s1, [ "Fred", "Lola", "joe" ],
+            voters, va, ["0.0.8", "0.0.8.1"], ["0.0.8.1"],
+            validatedDigests=vd1)
+        self.assert_(s_vote1.startswith('[Signed-Directory]\n'))
 
         # Test parsing it.
-        vote1 = mixminion.ServerInfo.SignedDirectory(string=s_vote1)
+        vote1 = SI.SignedDirectory(string=s_vote1)
+        DF.checkVoteDirectory(voters, va, vote1)
+        self.assertEquals(vote1['Directory-Info']['Valid-After'],
+                          previousMidnight(va))
+        self.assertEquals(vote1['Directory-Info']['Valid-Until'],
+                          succeedingMidnight(va))
+        self.assertEquals(vote1['Directory-Info']['Status'], "vote")
+        self.assertEquals(vote1.getSigners(), [(keyid0, ub0)])
+        self.assertEquals(vote1['Directory-Info']['Recommended-Servers'],
+                          [ "fred", "joe", "lola" ])
+        self.assertUnorderedEq(vote1['Directory-Info']['Voting-Server'],
+                               [ "%s %s"%(k,u) for k,u in voters ])
+        expected = [ SI.ServerInfo(string=s,assumeValid=1).getDigest()
+                     for s in s1 ]
+        got = [ s.getDigest() for s in vote1.getAllServers() ]
+        self.assertUnorderedEq(got, expected)
+
+        # Now make two more, and have them vote.
+        s1 = [ examples['Fred'][1], examples['Fred'][2], examples['Lola'][1],
+               examples['Joe'][0], examples['Alice'][0] ]
+        s2 = [ examples['Fred'][2], examples['Lola'][1],
+               examples['Alice'][0], examples['Alice'][1],
+               examples['Bob'][1], examples['Bob'][2],
+               examples['Lisa'][1] ]
+        vd2 = {}
+        s_vote2 = DF.generateVoteDirectory(
+            id1, s2, [ "Fred", "Lola", "Alice", "Bob", "Lisa"],
+            voters, va, [ "0.0.8", "0.0.8.1", "0.0.9.1" ],["0.0.8.1", "0.0.8"],
+            validatedDigests=vd2)
+        s3 = [ examples['Alice'][1], examples['Bob'][2], examples['Fred'][2] ]
+        s_vote3 = DF.generateVoteDirectory(
+            id2, s2, [ "Fred", "Lola", "Alice", "Bob", "Lisa"],
+            voters, va, [ "0.0.8", "0.0.8.1", "0.0.9.1" ],["0.0.8.1", "0.0.8"],
+            validatedDigests=vd2)
+
+        s_voted1 = DF.generateConsensusDirectory(
+            id0, voters, va,
+            [ ("voter1",s_vote1), ("voter2",s_vote2), ("voter3",s_vote3) ],
+            vd1)
 
 #----------------------------------------------------------------------
 # EventStats
@@ -7868,7 +7909,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 1:
+    if 0:
         suite.addTest(tc(ServerInfoTests))
         return suite
     testClasses = [MiscTests,

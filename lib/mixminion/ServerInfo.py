@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.89 2004/12/13 06:01:58 nickm Exp $
+# $Id: ServerInfo.py,v 1.90 2004/12/13 07:06:10 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -22,7 +22,7 @@ from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
      formatBase64, formatDate, formatTime, readPossiblyGzippedFile
 from mixminion.Config import ConfigError
 from mixminion.Crypto import CryptoError, DIGEST_LEN, pk_check_signature, \
-     pk_encode_public_key, pk_sign, sha1
+     pk_encode_public_key, pk_fingerprint, pk_sign, sha1
 
 # Longest allowed Contact email
 MAX_CONTACT = 256
@@ -607,8 +607,8 @@ class SignedDirectory:
         for idx in range(len(sigs)):
             sig = _DirectorySignature(sigs[idx])
             if sig.getDigest() != digest:
-                LOG.warn("Mismatched digest on signature #%s; skipping",
-                         idx)
+                LOG.warn("Signature #%s does not match directory; skipping",
+                         idx+1)
                 badsigs += 1
             else:
                 self.signatures.append(sig)
@@ -635,18 +635,20 @@ class SignedDirectory:
         sigs = {}
         self.signers = []
         for s in self.signatures:
-            sigs[s.getKeyDigest()] = s
+            sigs[s.getKeyFingerprint()] = s
         for digest, url in self.dirInfo.voters:
             try:
                 s = sigs[digest]
             except KeyError:
-                #XXXX008 warn
+                #XXXX008 log something.
                 continue
             if s.checkSignature():
-                # XXXX008 LOG.debug("Valid signature from %s")
+                LOG.trace("Found valid signature from %s at %s",
+                          digest, url)
                 self.signers.append((digest, url))
             else:
-                #LOG.debug("Invalid signature from %s") XXXX008
+                LOG.trace("Signature claiming to be from %s was not valid",
+                          digest)
                 continue
 
         return self.signers
@@ -829,13 +831,13 @@ class _DirectorySignature(mixminion.Config._ConfigFile):
     def getDigest(self):
         return self['Signed-Directory']['Directory-Digest']
 
-    def getKeyDigest(self):
-        return sha1(pk_encode_public_key(
-              self['Signed-Directory']['Directory-Identity']))
+    def getKeyFingerprint(self):
+        return pk_fingerprint(self['Signed-Directory']['Directory-Identity'])
 
     def checkSignature(self):
         if self.sigStatus is not None:
             return self.sigStatus
+
         sec = self['Signed-Directory']
         try:
             r = mixminion.Crypto.pk_check_signature(sec['Directory-Signature'],
