@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.41 2003/06/06 06:08:39 nickm Exp $
+# $Id: benchmark.py,v 1.42 2003/06/06 07:54:46 nickm Exp $
 
 """mixminion.benchmark
 
@@ -970,7 +970,7 @@ def testLeaks6_2():
 
 #----------------------------------------------------------------------
 def timeAll(name, args):
-    if 1:
+    if 0:
         testLeaks5_send()
         return
     

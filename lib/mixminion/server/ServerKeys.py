@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.41 2003/06/06 06:08:40 nickm Exp $
+# $Id: ServerKeys.py,v 1.42 2003/06/06 07:54:46 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -751,10 +751,6 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         warn("Published lifetime does not match PublicKeyLifetime")
         warn("(Future keys will be generated with the correct lifetime")
         warn.errors -= 2 # We can't do anything about this!
-
-    if info_s['Software'] != 'Mixminion %s'%mixminion.__version__:
-        warn("Mismatched software versions: running %s; %s published."
-             'Mixminion %s'%mixminion.__version__, info_s['Software'])
 
     info_im = info['Incoming/MMTP']
     config_im = config['Incoming/MMTP']
