@@ -167,7 +167,7 @@ For 0.0.4:
         o Add note to README about decreasing key lifetime.
         o Partially superceded descriptors should get replaced in dir,
           right?
-        . Resolve all the memory leaks.
+        o Resolve all the memory leaks.
         - Finish all documentation, resolve all XXXX004s
         - Add a warning banner.
         - Remaining unit tests
@@ -181,7 +181,11 @@ For 0.0.5:
                 - Work on porting clients to cygwin, win32.
                 - Twisted port decision
                 - Website, FAQ
-        - Subject-and-from support
+        - Support for email headers
+                - Subject
+                - From (limited)
+                - In-Reply-To
+                - References
         - Support for large messages and K-of-N
         - UI improvements:
                 - Audit exceptions: which should be UIError

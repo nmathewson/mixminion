@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.37 2003/06/03 17:28:11 nickm Exp $
+# $Id: benchmark.py,v 1.38 2003/06/05 02:27:30 nickm Exp $
 
 """mixminion.benchmark
 
@@ -845,7 +845,7 @@ def testLeaks5_send():
     #msg = "X" * 32 * 1024
     n = 0
     while 1:
-        mixminion.MMTPClient.sendMessages(routing, [])
+        mixminion.MMTPClient.sendMessages(routing, ["Z"*(32*1024)])
         n += 1
         print n, "sent"
 

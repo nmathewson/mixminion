@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.68 2003/06/05 02:18:11 nickm Exp $
+# $Id: ServerMain.py,v 1.69 2003/06/05 02:27:30 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1027,7 +1027,7 @@ def runServer(cmd, args):
     if config['Server']['__DEBUG_GC']:
         import gc
         gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_COLLECTABLE|gc.DEBUG_UNCOLLECTABLE
-                     |DEBUG_INSTANCES|DEBUG_OBJECTS)
+                     |gc.DEBUG_INSTANCES|gc.DEBUG_OBJECTS)
 
     daemonMode = config['Server'].get("Daemon",1)
     if daemonMode:
