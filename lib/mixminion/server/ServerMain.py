@@ -1,7 +1,7 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.125 2004/04/26 16:55:46 nickm Exp $
+# $Id: ServerMain.py,v 1.126 2004/05/14 23:41:17 nickm Exp $
 
-"""mixminion.ServerMain
+"""mixminion.server.ServerMain
 
    The main loop and related functionality for a Mixminion server.
 
