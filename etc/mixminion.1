@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.2 2004/03/18 04:49:59 nickm Exp $
+.\" $Id: mixminion.1,v 1.3 2004/03/18 05:35:32 weasel Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -14,7 +14,7 @@
 .Cm import-server | inspect-queue | inspect-surbs | list-fragments |
 .Cm list-servers | ping | purge-fragments | queue | reassemble | send |
 .Cm shell | testvectors | unittests | update-servers | version Brc
-.Op command_options
+.Op Ar command_options
 .Op Ar command_args ...
 .Pp
 .\" XXXX Is there a better markup than this .ti 2 business?
@@ -53,7 +53,7 @@ Fl \-reply-block= Ns Ar file | Fl \-reply-block-fd= Ns Ar n Brc
 .Op Fl \-in-reply-do= Ns Ar str
 .Op Fl \-deliver-fragments
 .Bro Fl t Ar addr | Fl \-to= Ns Ar addr | R Ar file | \
-Fl \-reply-block= Ns Ar file | \-reply-block-fd= Ns Ar n Brc
+Fl \-reply-block= Ns Ar file | Fl \-reply-block-fd= Ns Ar n Brc
 .Ek
 .Pp
 .ti 2
@@ -305,7 +305,7 @@ The
 .Nm mixminion
 interface wraps several commands, as listed below.  To invoke a
 specific command, call
-.Ic mixminion Aq Ar command_name .
+.Ic mixminion Ar command_name .
 Each command takes its own list of options.
 .Ss Commands
 Here is a brief description of each
@@ -669,22 +669,22 @@ on given servers, or other protocols not yet specified.  To do so,
 just provide a generalized address in place of an email address.
 The following address formats are supported:
 .Bl -tag -width ".Cm drop"
-.It Aq Ar email_address
+.It Ar email_address
 Sends an ordinary email message to a chosen email address.
-.It Cm smtp Ns : Ns Aq Ar email_address
+.It Cm smtp Ns : Ns Ar email_address
 A verbose equivalent to sending email to
 .Ar email_address .
 .It Cm drop
 Send a dummy message into the message; the last mix in the path will
 discard it.  When using this destination, no message body is needed.
-.It Cm mbox Ns : Ns Ao Ar mailbox_name Ac Ns Cm @ Ns Aq Ar server
+.It Cm mbox Ns : Ns Ar mailbox_name Ns Cm @ Ns Ar server
 Send a message to a named 'mailbox' configured at a specific mix.
 The chosen mix must support mbox delivery, and the name must be that
 of a valid mailbox.
-.It Cm 0x Ns Aq Ar routing_type
+.It Cm 0x Ns Ar routing_type
 For developers: manually send a message with a given 2-byte,
 hexadecimal routing-type field.
-.It Cm 0x Ns Ao Ar routing_type Ac Ns Cm : Ns Aq Ar routing_data
+.It Cm 0x Ns Ar routing_type Ns Cm : Ns Ar routing_data
 For developers: manually send a message with a given 2-byte,
 hexadecimal routing-type field and a given routing_data field.
 .El
@@ -810,8 +810,7 @@ The default configuration for your
 .Xr mixminionrc 5
 configuration file.  Defaults to
 .Pa $HOME/.mixminionrc
-on Unix and Mac OS X, and
-.Pa Documents\ and\ Settings\\mixminionrc
+on Unix and Mac OS X, and \fIDocuments\ and\ Settings\\mixminionrc\fP
 on Windows.  You can also  override this default with the
 .Fl f
 flag. If you try to start mixminion without a configuration, one is
@@ -997,7 +996,7 @@ The path syntax is documented in
 .Pp
 There are also tenative specifications for an API and a nymserver,
 but this software implements neither.  For more information, see the
-Mixminion website at http://mixminion.net
+Mixminion website at http://mixminion.net/
 .Sh SEE ALSO
 .Xr mixminionrc 5 ,
 .Xr mixminiond 8
@@ -1052,7 +1051,7 @@ Built-in network reliability testing ("pinging").
 .El
 .El
 .Ss Reporting bugs
-To report bugs, please use the Bugzilla pages at http://bugs.noreply.org.
+To report bugs, please use the Bugzilla pages at http://bugs.noreply.org/.
 For other correspondence, please email <nickm@freehaven.net>.
 For help in debugging, please try to send a copy of:
 .Bl -bullet -offset indent -compact
