@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.6 2002/10/16 23:12:13 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.7 2002/11/22 21:06:11 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because 
@@ -33,20 +33,12 @@ typedef unsigned char u8;
 #define INCR_U32(ptr, i) i = ++(*(u32*)(ptr))
 #endif
 
-#if 0  
-/* On my Athlon, bswap_32 is actually slower.  Surprisingly,
+/* An earlier version used bswap_32 where available to try to get the
+   supposed benefits of inline assembly.  Bizarrely, on my Athlon, 
+   bswap_32 is actually slower.  On the other hand,
    the code in glib/gtypes.h _is_ faster; but shaves only 1%
    off encryption.  We seem to be near the point of diminishing
    returns here. */
-#ifdef MM_L_ENDIAN
-#ifdef MM_HAVE_BYTESWAP_H
-#include <byteswap.h>
-#define GET_U32(ptr) bswap_32(*(u32*)(ptr))
-#define SET_U32(ptr,i) (*(u32*)(ptr)) = bswap_32(i)
-#endif
-#endif
-#endif /* if 0 */
-
 
 #ifndef GET_U32 
 #define GET_U32_cp(ptr) (  (u32)ptr[0] ^         \
