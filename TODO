@@ -40,6 +40,8 @@ TCP latency, and me.)
                   cases of a thread pool abstraction
         - UI improvements:
                 - Add some convenient way to list arbitrary server features.
+                - Timeouts should say 'timeout', not EINTR.
+                - Logging UIErrors isn't a bad idea.
                 - Separate 'mixminiond' wrapper; 'mixminion server-foo'
                   confuses folk.
                 - SSL's "Unexpected error: wrong version number"
@@ -73,6 +75,11 @@ TCP latency, and me.)
                         - ServerInfo changes
                         - Path generation changes
                         - Implement *FWD/HOST
+         - Spec conformance
+                - Directory Spec
+                        - Implement Packet-Versions
+                        - Don't use Key-Digest; mark it for removal in 0.0.7.
+                        - Make sure Maximum-Size and Allow-From
          - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
