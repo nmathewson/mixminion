@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.57 2003/08/28 01:40:07 nickm Exp $
+# $Id: Main.py,v 1.58 2003/09/03 15:53:30 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -290,7 +290,9 @@ def main(args):
         print "the MM_NO_FILE_PARANOIA"
         print "environment variable.)"
         sys.exit(1)
-    except KeyboardInterrupt:
+    except KeyboardInterrupt, e:
+        if cmdName in ('unittests', 'benchmarks'):
+            raise
         print "Interrupted."
     except ImportError, e:
         if str(e).find("_socket") >= 0:
