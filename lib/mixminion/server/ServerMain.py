@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.41 2003/02/14 17:22:21 nickm Exp $
+# $Id: ServerMain.py,v 1.42 2003/02/14 21:48:17 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -32,9 +32,9 @@ import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 
 from bisect import insort
-from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
-     createPrivateDir, formatBase64, formatTime, installSIGCHLDHandler, \
-     Lockfile, secureDelete, waitForChildren
+from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
+     UIError, ceilDiv, createPrivateDir, formatBase64, formatTime, \
+     installSIGCHLDHandler, Lockfile, secureDelete, waitForChildren
 
 class IncomingQueue(mixminion.server.ServerQueue.Queue):
     """A DeliveryQueue to accept packets from incoming MMTP connections,
