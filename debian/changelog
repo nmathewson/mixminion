@@ -1,3 +1,9 @@
+mixminion (0.0.7~cvs) unreleased; urgency=low
+
+  * - not release yet -
+
+ -- Peter Palfrader <weasel@debian.org>  Tue, 13 Jan 2004 16:11:42 +0100
+
 mixminion (0.0.6.2-1) experimental; urgency=low
 
   * Initial Release, uploading to experimental
