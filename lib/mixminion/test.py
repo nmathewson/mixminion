@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.153 2003/09/06 21:49:48 nickm Exp $
+# $Id: test.py,v 1.154 2003/09/12 15:52:46 nickm Exp $
 
 """mixminion.tests
 
@@ -5132,6 +5132,7 @@ class ModuleTests(TestCase):
                            "FromTag" : '[NotReally]',
                            'MixCommand' : ('ls', ['-z']),
                            "MaximumSize" : 32*1024,
+                           "AllowFromAddress" : 1,
                            }},
                          manager)
         queue = manager.queues['SMTP_MIX2']
@@ -5350,6 +5351,7 @@ Free to hide no more.
                            "Retry": [0,0,0,3],
                            "SMTPServer" : "foo.bar.baz",
                            "MaximumSize" : 32*1024,
+                           "AllowFromAddress": 1,
                            }}, manager)
         # Check that the address file was read correctly.
         self.assertEquals({'mix-minion': 'mixminion@thishost',

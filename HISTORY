@@ -1,8 +1,14 @@
-$Id: HISTORY,v 1.4 2003/09/05 21:59:49 nickm Exp $
+$Id: HISTORY,v 1.5 2003/09/12 15:52:46 nickm Exp $
 ----------------------------------------------------------------------
 This file lists changes for earlier versions of Mixminion.  For changes
 in the latest version, see the README file.
 ----------------------------------------------------------------------
+NEW IN VERSION 0.0.5.1:
+   - Allow exit servers to decide whether to support user-supplied from
+     addresses.
+   - Fail more gracefully when we try to deliver mail and the the local MTA
+     is down.
+
 NEW IN VERSION 0.0.5:
    - Fix a harmless but hard-to-detect bug that showed up when running
      unittests on certain platforms.
