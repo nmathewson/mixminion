@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.118 2004/02/21 00:02:09 nickm Exp $
+# $Id: ServerMain.py,v 1.119 2004/03/01 06:54:54 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1072,8 +1072,10 @@ def configFromServerArgs(cmd, args, usage):
                                    "daemon", "nodaemon", "echo", "severity="])
     if args:
         print >>sys.stderr, "No arguments expected."
+        if len(args) == 1:
+            print >>sys.stderr, "Did you mean to use the '-f' flag?"
         print usage
-        sys.exit(0)
+        sys.exit(1)
     configFile = None
     forceDaemon = None
     severity = None
