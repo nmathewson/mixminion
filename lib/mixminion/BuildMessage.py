@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.46 2003/05/28 06:37:30 nickm Exp $
+# $Id: BuildMessage.py,v 1.47 2003/06/11 19:05:35 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -265,7 +265,7 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     elif err:
         raise UIError("Address and %s leg of path will not fit in one header",
                       ["first", "second"][err-1])
-
+    
 #----------------------------------------------------------------------
 # MESSAGE DECODING
 
@@ -666,10 +666,10 @@ def _getRouting(path, exitType, exitInfo):
            1) A list of routingtype/routinginfo tuples for the header
            2) The size (in bytes) added to the header in order to
               route to each of the nodes
-           3) Minimum size (in bytes) needed for the header.  If this
-              is greater than HEADER_LEN, we can't build the header at
-              all.
-        """
+           3) Minimum size (in bytes) needed for the header.
+
+       Raises MixError if the routing info is too big to fit into a single
+       header. """
     # Construct a list 'routing' of exitType, exitInfo.
     routing = [ (FWD_TYPE, node.getRoutingInfo().pack()) for
                 node in path[1:] ]
@@ -681,6 +681,12 @@ def _getRouting(path, exitType, exitInfo):
     # totalSize is the total number of bytes needed for header
     totalSize = reduce(operator.add, sizes)
     if totalSize > HEADER_LEN:
+        raise MixError("Routing info won't fit in header")
+
+    padding = HEADER_LEN-totalSize
+    # We can't underflow from the last header.  That means we *must* have
+    # enough space to pad the last routinginfo out to a public key size.
+    if padding+sizes[-1] < ENC_SUBHEADER_LEN:
         raise MixError("Routing info won't fit in header")
 
     return routing, sizes, totalSize
