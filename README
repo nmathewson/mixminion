@@ -1,6 +1,6 @@
-$Id: README,v 1.63 2003/12/08 04:55:43 nickm Exp $
+$Id: README,v 1.64 2003/12/08 06:45:28 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.6alpha, from the Mixminion CVS repository.
+This is Mixminion version 0.0.6rc1, from the Mixminion CVS repository.
 
 CONTENTS:
         I.    Overview
@@ -223,10 +223,10 @@ The very easy version: For Windows
 
    First, make sure that you're running Win98 or later.
 
-   Download XXXX, and unpack it anywhere you like.  It will create a
-   directory named 'XXXX'.
+   Download 'mixminion-v006rc1-win32.zip", and unpack it anywhere you like.
+   It will create a directory named 'mixminion'.
 
-   Use mixminion.exe as your command-line client.
+   Use mixminion.exe from that directory as your command-line client.
 
    NOTE TO ALL WINDOWS USERS:  This is the first version of Mixminion to
    support native Win32 operations.  As such, you should consider it even
@@ -240,8 +240,8 @@ The slightly harder version: For Windows with Python 2.3
    First, make sure that you have the latest official release of Python 2.3
    installed.  As of 5 Dec 2003, this is 2.3.2.
 
-   Download and run XXXX.  It will unpack its files into your Python
-   directory.
+   Download and run "mixminion-v0.0.6rc1.win32-py2.3.exe".  It will unpack
+   its files into your Python directory.
 
    The script to invoke Mixminion will be stored in the 'Scripts'
    subdirectory of your Python directory.  Whenever the instructions below
@@ -286,7 +286,7 @@ The verbose version: How to build on Windows
 
    Or you can make a windows installer for users with Python:
 
-         python setup.py bdist_windows
+         python setup.py bdist_wininst
 
    Or, if you have the py2exe package installed, you can make a standalone
    binary that people can run without installing Python:
