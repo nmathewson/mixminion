@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.5 2002/08/25 03:48:47 nickm Exp $
+# $Id: Makefile,v 1.6 2002/08/25 04:04:49 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -17,8 +17,10 @@ PYTHON_CANDIDATES = python2.2 python2.2x python2.1 python2.1x python2.0      \
 	python2.0x python2 python
 FINDPYTHON = \
 	for n in $(PYTHON_CANDIDATES) ; do                                   \
-	  if [ 'x' = "x$$PYTHON" -a -x `which $$n` ]; then                   \
+	  if [ 'x' = "x$$PYTHON" ]; then                                     \
+            if [ -x `which $$n 2>&1` ]; then                                 \
 	    PYTHON=$$n;                                                      \
+	    fi;                                                              \
           fi ;                                                               \
 	done ;                                                               \
 	if [ 'x' = "x$$PYTHON" ]; then                                       \
@@ -27,7 +29,7 @@ FINDPYTHON = \
             echo '   environment variable';                                  \
 	    exit;                                                            \
         fi;                                                                  \
-	if [ 'x' = `$$PYTHON -V 2>&1 | grep 'Python [23456789]'`x ]; then    \
+	if [ 'x' = "`$$PYTHON -V 2>&1 | grep 'Python [23456789]'`x" ]; then  \
 	   echo "WARNING: $$PYTHON doesn't seem to be version 2 or later.";  \
 	   echo ' If this fails, please set the PYTHON environment variable.';\
 	fi
@@ -86,9 +88,9 @@ xxxx:
 OPENSSL_URL = http://www.openssl.org/source/openssl/openssl-0.9.7-beta3.tar.gz
 
 download-openssl:
-	@if [ -x `which wget` ] ; then \
-	  cd contrib; wget $(OPENSSL_URL); \
-	else; \
+	@if [ -x `which wget 2>&1` ] ; then                               \
+	  cd contrib; wget $(OPENSSL_URL);                                \
+	else                                                              \
           echo "You don't seem to have wget.  I can't download openssl."; \
 	fi
 
@@ -101,7 +103,7 @@ build-openssl: ./contrib/openssl/libcrypto.a
 ./contrib/openssl/libcrypto.a: ./contrib/openssl/config
 	cd ./contrib/openssl; \
 	./config; \
-	make libcrypto.a libssl.a
+	make
 
 ./contrib/openssl/config:
 	$(MAKE) unpack-openssl
