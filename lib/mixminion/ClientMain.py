@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.37 2003/01/07 05:33:39 nickm Exp $
+# $Id: ClientMain.py,v 1.38 2003/01/07 19:06:26 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1153,22 +1153,39 @@ Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                              (You can also use MIXMINIONRC=FILE)
+  -D <yes|no>, --download-directory=<yes|no>
+                             Force the client to download/not to download a
+                               fresh directory.
 """.strip()
 
 def listServers(cmd, args):
-    options, args = getopt.getopt(args, "hf:", ['help', 'config='])
+    options, args = getopt.getopt(args, "hf:D:",
+                                  ['help', 'config=', "download-directory="])
     configFile = None
+    download = None
     for o,v in options:
         if o in ('-h', '--help'):
             print _LIST_SERVERS_USAGE % cmd
             sys.exit(1)
         elif o in ('-f', '--config'):
             configFile = v
+        elif o in ('-D', '--download-directory'):
+            download = v.lower()
+            if download in ('0','no','false','n','f'):
+                download = 0
+            elif download in ('1','yes','true','y','t','force'):
+                download = 1
+            else:
+                usageAndExit(cmd,
+                      "Unrecognized value for %s. Expected 'yes' or 'no'"%o)
 
     config = readConfigFile(configFile)
-
+    LOG.configure(config)
+    LOG.setMinSeverity("INFO")
+    
     userdir = os.path.expanduser(config['User']['UserDir'])
     keystore = ClientKeystore(userdir)
+    keystore.updateDirectory(forceDownload=download)
 
     for line in keystore.listServers():
         print line
@@ -1186,13 +1203,15 @@ def updateServers(cmd, args):
     configFile = None
     for o,v in options:
         if o in ('-h', '--help'):
-            print _LIST_SERVERS_USAGE % cmd
+            print _UPDATE_SERVERS_USAGE % cmd
             sys.exit(1)
         elif o in ('-f', '--config'):
             configFile = v
 
     config = readConfigFile(configFile)
-
+    LOG.configure(config)
+    LOG.setMinSeverity("INFO")
+    
     userdir = os.path.expanduser(config['User']['UserDir'])
     keystore = ClientKeystore(userdir)
 
