@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.21 2002/12/29 22:47:33 nickm Exp $
+# $Id: Makefile,v 1.22 2002/12/31 04:40:28 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -59,6 +59,8 @@ clean:
 	rm -f lib/mixminion/_textwrap.py
 	rm -f lib/mixminion/*.pyc
 	rm -f lib/mixminion/*.pyo
+	rm -f lib/mixminion/*/*.pyc
+	rm -f lib/mixminion/*/*.pyo
 	find . -name '*~' -print0 |xargs -0 rm -f
 	find . -name '.#*' -print0 |xargs -0 rm -f
 
@@ -165,7 +167,7 @@ unpack-openssl:
 
 pychecker: do_build
 	( export PYTHONPATH=.; cd build/lib*; pychecker -F ../../pycheckrc \
-	  ./mixminion/*.py )
+	  ./mixminion/*.py ./mixminion/*/*.py )
 
 lines:
 	wc -l src/*.[ch] lib/*/*.py lib/*/*/*.py
@@ -174,9 +176,9 @@ xxxx:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
 	   | xargs -0 grep 'XXXX\|FFFF\|DOCDOC\|????'
 
-xxxx001:
+xxxx002:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
-	   | xargs -0 grep 'XXXX001\|FFFF001\|DOCDOC\|????001'
+	   | xargs -0 grep 'XXXX00[12]\|FFFF00[12]\|DOCDOC\|????00[12]'
 
 longlines:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
