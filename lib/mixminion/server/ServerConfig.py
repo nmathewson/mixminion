@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.36 2003/07/13 03:45:35 nickm Exp $
+# $Id: ServerConfig.py,v 1.37 2003/08/31 19:29:29 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -145,7 +145,8 @@ class ServerConfig(mixminion.Config._ConfigFile):
         return reasons
 
     def getConfigurationSummary(self):
-        """DOCDOC"""
+        """Return a human-readable description of this server's configuration,
+           for inclusion in the testing section of the server descriptor."""
         res = []
         for section,entries in [
             ("Server", ['LogLevel', 'LogStats', 'StatsInterval',
@@ -153,8 +154,14 @@ class ServerConfig(mixminion.Config._ConfigFile):
                         'MixInterval', 'MixPoolRate', 'MixPoolMinSize',
                         'Timeout',]),
             ("Outgoing/MMTP", ['Retry']),
-            ("Delivery/SMTP", ['Enabled','Retry']),
-            ("Delivery/SMTP-Via-Mixmaster", ['Enabled', 'Retry', 'Server']),
+            ("Delivery/SMTP",
+             ['Enabled', 'Retry', 'SMTPServer', 'ReturnAddress', 'FromTag',
+              'SubjectLine', 'MaximumSize']),
+            ("Delivery/SMTP-Via-Mixmaster",
+             ['Enabled', 'Retry', 'Server', 'ReturnAddress', 'FromTag',
+              'SubjectLine', 'MaximumSize']),
+            ("Delivery/Fragmented",
+             ['Enabled', 'MaximumSize','MaximumInterval']),
             ]:
             sec = self[section]
             for k in entries:
@@ -281,6 +288,7 @@ SERVER_SYNTAX =  {
                      'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
                      'MixPoolMinSize' : ('ALLOW', C._parseInt, "5"),
 		     'Timeout' : ('ALLOW', C._parseInterval, "5 min"),
+                     #XXXX006 remove this.
                      '__DEBUG_GC' : ('ALLOW', C._parseBoolean, "no"),
                      },
         'DirectoryServers' : { # '__SECTION__' : ('REQUIRE', None, None),

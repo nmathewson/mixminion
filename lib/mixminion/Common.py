@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.108 2003/08/28 08:39:21 nickm Exp $
+# $Id: Common.py,v 1.109 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.Common
 
@@ -1522,10 +1522,8 @@ def _warn_no_locks():
 class ClearableQueue(MessageQueue):
     """Extended version of python's Queue class that supports removing
        all the items from the queue."""
-    #XXXX005 testme
     def clear(self):
         """Remove all the items from this queue."""
-
         # If the queue is empty, return.
         if not self.esema.acquire(0):
             return

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.149 2003/08/28 01:40:08 nickm Exp $
+# $Id: test.py,v 1.150 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.tests
 
@@ -180,7 +180,7 @@ class TestCase(unittest.TestCase):
         if s1 != s2:
             d = findFirstDiff(s1, s2)
             self.fail("Strings unequal.  First difference at %s: %r vs %r"
-                      % (d, s1[d:+10], s2[d:d+10]))
+                      % (d, s1[d:d+10], s2[d:d+10]))
     def assertUnorderedEq(self, l1, l2):
         """Fail unless the lists l1 and l2 have the same elements.  The
            order of elements in the two lists need not be the same."""
@@ -671,6 +671,19 @@ World!
                           "-----BEGIN X-----\n"
                           "A: X\n\n"
                           "A B C\n-----END X-----\n", ["X"], 1)
+
+    def test_clearableQueue(self):
+        import Queue
+        #FFFF This test is inadequate for weird multithreaded
+        q = mixminion.Common.ClearableQueue()
+        self.assert_(q.empty())
+        q.put(1)
+        q.put(2)
+        self.assertEquals(2, q.qsize())
+        self.assertEquals(1, q.get())
+        q.clear()
+        self.assert_(q.empty())
+        self.assertRaises(Queue.Empty, q.get_nowait)
         
 #----------------------------------------------------------------------
 
@@ -1142,7 +1155,7 @@ class CryptoTests(TestCase):
             v = PRNG.getNormal(5,1)
             self.failUnless(0 <= v <= 10)
             tot += v
-        self.failUnless(4500<tot<5500)
+        self.failUnless(4900<tot<5100)
 
 ##      itot=ftot=0
 ##      for i in xrange(1000000):
@@ -4179,6 +4192,10 @@ Retry: every 1 hour for 1 day, every 1 day for 1 week
 Enabled: no
 Retry: every 1 hour for 1 day, every 1 day for 1 week
 
+[Delivery/Fragmented]
+Enabled yes
+MaximumSize: 100k
+
 """
 
 SERVER_CONFIG_SHORT = """
@@ -4238,6 +4255,10 @@ class ServerInfoTests(TestCase):
                                             0,65535),
                                            ])
         eq(info['Delivery/MBOX'].get('Version'), None)
+
+        eq(info['Delivery/Fragmented'].get('Version'), '0.1')
+        eq(info['Delivery/Fragmented'].get('Maximum-Fragments'), 6)
+        
         # Check the more complex helpers.
         self.assert_(info.isValidated())
         self.assertEquals(info.getIntervalSet(),
@@ -4278,6 +4299,8 @@ class ServerInfoTests(TestCase):
 
         self.assert_(info.isNewerThan(time.time()-60*60))
         self.assert_(not info.isNewerThan(time.time()+60))
+
+        self.assertUnorderedEq(info.getCaps(), ["relay", "frag"])
 
         # Now check whether we still validate the same after some corruption
         self.assertStartsWith(inf, "[Server]\n")
@@ -5120,7 +5143,6 @@ Message-type: plaintext
 This is the message
 -----END TYPE III ANONYMOUS MESSAGE-----
 ''')
-
         finally:
             undoReplacedAttributes()
             clearReplacedFunctionCallLog()
@@ -5140,6 +5162,7 @@ BlacklistFile: %s
 Message: Avast ye mateys!  Prepare to be anonymized!
 ReturnAddress: yo.ho.ho@bottle.of.rum
 SubjectLine: Arr! This be a Type III Anonymous Message
+MaximumSize: 35K
         """ % blacklistFile)
 
         module = manager.nameToModule["SMTP"]
@@ -5241,6 +5264,19 @@ Free to hide no more.
               "Dropping message to blacklisted address 'blocked@wangafu.net'"))
             self.assertEquals(1,s.count(
                 "Dropping SMTP message to invalid address 'not.an.addr'"))
+            self.assertEquals([], getReplacedFunctionCallLog())
+
+
+            # Message over 35K should be blocked.
+            m = Crypto.getCommonPRNG().getBytes(6*1024)*6
+            self.assert_(len(BuildMessage.compressData(m))<28*1024)
+            try:
+                suspendLog()
+                queueMessage(FDP('plain',SMTP_TYPE,"foo@bar.bax",m))
+                queue.sendReadyMessages()
+            finally:
+                s = resumeLog()
+            self.assertEquals(1, s.count("Dropping over-long message"))
             self.assertEquals([], getReplacedFunctionCallLog())
         finally:
             undoReplacedAttributes()
@@ -5388,6 +5424,73 @@ Free to hide no more.
         # After delivery: 91 and 92 go through, 93 stays, and 94 gets dropped.
         self.assertEquals(1, queue.count())
         self.assertEquals(5, len(os.listdir(dir)))
+
+    def testFragmented(self):
+
+        manager = self.getManager("""[Delivery/SMTP]
+Enabled: yes
+SMTPServer: nowhere
+Message: Avast ye mateys!  Prepare to be anonymized!
+ReturnAddress: yo.ho.ho@bottle.of.rum
+SubjectLine: Arr! This be a Type III Anonymous Message
+MaximumSize: 1M
+[Delivery/Fragmented]
+Enabled: yes
+MaximumSize: 1M
+""")
+        message = Crypto.getCommonPRNG().getBytes(200*1024)
+        hm = mixminion.Packet.encodeMailHeaders(subject="Hello")
+        payloads = BuildMessage.encodeMessage(hm+message, 0,
+               mixminion.Packet.ServerSideFragmentedMessage(SMTP_TYPE,
+                                  "pirates@sea","").pack())
+        deliv = [ mixminion.server.PacketHandler.DeliveryPacket(
+            routingType=FRAGMENT_TYPE, routingInfo="", applicationKey="X"*16,
+            tag="", payload=p) for p in payloads ]
+        self.assertEquals(len(deliv), 11)
+
+        replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
+                        lambda *args: mixminion.server.Modules.DELIVER_OK)
+        try:
+            # 6 packets; not enough to reconstruct.
+            for p in deliv[:6]:
+                manager.queueDecodedMessage(p)
+            manager.sendReadyMessages()
+            self.assertEquals(getReplacedFunctionCallLog(), [])
+            manager.queueDecodedMessage(deliv[9])
+            manager.queueDecodedMessage(deliv[10])
+            manager.sendReadyMessages()
+            # 8 packets; should be enough to reconstruct.
+            calls = getReplacedFunctionCallLog()
+            self.assertEquals(1, len(calls))
+            fn, args, _ = calls[0]
+            self.assertEquals(fn, "sendSMTPMessage")
+            self.assertEquals(("nowhere", ["pirates@sea"],
+                               "yo.ho.ho@bottle.of.rum"), args[:3])
+            self.assertLongStringEq(args[3], """\
+To: pirates@sea
+From: yo.ho.ho@bottle.of.rum
+Subject: Hello
+X-Anonymous: yes
+
+Avast ye mateys!  Prepare to be anonymized!
+
+This message contains nonprinting characters, so I encoded it with Base64
+before sending it to you.
+
+-----BEGIN TYPE III ANONYMOUS MESSAGE-----
+Message-type: binary
+
+%s-----END TYPE III ANONYMOUS MESSAGE-----
+""" % encodeBase64(message))
+
+            pool = manager.queues["FRAGMENT"].pool
+            self.assertEquals(pool.store.count(), 0)
+
+            manager.queueDecodedMessage(deliv[3])
+            self.assertEquals(pool.store.count(), 0)
+        finally:
+            undoReplacedAttributes()
+            clearReplacedFunctionCallLog()
 
     def getManager(self, extraConfig=None):
         d = mix_mktemp()
@@ -6032,6 +6135,18 @@ class ClientMainTests(TestCase):
         eq((len(p1),len(p2)), (2,3))
         pathIs((p1[:1],p2[-2:]), ((alice,),(bob,lola)))
 
+        # 1a'. Filename with internal commas and colons, where permitted.
+        fredfile2 = os.path.join(mix_mktemp(), "a:b,c")
+        try:
+            writeFile(fredfile2,edesc["Fred"][1])
+        except OSError:
+            pass
+        else:
+            p1,p2 = ppath(ks, None, "Alice,%r,Bob,Joe"%fredfile2, email)
+            pathIs(p1,p2), ((alice,fred),(bob,joe))
+            p1,p2 = ppath(ks, None, "%r,Alice,Bob,Joe"%fredfile2, email)
+            pathIs(p1,p2), ((fred,alice),(bob,joe))
+
         # 1b. Colon, no star
         p1,p2 = ppath(ks, None, "Alice:Fred,Joe", email)
         pathIs((p1,p2), ((alice,),(fred,joe)))
@@ -6107,6 +6222,11 @@ class ClientMainTests(TestCase):
         p1,p2 = ppath(ks, None, '?,~4,Bob,Joe', email) #default nHops=6
         p = p1+p2
         pathIs((p2[-1], p2[-2],), (joe, bob))
+        total = 0
+        for _ in xrange(1000):
+            p1,p2 = ppath(ks, None, '~2,Bob,Joe', email) #default nHops=6
+            total += len(p1+p2)
+        self.assert_(3.4 <= total/1000.0 <= 4.6)
 
         # 1e. Complex.
         try:
@@ -6197,13 +6317,38 @@ class ClientMainTests(TestCase):
         parseFails("0xFEEEF:zymurgy") # Hex literal out of range
 
     def testSURBLog(self):
+        brb = BuildMessage.buildReplyBlock
         SURBLog = mixminion.ClientMain.SURBLog
+        ServerInfo = mixminion.ServerInfo.ServerInfo
         dirname = mix_mktemp()
         fname = os.path.join(dirname, "surblog")
+
+        # generate 3 SURBs.
+        examples = getExampleServerDescriptors()
+        alice = ServerInfo(string=examples["Alice"][0])
+        lola = ServerInfo(string=examples["Lola"][0])
+        joe = ServerInfo(string=examples["Joe"][0])
+        surbs = [brb([alice,lola,joe], SMTP_TYPE, "bjork@iceland", "x",
+                     time.time()+24*60*60)
+                 for _ in range(3)]
+
+        #FFFF check for skipping expired and shortlived SURBs.
+        
         s = SURBLog(fname)
         try:
-            #XXXX005 writeme
-            pass
+            self.assert_(not s.isSURBUsed(surbs[0]))
+            self.assert_(not s.isSURBUsed(surbs[1]))
+            s.markSURBUsed(surbs[0])
+            self.assert_(s.isSURBUsed(surbs[0]))
+            s.close()
+            s = SURBLog(fname)
+            self.assert_(s.isSURBUsed(surbs[0]))
+            self.assert_(not s.isSURBUsed(surbs[1]))
+            self.assert_(s.findUnusedSURB(surbs) is surbs[1])
+            s.markSURBUsed(surbs[1])
+            self.assert_(s.findUnusedSURB(surbs) is surbs[2])
+            s.markSURBUsed(surbs[2])
+            self.assert_(s.findUnusedSURB(surbs) is None)
         finally:
             s.close()
 
@@ -6569,7 +6714,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(BuildMessageTests))
+        suite.addTest(tc(ModuleTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

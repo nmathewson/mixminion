@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.59 2003/08/28 18:43:44 nickm Exp $
+# $Id: Packet.py,v 1.60 2003/08/31 19:29:29 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -421,8 +421,10 @@ class ServerSideFragmentedMessage:
         self.routinginfo = routinginfo
         self.compressedContents = compressedContents
     def pack(self):
-        return struct.pack(SSF_UNPACK_PATTERN, self.routingtype,
-                           len(self.routinginfo)) + self.compressedContents
+        return "%s%s%s" % (struct.pack(SSF_UNPACK_PATTERN, self.routingtype,
+                                       len(self.routinginfo)),
+                           self.routinginfo,
+                           self.compressedContents)
 
 #----------------------------------------------------------------------
 # REPLY BLOCKS

@@ -130,6 +130,7 @@ class ClientDirectory:
         # Mixminion 0.0.1 used an obsolete directory-full-of-servers in
         #   DIR/servers.  If there's nothing there, we remove it.  Otherwise,
         #   we warn.
+        # XXXX010 Eventually, we can remove this.
         sdir = os.path.join(self.dir,"servers")
         if os.path.exists(sdir):
             if os.listdir(sdir):
@@ -761,17 +762,19 @@ def parsePath(directory, config, path, address, nHops=None,
        As an abbreviation, you can use star followed by a number to indicate
        that number of randomly chosen servers:
              'foo,bar,*2,quux'.
-
-       You can use a star to specify a fill point where randomly-selected
-       servers will be added:
+       You can use a star without a number to specify a fill point
+       where randomly-selected servers will be added:
              'foo,bar,*,quux'.
+       Finally, you can use a tilde followed by a number to specify an
+       approximate number of servers to add.  (The actual number will be
+       chosen randomly, according to a normal distribution with standard
+       deviation 1.5):
+             'foo,bar,~2,quux'
 
        The nHops argument must be consistent with the path, if both are
        specified.  Specifically, if nHops is used _without_ a star on the
        path, nHops must equal the path length; and if nHops is used _with_ a
        star on the path, nHops must be >= the path length.
-
-       DOCDOC ~
     """
     if not path:
         path = '*'
@@ -780,7 +783,6 @@ def parsePath(directory, config, path, address, nHops=None,
     #     or "<swap>"
     #     or "?"
     p = []
-    #XXXX005 test 'filename:with:colons',b,c
     while path:
         if path[0] == "'":
             m = re.match(r"'([^']+|\\')*'", path)
@@ -1257,7 +1259,7 @@ class SURBLog(mixminion.Filestore.DBBase):
 
     def isSURBUsed(self, surb):
         """Return true iff the ReplyBlock object 'surb' is marked as used."""
-        return self.has_key[surb]
+        return self.has_key(surb)
 
     def markSURBUsed(self, surb):
         """Mark the ReplyBlock object 'surb' as used."""
@@ -1281,7 +1283,7 @@ class SURBLog(mixminion.Filestore.DBBase):
         self.sync()
 
     def _encodeKey(self, surb):
-        return sha1(surb.pack())
+        return binascii.b2a_hex(sha1(surb.pack()))
     def _encodeVal(self, timestamp):
         return str(timestamp)
     def _decodeVal(self, timestamp):
@@ -1297,10 +1299,8 @@ class ClientQueue:
        tell us not to."""
     ## Fields:
     # dir -- a directory to store packets in.
-    # prng -- an instance of mixminion.Crypto.RNG.
-    ## Format:
-    # The directory holds files with names of the form pkt_<handle>.
-    # Each file holds pickled tuple containing:
+    # store -- an instance of ObjectStore.  The entries are of the
+    #    format:
     #           ("PACKET-0",
     #             a 32K string (the packet),
     #             an instance of IPV4Info (the first hop),
@@ -1308,18 +1308,15 @@ class ClientQueue:
     #                 packet was inserted into the queue
     #           )
     # XXXX change this to be OO; add nicknames.
-
-    # XXXX write unit tests
-    #
-    # DOCDOC fields have changed.
-
+    # XXXX006 write unit tests
     def __init__(self, directory, prng=None):
         """Create a new ClientQueue object, storing packets in 'directory'
            and generating random filenames using 'prng'."""
         self.dir = directory
         createPrivateDir(directory)
+
         # We used to name entries "pkt_X"; this has changed.
-        #
+        # XXXX006 remove this when it's no longer needed.
         for fn in os.listdir(directory):
             if fn.startswith("pkt_"):
                 handle = fn[4:]
@@ -1510,10 +1507,8 @@ class MixminionClient:
 
         #XXXX006 we need to factor this long-message logic out to the
         #XXXX006 common code.  For now, this is a temporary measure.
-        
-        # DOCDOC
-        fragmentedMessagePrefix = struct.pack("!HH", routingType,
-                                               len(routingInfo))+routingInfo
+        fragmentedMessagePrefix = mixminion.Packet.ServerSideFragmentedMessage(
+            routingType, routingInfo, "").pack()
         LOG.info("Generating payload(s)...")
         r = []
         payloads = mixminion.BuildMessage.encodeMessage(message, 0,

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.24 2003/08/28 01:40:08 nickm Exp $
+# $Id: PacketHandler.py,v 1.25 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -268,6 +268,8 @@ class DeliveryPacket:
     # isfrag -- Is this packet a fragment of a complete message?  If so, the
     #     type must be 'plain'.
     # dPayload -- An instance of mixminion.Packet.Payload for this object.
+    # error -- None, or a string containing an error encountered while trying
+    #     to decode the payload.
     def __init__(self, routingType, routingInfo, applicationKey,
                  tag, payload):
         """Construct a new DeliveryPacket."""
@@ -286,7 +288,7 @@ class DeliveryPacket:
         self.headers = None
         self.isfrag = 0
         self.dPayload = None
-        self.error = None #DOCDOC
+        self.error = None
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -383,7 +385,7 @@ class DeliveryPacket:
             self.headers = {}
         except MixError, e:
             self.contents = message
-            self.error = str(e) #DOCDOC
+            self.error = str(e)
             self.type = 'err'
             self.headers = {}
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.49 2003/08/21 21:34:03 nickm Exp $
+# $Id: ServerKeys.py,v 1.50 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -674,17 +674,22 @@ class ServerKeyset:
         fname = self.getDescriptorFileName()
         descriptor = readFile(fname)
         fields = urllib.urlencode({"desc" : descriptor})
+        f = None
         try:
             try:
                 f = urllib2.urlopen(url, fields)
                 info = f.info()
                 reply = f.read()
+            except IOError, e:
+                LOG.error("Error while publishing server descriptor: %s",e)
+                return 'error'
             except:
                 LOG.error_exc(sys.exc_info(),
                               "Error publishing server descriptor")
                 return 'error'
         finally:
-            f.close()
+            if f is not None:
+                f.close()
 
         if info.get('Content-Type') != 'text/plain':
             LOG.error("Bad content type %s from directory"%info.get(
@@ -1143,7 +1148,7 @@ def generateCertChain(filename, mmtpKey, identityKey, nickname,
     writeFile(filename, certText+identityCertText, 0600)
         
 def getPlatformSummary():
-    """XXXX005 move; DOCDOC"""
+    """Return a string describing the current software and platform."""
     if hasattr(os, "uname"):
         uname = " ".join(os.uname())
     else:
@@ -1151,4 +1156,3 @@ def getPlatformSummary():
 
     return "Mixminion %s; Python %r on %r" % (
         mixminion.__version__, sys.version, uname)
-

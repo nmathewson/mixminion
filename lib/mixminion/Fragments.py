@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.8 2003/08/28 01:40:07 nickm Exp $
+# $Id: Fragments.py,v 1.9 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -131,7 +131,7 @@ class FragmentPool:
         self.rescan()
 
     def cleanQueue(self, deleteFn=None):
-        """DOCDOC"""
+        """Expunge all removed fragments from disk. See Filestore.cleanQueue"""
         self.store.cleanQueue(deleteFn)
 
     def sync(self):

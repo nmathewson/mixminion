@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.91 2003/08/28 01:40:08 nickm Exp $
+# $Id: ServerMain.py,v 1.92 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -170,8 +170,8 @@ class IncomingQueue(mixminion.Filestore.StringStore):
 
                 h2 = self.mixPool.queueObject(res)
                 self.removeMessage(handle)
-                LOG.debug("Processed message IN:%s; inserting into mix pool as MIX:%s",
-                          handle, h2)
+                LOG.debug("Processed message IN:%s; inserting into mix pool",
+                          handle)
         except mixminion.Crypto.CryptoError, e:
             LOG.warn("Invalid PK or misencrypted header in message IN:%s: %s",
                      handle, e)

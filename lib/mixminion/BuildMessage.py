@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.57 2003/08/28 01:40:07 nickm Exp $
+# $Id: BuildMessage.py,v 1.58 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -291,7 +291,7 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
 def buildReplyBlock(path, exitType, exitInfo, userKey,
-                    expiryTime=0, secretRNG=None):
+                    expiryTime=None, secretRNG=None):
     """Construct a 'state-carrying' reply block that does not require the
        reply-message recipient to remember a list of secrets.
        Instead, all secrets are generated from an AES counter-mode

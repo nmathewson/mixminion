@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.32 2003/08/25 21:05:34 nickm Exp $
+# $Id: ServerQueue.py,v 1.33 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -202,17 +202,18 @@ class DeliveryQueue:
     """
     ###
     # Fields:
-    #    retrySchedule -- a list of intervals at which delivery of messages
-    #           should be reattempted, as described in "setRetrySchedule".
-    #
-    # XXXX Refactor as many of these fields as possible into _DeliveryState.
-    #
-    # DOCDOC list of fields is now inaccurate -- qname, store, _lock
-     
+    #   store -- An ObjectMetadataStore to back this queue.  The objects
+    #      are instances of whatever deliverable object this queue contains;
+    #      the metadata are instances of _DeliveryState.
+    #   retrySchedule -- a list of intervals at which delivery of messages
+    #      should be reattempted, as described in "setRetrySchedule".
+    #   _lock -- a reference to the RLock used to control access to the
+    #      store.
     def __init__(self, location, retrySchedule=None, now=None, name=None):
         """Create a new DeliveryQueue object that stores its files in
            <location>.  If retrySchedule is provided, it is interpreted as
-           in setRetrySchedule. DOCDOC name"""
+           in setRetrySchedule.  Name, if present, is a human-readable
+           name used in log messages."""
         self.store = mixminion.Filestore.ObjectMetadataStore(
             location,create=1,scrub=1)
         self._lock = self.store._lock

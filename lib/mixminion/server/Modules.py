@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.53 2003/08/28 01:40:08 nickm Exp $
+# $Id: Modules.py,v 1.54 2003/08/31 19:29:29 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -172,6 +172,13 @@ class ImmediateDeliveryQueue:
         # There is no underlying queue to worry about here; do nothing.
         pass
 
+    def getPriority(self):
+        """Return the order at which this queue should be flushed.  Queues
+           are flushed from lowest-valued priority to highest.  Most modules
+           should use priority 0.  Modules which insert messages into other
+           modules should use priority <0."""
+        return 0
+
 class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
@@ -181,7 +188,9 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
         mixminion.server.ServerQueue.DeliveryQueue.__init__(self, directory,
                                                             retrySchedule)
         self.module = module
-        
+
+    def getPriority(self):
+        return 0
 
     def _deliverMessages(self, msgList):
         for handle in msgList:
@@ -457,7 +466,10 @@ class ModuleManager:
         """Actual implementation of message delivery. Tells every module's
            queue to send pending messages.  This is called directly if
            we aren't threading, and from the delivery thread if we are."""
-        for name, queue in self.queues.items():
+        queuelist = [ (queue.getPriority(), queue)
+                      for queue in self.queues.values() ]
+        queuelist.sort()
+        for _, queue in queuelist:
             queue.sendReadyMessages()
 
     def getServerInfoBlocks(self):
@@ -502,7 +514,21 @@ class DropModule(DeliveryModule):
 
 #----------------------------------------------------------------------
 class FragmentModule(DeliveryModule):
-    """DOCDOC"""
+    """Module used to handle server-side reassembly of fragmented payloads.
+
+       When a message is fragmented for reassembly by the exit node, it
+       is sent in packets of exit type FRAGMENT.  The actual exit type and
+       delivery address are encoded at the start of the reassembled message.
+       """
+    ## 
+    # _queue: An instance of FragmentDeliveryQueue, or None
+    # manager: A pointer back to the module manager.  Used to insert
+    #   reassembled messages into other modules' queues.
+    # maxMessageSize: The largest allowable message size.  (In bytes,
+    #   after defragmentation, before uncompression.)
+    # maxInterval: The longest we hold onto a fragment of a message before
+    #   we give up on receiving the whole message.  (In seconds.)
+    # maxFragments: The largest allowable message size, in fragments.
     def __init__(self):
         DeliveryModule.__init__(self)
         self._queue = None
@@ -531,7 +557,6 @@ class FragmentModule(DeliveryModule):
         self.maxFragments = fp.nChunks * fp.n
         self.manager = manager
         manager.enableModule(self)
-
     def getServerInfoBlock(self):
         return """[Delivery/Fragmented]
                   Version: 0.1
@@ -553,11 +578,24 @@ class FragmentModule(DeliveryModule):
             self._queue = None
     
 class FragmentDeliveryQueue:
+    """Delivery queue for FragmentModule.
+
+       Wraps mixminion.fragments.FragmentPool."""
+    ##Fields:
+    # module: the FragmentModule.
+    # directory: location used for the FragmentPool
+    # pool: instance of FragmentPool
     def __init__(self, module, directory, manager):
         self.module = module
         self.directory = directory
         self.manager = manager
         self.pool = mixminion.Fragments.FragmentPool(self.directory)
+
+    def getPriority(self):
+        # We want to make sure that fragmented messages get reassembled
+        # before any other modules deliver their messages.  This way,
+        # reassembled messages get delivered as soon as they're ready.
+        return -1
 
     def queueDeliveryMessage(self, packet, retry=0, lastAttempt=0):
         if packet.isError():
@@ -566,7 +604,6 @@ class FragmentDeliveryQueue:
             return
         elif not packet.isFragment():
             LOG.warn("Dropping FRAGMENT packet with non-fragment payload.")
-            print packet.type, packet.isfrag
             return
         elif packet.getAddress():
             LOG.warn("Dropping FRAGMENT packet with spurious addressing info.")
@@ -595,19 +632,25 @@ class FragmentDeliveryQueue:
                 LOG.warn("Dropping over-long fragmented message")
                 self.pool.markMessageCompleted(msgid, rejected=1)
                 continue
-            
+
             fm = _FragmentedDeliveryMessage(ssfm)
             self.manager.queueDecodedMessage(fm)
             self.pool.markMessageCompleted(msgid)
 
         cutoff = previousMidnight(time.time()) - self.module.maxInterval
         self.pool.expireMessages(cutoff)
-        
 
 class _FragmentedDeliveryMessage:
     """Helper class: obeys the interface of mixminion.server.PacketHandler.
        DeliveryMessage, but contains a long message reassembled from
        fragments."""
+    ##Fields:
+    # m: an instance of ServerSideFragmentedMessage.
+    # exitType, address: the routing type and routing info for this message
+    # contents: None, or the uncompressed contents off the message if it's
+    #    been decoded.
+    # headers: None, or a dict of the message's headers.
+    # tp: 'plain' or 'err' or 'long'.
     def __init__(self, ssfm):
         """Create a _FragmentedDeliveryMessage object from an instance of
            mixminion.Packet.ServerSideFragmentedMessage."""
@@ -665,7 +708,7 @@ class _FragmentedDeliveryMessage:
                            mixminion.Packet.parseMessageAndHeaders(c)
             self.tp = 'plain'
         except CompressedDataTooLong:
-            self.contents = self.m.uncompressedContents
+            self.contents = self.m.compressedContents
             self.tp = 'long'
             self.headers = {}
             return
