@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.22 2003/05/17 00:08:46 nickm Exp $ */
+/* $Id: tls.c,v 1.23 2003/06/03 16:31:05 nickm Exp $ */
 #include "_minionlib.h"
 
 /* XXXX REMOVE*/
@@ -587,14 +587,20 @@ mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
         now = time(NULL);
         if (X509_cmp_time(X509_get_notBefore(cert), &now) > 0) {
                 MM_TLS_ERR("Certificate is not yet valid");
-                return NULL;
+                goto error;
         }
         if (X509_cmp_time(X509_get_notAfter(cert), &now) < 0) {
                 MM_TLS_ERR("Certificate has expired");
-                return NULL;
+                goto error;
         }
+        
+        X509_free(cert);
+        
         Py_INCREF(Py_None);
         return Py_None;
+ error:
+        X509_free(cert);
+        return NULL;
 }
 
 
@@ -626,14 +632,14 @@ mm_TLSSock_verify_cert_and_get_identity_pk(
 
         ssl = ((mm_TLSSock*)self)->ssl;
         if (!(chain = SSL_get_peer_cert_chain(ssl))) {
-                mm_SSL_ERR(0); return NULL;
+                mm_SSL_ERR(0); goto error;
         }
         if (!(cert = SSL_get_peer_certificate(ssl))) {
-                mm_SSL_ERR(0); return NULL;
+                mm_SSL_ERR(0); goto error;
         }
         if (sk_X509_num(chain) != 2) {
                 MM_TLS_ERR("Wrong number of certificates in peer chain.");
-                return NULL;
+                goto error;
         }
         for (i = 0; i < 2; ++i) {
                 id_cert = sk_X509_value(chain, i);
@@ -643,14 +649,14 @@ mm_TLSSock_verify_cert_and_get_identity_pk(
         }
         if (!id_cert) {
                 MM_TLS_ERR("No distinct identity certificate found.");
-                return NULL;
+                goto error;
         }
         if (!(pkey = X509_get_pubkey(id_cert))) {
-                mm_SSL_ERR(0); return NULL;
+                mm_SSL_ERR(0); goto error;
         }
         /* Is the signature correct? */
         if (X509_verify(cert, pkey) <= 0) {
-                EVP_PKEY_free(pkey); mm_SSL_ERR(0); return NULL;
+                EVP_PKEY_free(pkey); mm_SSL_ERR(0); goto error;
         }
         rsa = EVP_PKEY_get1_RSA(pkey);
         EVP_PKEY_free(pkey);
@@ -658,11 +664,17 @@ mm_TLSSock_verify_cert_and_get_identity_pk(
                 mm_SSL_ERR(0); return NULL;
         }
         if (!(result = PyObject_New(mm_RSA, &mm_RSA_Type))) {
-                RSA_free(rsa); PyErr_NoMemory(); return NULL;
+                RSA_free(rsa); PyErr_NoMemory(); goto error;
         }
         result->rsa = rsa;
 
+        X509_free(cert);
+
         return (PyObject*) result;
+ error:
+        if (cert)
+                X509_free(cert);
+        return NULL;
 }
 
 static char mm_TLSSock_renegotiate__doc__[] =
