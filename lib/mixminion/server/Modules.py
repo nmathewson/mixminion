@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.74 2004/04/19 03:47:17 nickm Exp $
+# $Id: Modules.py,v 1.75 2004/05/31 15:09:02 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -1392,9 +1392,10 @@ class MixmasterSMTPModule(SMTPModule):
         cmd = self.command
         opts = self.options + (self.tmpQueue.getMessagePath(handle),)
         try:
+            LOG.debug("Calling %s %s", cmd, " ".join(opts))
             code = os.spawnl(os.P_WAIT, cmd, cmd, *opts)
         except OSError,e:
-            if e.errno not in (errno.EAGAIN, errno.ENOMEM): raise
+            if e.errno not in (errno.EAGAIN, errno.ENOMEM, errno.ECHILD): raise
             LOG.warn("Transient error while running Mixmaster: %s",e)
             return DELIVER_FAIL_RETRY
 
@@ -1408,9 +1409,10 @@ class MixmasterSMTPModule(SMTPModule):
         cmd = self.command
         LOG.debug("Flushing Mixmaster pool")
         try:
+            LOG.debug("Calling %s -S", cmd)
             os.spawnl(os.P_WAIT, cmd, cmd, "-S")
         except OSError,e:
-            if e.errno not in (errno.EAGAIN, errno.ENOMEM): raise
+            if e.errno not in (errno.EAGAIN, errno.ENOMEM, errno.ECHILD): raise
             LOG.warn("Transient error while running Mixmaster: %s",e)
             return DELIVER_FAIL_RETRY
 
