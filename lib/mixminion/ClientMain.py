@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.15 2002/12/12 19:56:46 nickm Exp $
+# $Id: ClientMain.py,v 1.16 2002/12/15 03:45:30 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -9,6 +9,8 @@
          support replies and end-to-end encryption.  It also needs to
          support directories.
    """
+
+__all__ = []
 
 # (NOTE: The stuff in the next comment isn't implemented yet.)
 # The client needs to store:
@@ -35,7 +37,7 @@ import mixminion.BuildMessage
 import mixminion.Crypto
 import mixminion.MMTPClient
 from mixminion.Common import LOG, floorDiv, MixError, MixFatalError, \
-     createPrivateDir, isSMTPMailbox
+     createPrivateDir, isSMTPMailbox, formatDate
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo
 from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo, \
@@ -155,6 +157,32 @@ class TrivialKeystore:
 		    raise MixError("Couldn't find descriptor %s" % s)
 	return path
 
+    def listServers(self):
+	"""Returns a linewise listing of the current servers and their caps.
+	   stdout.  This will go away or get refactored in future versions
+	   once we have real path selection and client-level modules."""
+        lines = []
+        nicknames = self.byNickname.keys()
+	nicknames.sort()
+	longestnamelen = max(map(len, nicknames))
+	fmtlen = min(longestnamelen, 20)
+	format = "%"+str(fmtlen)+"s (expires %s): %s"
+	for n in nicknames:
+	    caps = []
+	    si = self.byNickname[n]
+	    if si['Delivery/MBOX'].get('Version',None):
+		caps.append("mbox")
+	    if si['Delivery/SMTP'].get('Version',None):
+		caps.append("smtp")
+	    # XXXX This next check is highly bogus.
+	    if (si['Incoming/MMTP'].get('Version',None) and 
+		si['Outgoing/MMTP'].get('Version',None)):
+		caps.append("relay")
+	    until = formatDate(si['Server']['Valid-Until'])
+	    line = format % (n, until, " ".join(caps))
+	    lines.append(line)
+	return lines
+
     def getRandomServers(self, prng, n):
 	"""Returns a list of n different servers, in random order, according
 	   to prng.  Raises MixError if not enough exist.
@@ -210,7 +238,7 @@ class MixminionClient:
 	# Make directories
 	userdir = os.path.expanduser(self.config['User']['UserDir'])
 	createPrivateDir(userdir)
-	createPrivateDir(os.path.join(userdir, 'surbs'))
+	#createPrivateDir(os.path.join(userdir, 'surbs'))
 	createPrivateDir(os.path.join(userdir, 'servers'))
 
 	# Get directory cache
@@ -427,3 +455,31 @@ Usage: %s [-h] [-v] [-f configfile] [-i inputfile]
     f.close()
 
     client.sendForwardMessage(address, payload, path1, path2)
+
+def listServers(cmd, args):
+    options, args = getopt.getopt(args, "hf:", ['help', 'config='])
+    configFile = None
+    for o,v in options:
+	if o in ('-h', '--help'):
+	    print "Usage %s [--help] [--config=configFile]"
+	    sys.exit(1)
+	elif o in ('-f', '--config'):
+	    configFile = v
+
+    # XXXX duplicate code; refactor into separate method.
+    if configFile is None:
+	configFile = os.environ.get("MIXMINIONRC", None)
+	if configFile is None:
+	    configFile = "~/.mixminionrc"
+    configFile = os.path.expanduser(configFile)
+    if not os.path.exists(configFile):
+	installDefaultConfig(configFile)
+    config = readConfigFile(configFile)
+
+    userdir = os.path.expanduser(config['User']['UserDir'])
+    createPrivateDir(os.path.join(userdir, 'servers'))
+
+    keystore = TrivialKeystore(os.path.join(userdir,"servers"))
+	
+    for line in keystore.listServers():
+	print line
