@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.19 2003/01/06 03:29:46 nickm Exp $
+# $Id: ServerMain.py,v 1.20 2003/01/06 22:09:24 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -392,18 +392,27 @@ def daemonize():
     if hasattr(os, 'setsid'):
         # Setsid is not available everywhere.
         os.setsid()
+        # Fork again so the parent, (the session group leader), can exit. This
+        # means that we, as a non-session group leader, can never regain a
+        # controlling terminal.
+        pid = os.fork()
+        if pid != 0:
+            os._exit(0)
     # Chdir to / so that we don't hold the CWD unnecessarily.
     os.chdir(os.path.normpath("/")) #???? Is this right on Win32?
     # Set umask to 000 so that we drop any (possibly nutty) umasks that
     # our users had before.
     os.umask(0000)
     # Close all unused fds.
-    sys.stderr.close()
-    sys.stdout.close()
-    sys.stdin.close()
+    # (We could try to do this via sys.stdin.close() etc., but then we
+    #  would miss the magic copies in sys.__stdin__, sys.__stdout__, etc.
+    #  Using os.close instead just nukes the FD for us.)
+    os.close(sys.stdin.fileno())
+    os.close(sys.stdout.fileno())
+    os.close(sys.stderr.fileno())
     # Override stdout and stderr in case some code tries to use them
-    sys.stdout = LogStream("STDOUT", "WARN")
-    sys.stderr = LogStream("STDERR", "WARN")
+    sys.stdout = sys.__stdout__ = LogStream("STDOUT", "WARN")
+    sys.stderr = sys.__stderr__ = LogStream("STDERR", "WARN")
 
 _SERVER_USAGE = """\
 Usage: %s [options]
@@ -462,7 +471,13 @@ def runServer(cmd, args):
 
     if config['Server'].get("Daemon",1):
         print >>sys.stderr, "Starting server in the background"
-        daemonize()
+        try:
+            daemonize()
+        except:
+            info = sys.exc_info()
+            LOG.fatal_exc(info,
+                          "Exception while starting server in the background")
+            os._exit(0)
 
     LOG.info("Starting server")
     try:
