@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.33 2003/05/29 05:47:32 nickm Exp $
+# $Id: ServerKeys.py,v 1.34 2003/05/30 01:49:53 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -39,8 +39,8 @@ from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
 # Seconds before a key becomes live that we want to generate
 # and publish it.
 #
-#FFFF Make this configurable?  (Set to 3 days.)
-PUBLICATION_LATENCY = 3*24*60*60
+#FFFF Make this configurable?  (Set to 2 days, 13 hours)
+PUBLICATION_LATENCY = (2*24+13)*60*60
 
 # Number of seconds worth of keys we want to generate in advance.
 #
