@@ -137,10 +137,10 @@ Mixminion will then take the following steps:
 
      A) Download and validate the latest server directory.
         (But only if you haven't done so since midnight GMT.)
-     B) Select a path that ends at a server with SMTP support. 
-        (Currently, this defaults to 4 hops.)            
+     B) Select a path that ends at a server with SMTP support.
+        (Currently, this defaults to 4 hops.)
      C) Read your message.
-     D) Construct a Type-III Mix packet containing your message. 
+     D) Construct a Type-III Mix packet containing your message.
         (For more information, see the links at http://www.mixminion.net/)
      E) Send the message to the first server in your path.
 

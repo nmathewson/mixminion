@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.29 2003/01/06 04:58:14 nickm Exp $
+# $Id: ClientMain.py,v 1.30 2003/01/06 05:03:34 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -987,7 +987,7 @@ def runClient(cmd, args):
     if cmd.endswith(" client"):
         print >>sys.stderr, \
               "The 'client' command is deprecated.  Use 'send' instead."
-    
+
     options, args = getopt.getopt(args, "hvf:i:t:H:P:D:",
                                   ["help", "verbose", "config=", "input=",
                                    "to=", "hops=", "swap-at=", "path",
