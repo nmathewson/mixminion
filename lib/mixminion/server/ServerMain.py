@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.121 2004/03/07 06:31:46 nickm Exp $
+# $Id: ServerMain.py,v 1.122 2004/03/23 00:09:06 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -131,7 +131,7 @@ def checkHomedirVersion(config):
             print >>sys.stderr, """\
 This server's files are stored in an older format, and are not compatible
 with this version of the mixminion server.  To upgrade, run:
-     'mixminion server-upgrade'."""
+     'mixminiond upgrade'."""
             raise UIError
         else:
             print >>sys.stderr, """\
@@ -688,7 +688,7 @@ class MixminionServer(_Scheduler):
 
         # Try to read the keyring.  If we have a pre-0.0.4 version of
         # mixminion, we might have some bad server descriptors lying
-        # around.  If so, tell the user to run server-upgrade.
+        # around.  If so, tell the user to run 'mixminiond upgrade.'
         try:
             self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
         except mixminion.Config.ConfigError, e:
@@ -703,8 +703,8 @@ class MixminionServer(_Scheduler):
             else:
                 raise UIError((
 "For some reason, your generated server descriptors cannot be parsed.  You\n"
-"may want to delete all your keysets with server-DELKEYS and have the server\n"
-"generate new ones.  [Messages sent to the old keys will be lost].\n"
+"may want to delete all your keysets with mixminiond DELKEYS and have the\n"
+"server generate new ones.  [Messages sent to the old keys will be lost].\n"
 "The original error message was '%s'.")%e)
 
         self.keyring.removeDeadKeys()
@@ -1117,6 +1117,7 @@ def readConfigFile(configFile):
             p = os.path.expanduser(p)
             if os.path.exists(p):
                 configFile = p
+                break
         if configFile is None:
             print >>sys.stderr, "No config file found or specified."
             sys.exit(1)
@@ -1137,7 +1138,7 @@ def readConfigFile(configFile):
 
 #----------------------------------------------------------------------
 _SERVER_START_USAGE = """\
-Usage: mixminion server-start [options]
+Usage: mixminiond start [options]
 Start a Mixminion server.
 Options:
   -h, --help:                Print this usage message and exit.
@@ -1152,7 +1153,7 @@ Options:
 def runServer(cmd, args):
     """[Entry point]  Start a Mixminion server."""
     if cmd.endswith(" server"):
-        print "Obsolete command. Use 'mixminion server-start' instead."
+        print "Obsolete command. Use 'mixminiond start' instead."
 
     config = configFromServerArgs(cmd, args, _SERVER_START_USAGE)
     checkHomedirVersion(config)
@@ -1230,7 +1231,7 @@ def runServer(cmd, args):
 
 #----------------------------------------------------------------------
 _UPGRADE_USAGE = """\
-Usage: mixminion server-upgrade [options]
+Usage: mixminiond upgrade [options]
 Upgrade the server's home directory from an earlier version.
 Options:
   -h, --help:                Print this usage message and exit.
@@ -1318,7 +1319,7 @@ def runUpgrade(cmd, args):
 
 #----------------------------------------------------------------------
 _DELKEYS_USAGE = """\
-Usage: mixminion server-DELKEYS [options]
+Usage: mixminiond DELKEYS [options]
 Delete all keys for this server (except the identity key).
 Options:
   -h, --help:                Print this usage message and exit.
@@ -1355,7 +1356,7 @@ def runDELKEYS(cmd, args):
 
 #----------------------------------------------------------------------
 _PRINT_STATS_USAGE = """\
-Usage: mixminion server-stats [options]
+Usage: mixminiond stats [options]
 Print server statistics for the current statistics interval.
 Options:
   -h, --help:                Print this usage message and exit.
@@ -1373,7 +1374,7 @@ def printServerStats(cmd, args):
 
 #----------------------------------------------------------------------
 _SIGNAL_SERVER_USAGE = """\
-Usage: mixminion %s [options]
+Usage: mixminiond %s [options]
 Tell a mixminion server to %s.
 Options:
   -h, --help:                Print this usage message and exit.
@@ -1385,11 +1386,11 @@ def signalServer(cmd, args):
        server."""
     if cmd.endswith("stop"):
         sig_reload = 0
-        usage = _SIGNAL_SERVER_USAGE % ("server-stop", "shut down")
+        usage = _SIGNAL_SERVER_USAGE % ("stop", "shut down")
     else:
         assert cmd.endswith("reload")
         sig_reload = 1
-        usage = _SIGNAL_SERVER_USAGE % ("server-reload",
+        usage = _SIGNAL_SERVER_USAGE % ("reload",
                                         "rescan its configuration")
 
     config = configFromServerArgs(cmd, args, usage=usage)
@@ -1429,7 +1430,7 @@ def _signalServer(config, reload):
 
 #----------------------------------------------------------------------
 _REPUBLISH_USAGE = """\
-Usage: mixminion server-republish [options]
+Usage: mixminiond republish [options]
 Force a mixminion server to republish its keys to the directory.
 Options:
   -h, --help:                Print this usage message and exit.
