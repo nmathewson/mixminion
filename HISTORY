@@ -1,4 +1,12 @@
-$Id: HISTORY,v 1.13 2004/04/04 17:58:28 nickm Exp $
+$Id: HISTORY,v 1.13.2.1 2004/05/10 17:36:22 nickm Exp $
+NEW IN VERSION 0.0.7.1:
+   - Install man pages in PREFIX/share/man, not PREFIX/man.
+   - If the server crashed while changing a packet's metadata, it would often
+     crash upon restart.  Now it doesn't.
+   - Don't crash when trying to route from a pre-0.0.6 server to a server
+     with no IP.
+   - Don't crash when we fail to download a directory.
+
 NEW IN VERSION 0.0.7:
    - New version number; nothing else has changed since 0.0.7rc2.
 

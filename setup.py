@@ -1,14 +1,14 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.98.2.1 2004/04/04 18:45:20 nickm Exp $
+# $Id: setup.py,v 1.98.2.2 2004/05/10 17:36:22 nickm Exp $
 import sys
 
 #
 #   Current Mixminion version
 #
-VERSION = '0.0.7'
+VERSION = '0.0.7.1'
 # System: 0==alpha, 50==beta, 98=pre, 99==release candidate, 100==release
-VERSION_INFO = (0,0,7,100,-1)
+VERSION_INFO = (0,0,7,100,1)
 
 # Check the version.  We need to make sure version_info exists before we
 # compare to it: it was only added as of Python version 1.6.
