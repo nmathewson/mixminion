@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.65 2004/03/06 05:22:03 nickm Exp $
+# $Id: Makefile,v 1.66 2004/03/07 21:25:15 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -92,15 +92,17 @@ testvectors:
 install: do_build
 	@$(FINDPYTHON);                                                      \
 	ARGS="install --compile --optimize=1 --force";                       \
+        PREFIXARG="";                                                        \
+        ROOTARG="";                                                          \
 	if [ 'x' != "x$(PREFIX)" ] ; then                                    \
-	  PREFIX=$(PREFIX); export PREFIX;                                   \
-	  ARGS=$$ARGS --prefix="$(PREFIX)";                                  \
+	  PREFIX="$(PREFIX)"; export PREFIX;                                 \
+	  PREFIXARG=--prefix="$(PREFIX)";                                    \
 	fi;                                                                  \
 	if [ 'x' != "x$(DESTDIR)" ] ; then                                   \
-	  ARGS=$$ARGS --root="$(DESTDIR)";                                   \
+	  ROOTARG=--root="$(ROOTARG)";                                       \
         fi;                                                                  \
-	echo $$PYTHON -tt setup.py $$ARGS;                                   \
-	$$PYTHON -tt setup.py $$ARGS
+	echo $$PYTHON -tt setup.py $$ARGS $$PREFIXARG $$ROOTARG;             \
+	$$PYTHON -tt setup.py $$ARGS $$PREFIXARG $$ROOTARG
 
 update:
 	@$(FINDPYTHON);                                                      \
