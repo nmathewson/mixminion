@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.21 2003/03/28 15:36:23 nickm Exp $
+# $Id: MMTPServer.py,v 1.22 2003/04/07 01:13:54 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -910,7 +910,8 @@ class MMTPAsyncServer(AsyncServer):
                                        self.onMessageSent,
                                        self.onMessageUndeliverable)
             #XXXX004
-            con.finishedCallback = lambda con=con: self.__clientFinished(con)
+            con.finishedCallback = (lambda con=con,self=self:
+                                       self.__clientFinished(con))
             con.register(self)
             self.clientConByAddr[con.getAddr()] = con
         except socket.error, e:
