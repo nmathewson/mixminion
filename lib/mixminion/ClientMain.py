@@ -157,10 +157,14 @@ class ClientDirectory:
         # Start downloading the directory.
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
-        def sigalrmHandler(sig, _):
-            pass
-        signal.signal(signal.SIGALRM, sigalrmHandler)
-        signal.alarm(DIRECTORY_TIMEOUT)
+
+        # XXXX005 refactor download logic.
+
+        if hasattr(signal, 'alarm'):
+            def sigalrmHandler(sig, _):
+                pass
+            signal.signal(signal.SIGALRM, sigalrmHandler)
+            signal.alarm(DIRECTORY_TIMEOUT)
         try:
             try:
                 infile = urllib2.urlopen(url)
@@ -169,13 +173,14 @@ class ClientDirectory:
                     ("Couldn't connect to directory server: %s.\n"
                      "Try '-D no' to run without downloading a directory.")%e)
             except socket.error, e:
-                if e.errno == errno.EINTR:
+                if getattr(e,"errno",-1) == errno.EINTR:
                     raise UIError("Connection to directory server timed out")
                 else:
-                    raise UIError("Error connecting: %s",e)
+                    raise UIError("Error connecting: %s"%e)
                 raise UIError
         finally:
-            signal.alarm(0)
+            if hasattr(signal, 'alarm'):
+                signal.alarm(0)
         
         # Open a temporary output file.
         if url.endswith(".gz"):
@@ -751,7 +756,40 @@ def parsePath(directory, config, path, address, nHops=None,
     #        Nickname
     #     or "<swap>"
     #     or "?"
-    p = path.replace(":", ",<swap>,").split(",")
+    p = []
+    while path:
+        if path[0] == "'":
+            m = re.match(r"'([^']+|\\')*'", path)
+            if not m: 
+                raise UIError("Mismatched quotes in path.")
+            p.append(m.group(1).replace("\\'", "'"))
+            path = path[m.end():]
+            if path and path[0] not in ":,":
+                raise UIError("Invalid quotes in path.")
+        elif path[0] == '"':
+            m = re.match(r'"([^"]+|\\")*"', path)
+            if not m: 
+                raise UIError("Mismatched quotes in path.")
+            p.append(m.group(1).replace('\\"', '"'))
+            path = path[m.end():]
+            if path and path[0] not in ":,":
+                raise UIError("Invalid quotes in path.")
+        else:
+            m = re.match(r"[^,:]+",path)
+            if not m:
+                raise UIError("Invalid path") 
+            p.append(m.group(0))
+            path = path[m.end():]
+        if not path:
+            break 
+        elif path[0] == ',':
+            path = path[1:]
+        elif path[0] == ':':
+            path = path[1:]
+            p.append("<swap>")
+
+
+    #p = path.replace(":", ",<swap>,").split(",")
     path = []
     for ent in p:
         if re.match(r'\*(\d+)', ent):
@@ -763,7 +801,7 @@ def parsePath(directory, config, path, address, nHops=None,
     explicitSwap = path.count("<swap>")
     # set colonPos to the index of the explicit swap point, if any.
     if path.count("<swap>") > 1:
-        raise UIError("Can't specify swap point twise")
+        raise UIError("Can't specify swap point twice")
 
     # set starPos to the index of the var-length wildcard, if any.
     if path.count("*") > 1:

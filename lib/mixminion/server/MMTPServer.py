@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.42 2003/07/08 19:13:50 nickm Exp $
+# $Id: MMTPServer.py,v 1.43 2003/07/10 21:16:05 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -43,6 +43,12 @@ debug = LOG.info
 warn = LOG.warn
 error = LOG.error
 
+#DOCDOC
+IN_PROGRESS_ERRNOS = [ getattr(errno, ename) 
+   for ename in [ "EINPROGRESS", "WSAEWOULDBLOCK"]
+   if hasattr(errno,ename) ]
+del ename
+
 class AsyncServer:
     """AsyncServer is the core of a general-purpose asynchronous
        select-based server loop.  AsyncServer maintains two lists of
@@ -73,6 +79,12 @@ class AsyncServer:
 
         readfds = self.readers.keys()
         writefds = self.writers.keys()
+ 
+        if not (readfds or writefds):
+            #DOCDOC
+            time.sleep(timeout)
+            return
+   
         try:
             readfds,writefds,exfds = select.select(readfds,writefds,[],timeout)
         except select.error, e:
@@ -787,8 +799,8 @@ class MMTPClientConnection(SimpleTLSConnection):
             sock.connect((ip, port))
         except socket.error, e:
             # This will always raise an error, since we're nonblocking.  That's
-            # okay... but it had better be EINPROGRESS.
-            if e[0] != errno.EINPROGRESS:
+            # okay... but it had better be EINPROGRESS or the local equivalent.
+            if e[0] not in IN_PROGRESS_ERRNOS:
                 raise e
 
         tls = context.sock(sock)

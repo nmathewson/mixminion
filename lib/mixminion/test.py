@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.134 2003/07/10 20:01:30 nickm Exp $
+# $Id: test.py,v 1.135 2003/07/10 21:16:05 nickm Exp $
 
 """mixminion.tests
 
@@ -113,6 +113,14 @@ def floatEq(f1,f2):
         return abs(f1-f2)/min(f1,f2) < .00001
     else:
         return abs(f1-f2) < .00001
+
+def fileURL(fname):
+    fname = os.path.abspath(fname)
+    if sys.platform == 'win32':
+        drive, path = os.path.splitdrive(fname)
+        return "file:%s" % fname 
+    else:
+        return "file://%s"%fname
 
 #----------------------------------------------------------------------
 # RSA key caching functionality
@@ -477,6 +485,10 @@ class MiscTests(unittest.TestCase):
         self.assertEquals(fn, dX+".2")
 
     def test_lockfile(self):
+        if ON_WIN32:
+            #WWWW
+            return
+
         fn = mix_mktemp()
         LF1 = Lockfile(fn)
         LF2 = Lockfile(fn)
@@ -5522,9 +5534,13 @@ class ClientMainTests(unittest.TestCase):
              ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
               "Bob3", "Bob4", "Lisa1") ], identity)
 
+        print
+        print fname, fileURL(fname)
+        print "================================"
+
         # Replace the real URL and fingerprint with the ones we have; for
         # unit testing purposes, we can't rely on an http server.
-        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = "file://%s"%fname
+        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = fileURL(fname)
         mixminion.ClientMain.MIXMINION_DIRECTORY_FINGERPRINT = fingerprint
 
         # Reload the directory.
@@ -5561,7 +5577,7 @@ class ClientMainTests(unittest.TestCase):
             [os.path.join(impdirname, s) for s in
              ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
               "Bob3", "Bob4", "Lisa1", "Lisa2") ], identity)
-        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = "file://%s"%fname
+        mixminion.ClientMain.MIXMINION_DIRECTORY_URL = fileURL(fname)
         ks.updateDirectory(forceDownload=1)
         # Previous entries.
         self.assertSameSD(ks.getServerInfo("Alice"), edesc["Alice"][0])
@@ -5742,7 +5758,7 @@ class ClientMainTests(unittest.TestCase):
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Joe", email)
         pathIs((p1,p2), ((alice,fred),(bob,joe)))
         fredfile = os.path.join(impdirname, "Fred1")
-        p1,p2 = ppath(ks, None, "Alice,%s,Bob,Joe"%fredfile, email)
+        p1,p2 = ppath(ks, None, "Alice,%r,Bob,Joe"%fredfile, email)
         pathIs((p1,p2), ((alice,fred),(bob,joe)))
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola,Joe", email, nHops=5)
         pathIs((p1,p2), ((alice,fred,bob),(lola,joe)))
@@ -6105,7 +6121,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MinionlibFECTests))
+        suite.addTest(tc(ClientMainTests))
         return suite
 
     suite.addTest(tc(MiscTests))
