@@ -1,6 +1,6 @@
-$Id: README,v 1.59 2003/09/05 21:45:19 nickm Exp $
+$Id: README,v 1.59.2.1 2003/09/12 15:35:47 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.5.
+This is Mixminion version 0.0.5.1.
 
 CONTENTS:
         I.    Overview
@@ -37,6 +37,12 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.5.1:
+   - Allow exit servers to decide whether to support user-supplied from
+     addresses.
+   - Fail more gracefully when we try to deliver mail and the the local MTA
+     is down.
 
 NEW IN VERSION 0.0.5:
    - Fix a harmless but hard-to-detect bug that showed up when running

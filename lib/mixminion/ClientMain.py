@@ -2303,11 +2303,21 @@ def runClient(cmd, args):
     path1, path2 = parser.getForwardPath()
     address = parser.address
 
-    #XXXX006 remove this ad hoc check.
+    #XXXX006 remove these ad hoc checks
     if not parser.usingSURBList and len(headerStr) > 2:
         sware = path2[-1]['Server'].get('Software', "")
         if sware.startswith("Mixminion 0.0.4") or sware.startswith("Mixminion 0.0.5alpha1"):
             LOG.warn("Exit server %s is running old software that may not support headers correctly.", path2[-1].getNickname())
+    elif not parser.usingSURBList and h_from:
+        sware = path2[-1]['Server'].get('Software', "")
+        if sware != 'Mixminion 0.0.5':
+            bad = 0
+            if address.getRouting()[0] == SMTP_TYPE and not path2[-1]['Delivery/SMTP'].get("Allow-From"):
+                bad = 1
+            elif address.getRouting()[0] == MBOX_TYPE and not path2[-1]['Delivery/MBOX'].get("Allow-From"):
+                bad = 1
+            if bad:
+                LOG.warn("Exit server %s does not support user-supplied From addresses", path2[-1].getNickname())
 
     # Get our surb, if any.
     if parser.usingSURBList and inFile in ('-', None):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.54 2003/08/31 19:29:29 nickm Exp $
+# $Id: Modules.py,v 1.54.2.1 2003/09/12 15:35:47 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -862,6 +862,7 @@ class MailBase:
     #    headers from body.
     # maxMessageSize: Largest allowable size (after decompression, before
     #   base64) for outgoing messages.
+    # allowFromAddr: Boolean: do we support user-supplied from addresses?
     def _formatEmailMessage(self, address, packet):
         """Given a RFC822 mailbox (delivery address), and an instance of
            DeliveryMessage, return a string containing a message to be sent
@@ -876,7 +877,7 @@ class MailBase:
         headers = packet.getHeaders()
         subject = headers.get("SUBJECT", self.subject)
         fromAddr = headers.get("FROM")
-        if fromAddr:
+        if fromAddr and self.allowFromAddr:
             fromAddr = '"%s %s" <%s>' % (self.fromTag, fromAddr,
                                          self.returnAddress)
         else:
@@ -936,6 +937,7 @@ class MBoxModule(DeliveryModule, MailBase):
                    'AddressFile' : ('ALLOW', None, None),
                    'ReturnAddress' : ('ALLOW', None, None),
                    'RemoveContact' : ('ALLOW', None, None),
+                   'AllowFromAddress' : ('ALLOW', _parseBoolean, 'yes'),
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
                    'MaximumSize' : ('ALLOW', _parseSize, "100K"),
                    }
@@ -970,6 +972,7 @@ class MBoxModule(DeliveryModule, MailBase):
         self.returnAddress = sec['ReturnAddress']
         self.contact = sec['RemoveContact']
         self.retrySchedule = sec['Retry']
+        self.allowFromAddr = sec['AllowFromAddress']
         # validate should have caught these.
         assert (self.server and self.addressFile and self.returnAddress
                 and self.contact)
@@ -1021,10 +1024,15 @@ and you will be removed.""" %(self.nickname, self.addr, self.contact)
         moduleManager.enableModule(self)
 
     def getServerInfoBlock(self):
+        if self.allowFromAddr: 
+            allowFrom = "yes"
+        else:
+            allowFrom = "no"
         return """\
                   [Delivery/MBOX]
                   Version: 0.1
-               """
+                  Allow-From: %s
+               """ % (allowFrom)
 
     def getName(self):
         return "MBOX"
@@ -1057,8 +1065,13 @@ class SMTPModule(DeliveryModule, MailBase):
     def __init__(self):
         DeliveryModule.__init__(self)
     def getServerInfoBlock(self):
-        return "[Delivery/SMTP]\nVersion: 0.1\nMaximum-Size: %s\n" % (
-            ceilDiv(self.maxMessageSize,1024) )
+        if self.allowFromAddr: 
+            allowFrom = "yes"
+        else:
+            allowFrom = "no"
+        return ("[Delivery/SMTP]\nVersion: 0.1\n"
+                "Maximum-Size: %s\nAllow-From: %s\n") % (
+                    ceilDiv(self.maxMessageSize,1024), allowFrom)
     def getName(self):
         return "SMTP"
     def getExitTypes(self):
@@ -1089,6 +1102,7 @@ class DirectSMTPModule(SMTPModule):
                              "7 hours for 6 days"),
                    'BlacklistFile' : ('ALLOW', None, None),
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
+                   'AllowFromAddress': ('ALLOW', _parseBoolean, "yes"),
                    'Message' : ('ALLOW', None, ""),
                    'ReturnAddress': ('ALLOW', None, None), #Required on e
                    'FromTag' : ('ALLOW', None, "[Anon]"),
@@ -1130,6 +1144,7 @@ class DirectSMTPModule(SMTPModule):
         self.subject = sec['SubjectLine']
         self.returnAddress = sec['ReturnAddress']
         self.fromTag = sec.get('FromTag', "[Anon]")
+        self.allowFromAddr = sec['AllowFromAddress']
         if message:
             self.header = "X-Anonymous: yes\n\n%s" %(message)
         else:
@@ -1200,6 +1215,7 @@ class MixmasterSMTPModule(SMTPModule):
                    'SubjectLine' : ('ALLOW', None,
                                     'Type III Anonymous Message'),
                    'MaximumSize' : ('ALLOW', _parseSize, "100K"),
+                   'AllowFromAddress' : ('ALLOW', _parseBoolean, "yes"),
                    }
                  }
 
@@ -1220,6 +1236,7 @@ class MixmasterSMTPModule(SMTPModule):
         self.subject = sec['SubjectLine']
         self.retrySchedule = sec['Retry']
         self.fromTag = sec.get('FromTag', "[Anon]")
+        self.allowFromAddr = sec['AllowFromAddress']
         self.command = cmd[0]
         self.options = tuple(cmd[1]) + ("-l", self.server)
         self.returnAddress = "nobody"
@@ -1310,8 +1327,9 @@ def sendSMTPMessage(server, toList, fromAddr, message):
     try:
         con.sendmail(fromAddr, toList, message)
         res = DELIVER_OK
-    except smtplib.SMTPException, e:
-        LOG.warn("Unsuccessful smtp: "+str(e))
+    except (smtplib.SMTPException, socket.error), e:
+        LOG.warn("Unsuccessful SMTP connection to %s: %s",
+                 server, str(e))
         res = DELIVER_FAIL_RETRY
 
     con.quit()
