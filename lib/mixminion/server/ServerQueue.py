@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.41 2004/05/17 05:19:09 nickm Exp $
+# $Id: ServerQueue.py,v 1.42 2004/05/31 01:03:49 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -544,7 +544,50 @@ class _AddressState:
         self.lastFailure = attempt
 
 class PerAddressDeliveryQueue(DeliveryQueue):
-    """DOCDOC"""
+
+    """Implementats the same interface as DeliveryQueue, but retries
+       messages on a per-address basis rather than a per-message
+       basis.  That is, if any message to the address X fails, we wait
+       for the first retry interval before retrying _any_ messages fo
+       address X; and when address X succeeds again, we retry _all_
+       messages to X.
+    """
+    # This turns out to have important anonymity implications: Suppose
+    # that we retry messages independently, and that our retry policy
+    # is 'every 1 hour for 1 day, every 12 hours for 1 week'.  Suppose
+    # that the server B is down.  The following sequence of events
+    # could occur:
+    #
+    #  1. At Hour 0, we receive message M1, and soon try to
+    #     deliver it to B; it fails, we hold it in the queue.  We
+    #     retry M1 every hour for 24 hours.
+    #
+    #  2. At Hour 30, B comes back up again.
+    #
+    #  3. At Hour 32, we receive message M2, and soon try to
+    #     deliver it.  The delivery succeeds.
+    #
+    #  4. At Hour 36, we reattempt message M1 and succeed.
+    #
+    # An observer who is watching us can tell that the message which
+    # we delivered to B in step 3 could not have been the same message
+    # as we attempted to deliver in step 1.  Furthermore, such an
+    # oberver can deduce that the message we attempted to deliver in
+    # step 1 was successfully delivered in step 4.  This information
+    # could be helpful to traffic analysis.
+    #
+    # With the algorithm implemented in this class, the address B
+    # would be retried at Hour 36, and both messages M1 and M2 would
+    # be delivered at the same time.  The adversary knows that at
+    # least one of M1 and M2 has been waiting around since hour 0, but
+    # does not know which of them (if either!) arrived later.
+    #
+    # We use this algorithm for packet delivery.  With email, on the
+    # other hand, we just pass messages to our MTA and let it cope
+    # correctly: most (all?) MTAs use a retry algorithm equivalent to
+    # this one.
+
+    # DOCDOC 
     def __init__(self, location, retrySchedule=None, now=None, name=None):
         self.addressStateDB = mixminion.Filestore.WritethroughDict(
             filename=os.path.join(location,"addressStatus.db"),
