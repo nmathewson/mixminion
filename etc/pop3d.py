@@ -23,6 +23,7 @@
 # - Refactor UIDL + LIST
 # - Refactor TOP + RETR
 # - Unify the checks for command parameters
+# - Make a command line interface
 
 import sys
 import os
@@ -38,6 +39,7 @@ import re
 import copy
 import md5
 import base64
+
 
 class Devnull:
     def write(self, msg): pass
@@ -335,7 +337,22 @@ class POP3Channel(asynchat.async_chat):
             return
         
         if self.__state == self.TRAN:
-            status = self.__server.set_pop3_messages(self.__username, self.__messages)
+            # We will do something more smart than just returning the
+            # remaining messages. We will return tuple (0|1,m) indicating
+            # that a message has been deleted or not.
+
+            # the remaining messages
+            m = map(lambda (x,y): y, self.__messages)
+
+            # The list we will return
+            ret = []
+            for (x,msg) in self.__oldmessages:
+                if msg in m:
+                    ret += [(0,msg)]
+                else:
+                    ret += [(1,msg)]
+            
+            status = self.__server.set_pop3_messages(self.__username, ret)
             if status == None:
                 self.push('+OK Bye')
             else:
@@ -481,8 +498,8 @@ class POP3Server(asyncore.dispatcher):
         If an empty sequence in returned there are no messages.
 
         """
-        # Sample implemtation always provides one message.
-        return ['from: x@cl.cam.ac.uk\nTo: gd216@cam.ac.uk\nSubject: Hello\n\nWhat\ncan\nI\ndo\nfor\nyou']
+        return []
+    
         raise UnimplementedError
 
     def set_pop3_messages(self, user, msgs):
@@ -492,15 +509,9 @@ class POP3Server(asyncore.dispatcher):
         the messages left, otherwise it should return an error string.
 
         """
+      
         # sample implementation simply prints messages
         print 'New box', user, msgs
         return None # No errors
 
-if __name__ == '__main__':
-    import __main__
-    proxy = POP3Server(('127.0.0.1', 20110))
 
-    try:
-        asyncore.loop()
-    except KeyboardInterupt:
-        pass

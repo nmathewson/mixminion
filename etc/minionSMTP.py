@@ -39,12 +39,17 @@ import smtpd
 import email
 import re
 
+import mmUtils
+import getpass
+import cPickle
+
 program = sys.argv[0]
 __version__ = 'Mixminion SMTP proxy - 0.0.1'
 
 class minionSMTP(smtpd.SMTPServer):
 
-    def __init__(self, localaddr):
+    def __init__(self, localaddr,passwd):
+        self.__passwd = passwd
         smtpd.SMTPServer.__init__(self,localaddr,localaddr)
         print '%s started at %s\n\tLocal addr: %s\n\t' % (
             self.__class__.__name__, time.ctime(time.time()),
@@ -60,6 +65,8 @@ class minionSMTP(smtpd.SMTPServer):
         and nickname contained in the headers are extracted and sent along. 
         """
 
+        # print peer,mailfrom,rcpttos,data
+
         # Use the email package to extract headers and body.
         msg = email.message_from_string(data)
 
@@ -69,20 +76,18 @@ class minionSMTP(smtpd.SMTPServer):
         else:
             subject = ''
 
-        # Extract "from" field nickname
+        # Extract "from" field nickname and return address
 	import re
+        nickname = ''
+        retaddrs = None
         if 'from' in msg:
-            m = re.search("(.*)<", msg['from'])
-            try:
-                nickname = m.group(1).strip();
-                nickname = nickname.strip('\"')
-                if nickname.find('@') != -1:
-                    nickname = ''
-            except AttributeError:
-                # The string must be empty
-                nickname = ''
-        else:
-            nickname = ''
+            m = re.search('^([^@<]*)', msg['from'])
+            if m != None:
+                nickname = m.group(1).strip()
+
+            m = re.search('([^< ]*@[^> ]*)', msg['from'])
+            if m != None:
+                retaddrs = m.group(1).strip()
 
         print "Started sending"
 
@@ -102,34 +107,63 @@ class minionSMTP(smtpd.SMTPServer):
             print "No body found - make sure you send some text/plain"
             return "501 no text/plain body found"
 
+        if retaddrs != None:
+            surb = mmUtils.getSURB(retaddrs,nickname,self.__passwd)
+            body = body +'\n'+surb[0]
+
         # Base mixminion command
-        cmd = ['mixminion', 'send']
+        cmd = []
         
         # Augment the command with a nickname
         if nickname != '':
-            cmd.append('--from=%s'%nickname)
+            cmd.append('--from=%s' % nickname)
 
         if subject != '':
-            cmd.append('--subject=%s'%subject)
+            cmd.append('--subject=%s' % subject)
 
         for address in rcpttos:
-            # For each address it sends the message using mixminion.
-            cmdFull = cmd + ['-t', address]
-            (sout,sin) = os.popen2(cmdFull)
-            print cmdFull
-            print body
-            sout.write(body)
-            sout.close()
+            taz = re.findall('([^@]*)@nym.taz',address)
 
-            # Check that mixminion confirms sending otherwise returns
-            # an 502 error code.
-            result = sin.read()
-            m = re.search("... message sent", result)
-            if m != None:
-                return "502 Mixminion did not confirm sending"
+            # Reply to anonymous sender case.
+            if len(taz) > 0:
+                surb_id = taz[0]
+                if surb_id == 'anonymous':
+                    # TODO: send back an error message
+                    print 'Cannot send to anonymous'
+                    continue
+                surb_file = {}
+                if 'surb_file.dat' in os.listdir('.'):
+                    surb_file = cPickle.load(file('surb_file.dat','r'))
+
+                if surb_file.has_key(surb_id):
+                    surb_list = surb_file[surb_id]
+                    if len(surb_list) == 0:
+                        # Send back an error message
+                        print 'No more SURBs available'
+                        del surb_file[surb_id]
+                    else:
+                        result = mmUtils.reply(body,surb_list[0],cmd)
+                        print result
+                        m = re.search("sent", result)
+            
+                        if m == None:
+                            return "502 Mixminion did not confirm sending"
+                        else:
+                            surb_file[surb_id] = surb_list[1:]
+                            print "Done"
+
+                    cPickle.dump(surb_file,file('surb_file.dat','w'))
+                else:
+                    print 'No address known for: %s@nym.taz'%taz[0]
             else:
-                pass
-            print "Done"
+                # For each address it sends the message using mixminion.
+                result = mmUtils.send(body,address,cmd)
+                m = re.search("sent", result)
+            
+                if m == None:
+                    return "502 Mixminion did not confirm sending"
+                else:
+                    print "Done"
         # raise UnimplementedError
 
 if __name__ == '__main__':
@@ -167,7 +201,7 @@ if __name__ == '__main__':
     except ValueError:
         print 'Bad local port: %s' % localspec
 
-    proxy = minionSMTP((localhost,localport))
+    proxy = minionSMTP((localhost,localport),getpass.getpass())
     # proxy = smtpd.DebuggingServer(('127.0.0.1',20025),None)
     try:
         asyncore.loop()
