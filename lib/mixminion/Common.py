@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.36 2002/12/16 02:40:11 nickm Exp $
+# $Id: Common.py,v 1.37 2002/12/29 20:25:32 nickm Exp $
 
 """mixminion.Common
 
@@ -8,7 +8,7 @@
 __all__ = [ 'LOG', 'LogStream', 'MixError', 'MixFatalError',
             'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
             'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
-            'formatTime', 'installSignalHandlers', 'isSMTPMailbox', 'mkgmtime',
+            'formatTime', 'installSignalHandlers', 'isSMTPMailbox',
             'onReset', 'onTerminate', 'previousMidnight', 'secureDelete',
             'stringContains', 'waitForChildren' ]
 
@@ -513,14 +513,6 @@ class LogStream:
 
 #----------------------------------------------------------------------
 # Time processing
-
-def mkgmtime(yyyy,MM,dd,hh,mm,ss):
-    """Analogously to time.mktime, return a number of seconds since the
-       epoch when GMT is yyyy/MM/dd hh:mm:ss"""
-
-    # we set the DST flag to zero so that subtracting time.timezone always
-    # gives us gmt.
-    return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))
 
 def previousMidnight(when):
     """Given a time_t 'when', return the greatest time_t <= when that falls
