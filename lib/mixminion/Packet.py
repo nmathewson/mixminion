@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.15 2002/11/22 21:12:05 nickm Exp $
+# $Id: Packet.py,v 1.16 2002/12/02 03:30:07 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -453,7 +453,8 @@ class IPV4Info:
 	return (type(self) == type(other) and self.ip == other.ip and
 		self.port == other.port and self.keyinfo == other.keyinfo)
 
-# XXXX Support subdomains and quotesd strings
+#DOCDOC
+# FFFF Support subdomains and quotesd strings
 _ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
 _LOCAL_PART_PAT = r"(?:%s)(?:\.(?:%s))*" % (_ATOM_PAT, _ATOM_PAT)
 _RFC822_PAT = r"\A%s@%s\Z" % (_LOCAL_PART_PAT, _LOCAL_PART_PAT)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.12 2002/11/22 21:12:05 nickm Exp $
+# $Id: benchmark.py,v 1.13 2002/12/02 03:30:07 nickm Exp $
 
 """mixminion.benchmark
 
@@ -486,9 +486,8 @@ def timeEfficiency():
     print "                    header sha1: %3.1f%%" % (100*sha1_hdr/sp_ns)
     print "                    keygen sha1: %3.1f%%" % (500*sha1_key/sp_ns)
     print " (logs not included)"
-    # FFFF Time the logs too..?
-
-    # XXXX BUILDMESSAGE efficiency
+    # FFFF Time, including the hashlogs too.
+    # FFFF Time BuildMessage efficiency too.
 
 #----------------------------------------------------------------------
 
@@ -582,8 +581,6 @@ def testLeaks2():
                 _ml.rsa_decode_key(x,public)
             p.get_public_key()
             _ml.rsa_make_public_key(n,e)
-
-	    # XXXX rest of rsa functionality
 
 #----------------------------------------------------------------------
 

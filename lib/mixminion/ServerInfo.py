@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.20 2002/11/22 21:11:15 nickm Exp $
+# $Id: ServerInfo.py,v 1.21 2002/12/02 03:30:07 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -242,8 +242,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     serverKeys.mmtpKey = mmtpKey
     serverKeys.save()
 
-    # XXXX unused
-    allowIncoming = config['Incoming/MMTP'].get('Enabled', 0)
+    # FFFF unused
+    # allowIncoming = config['Incoming/MMTP'].get('Enabled', 0)
 
     nickname = config['Server']['Nickname']
     if not nickname:
@@ -351,8 +351,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     finally:
         f.close()
 
-    # XXXX for debugging: try to parse and validate the thing we just made.
-    # XXXX Remove this once we're more confident.
+    # This is for debugging: we try to parse and validate the descriptor 
+    #   we just made.
+    # FFFF Remove this once we're more confident.
     ServerInfo(string=info)
 
     return info

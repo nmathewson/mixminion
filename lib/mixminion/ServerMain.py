@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.14 2002/11/22 21:12:05 nickm Exp $
+# $Id: ServerMain.py,v 1.15 2002/12/02 03:30:07 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -38,16 +38,16 @@ from mixminion.Common import getLog, MixFatalError, MixError, secureDelete, \
 #                            mmtp.key
 #                            mmtp.cert
 #                      key_2/...
-#                 conf/miniond.conf 
+#                 conf/miniond.conf
 #                       ....
 
 class ServerKeyring:
-    """A ServerKeyRing remembers current and future keys, descriptors, and 
+    """A ServerKeyRing remembers current and future keys, descriptors, and
        hash logs for a mixminion server.
-       
+
        FFFF: We need a way to generate keys as needed
        """
-    # homeDir: server home directory 
+    # homeDir: server home directory
     # keyDir: server key directory
     # keySloppiness: fudge-factor: how forgiving are we about key liveness?
     # keyIntervals: list of (start, end, keyset Name)
@@ -72,7 +72,7 @@ class ServerKeyring:
     def checkKeys(self):
 	"""Internal method: read information about all this server's
 	   currently-prepared keys from disk."""
-        self.keyIntervals = [] 
+        self.keyIntervals = []
 	firstKey = sys.maxint
 	lastKey = 0
 
@@ -102,7 +102,7 @@ class ServerKeyring:
                 inf = ServerInfo(fname=si, assumeValid=1)
                 t1 = inf['Server']['Valid-After']
                 t2 = inf['Server']['Valid-Until']
-                self.keyIntervals.append( (t1, t2, keysetname) ) 
+                self.keyIntervals.append( (t1, t2, keysetname) )
 	    else:
 		getLog().warn("No server descriptor found for key %s"%dirname)
 
@@ -126,9 +126,10 @@ class ServerKeyring:
 	self._getLiveKey()       # Set up liveKey, nextKeyRotation.
 
     def getIdentityKey(self):
-	"""Return this server's identity key.  Generate one if it doesn't 
+	"""Return this server's identity key.  Generate one if it doesn't
 	   exist."""
-	password = None # FFFF unused
+        # FFFF Use this, somehow.
+	password = None
 	fn = os.path.join(self.keyDir, "identity.key")
 	bits = self.config['Server']['IdentityKeyBits']
 	if os.path.exists(fn):
@@ -143,7 +144,7 @@ class ServerKeyring:
 	    key = mixminion.Crypto.pk_generate(bits)
 	    mixminion.Crypto.pk_PEM_save(key, fn, password)
 	    getLog().info("Generated %s-bit identity key.", bits)
-	
+
 	return key
 
     def removeIdentityKey(self):
@@ -167,7 +168,8 @@ class ServerKeyring:
            make the first key become valid at'startAt'.  Otherwise, make the
 	   first key become valid right after the last key we currently have
 	   expires.  If we have no keys now, make the first key start now."""
-	password = None #FFFF
+        # FFFF Use this.
+	#password = None
 
 	if startAt is None:
 	    if self.keyIntervals:
@@ -176,7 +178,7 @@ class ServerKeyring:
 		startAt = time.time()+60
 
 	startAt = previousMidnight(startAt)
-	
+
 	firstKey, lastKey = self.keyRange
 
 	for _ in xrange(num):
@@ -193,7 +195,7 @@ class ServerKeyring:
 
 	    nextStart = startAt + self.config['Server']['PublicKeyLifetime'][2]
 
-	    getLog().info("Generating key %s to run from %s through %s (GMT)", 
+	    getLog().info("Generating key %s to run from %s through %s (GMT)",
 			  keyname, _date(startAt), _date(nextStart-3600))
  	    generateServerDescriptorAndKeys(config=self.config,
 					    identityKey=self.getIdentityKey(),
@@ -222,11 +224,11 @@ class ServerKeyring:
 	for dirname, (va, vu, name) in zip(dirs, self.keyIntervals):
             getLog().info("Removing%s key %s (valid from %s through %s)",
                         expiryStr, name, _date(va), _date(vu-3600))
-	    files = [ os.path.join(dirname,f) 
+	    files = [ os.path.join(dirname,f)
                                  for f in os.listdir(dirname) ]
 	    secureDelete(files, blocking=1)
 	    os.rmdir(dirname)
-	    
+
 	self.checkKeys()
 
     def _getLiveKey(self, when=None):
@@ -238,7 +240,7 @@ class ServerKeyring:
 	    return None
 
 	w = when
-	if when is None: 
+	if when is None:
 	    when = time.time()
 	    if when < self.nextKeyRotation:
 		return self.liveKey
@@ -248,7 +250,7 @@ class ServerKeyring:
 	if w is None:
 	    self.liveKey = k
 	    self.nextKeyRotation = k[1]
-		
+
 	return k
 
     def getNextKeyRotation(self):
@@ -262,7 +264,7 @@ class ServerKeyring:
 	keyset = ServerKeyset(self.keyDir, name, self.hashDir)
 	keyset.load()
 	return keyset
-	
+
     def getDHFile(self):
 	"""Return the filename for the diffie-helman parameters for the
 	   server.  Creates the file if it doesn't yet exist."""
@@ -275,7 +277,7 @@ class ServerKeyring:
             getLog().info("...done")
 
         return dhfile
-			    
+
     def getTLSContext(self):
 	"""Create and return a TLS context from the currently live key."""
         keys = self.getServerKeyset()
@@ -309,9 +311,9 @@ class IncomingQueue(mixminion.Queue.DeliveryQueue):
 
     def queueMessage(self, msg):
 	"""Add a message for delivery"""
-	mixminion.Queue.DeliveryQueue.queueMessage(self, None, msg)
-    
-    def deliverMessages(self, msgList):
+	self.queueDeliveryMessage(self, None, msg)
+
+    def _deliverMessages(self, msgList):
 	"Implementation of abstract method from DeliveryQueue."
 	ph = self.packetHandler
 	for handle, _, message, n_retries in msgList:
@@ -353,7 +355,7 @@ class MixPool:
 	self.moduleManager = manager
 
     def mix(self):
-	"""Get a batch of messages, and queue them for delivery as 
+	"""Get a batch of messages, and queue them for delivery as
 	   appropriate."""
 	handles = self.queue.getBatch()
 	getLog().trace("Mixing %s messages", len(handles))
@@ -377,11 +379,11 @@ class OutgoingQueue(mixminion.Queue.DeliveryQueue):
 	self.server = None
 
     def connectQueues(self, server):
-	"""Set the MMTPServer that this OutgoingQueue informs of its 
+	"""Set the MMTPServer that this OutgoingQueue informs of its
 	   deliverable messages."""
 	self.server = server
 
-    def deliverMessages(self, msgList):
+    def _deliverMessages(self, msgList):
 	"Implementation of abstract method from DeliveryQueue."
 	# Map from addr -> [ (handle, msg) ... ]
 	msgs = {}
@@ -425,7 +427,7 @@ class MixminionServer:
 	    keylife = config['Server']['PublicKeyLifetime'][2]
 	    nKeys = ceilDiv(30*24*60*60, keylife)
 	    self.keyring.createKeys(nKeys)
-	    
+
 	self.packetHandler = self.keyring.getPacketHandler()
 	tlsContext = self.keyring.getTLSContext()
 	self.mmtpServer = _MMTPServer(config, tlsContext)
@@ -453,14 +455,16 @@ class MixminionServer:
 	self.outgoingQueue.connectQueues(server=self.mmtpServer)
 	self.mmtpServer.connectQueues(incoming=self.incomingQueue,
 				      outgoing=self.outgoingQueue)
-	
+
     def run(self):
 	"""Run the server; don't return unless we hit an exception."""
 	# FFFF Use heapq to schedule events?
 	now = time.time()
-	nextMix = now + 60 # FFFF Configurable!
+	MIX_INTERVAL = 20  # FFFF Configurable!
+	nextMix = now + MIX_INTERVAL
 	nextShred = now + 6000
-	nextRotate = self.keyring.getNextKeyRotation() # FFFF use this.
+	#FFFF Unused
+	#nextRotate = self.keyring.getNextKeyRotation()
 	while 1:
 	    while time.time() < nextMix:
 		# Handle pending network events
@@ -468,11 +472,11 @@ class MixminionServer:
 		# Process any new messages that have come in, placing them
 		# into the mix pool.
 		self.incomingQueue.sendReadyMessages()
-	    
+
 	    # Before we mix, we need to log the hashes to avoid replays.
 	    # FFFF We need to recover on server failure.
 	    self.packetHandler.syncLogs()
-	    
+
 	    getLog().trace("Mix interval elapsed")
 	    # Choose a set of outgoing messages; put them in outgoingqueue and
 	    # modulemanger
@@ -484,7 +488,7 @@ class MixminionServer:
 
 	    # Choose next mix interval
 	    now = time.time()
-	    nextMix = now + 60
+	    nextMix = now + MIX_INTERVAL
 
 	    if now > nextShred:
 		# FFFF Configurable shred interval
@@ -503,7 +507,6 @@ class MixminionServer:
 
 def usageAndExit(cmd):
     executable = sys.argv[0]
-    # XXXX show versioning info
     print >>sys.stderr, "Usage: %s %s [-h] [-f configfile]" % (executable, cmd)
     sys.exit(0)
 
@@ -531,6 +534,7 @@ def readConfigFile(configFile):
 	print >>sys.stderr, "Error in configuration file %r"%configFile
 	print >>sys.stderr, str(e)
 	sys.exit(1)
+    return None #suppress pychecker warning
 
 #----------------------------------------------------------------------
 def runServer(cmd, args):
@@ -558,7 +562,7 @@ def runServer(cmd, args):
     getLog().info("Server shutting down")
     server.close()
     getLog().info("Server is shut down")
-    
+
     sys.exit(0)
 
 #----------------------------------------------------------------------
@@ -595,7 +599,7 @@ def runKeygen(cmd, args):
     for i in xrange(keys):
 	keyring.createKeys(1)
 	print >> sys.stderr, ".... (%s/%s done)" % (i+1,keys)
-    
+
 #----------------------------------------------------------------------
 def removeKeys(cmd, args):
     # FFFF Resist removing keys that have been published.
@@ -627,7 +631,7 @@ def removeKeys(cmd, args):
     keyring = ServerKeyring(config)
     keyring.checkKeys()
     # This is impossibly far in the future.
-    keyring.removeDeadKeys(now=(1L << 36)) 
+    keyring.removeDeadKeys(now=(1L << 36))
     if removeIdentity:
         keyring.removeIdentityKey()
     getLog().info("Done removing keys")

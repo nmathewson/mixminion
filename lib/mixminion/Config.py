@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.19 2002/11/21 16:55:49 nickm Exp $
+# $Id: Config.py,v 1.20 2002/12/02 03:30:07 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -755,6 +755,6 @@ class ServerConfig(_ConfigFile):
 	return self.moduleManager
 
 def _validateHostSection(sec):
-    #XXXX
+    # FFFF
     pass
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.17 2002/11/22 21:12:05 nickm Exp $
+# $Id: BuildMessage.py,v 1.18 2002/12/02 03:30:07 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -40,7 +40,7 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 
 def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
 				 key, paddingPRNG=None, secretRNG=None):
-    """XXXX
+    """DOCDOC
     """
     if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
     if secretRNG is None: secretRNG = paddingPRNG
@@ -52,12 +52,12 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     rsaDataLen = key.get_modulus_bytes()-OAEP_OVERHEAD
     rsaPart = payload[:rsaDataLen]
     lionessPart = payload[rsaDataLen:]
-    # XXXX DOC
+    # DOCDOC
     while 1:
 	encrypted = Crypto.pk_encrypt(rsaPart, key)
 	if not (ord(encrypted[0]) & 0x80):
 	    break
-    #XXXX doc mode 'End-to-end encrypt'
+    # DOCDOC doc mode 'End-to-end encrypt'
     k = Crypto.Keyset(sessionKey).getLionessKeys("End-to-end encrypt")
     lionessPart = Crypto.lioness_encrypt(lionessPart, k)
     payload = encrypted + lionessPart
@@ -75,10 +75,10 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
 
     payload = _encodePayload(payload, 0, paddingPRNG)
 
-    # XXXX Document this mode
+    # DOCDOC document this mode
     k = Crypto.Keyset(replyBlock.encryptionKey).getLionessKeys(
 	                 Crypto.PAYLOAD_ENCRYPT_MODE)
-    # XXXX Document why this is decrypt
+    # DOCDOC Document why this is decrypt
     payload = Crypto.lioness_decrypt(payload, k)
 
     return _buildMessage(payload, None, None,
@@ -125,7 +125,7 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
 # Maybe we shouldn't even allow this to be called with userKey==None.
 def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
 			     expiryTime=0, secretRNG=None):
-    """XXXX DOC IS NOW WRONG HERE
+    """DOCDOC XXXX DOC IS NOW WRONG HERE
        (exitInfo doesn't include tag)
 
        Construct a 'stateless' reply block that does not require the
@@ -147,14 +147,14 @@ def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
                   email: If true, delivers via SMTP; else delivers via MBOX
        """
 
-    #XXXX Out of sync with the spec.
+    # ???? Out of sync with the spec. 
     if secretRNG is None: secretRNG = Crypto.AESCounterPRNG()
 
     while 1:
 	seed = _getRandomTag(secretRNG)
 	if Crypto.sha1(seed+userKey+"Validate")[-1] == '\x00':
 	    break
-	
+
     prng = Crypto.AESCounterPRNG(Crypto.sha1(seed+userKey+"Generate")[:16])
 
     return buildReplyBlock(path, exitType, exitInfo, expiryTime, prng, seed)[0]
@@ -163,7 +163,7 @@ def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
 # MESSAGE DECODING
 
 def decodePayload(payload, tag, key=None, storedKeys=None, userKey=None):
-    """ DOCDOC XXXX
+    """ DOCDOC 
         Contract: return payload on success; raise MixError on certain failure,
           return None if neither.
     """
@@ -190,15 +190,15 @@ def decodePayload(payload, tag, key=None, storedKeys=None, userKey=None):
 	p = decodeEncryptedForwardPayload(payload, tag, key)
 	if p is not None:
 	    return p
-	
+
     return None
 
 def decodeForwardPayload(payload):
-    "XXXX"
+    "DOCDOC"
     return decodePayloadImpl(payload)
 
 def decodeEncryptedForwardPayload(payload, tag, key):
-    "XXXX"
+    "DOCDOC"
     assert len(tag) == TAG_LEN
     assert len(payload) == PAYLOAD_LEN
     msg = tag+payload
@@ -207,16 +207,16 @@ def decodeEncryptedForwardPayload(payload, tag, key):
     except Crypto.CryptoError, _:
 	return None
     rest = msg[key.get_modulus_bytes():]
-    #XXXX magic string
+    # XXXX magic string
     k = Crypto.Keyset(rsaPart[:SECRET_LEN]).getLionessKeys("End-to-end encrypt")
     rest = rsaPart[SECRET_LEN:] + Crypto.lioness_decrypt(rest, k)
     return decodePayloadImpl(rest)
 
 def decodeReplyPayload(payload, secrets, check=0):
-    "XXXX"
+    "DOCDOC"
     for sec in secrets:
 	k = Crypto.Keyset(sec).getLionessKeys(Crypto.PAYLOAD_ENCRYPT_MODE)
-	# XXXX document why this is encrypt
+	# DOCDOC document why this is encrypt
 	payload = Crypto.lioness_encrypt(payload, k)
 	if check and _checkPayload(payload):
 	    break
@@ -224,11 +224,11 @@ def decodeReplyPayload(payload, secrets, check=0):
     return decodePayloadImpl(payload)
 
 def decodeStatelessReplyPayload(payload, tag, userKey):
-    "XXXX"
+    "DOCDOC"
     seed = Crypto.sha1(tag+userKey+"Generate")[:16]
     prng = Crypto.AESCounterPRNG(seed)
     secrets = [ prng.getBytes(SECRET_LEN) for _ in xrange(17) ]
-			
+
     return decodeReplyPayload(payload, secrets, check=1)
 
 #----------------------------------------------------------------------
@@ -497,7 +497,7 @@ def compressData(payload):
     # these are irrelevant, as are the 4 bytes of adler-32 checksum at
     # the end.  Still, we can afford 6 bytes per payload, and
     # reconstructing the checksum to keep zlib happy is a bit of a pain.
-    # XXXX doc manditory '\x78\xDA' beginning in spec.
+    # DOCDOC doc manditory '\x78\xDA' beginning in spec.
     assert s[0] == '\x78' # deflate, 32K window
     assert s[1] == '\xda' # no dict, max compression
     return s
@@ -505,9 +505,9 @@ def compressData(payload):
 def uncompressData(payload):
     """Uncompress a string 'payload'; raise ParseError if it is not valid
        compressed data."""
-    # XXXX ???? How to prevent zlib bombing?  Somebody could compress 28MB of
-    # XXXX ???? zero bytes down to fit in a single payload and use us to
-    # XXXX ???? mailbomb people, hard.
+    # FFFF We should prevent zlib bombing.  Somebody could compress 28MB of
+    # FFFF zero bytes down to fit in a single payload and use us to
+    # FFFF mailbomb people, hard.
     if len(payload) < 6 or payload[0:2] != '\x78\xDA':
 	raise ParseError("Invalid zlib header")
     try:
