@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.48 2003/08/25 21:05:34 nickm Exp $
+# $Id: MMTPServer.py,v 1.49 2003/09/03 15:55:20 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -202,7 +202,11 @@ class ListenConnection(Connection):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setblocking(0)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind((self.ip, self.port))
+        try:
+            self.sock.bind((self.ip, self.port))
+        except socket.error, e:
+            raise MixFatalError("Error while trying to bind to %s:%s: %s"%(
+                self.ip, self.port, e))
         self.sock.listen(backlog)
         self.connectionFactory = connectionFactory
         info("Listening at %s on port %s (fd %s)", ip, port,self.sock.fileno())
