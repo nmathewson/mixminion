@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.68 2004/02/21 00:02:09 nickm Exp $
+# $Id: Main.py,v 1.69 2004/03/01 07:02:06 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -221,6 +221,14 @@ def printUsage(daemon=0):
     print "NOTE: This software is for testing only.  The user set is too small"
     print "      to be anonymous, and the code is too alpha to be reliable."
 
+def fixCommandToken(tok):
+    if not tok:
+        return tok
+    elif len(tok) >=2 and tok[0] in ['"', "'"] and tok[-1] == tok[0]:
+        return tok[1:-1]
+    else:
+        return tok
+
 def commandShell(cmd,args):
     # Used to implement a 'mixminion shell' on systems (like windows) with
     # somewhat bogus CLI support.
@@ -231,8 +239,15 @@ def commandShell(cmd,args):
         print "Syntax: mixminion shell [options]"
         sys.exit(0)
 
+    if "--debug-shlex" in args:
+        debug = 1
+    else:
+        debug = 0
+
     print "Mixminion version %s" % mixminion.__version__
-    print "Type 'help' for information, and 'exit' to quit."
+    print "Type 'help' for information, or 'exit' to quit."
+
+    uiErrorClass = getUIError()
 
     lexer = shlex.shlex()
     lexer.whitespace = " \t"
@@ -244,11 +259,14 @@ def commandShell(cmd,args):
         while 1:
             word = lexer.get_token()
             if word not in ['\r','\n']:
-                words.append(word)
+                words.append(fixCommandToken(word))
             else:
                 break
         if not words:
+            print "Type 'help' for information, or 'exit' to quit."
             continue
+        if debug:
+            print words; continue
         command = words[0]
         args = words[1:]
         if command == 'exit' or command == 'quit':
@@ -258,6 +276,15 @@ def commandShell(cmd,args):
             main([sys.argv[0]]+words)
         except SystemExit:
             pass
+        except uiErrorClass, e:
+            e.dump()
+        except KeyboardInterrupt, e:
+            print "Interrupted."
+
+def getUIError():
+    """DOCDOC"""
+    commonModule = __import__('mixminion.Common', {}, {}, ['UIError'])
+    return commonModule.UIError
 
 def main(args,daemon=0):
     "Use <args> to fix path, pick a command and pass it arguments."
@@ -286,8 +313,8 @@ def main(args,daemon=0):
 
     # Read the 'common' module to get the UIError class.  To simplify
     # command implementation code, we catch all UIError exceptions here.
+    uiErrorClass = getUIError()
     commonModule = __import__('mixminion.Common', {}, {}, ['UIError'])
-    uiErrorClass = commonModule.UIError
     filePermissionErrorClass = commonModule.MixFilePermissionError
 
     # Read the module and function.
