@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.39 2003/01/08 07:54:23 nickm Exp $
+# $Id: ClientMain.py,v 1.40 2003/01/09 06:56:34 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -290,6 +290,7 @@ class ClientKeystore:
         f.write(contents)
         f.close()
         # Now store into the cache.
+        fnshort = os.path.split(fname)[1]
         self.serverList.append((info, 'I:%s'%fnshort))
         self.digestMap[info.getDigest()] = 'I:%s'%fnshort
         self.lastModified = time.time()
