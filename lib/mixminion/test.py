@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.128 2003/07/01 21:18:32 nickm Exp $
+# $Id: test.py,v 1.129 2003/07/07 18:55:15 nickm Exp $
 
 """mixminion.tests
 
@@ -1345,6 +1345,8 @@ ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzl
         pmh = parseMessageAndHeaders
         eq = self.assertEquals
 
+        eq(emh({}), "\n")
+
         encoded = emh({"ABC": "x y zzy", "X": "<42>"}) + "Hello whirled"
         eq(encoded, "ABC:x y zzy\nX:<42>\n\nHello whirled")
         m,h = pmh(encoded)
@@ -2351,6 +2353,7 @@ class PacketHandlerTests(unittest.TestCase):
                           pkt.getAsciiContents())
         # with an overcompressed content
         pcomp = "          "*4096
+        #      (forward, overcompressed)
         m = bfm(pcomp, SMTP_TYPE, "nobody@invalid",
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
@@ -2364,6 +2367,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.assert_(pkt.getAsciiContents(),
              encodeBase64(compressData(pcomp)))
 
+        #      (enc-forward, overcompressed)
         m = befm(p, SMTP_TYPE, "nobody@invalid", [self.server1],
                  [self.server3], getRSAKey(0,1024))
         pkt = self.do_test_chain(m,
@@ -2377,6 +2381,39 @@ class PacketHandlerTests(unittest.TestCase):
         self.assertEquals(len(pkt.getContents()), 28*1024)
         self.assertEquals(encodeBase64(pkt.getContents()),
                           pkt.getAsciiContents())
+
+        # Header features
+        #
+        #    (ASCII msg with headers)
+        h = {"FROM":'fred@foo', "SUBJECT":'Stuff'}
+        p = encodeMessageHeaders(h) + "This is the message.\n"
+        m = bfm(p, SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
+        pkt = self.do_test_chain(m, 
+                                 [self.sp1, self.sp3],
+                                 [FWD_TYPE, SMTP_TYPE],
+                                 [self.server3.getRoutingInfo().pack(),
+                                  "nobody@invalid"],
+                                 "")
+        self.assert_(pkt.isPrintingAscii())
+        self.assert_(not pkt.isEncrypted())
+        self.assertEquals(pkt.getContents(), "This is the message.\n")
+        self.assertEquals(pkt.getHeaders(), h)
+        
+        #    (binary msg with headers.)
+        body = "\x01\x02\x03\x04"*10
+        p = encodeMessageHeaders(h) + body
+        m = bfm(p, SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
+        pkt = self.do_test_chain(m, 
+                                 [self.sp1, self.sp3],
+                                 [FWD_TYPE, SMTP_TYPE],
+                                 [self.server3.getRoutingInfo().pack(),
+                                  "nobody@invalid"],
+                                 "")
+        self.assert_(not pkt.isPrintingAscii())
+        self.assert_(not pkt.isEncrypted())
+        self.assertEquals(pkt.getContents(), body)
+        self.assertEquals(pkt.getHeaders(), h)
+
 
     def test_rejected(self):
         bfm = BuildMessage.buildForwardMessage
@@ -4676,6 +4713,7 @@ class ModuleTests(unittest.TestCase):
                           {"Enabled":1, "Server": "nonesuch",
                            "Retry": [0,0,0,0],
                            "SubjectLine":'foobar',
+                           "FromTag" : '[NotReally]',
                            'MixCommand' : ('ls', ['-z'])}},
                          manager)
         queue = manager.queues['SMTP_MIX2']
@@ -4708,6 +4746,34 @@ class ModuleTests(unittest.TestCase):
             sendfn, sendargs = calls[-1][1][2], calls[-1][1][3:]
             self.assertEquals("ls", sendfn)
             self.assertEquals(sendargs, ('-S',))
+
+            clearReplacedFunctionCallLog()
+
+            # Send another message, with headers.
+            queue.queueDeliveryMessage(
+                FDP('plain', SMTP_TYPE, "foo@bar",
+                    "This is the message",
+                    headers={"FROM":"Mal", "SUBJECT":"Fnord"}))
+            queue.sendReadyMessages()
+            calls = getReplacedFunctionCallLog()
+            mixfn, mixargs = calls[0][1][2], calls[0][1][3:]
+            fn = mixargs[-1]
+            fn = os.path.join(os.path.split(fn)[0],
+                              "rmv_"+os.path.split(fn)[1][4:])
+            m = readFile(fn)
+            self.assertEquals(m, '''\
+To: foo@bar
+From: "[NotReally] Mal" <nobody>
+Subject: Fnord
+X-Anonymous: yes
+
+-----BEGIN TYPE III ANONYMOUS MESSAGE-----
+Message-type: plaintext
+
+This is the message
+-----END TYPE III ANONYMOUS MESSAGE-----
+''')
+
         finally:
             undoReplacedAttributes()
             clearReplacedFunctionCallLog()
@@ -4739,6 +4805,7 @@ SubjectLine: Arr! This be a Type III Anonymous Message
         # Stub out sendSMTPMessage.
         replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
                         lambda *args: mixminion.server.Modules.DELIVER_OK)
+
         try:
             haiku = ("Hidden, we are free\n"+
                      "Free to speak, to free ourselves\n"+
@@ -4773,6 +4840,46 @@ Hidden, we are free
 Free to speak, to free ourselves
 Free to hide no more.
 -----END TYPE III ANONYMOUS MESSAGE-----\n"""
+            d = findFirstDiff(EXPECTED_SMTP_PACKET, args[3])
+            if d != -1:
+                print d, "near", repr(args[3][d-10:d+10])
+            self.assert_(EXPECTED_SMTP_PACKET == args[3])
+            clearReplacedFunctionCallLog()
+
+            # Now, with headers.
+            queueMessage(FDP('plain', SMTP_TYPE, "users@everywhere", haiku,
+                             headers={"FROM":"Captain Nick",
+                                      "SUBJECT":"Gold Doubloons",
+                                      "IN-REPLY-TO":"aaaaa@b.com",
+                                      "REFERENCES":"cccccc@d.com"}))
+            queue.sendReadyMessages()
+            # Was sendSMTPMessage invoked correctly?
+            calls = getReplacedFunctionCallLog()
+            self.assertEquals(1, len(calls))
+            fn, args, _ = calls[0]
+            self.assertEquals("sendSMTPMessage", fn)
+            #server, toList, fromAddr, message
+            self.assertEquals(('nowhere',
+                               ['users@everywhere'],
+                               'yo.ho.ho@bottle.of.rum'),
+                              args[:3])
+            EXPECTED_SMTP_PACKET = '''\
+To: users@everywhere
+From: "[Anon] Captain Nick" <yo.ho.ho@bottle.of.rum>
+Subject: Gold Doubloons
+In-Reply-To: aaaaa@b.com
+References: cccccc@d.com
+X-Anonymous: yes
+
+Avast ye mateys!  Prepare to be anonymized!
+
+-----BEGIN TYPE III ANONYMOUS MESSAGE-----
+Message-type: plaintext
+
+Hidden, we are free
+Free to speak, to free ourselves
+Free to hide no more.
+-----END TYPE III ANONYMOUS MESSAGE-----\n'''
             d = findFirstDiff(EXPECTED_SMTP_PACKET, args[3])
             if d != -1:
                 print d, "near", repr(args[3][d-10:d+10])
@@ -5936,7 +6043,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MiscTests))
+        suite.addTest(tc(ModuleTests))
         return suite
 
     suite.addTest(tc(MiscTests))

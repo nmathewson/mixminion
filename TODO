@@ -23,30 +23,35 @@ For 0.0.5:
                 o Lazy-load deliverable messages.
                 o Don't block while shredding messages at startup.
                 o Shutdown faster on SIGTERM.
-        - Background projects:
-                . Work on porting clients to cygwin, win32.
-                - Twisted port decision
+        . Background projects:
+                o Port to cygwin
+                - Start win32 port
+                o Twisted port decision
                 - Website, FAQ
-        - Initial support for email headers
-                - Subject
-                - From (limited)
-                - In-Reply-To
-                - References
-        - Security improvements
-                - Add ability to mark nodes as having same
-                  administrative domain.
-                - Change pathgen to avoid two nodes with same domain
-                  in a row.
-                - Change pathgen to avoid using same node for entry
-                  and exit?
+        . Initial support for email headers (server side)
+                o Subject
+                o From (limited)
+                o In-Reply-To
+                o References
+                - MBOX support
+                . Tests
+                        - MBOX
+        . Initial support for email headers (client side)
+                o Implement
+                - Give error messages on bad headers
+                - Test
+        o Security improvements
                 o Include cfg info in descriptor
         - Support for large messages and K-of-N
         . UI improvements:
                 o If we can't read serverdescs on startup, suggest a
                   server-DELKEYS.
-                - Audit exceptions: which should be UIError?
-                - Quiet server startup; should be by default if daemon
+                o Quiet server startup; should be by default if daemon
                   mode.
+                . Ability to remove old messages from queue
+                         o Implement
+                         - Test
+                - Audit exceptions: which should be UIError?
                 - Notice when out of disk space, die more cleanly.
                 - 'Iffy mode' messages are confusing.
                 - SSL's "Unexpected error: wrong version number"
@@ -58,6 +63,11 @@ For 0.0.5:
                 - What happens when Overlap > Lifetime?
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
         - Change descriptors to accept YYYY-MM-DD.
+                - Implement
+                - Test
+        - Bugfixes
+                - Handle server time moving backwards.
+                - Solve CPU infinite loop bug
 
 For 0.0.6:
         - Dummies and pinging
@@ -66,6 +76,15 @@ For 0.0.6:
         - Servers need to download and use directories
         - Servers redirect to latest IP if old IP is down.  (Dynamic
           IP support, after a fashion)
+        - Security improvements
+                - Add ability to mark nodes as having same
+                  administrative domain.
+                - Add jurisdictions to pathgen?
+                - Change pathgen to avoid two nodes with same domain
+                  in a row.
+                - Change pathgen to avoid using same node for entry
+                  and exit?
+
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
 [Release criteria: Workable replacement for type II.  At least as

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.48 2003/06/30 17:33:33 nickm Exp $
+# $Id: Packet.py,v 1.49 2003/07/07 18:55:15 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -687,7 +687,7 @@ def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
     return encodeMessageHeaders(message, headers)
 
 def encodeMessageHeaders(headers):
-    """DOCDOC msg, dict
+    """DOCDOC dict
 
        Requires that headers are in acceptable format.
     """

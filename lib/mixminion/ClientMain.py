@@ -39,9 +39,9 @@ from mixminion.Common import AtomicFile, IntervalSet, LOG, floorDiv, \
 from mixminion.Crypto import sha1, ctr_crypt, trng
 from mixminion.Config import ClientConfig, ConfigError
 from mixminion.ServerInfo import ServerInfo, ServerDirectory
-from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
-     parseSMTPInfo, parseTextEncodedMessages, parseTextReplyBlocks, \
-     ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE
+from mixminion.Packet import encodeMessageHeaders, ParseError, parseMBOXInfo, \
+     parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
+     parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
 MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
@@ -1328,6 +1328,21 @@ class ClientQueue:
             print "%2d messages for server at %s:%s (oldest is %s days old)"%(
                 count, s.ip, s.port, days)
 
+    def cleanQueue(self, maxAge, now=None):
+        """Remove all messages older than maxAge seconds from this
+           queue."""
+        if now is None:
+            now = time.time()
+        cutoff = now - maxAge
+        remove = []
+        for h in handles:
+            when = self.getPacket(h)[2]
+            if when < cutoff:
+                remove.append(when)
+        LOG.info("Removing %s old messages from queue", len(remove))
+        for h in remove:
+            self.removePacket(h)
+
 class MixminionClient:
     """Access point for client functionality.  Currently, this is limited
        to generating and sending forward messages"""
@@ -1592,6 +1607,15 @@ class MixminionClient:
             LOG.info("Queue partially flushed")
         else:
             LOG.info("No messages delivered")
+
+    def cleanQueue(self, maxAge, now=None):
+        """Remove all messages older than maxAge seconds from the
+           client queue."""
+        try:
+            clientLock()
+            self.queue.cleanQueue(maxAge, now)
+        finally:
+            clientUnlock()
 
     def queueMessages(self, msgList, routing):
         """Insert all the messages in msgList into the queue, to be sent
@@ -2059,6 +2083,8 @@ Options:
   -R <file>, --reply-block=<file>
                              %(Send)s the message to a reply block in <file>,
                              or '-' for a reply block read from stdin.
+  --subject=<str>, --from=<str>, --in-reply-to=<str>, --references=<str>
+                             Specify an email header for the exiting message.
 %(extra)s
 
 EXAMPLES:
@@ -2121,15 +2147,25 @@ def runClient(cmd, args):
     options, args = getopt.getopt(args, "hvf:D:t:H:P:R:i:",
              ["help", "verbose", "config=", "download-directory=",
               "to=", "hops=", "path=", "reply-block=",
-              "input=", "queue", "no-queue" ])
+              "input=", "queue", "no-queue"
+              "subject=", "from=", "in-reply-to=", "references=", ])
 
     if not options:
         sendUsageAndExit(cmd)
 
     inFile = None
+    headers = {}
     for opt,val in options:
         if opt in ('-i', '--input'):
             inFile = val
+        elif opt == '--subject':
+            headers["SUBJECT"] = val
+        elif opt == '--from':
+            headers["FROM"] = val
+        elif opt == '--in-reply-to':
+            headers["IN-REPLY-TO"] = val
+        elif opt == '--references':
+            headers["REFERENCES"] = val
 
     if args:
         sendUsageAndExit(cmd,"Unexpected arguments")
@@ -2145,6 +2181,10 @@ def runClient(cmd, args):
     except UsageError, e:
         e.dump()
         sendUsageAndExit(cmd)
+
+    # Encode the headers early so that we die before reading the message if
+    # they won't work.
+    headerStr = encodeMessageHeaders(headers)
 
     if inFile in (None, '-') and '-' in parser.replyBlockFiles:
         raise UIError(
@@ -2194,6 +2234,8 @@ def runClient(cmd, args):
         except KeyboardInterrupt:
             print "Interrupted.  Message not sent."
             sys.exit(1)
+
+    payload = "%s%s" % headerStr, payload
 
     if parser.usingSURBList:
         assert isinstance(path2, ListType)
@@ -2638,6 +2680,43 @@ def flushQueue(cmd, args):
 
     client.flushQueue(count)
 
+_CLEAN_QUEUE_USAGE = """\
+Usage: %(cmd)s <-D n|--days=n> [options]
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+  -D <n>, --days=<n>         Remove all messages older than <n> days old.
+
+EXAMPLES:
+  Remove all pending messages older than one week.
+      %(cmd)s -D 30
+""".strip()
+
+def cleanQueue(cmd, args):
+    options, args = getopt.getopt(args, "hvf:D:",
+             ["help", "verbose", "config=", "days=",])
+    days = 0
+    for o,v in options:
+        if o in ('-D','--days'):
+            try:
+                days = int(v)
+            except ValueError:
+                print "ERROR: %s expects an integer" % o
+                sys.exit(1)
+    try:
+        if count is None:
+            raise UsageError()
+        parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
+                                   wantClient=1)
+    except UsageError, e:
+        e.dump()
+        print _CLEAN_QUEUE_USAGE % { 'cmd' : cmd }
+        sys.exit(1)
+
+    parser.init()
+    client = parser.client
+    client.cleanQueue(days*24*60*60)
 
 _LIST_QUEUE_USAGE = """\
 Usage: %(cmd)s [options]

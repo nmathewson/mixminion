@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.83 2003/06/30 17:33:33 nickm Exp $
+# $Id: ServerMain.py,v 1.84 2003/07/07 18:55:15 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -968,13 +968,17 @@ def closeUnusedFDs():
     sys.stdout = sys.__stdout__ = LogStream("STDOUT", "WARN")
     sys.stderr = sys.__stderr__ = LogStream("STDERR", "WARN")
 
+# Global flag: has the user requested a quiet startui?
+_QUIET_OPT = 0
+
 def configFromServerArgs(cmd, args, usage):
     """Given cmd and args as passed to one of the entry commands,
        parses the standard '-h/--help' and '-f/--config' options.
        If the user wanted a usage message, print the usage message and exit.
        Otherwise, find and parse the configuration file.
     """
-    options, args = getopt.getopt(args, "hf:", ["help", "config="])
+    global _QUIET_OPT
+    options, args = getopt.getopt(args, "hQf:", ["help", "quiet", "config="])
     if args:
         print >>sys.stderr, "No arguments expected."
         print usage
@@ -984,8 +988,10 @@ def configFromServerArgs(cmd, args, usage):
         if o in ('-h', '--help'):
             print usage
             sys.exit(0)
-        if o in ('-f', '--config'):
+        elif o in ('-f', '--config'):
             configFile = v
+        elif o in ('-Q', '--quiet'):
+            _QUIET_OPT = 1
 
     return readConfigFile(configFile)
 
@@ -1025,6 +1031,7 @@ Start a Mixminion server.
 Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than the default.
+  -Q, --quiet                Suppress the verbose server startup.
 """.strip()
 
 def runServer(cmd, args):
@@ -1034,11 +1041,13 @@ def runServer(cmd, args):
 
     config = configFromServerArgs(cmd, args, _SERVER_START_USAGE)
     checkHomedirVersion(config)
+    daemonMode = config['Server'].get("Daemon",1)
+    quiet = _QUIET_OPT or daemonMode
     try:
         # Configure the log, but delay disabling stderr until the last
         # possible minute; we want to keep echoing to the terminal until
         # the main loop starts.
-        mixminion.Common.LOG.configure(config, keepStderr=1)
+        mixminion.Common.LOG.configure(config, keepStderr=(not quiet))
         LOG.debug("Configuring server")
     except UIError:
         raise
@@ -1054,7 +1063,6 @@ def runServer(cmd, args):
         gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_COLLECTABLE|gc.DEBUG_UNCOLLECTABLE
                      |gc.DEBUG_INSTANCES|gc.DEBUG_OBJECTS)
 
-    daemonMode = config['Server'].get("Daemon",1)
     if daemonMode:
         LOG.info("Starting server in the background")
         try:
