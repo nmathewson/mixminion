@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.12 2003/05/28 06:37:37 nickm Exp $
+# $Id: DirMain.py,v 1.13 2003/05/28 07:54:08 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -79,7 +79,7 @@ def cmd_list(args):
 
     d = getDirectory()
     inbox = d.getInbox()
-    inbox.listPendingServers(sys.stdout)
+    inbox.listNewPendingServers(sys.stdout)
 
 def cmd_import(args):
     d = getDirectory()

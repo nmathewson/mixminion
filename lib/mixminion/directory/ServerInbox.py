@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.4 2003/05/28 07:45:52 nickm Exp $
+# $Id: ServerInbox.py,v 1.5 2003/05/28 07:54:08 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -33,7 +33,7 @@ class ServerInbox:
            ServerQueued on wait-for-admin.
            """
         try:
-            server = ServerInfo(string=contents,assumeValid=0)
+            server = ServerInfo(string=text,assumeValid=0)
         except MixError, e:
             LOG.warn("Rejected invalid server from %s: %s", source,e)
             raise UIError("Server descriptor was not valid: %s"%e)
@@ -141,6 +141,9 @@ class ServerInbox:
 
         sorted = nicknames.keys()
         sorted.sort()
+        if not sorted:
+            print >>f, "No incoming descriptors"
+            return    
         maxlen = max([len(n) for n in sorted])
         format = " %"+str(maxlen)+"s:%s [%s descriptors]"
         for lcnickname in sorted:
