@@ -215,7 +215,8 @@ class MixminionClient:
         self.queue = mixminion.ClientUtils.ClientQueue(os.path.join(userdir, "queue"))
 
     def _sortPackets(self, packets, shuffle=1):
-        """Helper function.  Takes a list of tuples of (packet, routingInfo),
+        """Helper function.  Takes a list of tuples of (packet, 
+           ServerInfo/routigInforoutingInfo),
            groups packets with the same routingInfos, and returns a list of
            tuples of (routingInfo, [packet list]).
 
@@ -224,7 +225,12 @@ class MixminionClient:
         """
         d = {}
         for packet, firstHop in packets:
-            ri = firstHop.getRoutingInfo()
+            if isinstance(firstHop, mixminion.ServerInfo.ServerInfo):
+                ri = firstHop.getRoutingInfo()
+            else:
+                assert isinstance(firstHop, (mixminion.Packet.MMTPHostInfo,
+                                             mixminion.Packet.IPV4Info))
+                ri = firstHop
             d.setdefault(ri,[]).append(packet)
         result = d.items()
         if shuffle:
