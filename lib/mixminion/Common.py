@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.60 2003/02/13 06:30:22 nickm Exp $
+# $Id: Common.py,v 1.61 2003/02/13 07:03:49 nickm Exp $
 
 """mixminion.Common
 
@@ -51,10 +51,10 @@ class UIError(MixError):
     """Exception raised for an error that should be reported to the user,
        not dumped as a stack trace."""
     def dump(self):
-        if str(self): print "ERROR:", str(self)
+        if str(self): print >>sys.stderr, "ERROR:", str(self)
     def dumpAndExit(self):
         self.dump()
-        sys.exit(0)
+        sys.exit(1)
 
 class UsageError(UIError):
     """Exception raised for an error that should be reported to the user
@@ -398,10 +398,13 @@ class Log:
         self.setMinSeverity(minSeverity)
         self.__lock = threading.Lock()
 
-    def configure(self, config):
+    def configure(self, config, keepStderr=0):
         """Set up this Log object based on a ServerConfig or ClientConfig
-           object"""
+           object
 
+           If keepStderr is true, do not silence the console log, regardless
+           of the value of 'Daemon' or 'EchoMessages'.
+           """
         self.handlers = []
         if config == None or not config.has_section("Server"):
             self.setMinSeverity("WARN")
@@ -409,6 +412,7 @@ class Log:
         else:
             self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
             logfile = config['Server'].get('LogFile',None)
+            # ???? Does this even work if 'logfile' is not given?
             if logfile is None:
                 homedir = config['Server']['Homedir']
                 if homedir:
@@ -419,6 +423,8 @@ class Log:
                     self.addHandler(_FileLogHandler(logfile))
                 except MixError, e:
                     self.error(str(e))
+                if keepStderr:
+                    return
                 if (config['Server'].get('Daemon',0) or
                     not config['Server'].get('EchoMessages',0)):
                     print "Silencing the console log; look in %s instead"%(

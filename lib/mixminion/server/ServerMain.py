@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.38 2003/02/13 06:30:23 nickm Exp $
+# $Id: ServerMain.py,v 1.39 2003/02/13 07:03:50 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -501,6 +501,14 @@ class MixminionServer:
         LOG.debug("First mix at %s", formatTime(nextMix,1))
         scheduledEvents.sort()
 
+        LOG.info("Entering main loop: Mixminion %s", mixminion.__version__)
+
+        # This is the last possible moment to shut down the console log, so
+        # we have to do it now.
+        mixminion.Common.LOG.configure(self.config, keepStderr=0)
+        if self.config['Server'].get("Daemon",1):
+            closeUnusedFDs()        
+
         # FFFF Support for automatic key rotation.
         while 1:
             nextEventTime = scheduledEvents[0][0]
@@ -625,7 +633,9 @@ def daemonize():
     # Set umask to 000 so that we drop any (possibly nutty) umasks that
     # our users had before.
     os.umask(0000)
-    # Close all unused fds.
+
+def closeUnusedFDs():
+    """Close stdin, stdout, and stderr."""
     # (We could try to do this via sys.stdin.close() etc., but then we
     #  would miss the magic copies in sys.__stdin__, sys.__stdout__, etc.
     #  Using os.close instead just nukes the FD for us.)
@@ -689,17 +699,18 @@ def readConfigFile(configFile):
 def runServer(cmd, args):
     config = configFromServerArgs(cmd, args)
     try:
-        mixminion.Common.LOG.configure(config)
+        #DOCDOC
+        mixminion.Common.LOG.configure(config, keepStderr=1)
         LOG.debug("Configuring server")
     except:
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
         LOG.fatal("Shutting down because of exception: %s", info[0])
-        #XXXX if sys.stderr is still real, send a message there as well.
         sys.exit(1)
 
-    if config['Server'].get("Daemon",1):
-        print "Starting server in the background"
+    daemonMode = config['Server'].get("Daemon",1)
+    if daemonMode:
+        LOG.info("Starting server in the background")
         try:
             daemonize()
         except:
@@ -720,11 +731,12 @@ def runServer(cmd, args):
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
         LOG.fatal("Shutting down because of exception: %s", info[0])
-        #XXXX if sys.stderr is still real, send a message there as well.
         sys.exit(1)            
             
     LOG.info("Starting server: Mixminion %s", mixminion.__version__)
     try:
+        # We keep the console log open as long as possible so we can catch
+        # more errors.
         server.run()
     except KeyboardInterrupt:
         pass
@@ -732,7 +744,7 @@ def runServer(cmd, args):
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while running server")
         LOG.fatal("Shutting down because of exception: %s", info[0])
-        #XXXX if sys.stderr is still real, send a message there as well.
+
     LOG.info("Server shutting down")
     server.close()
     LOG.info("Server is shut down")

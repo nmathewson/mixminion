@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.31 2003/02/13 06:30:23 nickm Exp $
+# $Id: Modules.py,v 1.32 2003/02/13 07:03:50 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -372,7 +372,7 @@ class ModuleManager:
 
     def disableModule(self, module):
         """Unmaps all the types for a module object."""
-        LOG.info("Disabling module %s", module.getName())
+        LOG.debug("Disabling module %s", module.getName())
         for t in module.getExitTypes():
             if (self.typeToModule.has_key(t) and
                 self.typeToModule[t].getName() == module.getName()):

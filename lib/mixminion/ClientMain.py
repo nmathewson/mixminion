@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.53 2003/02/13 06:30:22 nickm Exp $
+# $Id: ClientMain.py,v 1.54 2003/02/13 07:03:49 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -293,16 +293,16 @@ class ClientDirectory:
 
         # Have we already imported this server?
         if self.digestMap.get(info.getDigest(), "X").startswith("I:"):
-            raise MixError("Server descriptor is already imported")
+            raise UIError("Server descriptor is already imported")
 
         # Is the server expired?
         if info.isExpiredAt(time.time()):
-            raise MixError("Server desciptor is expired")
+            raise UIError("Server desciptor is expired")
 
         # Is the server superseded?
         if self.byNickname.has_key(lcnickname):
             if info.isSupersededBy([s for s,_ in self.byNickname[lcnickname]]):
-                raise MixError("Server descriptor is superseded")
+                raise UIError("Server descriptor is already superseded")
 
         # Copy the server into DIR/servers.
         fnshort = "%s-%s"%(nickname, formatFnameTime())
@@ -496,13 +496,13 @@ class ClientDirectory:
             try:
                 return ServerInfo(fname=fname, assumeValid=0)
             except OSError, e:
-                raise MixError("Couldn't read descriptor %r: %s" %
+                raise UIError("Couldn't read descriptor %r: %s" %
                                (name, e))
             except ConfigError, e:
-                raise MixError("Couldn't parse descriptor %r: %s" %
+                raise UIError("Couldn't parse descriptor %r: %s" %
                                (name, e))
         elif strict:
-            raise MixError("Couldn't find descriptor %r" % name)
+            raise UIError("Couldn't find descriptor for %r" % name)
         else:
             return None
 
@@ -549,7 +549,7 @@ class ClientDirectory:
             # If so, find all candidates...
             endList = self.__find(self.byCapability[endCap],startAt,endAt)
             if not endList:
-                raise MixError("No %s servers known" % endCap)
+                raise UIError("Can't build path: no %s servers known" % endCap)
             # ... and pick one that hasn't been used, if possible.
             used = [ info.getNickname().lower() for info in startServers ]
             unusedEndList = [ info for info in endList
@@ -622,7 +622,7 @@ class ClientDirectory:
             midServers = midList
         else:
             # We don't know any servers at all.
-            raise MixError("No relays known")
+            raise UIError("No relays known")
 
         LOG.debug("getPath: [%s][%s][%s]",
                   " ".join([ s.getNickname() for s in startServers ]),
@@ -686,13 +686,13 @@ def resolvePath(directory, address, enterPath, exitPath,
     # Make sure all relay servers support relaying.
     for server in path[:-1]:
         if "relay" not in server.getCaps():
-            raise MixError("Server %s does not support relay"
-                           % server.getNickname())
+            raise UIError("Server %s does not support relay"
+                          % server.getNickname())
 
     # Make sure the exit server can support the exit capability.
     if exitCap and exitCap not in path[-1].getCaps():
-        raise MixError("Server %s does not support %s"
-                       % (path[-1].getNickname(), exitCap))
+        raise UIError("Server %s does not support %s capability"
+                      % (path[-1].getNickname(), exitCap))
 
     # If there is no specified swap point, find one.
     if nSwap is None:
@@ -700,7 +700,7 @@ def resolvePath(directory, address, enterPath, exitPath,
 
     path1, path2 = path[:nSwap+1], path[nSwap+1:]
     if not halfPath and (not path1 or not path2):
-        raise MixError("Each leg of the path must have at least 1 hop")
+        raise UIError("Each leg of the path must have at least 1 hop")
     return path1, path2
 
 def parsePath(directory, config, path, address, nHops=None,
@@ -765,12 +765,12 @@ def parsePath(directory, config, path, address, nHops=None,
         ent = path[idx]
         if ent == "*":
             if starPos is not None:
-                raise MixError("Can't have two wildcards in a path")
+                raise UIError("Can't have two wildcards in a path")
             starPos = idx
             cur = exitPath
         elif ent == "*swap*":
             if swapPos is not None:
-                raise MixError("Can't specify swap point twice")
+                raise UIError("Can't specify swap point twice")
             swapPos = idx
         else:
             cur.append(ent)
@@ -810,15 +810,15 @@ def parsePath(directory, config, path, address, nHops=None,
     # Check myNSwap for consistency
     if nSwap is not None:
         if myNSwap is not None and myNSwap != nSwap:
-            raise MixError("Mismatch between specified swap points")
+            raise UIError("Mismatch between specified swap points")
         myNSwap = nSwap
 
     # Check myNHops for consistency
     if nHops is not None:
         if myNHops is not None and myNHops != nHops:
-            raise MixError("Mismatch between specified number of hops")
+            raise UIrror("Mismatch between specified number of hops")
         elif nHops < len(enterPath)+len(exitPath):
-            raise MixError("Mismatch between specified number of hops")
+            raise UIError("Mismatch between specified number of hops")
 
         myNHops = nHops
 
@@ -1561,7 +1561,7 @@ def readConfigFile(configFile):
         sys.exit(1)
     except ConfigError, e:
         print >>sys.stderr, "Error in configuration file %r"%configFile
-        print >>sys.stderr, str(e)
+        print >>sys.stderr, "   ", str(e)
         sys.exit(1)
     return None #suppress pychecker warning
 
@@ -1988,8 +1988,7 @@ def runClient(cmd, args):
         LOG.info("Sending dummy message")
     else:
         if address and address.getRouting()[0] == DROP_TYPE:
-            LOG.error("Cannot send a payload with a DROP message.")
-            sys.exit(0)
+            raise UIError("Cannot send a payload with a DROP message.")
 
         if inFile is None:
             inFile = "-"
@@ -2048,7 +2047,7 @@ def importServer(cmd, args):
             try:
                 directory.importFromFile(filename)
             except MixError, e:
-                print "Error while importing: %s" % e
+                print "Error while importing %s: %s" % (filename, e)
     finally:
         clientUnlock()
         
@@ -2166,14 +2165,13 @@ def clientDecode(cmd, args):
         sys.exit(1)
 
     if args:
-        print >>sys.stderr, "Error: unexpected arguments."
+        msg = "Unexpected arguments."
         if len(args) == 1:
-            print >>sys.stderr, "       (Did you mean '-i %s'?)" %args[0]
-        sys.exit(1)
+            msg += " (Did you mean '-i %s'?)" % args[0]
+        raise UIError(msg)
 
     if not inputFile:
-        print >> sys.stderr, "Error: No input file specified"
-        sys.exit(1)
+        raise UIError("No input file specified")
 
     parser.init()
     client = parser.client
@@ -2196,9 +2194,7 @@ def clientDecode(cmd, args):
     try:
         res = client.decodeMessage(s, force=force)
     except ParseError, e:
-        print "Couldn't parse message: %s"%e
-        out.close()
-        sys.exit(1)
+        raise UIError("Couldn't parse message: %s"%e)
         
     for r in res:
         out.write(r)
@@ -2279,7 +2275,8 @@ def generateSURB(cmd, args):
         sys.exit(0)
 
     if args:
-        print >>sys.stderr, "Unexpected arguments"
+        print >>sys.stderr, "ERROR: Unexpected arguments"
+        print _GENERATE_SURB_USAGE % cmd
         sys.exit(1)
 
     parser.init()
