@@ -1,9 +1,9 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.22 2002/12/07 04:03:35 nickm Exp $
+# $Id: Queue.py,v 1.23 2002/12/09 04:47:40 nickm Exp $
 
 """mixminion.Queue
 
-   Facility for a fairly secure, directory-based, unordered queue.
+   Facility for fairly secure, directory-based, unordered queues. 
    """
 
 import os
@@ -12,7 +12,7 @@ import time
 import stat
 import cPickle
 
-from mixminion.Common import MixError, MixFatalError, secureDelete, getLog, \
+from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir
 from mixminion.Crypto import AESCounterPRNG
 
@@ -21,9 +21,9 @@ __all__ = [ 'Queue', 'DeliveryQueue', 'TimedMixQueue', 'CottrellMixQueue',
 
 # Mode to pass to open(2) for creating a new file, and dying if it already
 # exists.
-_NEW_MESSAGE_MODE = os.O_WRONLY+os.O_CREAT+os.O_EXCL
+_NEW_MESSAGE_FLAGS = os.O_WRONLY+os.O_CREAT+os.O_EXCL
 # On windows or mac, binary != text.
-_NEW_MESSAGE_MODE += getattr(os, 'O_BINARY', 0)
+_NEW_MESSAGE_FLAGS += getattr(os, 'O_BINARY', 0)
 
 # Any inp_* files older than INPUT_TIMEOUT seconds old are assumed to be
 # trash.
@@ -34,14 +34,13 @@ INPUT_TIMEOUT = 6000
 CLEAN_TIMEOUT = 120
 
 class Queue:
-    """A Queue is an unordered collection of files with secure remove and
-       move operations.
+    """A Queue is an unordered collection of files with secure insert, move,
+       and delete operations.
 
        Implementation: a queue is a directory of 'messages'.  Each
        filename in the directory has a name in one of the following
        formats:
-
-             rmv_HANDLE   (A message waiting to be deleted)
+             rmv_HANDLE  (A message waiting to be deleted)
              msg_HANDLE  (A message waiting in the queue.
              inp_HANDLE  (An incomplete message being created.)
        (Where HANDLE is a randomly chosen 12-character selection from the
@@ -73,7 +72,7 @@ class Queue:
         self.dir = location
 
         if not os.path.isabs(location):
-            getLog().warn("Queue path %s isn't absolute.", location)
+            LOG.warn("Queue path %s isn't absolute.", location)
 
         if os.path.exists(location) and not os.path.isdir(location):
             raise MixFatalError("%s is not a directory" % location)
@@ -184,7 +183,7 @@ class Queue:
            commit your changes, or abortMessage to reject them."""
         handle = self.__newHandle()
         fname = os.path.join(self.dir, "inp_"+handle)
-        fd = os.open(fname, _NEW_MESSAGE_MODE, 0600)
+        fd = os.open(fname, _NEW_MESSAGE_FLAGS, 0600)
         return os.fdopen(fd, 'wb'), handle
 
     def finishMessage(self, f, handle):
@@ -367,6 +366,8 @@ class TimedMixQueue(Queue):
        as requested, according to a mixing algorithm that sends a batch
        of messages every N seconds."""
     # FFFF : interval is unused.
+    ## Fields:
+    #   interval: scanning interval, in seconds.
     def __init__(self, location, interval=600):
 	"""Create a TimedMixQueue that sends its entire batch of messages
 	   every 'interval' seconds."""
@@ -386,6 +387,12 @@ class CottrellMixQueue(TimedMixQueue):
        as requested, according the Cottrell (timed dynamic-pool) mixing
        algorithm from Mixmaster."""
     # FFFF : interval is unused.
+    ## Fields:
+    # interval: scanning interval, in seconds.
+    # minPool: Minimum number of messages to keep in pool.
+    # minSend: Minimum number of messages above minPool before we consider
+    #      sending.
+    # sendRate: Largest fraction of the pool to send at a time.
     def __init__(self, location, interval=600, minPool=6, minSend=1,
 		 sendRate=.7):
 	"""Create a new queue that yields a batch of message every 'interval'
@@ -416,6 +423,7 @@ class CottrellMixQueue(TimedMixQueue):
 	self.sendRate = sendRate
 
     def _getBatchSize(self):
+	"Helper method: returns the number of messages to send."
 	pool = self.count()
 	if pool >= (self.minPool + self.minSend):
 	    sendable = pool - self.minPool
@@ -424,6 +432,7 @@ class CottrellMixQueue(TimedMixQueue):
 	    return 0
 
     def getBatch(self):
+	"Returns a list of handles for the next batch of messages to send."
 	n = self._getBatchSize()
 	if n:
 	    return self.pickRandom(n)
@@ -442,18 +451,21 @@ class BinomialCottrellMixQueue(CottrellMixQueue):
 				    if self.rng.getFloat() < msgProbability ])
 
 def _secureDelete_bg(files, cleanFile):
+    """Helper method: delete files in another thread, removing 'cleanFile' 
+       once we're done."""
+      
     pid = os.fork()
     if pid != 0:
         return pid
     # Now we're in the child process.
     try:
         secureDelete(files, blocking=1)
-    except OSError, _:
+    except OSError:
         # This is sometimes thrown when shred finishes before waitpid.
         pass
     try:
         os.unlink(cleanFile)
-    except OSError, _:
+    except OSError:
         pass
     os._exit(0)
     return None # Never reached.

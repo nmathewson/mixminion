@@ -1,9 +1,12 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.22 2002/12/07 04:03:35 nickm Exp $
+# $Id: Modules.py,v 1.23 2002/12/09 04:47:40 nickm Exp $
 
 """mixminion.Modules
 
-   Type codes and dispatch functions for routing functionality."""
+   Code to support pluggable exit module functionality; implementation
+   for built-in modules.
+   """
+# FFFF We may, someday, want to support non-exit modules.
 
 __all__ = [ 'ModuleManager', 'DeliveryModule',
 	    'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
@@ -22,7 +25,7 @@ import mixminion.Packet
 import mixminion.Queue
 import mixminion.BuildMessage
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
-from mixminion.Common import getLog, createPrivateDir, MixError
+from mixminion.Common import LOG, createPrivateDir, MixError
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -32,6 +35,7 @@ DELIVER_FAIL_NORETRY = 3
 # Numerically first exit type.
 MIN_EXIT_TYPE  = 0x0100
 
+# XXXX001 move these into Packet.py ===================================START
 # Mixminion types
 DROP_TYPE      = 0x0000  # Drop the current message
 FWD_TYPE       = 0x0001  # Forward the msg to an IPV4 addr via MMTP
@@ -40,6 +44,7 @@ SWAP_FWD_TYPE  = 0x0002  # SWAP, then forward the msg to an IPV4 addr via MMTP
 # Exit types
 SMTP_TYPE      = 0x0100  # Mail the message
 MBOX_TYPE      = 0x0101  # Send the message to one of a fixed list of addresses
+# XXXX001 move these into Packet.py =====================================END
 
 class DeliveryModule:
     """Abstract base for modules; delivery modules should implement
@@ -53,6 +58,8 @@ class DeliveryModule:
            * It must know its own name.
 	   * It must know which types it handles.
 	   * Of course, it needs to know how to deliver a message."""
+    # FFFF DeliveryModules need to know about the AsyncServer object in
+    # FFFF case they support asynchronous delivery.
     def __init__(self):
 	"Zero-argument constructor, as required by Module protocol."
 	pass
@@ -105,28 +112,34 @@ class DeliveryModule:
             DELIVER_OK (if the message was successfully delivered),
 	    DELIVER_FAIL_RETRY (if the message wasn't delivered, but might be
               deliverable later), or
-	    DELIVER_FAIL_NORETRY (if the message shouldn't be tried later)."""
-        raise NotImplementedError("processMessage")
+	    DELIVER_FAIL_NORETRY (if the message shouldn't be tried later).
 
+	   (This method is only used by your delivery queue; if you use
+	    a nonstandard delivery queue, you don't need to implement this."""
+        raise NotImplementedError("processMessage")
 
 class ImmediateDeliveryQueue:
     """Helper class usable as delivery queue for modules that don't
        actually want a queue.  Such modules should have very speedy
        processMessage() methods, and should never have deliery fail."""
+    ##Fields:
+    #  module: the underlying DeliveryModule object.
     def __init__(self, module):
 	self.module = module
 
     def queueDeliveryMessage(self, (exitType, address, tag), message):
+	"""Instead of queueing our message, pass it directly to the underlying
+	   DeliveryModule."""	
 	try:
 	    res = self.module.processMessage(message, tag, exitType, address)
 	    if res == DELIVER_OK:
 		return
 	    elif res == DELIVER_FAIL_RETRY:
-		getLog().error("Unable to retry delivery for message")
+		LOG.error("Unable to retry delivery for message")
 	    else:
-		getLog().error("Unable to deliver message")
+		LOG.error("Unable to deliver message")
 	except:
-	    getLog().error_exc(sys.exc_info(),
+	    LOG.error_exc(sys.exc_info(),
 			       "Exception delivering message")
 
     def sendReadyMessages(self):
@@ -136,6 +149,8 @@ class ImmediateDeliveryQueue:
 class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
+    ## Fields: 
+    # module: the underlying module.
     def __init__(self, module, directory):
 	mixminion.Queue.DeliveryQueue.__init__(self, directory)
 	self.module = module
@@ -150,10 +165,10 @@ class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
 		elif result == DELIVER_FAIL_RETRY:
 		    self.deliveryFailed(handle, 1)
 		else:
-		    getLog().error("Unable to deliver message")
+		    LOG.error("Unable to deliver message")
 		    self.deliveryFailed(handle, 0)
 	    except:
-		getLog().error_exc(sys.exc_info(),
+		LOG.error_exc(sys.exc_info(),
 				   "Exception delivering message")
 		self.deliveryFailed(handle, 0)
 
@@ -166,9 +181,13 @@ class ModuleManager:
        the ModuleManager, but will not receive messags until it is
        enabled.
 
-       Because modules need to tell the ServerConfig object aboutt their
+       Because modules need to tell the ServerConfig object about their
        configuration options, initializing the ModuleManager is usually done
-       through ServerConfig.  See ServerConfig.getModuleManager()."""
+       through ServerConfig.  See ServerConfig.getModuleManager().
+
+       To send messages, call 'queueMessage' for each message to send, then
+       call 'sendReadyMessages'.
+       """
     ##
     # Fields
     #    syntax: extensions to the syntax configuration in Config.py
@@ -210,7 +229,7 @@ class ModuleManager:
     def registerModule(self, module):
 	"""Inform this ModuleManager about a delivery module.  This method
    	   updates the syntax options, but does not enable the module."""
-        getLog().info("Loading module %s", module.getName())
+        LOG.info("Loading module %s", module.getName())
         self.modules.append(module)
         syn = module.getConfigSyntax()
         for sec, rules in syn.items():
@@ -234,7 +253,7 @@ class ModuleManager:
         pyPkg = ".".join(ids[:-1])
         pyClassName = ids[-1]
 	orig_path = sys.path[:]
-	getLog().info("Loading module %s", className)
+	LOG.info("Loading module %s", className)
         try:
 	    sys.path[0:0] = self.path
 	    try:
@@ -253,6 +272,7 @@ class ModuleManager:
 	    raise MixError("Error initializing module %s" %className)
 	
     def validate(self, sections, entries, lines, contents):
+	# (As in ServerConfig)
         for m in self.modules:
             m.validateConfig(sections, entries, lines, contents)
 
@@ -269,10 +289,10 @@ class ModuleManager:
         for t in module.getExitTypes():
             if (self.typeToModule.has_key(t) and
                 self.typeToModule[t].getName() != module.getName()):
-                getLog().warn("More than one module is enabled for type %x"%t)
+                LOG.warn("More than one module is enabled for type %x"%t)
             self.typeToModule[t] = module
 
-        getLog().info("Module %s: enabled for types %s",
+        LOG.info("Module %s: enabled for types %s",
                       module.getName(),
                       map(hex, module.getExitTypes()))
 
@@ -282,12 +302,13 @@ class ModuleManager:
         self.enabled[module.getName()] = 1
 
     def cleanQueues(self):
+	"""Remove trash messages from all internal queues."""
 	for queue in self.queues.values():
 	    queue.cleanQueue()
 	
     def disableModule(self, module):
 	"""Unmaps all the types for a module object."""
-        getLog().info("Disabling module %s", module.getName())
+        LOG.info("Disabling module %s", module.getName())
         for t in module.getExitTypes():
             if (self.typeToModule.has_key(t) and
                 self.typeToModule[t].getName() == module.getName()):
@@ -298,17 +319,19 @@ class ModuleManager:
             del self.enabled[module.getName()]
 
     def queueMessage(self, message, tag, exitType, address):
+	"""Queue a message for delivery."""
+	# FFFF Support non-exit messages.
         mod = self.typeToModule.get(exitType, None)
         if mod is None:
-            getLog().error("Unable to handle message with unknown type %s",
+            LOG.error("Unable to handle message with unknown type %s",
                            exitType)
 	    return
 	queue = self.queues[mod.getName()]
-	getLog().debug("Delivering message %r (type %04x) via module %s",
+	LOG.debug("Delivering message %r (type %04x) via module %s",
 		       message[:8], exitType, mod.getName())
 	try:
 	    payload = mixminion.BuildMessage.decodePayload(message, tag)
-	except MixError, _:
+	except MixError:
 	    queue.queueDeliveryMessage((exitType, address, 'err'), message)
 	    return
 	if payload is None:
@@ -342,19 +365,35 @@ class DropModule(DeliveryModule):
     def createDeliveryQueue(self, directory):
 	return ImmediateDeliveryQueue(self)
     def processMessage(self, message, tag, exitType, exitInfo):
-        getLog().debug("Dropping padding message")
+        LOG.debug("Dropping padding message")
         return DELIVER_OK
 
 #----------------------------------------------------------------------
 class MBoxModule(DeliveryModule):
-    # FFFF This implementation can stall badly if we don't have a fast
-    # FFFF local MTA.
+    """Implementation for MBOX delivery: sends messages, via SMTP, to
+       addresses from a local file.  The file must have the format
+          addr: smtpaddr
+          addr: smtpaddr
+           ...
+       
+       When we receive a message send to 'addr', we deliver it to smtpaddr.
+       """
+    ##
+    # Fields:
+    #   addresses: a map from address to SMTP address
+    #   server: the name of our SMTP server
+    #   addressFile: the location of our address file
+    #   returnAddress: the address we use in our 'From' line
+    #   contact: the contact address we mention in our boilerplate
+    #   nickname: our server nickname; for use in our boilerplate
+    #   addr: our IP address, or "<Unknown IP>": for use in our boilerplate.
     def __init__(self):
         DeliveryModule.__init__(self)
-        self.enabled = 0
         self.addresses = {}
 
     def getConfigSyntax(self):
+	# FFFF There should be some way to say that fields are required
+	# FFFF if the module is enabled.
         return { "Delivery/MBOX" :
                  { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
                    'AddressFile' : ('ALLOW', None, None),
@@ -369,9 +408,7 @@ class MBoxModule(DeliveryModule):
 
     def configure(self, config, moduleManager):
         # XXXX001 Check this.  Conside error handling
-	
-        self.enabled = config['Delivery/MBOX'].get("Enabled", 0)
-	if not self.enabled:
+	if not config['Delivery/MBOX'].get("Enabled", 0):
 	    moduleManager.disableModule(self)
 	    return
 
@@ -389,8 +426,9 @@ class MBoxModule(DeliveryModule):
         self.nickname = config['Server']['Nickname']
         if not self.nickname:
             self.nickname = socket.gethostname()
-        self.addr = config['Incoming/MMTP'].get('IP', "<Unknown host>")
+        self.addr = config['Incoming/MMTP'].get('IP', "<Unknown IP>")
 
+	# Parse the address file.
 	self.addresses = {}
         f = open(self.addressFile)
 	address_line_re = re.compile(r'\s*([^\s:=]+)\s*[:=]\s*(\S+)')
@@ -409,7 +447,7 @@ class MBoxModule(DeliveryModule):
 		    raise ConfigError("Bad address on line %s of %s"%(
 			lineno,self.addressFile))
 		self.addresses[m.group(1)] = m.group(2)
-		getLog().trace("Mapping MBOX address %s -> %s", m.group(1),
+		LOG.trace("Mapping MBOX address %s -> %s", m.group(1),
 			       m.group(2))
 	finally:
 	    f.close()
@@ -429,17 +467,20 @@ class MBoxModule(DeliveryModule):
         return [ MBOX_TYPE ]
 
     def processMessage(self, message, tag, exitType, address):
+	# Determine that message's address;
         assert exitType == MBOX_TYPE
-        getLog().trace("Received MBOX message")
+        LOG.trace("Received MBOX message")
         info = mixminion.Packet.parseMBOXInfo(address)
 	try:
 	    address = self.addresses[info.user]
-	except KeyError, _:
-            getLog().error("Unknown MBOX user %r", info.user)
+	except KeyError:
+            LOG.error("Unknown MBOX user %r", info.user)
 	    return DELIVER_FAIL_NORETRY
 
+	# Escape the message if it isn't plaintext ascii
         msg = _escapeMessageForEmail(message, tag)
 
+	# Generate the boilerplate (FFFF Make this configurable)
         fields = { 'user': address,
                    'return': self.returnAddress,
                    'nickname': self.nickname,
@@ -458,20 +499,17 @@ and you will be removed.
 
 %(msg)s""" % fields
 
+        # Deliver the message
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
 #----------------------------------------------------------------------
 class SMTPModule(DeliveryModule):
-    """Placeholder for real exit node implementation.
-        DOCDOC document me."""
+    """Placeholder for real exit node implementation. 
+       For now, use MixmasterSMTPModule"""
     def __init__(self):
         DeliveryModule.__init__(self)
-        self.enabled = 0
     def getServerInfoBlock(self):
-        if self.enabled:
-            return "[Delivery/SMTP]\nVersion: 0.1\n"
-        else:
-            return ""
+	return "[Delivery/SMTP]\nVersion: 0.1\n"
     def getName(self):
         return "SMTP"
     def getExitTypes(self):
@@ -485,9 +523,18 @@ class MixmasterSMTPModule(SMTPModule):
     # FFFF ... or maybe we should deliberately ignore them, since
     # FFFF this is only a temporary workaround until enough people 
     # FFFF are running SMTP exit nodes
+    ## Fields:
+    # server: The path (usually a single server) to use for outgoing messages.
+    #    Multiple servers should be separated by commas.
+    # subject: The subject line we use for outgoing messages
+    # command: The Mixmaster binary.
+    # options: Options to pass to the Mixmaster binary when queueing messages
+    # tmpQueue: An auxiliary Queue used to hold files so we can pass them to
+    #    Mixmaster.  (This should go away; we should use stdin instead.)
+    
     def __init__(self):
         SMTPModule.__init__(self)
-        self.mixDir = None
+
     def getConfigSyntax(self):
         return { "Delivery/SMTP-Via-Mixmaster" :
                  { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
@@ -503,8 +550,7 @@ class MixmasterSMTPModule(SMTPModule):
         pass
     def configure(self, config, manager):
         sec = config['Delivery/SMTP-Via-Mixmaster']
-        self.enabled = sec.get("Enabled", 0)
-        if not self.enabled:
+	if not sec.get("Enabled", 0):
             manager.disableModule(self)
             return
         cmd = sec['MixCommand']
@@ -517,11 +563,16 @@ class MixmasterSMTPModule(SMTPModule):
 
     def getName(self): 
         return "SMTP_MIX2" 
+
     def createDeliveryQueue(self, queueDir):
+	# We create a temporary queue so we can hold files there for a little
+	# while before passing their names to mixmaster.
         self.tmpQueue = mixminion.Queue.Queue(queueDir+"_tmp", 1, 1)
         self.tmpQueue.removeAll()
         return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
+
     def processMessage(self, message, tag, exitType, smtpAddress):
+	"""Insert a message into the Mixmaster queue"""
         assert exitType == SMTP_TYPE
 	# parseSMTPInfo will raise a parse error if the mailbox is invalid.
         info = mixminion.Packet.parseSMTPInfo(smtpAddress)
@@ -533,33 +584,40 @@ class MixmasterSMTPModule(SMTPModule):
         opts = self.options + ("-t", info.email,
                                self.tmpQueue.getMessagePath(handle))
         code = os.spawnl(os.P_WAIT, cmd, cmd, *opts)
-        getLog().debug("Queued Mixmaster message: exit code %s", code)
+        LOG.debug("Queued Mixmaster message: exit code %s", code)
         self.tmpQueue.removeMessage(handle)
         return DELIVER_OK
                          
     def flushMixmasterPool(self):
-        "DOCDOC"
+	"""Send all pending messages from the Mixmaster queue.  This
+	   should be called after invocations of processMessage."""
         cmd = self.command
-        getLog().debug("Flushing Mixmaster pool")
+        LOG.debug("Flushing Mixmaster pool")
         os.spawnl(os.P_NOWAIT, cmd, cmd, "-S")
 
 class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
-    "DOCDOC"
-    def __init__(self, module, directory):
-        SimpleModuleDeliveryQueue.__init__(self, module, directory)
+    """Delivery queue for _MixmasterSMTPModule.  Same as
+       SimpleModuleDeliveryQueue, except that we must call flushMixmasterPool
+       after queueing messages for Mixmaster."""
     def _deliverMessages(self, msgList):
         SimpleModuleDeliveryQueue._deliverMessages(self, msgList)
         self.module.flushMixmasterPool()
         
 #----------------------------------------------------------------------
+
 def sendSMTPMessage(server, toList, fromAddr, message):
-    getLog().trace("Sending message via SMTP host %s to %s", server, toList)
+    """Send a single SMTP message.  The message will be delivered to
+       toList, and seem to originate from fromAddr.  We use 'server' as an
+       MTA."""
+    # FFFF This implementation can stall badly if we don't have a fast
+    # FFFF local MTA.
+    LOG.trace("Sending message via SMTP host %s to %s", server, toList)
     con = smtplib.SMTP(server)
     try:
 	con.sendmail(fromAddr, toList, message)
 	res = DELIVER_OK
     except smtplib.SMTPException, e:
-	getLog().warn("Unsuccessful smtp: "+str(e))
+	LOG.warn("Unsuccessful smtp: "+str(e))
 	res = DELIVER_FAIL_RETRY
 
     con.quit()
@@ -569,19 +627,30 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 
 #----------------------------------------------------------------------
 
+# XXXX001 There's another function like this in config.  
 # DOCDOC
 _allChars = "".join(map(chr, range(256)))
 # DOCDOC
 # ????001 Are there any nonprinting chars >= 0x7f to worry about now?
 _nonprinting = "".join(map(chr, range(0x00, 0x07)+range(0x0E, 0x20)))
+
 def isPrintable(s):
     """Return true iff s consists only of printable characters."""
     printable = s.translate(_allChars, _nonprinting)
     return len(printable) == len(s)
 
 def _escapeMessageForEmail(msg, tag):
-    """DOCDOC
-         -> None | str """
+    """Helper function: Given a message and tag, escape the message if
+       it is not plaintext ascii, and wrap it in some standard
+       boilerplate.  Add a disclaimer if the message is not ascii.
+
+          msg -- A (possibly decoded) message
+	  tag -- One of: a 20-byte decoding tag [if the message is encrypted
+                            or a reply]
+	                 None [if the message is in plaintext]
+                         'err' [if the message was invalid.]
+
+       Returns None on an invalid message."""
     m = _escapeMessage(msg, tag, text=1)
     if m is None:
 	return None
@@ -604,16 +673,27 @@ message encrypted to you; or 3) junk.\n\n"""
 %s%s============ ANONYMOUS MESSAGE ENDS\n""" %(junk_msg, tag, msg)
 
 def _escapeMessage(message, tag, text=0):
-    """DOCDOC
-	 (message,tag|None,output-as-text?) 
-                -> ("TXT"|"BIN"|"ENC", message, tag|None) or None
+    """Helper: given a decoded message (and possibly its tag), determine
+       whether the message is a text plaintext message (code='TXT'), a
+       binary plaintext message (code 'BIN'), or an encrypted message/reply
+       (code='ENC').  If requested, non-TXT messages are base-64 encoded.
+ 
+       Returns: (code, message, tag (for ENC) or None (for BIN, TXT).
+       Returns None if the message is invalid.
+
+          message -- A (possibly decoded) message
+	  tag -- One of: a 20-byte decoding tag [if the message is encrypted
+                            or a reply]
+	                 None [if the message is in plaintext]
+                         'err' [if the message was invalid.]
+          text -- flag: if true, non-TXT messages must be base64-encoded.
     """
     if tag == 'err':
 	return None
     elif tag is not None:
 	code = "ENC"
     else:
-	tag = None
+	assert tag is None
 	if isPrintable(message):
 	    code = "TXT"
 	else:

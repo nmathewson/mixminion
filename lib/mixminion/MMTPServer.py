@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.19 2002/12/07 04:03:35 nickm Exp $
+# $Id: MMTPServer.py,v 1.20 2002/12/09 04:47:40 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -29,18 +29,18 @@ import time
 from types import StringType
 
 import mixminion._minionlib as _ml
-from mixminion.Common import MixError, MixFatalError, getLog, stringContains
+from mixminion.Common import MixError, MixFatalError, LOG, stringContains
 from mixminion.Crypto import sha1
 from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN
 
 __all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
             'MMTPClientConnection' ]
 
-trace = getLog().trace
-info = getLog().info
-debug = getLog().info
-warn = getLog().warn
-error = getLog().error
+trace = LOG.trace
+info = LOG.info
+debug = LOG.info
+warn = LOG.warn
+error = LOG.error
 
 class AsyncServer:
     """AsyncServer is the core of a general-purpose asynchronous
@@ -49,6 +49,11 @@ class AsyncServer:
        (respectively), and waits for their underlying sockets to be
        available for the desired operations.
        """
+    ## Fields:
+    # writers: map from fd to 'Connection' objects that are interested
+    #      in write events.
+    # readers: map from fd to 'Connection' objects that are interested
+    #      in read events.
     def __init__(self):
         """Create a new AsyncServer with no readers or writers."""
         self.writers = {}
@@ -152,6 +157,13 @@ class ListenConnection(Connection):
     """A ListenConnection listens on a given port/ip combination, and calls
        a 'connectionFactory' method whenever a new connection is made to that
        port."""
+    ## Fields:
+    # ip: IP to listen on.
+    # port: port to listen on.
+    # sock: socket to bind.
+    # connectionFactory: a function that takes as input a socket from a
+    #    newly received connection, and returns a Connection object to
+    #    register with the async server.
     def __init__(self, ip, port, backlog, connectionFactory):
         """Create a new ListenConnection"""
         self.ip = ip
@@ -207,7 +219,8 @@ class SimpleTLSConnection(Connection):
     #
     #    __con: an underlying TLS object
     #    __state: a callback to use whenever we get a read or a write. May
-    #           throw _ml.TLSWantRead or _ml.TLSWantWrite.
+    #           throw _ml.TLSWantRead or _ml.TLSWantWrite.  See __acceptFn,
+    #           __connectFn, __shutdownFn, __readFn, __writeFn.
     #    __server: an AsyncServer.
     #    __inbuf: A list of strings that we've read since the last expectRead. 
     #    __inbuflen: The total length of all the strings in __inbuf
@@ -216,7 +229,6 @@ class SimpleTLSConnection(Connection):
     #    __terminator: None, or a string which will terminate the current read.
     #    __outbuf: None, or the remainder of the string we're currently
     #           writing.
-    
     def __init__(self, sock, tls, serverMode):
         """Create a new SimpleTLSConnection.
 
@@ -430,10 +442,17 @@ class SimpleTLSConnection(Connection):
 	pass
     
 #----------------------------------------------------------------------
+# Implementation for MMTP.
+
+# The protocol string to send.
 PROTOCOL_STRING      = "MMTP 0.1\r\n"
-PROTOCOL_RE = re.compile("MMTP ([^\s\r\n]+)\r\n")
+# The protocol specification to expect.
+PROTOCOL_RE          = re.compile("MMTP ([^\s\r\n]+)\r\n")
+# Control line for sending a message.
 SEND_CONTROL         = "SEND\r\n"
+# Control line for sending padding.
 JUNK_CONTROL         = "JUNK\r\n"
+# Control line for acknowledging a message
 RECEIVED_CONTROL     = "RECEIVED\r\n"
 SEND_CONTROL_LEN     = len(SEND_CONTROL)
 RECEIVED_CONTROL_LEN = len(RECEIVED_CONTROL)
@@ -443,7 +462,14 @@ RECEIVED_RECORD_LEN  = RECEIVED_CONTROL_LEN + DIGEST_LEN
 class MMTPServerConnection(SimpleTLSConnection):
     '''An asynchronous implementation of the receiving side of an MMTP
        connection.'''
+    ## Fields:
+    # messageConsumer: a function to call with all received messages.
+    # finished: callback when we're done with a read or write; see
+    #     SimpleTLSConnection.
     def __init__(self, sock, tls, consumer):
+	"""Create an MMTP connection to receive messages sent along a given
+	   socket.  When valid packets are received, pass them to the 
+	   function 'consumer'."""
         SimpleTLSConnection.__init__(self, sock, tls, 1)
         self.messageConsumer = consumer
         self.finished = self.__setupFinished
@@ -528,6 +554,9 @@ class MMTPServerConnection(SimpleTLSConnection):
 class MMTPClientConnection(SimpleTLSConnection):
     """Asynchronious implementation of the sending ("client") side of a
        mixminion connection."""
+    ## Fields:
+    # ip, port, keyID, messageList, handleList, sendCallback, failCallback: 
+    #   As described in the docstring for __init__ below.
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None):
 	"""Create a connection to send messages to an MMTP server.  
@@ -656,9 +685,10 @@ class MMTPClientConnection(SimpleTLSConnection):
 		self.failCallback(msg,handle,retriable)
 
 LISTEN_BACKLOG = 10 # ???? Is something else more reasonable?
-class MMTPServer(AsyncServer):
+class MMTPAsyncServer(AsyncServer):
     """A helper class to invoke AsyncServer, MMTPServerConnection, and
-       MMTPClientConnection"""
+       MMTPClientConnection, with a function to add new connections, and
+       callbacks for message success and failure."""
     def __init__(self, config, tls):
 	AsyncServer.__init__(self)
 
@@ -686,7 +716,7 @@ class MMTPServer(AsyncServer):
 	self.listener.shutdown()
 
     def sendMessages(self, ip, port, keyID, messages, handles):
-	"""Send a set of messages to a given server."""
+	"""Begin sending a set of messages to a given server."""
 	# ???? Can we remove these asserts yet?
 	for m,h in zip(messages, handles):
 	    assert len(m) == MESSAGE_LEN
@@ -694,7 +724,8 @@ class MMTPServer(AsyncServer):
 	    
         con = MMTPClientConnection(self.context,
 				   ip, port, keyID, messages, handles,
-                                   self.onMessageSent, self.onMessageUndeliverable)
+                                   self.onMessageSent, 
+				   self.onMessageUndeliverable)
         con.register(self)
 
     def onMessageReceived(self, msg):

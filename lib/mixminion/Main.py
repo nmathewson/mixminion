@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.10 2002/12/02 03:47:46 nickm Exp $
+# $Id: Main.py,v 1.11 2002/12/09 04:47:40 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -16,8 +16,6 @@
 #       print>>, no automatic string concatenation and no import foo.bar.
 
 import sys
-import stat
-import os
 
 # Check: are we running a version earlier than 2.0?  If so, die.
 if not hasattr(sys,'version_info') or sys.version_info[0] < 2:
@@ -28,7 +26,10 @@ if not hasattr(sys,'version_info') or sys.version_info[0] < 2:
         "       You seem to be running version %s.\n")%_ver)
     sys.exit(1)
 
+import os
+import stat
 import getopt
+import types
 
 def filesAreSame(f1, f2):
     "Return true if f1 and f2 are exactly the same file."
@@ -39,7 +40,7 @@ def filesAreSame(f1, f2):
 	ino1 = os.stat(f1)[stat.ST_INO]
 	ino2 = os.stat(f2)[stat.ST_INO]
 	return ino1 and ino1 > 0 and ino1 == ino2
-    except OSError, _:
+    except OSError:
 	return 0
 
 def correctPath(myself):
@@ -47,6 +48,14 @@ def correctPath(myself):
     # (If the admin uses distutils to install Mixminion, the code will 
     # wind up somewhere appropriate on pythonpath.  This isn't good enough,
     # however: we want to run even when sysadmins don't understand distutils.)
+
+    # If we can import mixminion.Main, we bail out early: let's not mess
+    # with anything.
+    try:
+	__import__('mixminion.Main')
+	return
+    except ImportError:
+	pass
 
     orig_cmd = myself
     # First, resolve all links.
@@ -67,6 +76,10 @@ def correctPath(myself):
     parentdir = os.path.normpath(parentdir)
     foundEntry = 0
     for pathEntry in sys.path:
+	# There are intimations on Python-dev that sys.path may eventually
+	# contain non-strings.
+	if not isinstance(pathEntry, types.StringType):
+	    continue
 	if os.path.normpath(pathEntry) == parentdir:
 	    foundEntry = 1; break
 		
@@ -89,11 +102,11 @@ def correctPath(myself):
 	sys.exit(1)
 
 # Global map from command name to 2-tuples of (module_name, function_name).
+# The function 'main' below uses this map to pick which module to import,
+# and which function to invoke.
 #
-# DOCDOC unclear!
-#
-#  'Main.py <cmd> arg1 arg2 arg3' will result in a call to function_name
-#   in module_name.  The function should take two arguments: a string to
+#  'Main.py <cmd> arg1 arg2 arg3' will result in a call to <function_name>
+#   in <module_name>.  The function should take two arguments: a string to
 #   be used as command name in error messages, and a list of [arg1,arg2,arg3].'
 #   
 #   By convention, all commands must print a usage message and exit when

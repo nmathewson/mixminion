@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.19 2002/12/07 04:03:35 nickm Exp $
+# $Id: BuildMessage.py,v 1.20 2002/12/09 04:47:39 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -9,7 +9,7 @@
 import zlib
 import operator
 from mixminion.Packet import *
-from mixminion.Common import MixError, MixFatalError, getLog
+from mixminion.Common import MixError, MixFatalError, LOG
 import mixminion.Crypto as Crypto
 import mixminion.Modules as Modules
 
@@ -33,11 +33,11 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
     if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
     assert path1 and path2
 
-    getLog().debug("Encoding forward message for %s-byte payload",len(payload))
-    getLog().debug("  Using path %s/%s",
+    LOG.debug("Encoding forward message for %s-byte payload",len(payload))
+    LOG.debug("  Using path %s/%s",
 		   [s.getNickname() for s in path1],
 		   [s.getNickname() for s in path2])
-    getLog().debug("  Delivering to %04x:%r", exitType, exitInfo)
+    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
 
     # Compress, pad, and checksum the payload.
     payload = _encodePayload(payload, 0, paddingPRNG)
@@ -64,12 +64,12 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
     if secretRNG is None: secretRNG = paddingPRNG
 
-    getLog().debug("Encoding encrypted forward message for %s-byte payload",
+    LOG.debug("Encoding encrypted forward message for %s-byte payload",
 		   len(payload))
-    getLog().debug("  Using path %s/%s",
+    LOG.debug("  Using path %s/%s",
 		   [s.getNickname() for s in path1],
 		   [s.getNickname() for s in path2])
-    getLog().debug("  Delivering to %04x:%r", exitType, exitInfo)
+    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
 
     # Compress, pad, and checksum the payload.
     # (For encrypted-forward messages, we have overhead for OAEP padding
@@ -115,9 +115,9 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     """
     if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
 
-    getLog().debug("Encoding reply message for %s-byte payload",
+    LOG.debug("Encoding reply message for %s-byte payload",
 		   len(payload))
-    getLog().debug("  Using path %s/??",[s.getNickname() for s in path1])
+    LOG.debug("  Using path %s/??",[s.getNickname() for s in path1])
 
     # Compress, pad, and checksum the payload.
     payload = _encodePayload(payload, 0, paddingPRNG)
@@ -154,9 +154,9 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
     if secretPRNG is None:
         secretPRNG = Crypto.AESCounterPRNG()
 
-    getLog().debug("Building reply block for path %s",
+    LOG.debug("Building reply block for path %s",
 		   [s.getNickname() for s in path])
-    getLog().debug("  Delivering to %04x:%r", exitType, exitInfo)    
+    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)    
 
     # The message is encrypted first by the end-to-end key, then by
     # each of the path keys in order. We need to reverse these steps, so we
@@ -251,7 +251,7 @@ def decodePayload(payload, tag, key=None,
 	if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00':
 	    try:
 		return _decodeStatelessReplyPayload(payload, tag, userKey)
-	    except MixError, _:
+	    except MixError:
 		pass
 
     # If we have an RSA key, and none of the above steps get us a good
@@ -284,7 +284,7 @@ def _decodeEncryptedForwardPayload(payload, tag, key):
     msg = tag+payload
     try:
 	rsaPart = Crypto.pk_decrypt(msg[:key.get_modulus_bytes()], key)
-    except Crypto.CryptoError, _:
+    except Crypto.CryptoError:
 	return None
     rest = msg[key.get_modulus_bytes():]
     # XXXX001 magic string
@@ -626,7 +626,7 @@ def uncompressData(payload):
 	if nil != '':
 	    raise ParseError("Error in compressed data")
 	return d
-    except zlib.error, _:
+    except zlib.error:
 	raise ParseError("Error in compressed data")
 
 def _validateZlib():
@@ -645,7 +645,7 @@ def _validateZlib():
 	_ZLIB_LIBRARY_OK = 1
 	return
 
-    getLog().warn("Unrecognized zlib version: %r. Spot-checking output", ver)
+    LOG.warn("Unrecognized zlib version: %r. Spot-checking output", ver)
     # This test is inadequate, but it _might_ catch future incompatible
     # changes.
     _ZLIB_LIBRARY_OK = 0.5

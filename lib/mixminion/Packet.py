@@ -1,9 +1,13 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.18 2002/12/07 04:03:35 nickm Exp $
+# $Id: Packet.py,v 1.19 2002/12/09 04:47:40 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
-   messages and related structures."""
+   messages and related structures.
+
+   For functions that handle client-side generation and decoding of
+   packets, see BuildMessage.py.  For functions that handle
+   server-side processing of packets, see PacketHandler.py."""
 
 __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseMessage', 'parseHeader', 'parseSubheader',
@@ -185,12 +189,16 @@ class Subheader:
                 "routinglen=%(routinglen)r)")% self.__dict__
 
     def getExitAddress(self):
+	"""Return the part of the routingInfo that contains the delivery
+	   address.  (Requires that routingType is an exit type.)"""
 	# XXXX001 SPEC This is not explicit in the spec.
 	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
 	assert len(self.routinginfo) >= TAG_LEN
 	return self.routinginfo[TAG_LEN:]
     
     def getTag(self):
+	"""Return the part of the routingInfo that contains the decoding
+	   tag. (Requires that routingType is an exit type.)"""
 	# XXXX001 SPEC This is not explicit in the spec.
 	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
 	assert len(self.routinginfo) >= TAG_LEN
@@ -334,7 +342,11 @@ class SingletonPayload(_Payload):
 	return "%s%s" % (header, self.data)
 
 class FragmentPayload(_Payload):
-    """Represents the fields of a decoded fragment payload."""
+    """Represents the fields of a decoded fragment payload.
+
+       FFFF Fragments are not yet fully supported; there's no code to generate
+            or decode them.
+    """
     def __init__(self, index, hash, msgID, msgLen, data):
 	self.index = index
 	self.hash = hash
@@ -362,6 +374,11 @@ class FragmentPayload(_Payload):
 #----------------------------------------------------------------------
 # REPLY BLOCKS
 
+# A reply block is: the string "SURB", a major number, a minor number,
+#   a 4-byte "valid-until" timestamp, a 2K header, 2 bytes of routingLen for
+#   the last server in the first leg; 2 bytes of routingType for the last
+#   server in the first leg; a 16-byte shared end-to-end key, and the
+#   routingInfo for the last server.
 RB_UNPACK_PATTERN = "!4sBBL%dsHH%ss" % (HEADER_LEN, SECRET_LEN)
 MIN_RB_LEN = 30+HEADER_LEN
 
@@ -369,7 +386,6 @@ def parseReplyBlock(s):
     """Return a new ReplyBlock object for an encoded reply block"""
     if len(s) < MIN_RB_LEN:
         raise ParseError("Reply block too short")
-
     try:
         magic, major, minor, timestamp, header, rlen, rt, key = \
                struct.unpack(RB_UNPACK_PATTERN, s[:MIN_RB_LEN])
@@ -453,10 +469,17 @@ class IPV4Info:
 	return (type(self) == type(other) and self.ip == other.ip and
 		self.port == other.port and self.keyinfo == other.keyinfo)
 
-#DOCDOC
-# FFFF Support subdomains and quoted strings
+# Regular expressions to valide RFC822 addresses.
+# (This is more strict than RFC822, actually.  RFC822 allows tricky
+#  stuff to quote special characters, and I don't trust every MTA or
+#  delivery command to support addresses like <bob@bob."; rm -rf /; echo".com>)
+ 
+# An 'Atom' is a non-escape, non-null, non-space, non-punctuation character.
 _ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
+# The 'Local part' (and, for us, the domain portion too) is a sequence of
+# dot-separated atoms.
 _LOCAL_PART_PAT = r"(?:%s)(?:\.(?:%s))*" % (_ATOM_PAT, _ATOM_PAT)
+# A mailbox is two 'local parts' separated by an @ sign.
 _RFC822_PAT = r"\A%s@%s\Z" % (_LOCAL_PART_PAT, _LOCAL_PART_PAT)
 RFC822_RE = re.compile(_RFC822_PAT)
 

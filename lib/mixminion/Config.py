@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.21 2002/12/07 04:03:35 nickm Exp $
+# $Id: Config.py,v 1.22 2002/12/09 04:47:40 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -55,18 +55,23 @@ import socket # for inet_aton and error
 from cStringIO import StringIO
 
 import mixminion.Common
-from mixminion.Common import MixError, getLog
+from mixminion.Common import MixError, LOG
 import mixminion.Packet
 import mixminion.Crypto
 
 # String with all characters 0..255; used for str.translate
 _ALLCHARS = "".join(map(chr, range(256)))
-# String with all printing ascii characters.
+# String with all printing ascii characters; used for str.translate
 _GOODCHARS = "".join(map(chr, range(0x07,0x0e)+range(0x20,0x80)))
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
     pass
+
+#----------------------------------------------------------------------
+# Validation functions.  These are used to convert values as they appear
+# in configuration files and server descriptors into corresponding Python 
+# objects, and validate their formats
 
 def _parseBoolean(boolean):
     """Entry validation function.  Converts a config value to a boolean.
@@ -111,7 +116,7 @@ _seconds_per_unit = {
     'month':  60*60*24*30,    # These last two aren't quite right, but we
     'year':   60*60*24*365,   # don't need exactness.
     }
-_abbrev_units = { 'sec' : 'second', 'min': 'minute', 'mon': 'month' }
+_canonical_unit_names = { 'sec' : 'second', 'min': 'minute', 'mon' : 'month' }
 def _parseInterval(interval):
     """Validation function.  Converts a config value to an interval of time,
        in the format (number of units, name of unit, total number of seconds).
@@ -121,9 +126,8 @@ def _parseInterval(interval):
     if not m:
         raise ConfigError("Unrecognized interval %r" % inter)
     num, unit = float(m.group(1)), m.group(2)
-    unit = _abbrev_units.get(unit, unit)
     nsec = num * _seconds_per_unit[unit]
-    return num, unit, nsec
+    return num, _canonical_unit_names.get(unit,unit), nsec
 
 def _parseInt(integer):
     """Validation function.  Converts a config value to an int.
@@ -131,9 +135,10 @@ def _parseInt(integer):
     i = integer.strip()
     try:
         return int(i)
-    except ValueError, _:
+    except ValueError:
         raise ConfigError("Expected an integer but got %r" % (integer))
 
+# Regular expression to match a dotted quad.
 _ip_re = re.compile(r'\d+\.\d+\.\d+\.\d+')
 
 def _parseIP(ip):
@@ -148,11 +153,13 @@ def _parseIP(ip):
 	raise ConfigError("Invalid IP %r" % i)
     try:
         socket.inet_aton(i)
-    except socket.error, _:
+    except socket.error:
         raise ConfigError("Invalid IP %r" % i)
 
     return i
 
+# Regular expression to match 'address sets' as used in Allow/Deny
+# configuration lines. General format is "<IP|*> ['/'MASK] [PORT['-'PORT]]"
 _address_set_re = re.compile(r'''(\d+\.\d+\.\d+\.\d+|\*)
                                  \s*
                                  (?:/\s*(\d+\.\d+\.\d+\.\d+))?\s*
@@ -161,7 +168,7 @@ _address_set_re = re.compile(r'''(\d+\.\d+\.\d+\.\d+|\*)
                                         )?''',re.X)
 def _parseAddressSet_allow(s, allowMode=1):
     """Validation function.  Converts an address set string of the form
-       IP/mask port-port into a tuple of (IP, Mask, Portmin, Portmax).
+       'IP/mask port-port' into a tuple of (IP, Mask, Portmin, Portmax).
        Raises ConfigError on failure."""
     s = s.strip()
     m = _address_set_re.match(s)
@@ -227,7 +234,7 @@ def _parseBase64(s,_hexmode=0):
 	    return binascii.a2b_hex(s)
 	else:
 	    return binascii.a2b_base64(s)
-    except (TypeError, binascii.Error, binascii.Incomplete), _:
+    except (TypeError, binascii.Error, binascii.Incomplete):
 	raise ConfigError("Invalid Base64 data")
 
 def _parseHex(s):
@@ -250,11 +257,14 @@ def _parsePublicKey(s):
 	raise ConfigError("Invalid exponent on public key")
     return key
 
+# Regular expression to match YYYY/MM/DD
 _date_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d)")
+# Regular expression to match YYYY/MM/DD HH:MM:SS
 _time_re = re.compile(r"(\d\d\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)")
 def _parseDate(s,_timeMode=0):
     """Validation function.  Converts from YYYY/MM/DD format to a (long)
        time value for midnight on that date."""
+    # If _timeMode is true, convert from YYYY/MM/DD HH:MM:SS instead.
     s = s.strip()
     r = (_date_re, _time_re)[_timeMode]
     m = r.match(s)
@@ -284,6 +294,7 @@ def _parseTime(s):
 _section_re = re.compile(r'\[([^\]]+)\]')
 # Regular expression to match the first line of an entry
 _entry_re = re.compile(r'([^:= \t]+)(?:\s*[:=]|[ \t])\s*(.*)')
+# Regular expression to match an entry from a restricted file.
 _restricted_entry_re = re.compile(r'([^:= \t]+): (.*)')
 def _readConfigLine(line, restrict=0):
     """Helper function.  Given a line of a configuration file, return
@@ -295,6 +306,8 @@ def _readConfigLine(line, restrict=0):
          'ENT': The line is the first line of an entry. VALUE is a (K,V) pair.
          'MORE': The line is a continuation line of an entry. VALUE is the
                  contents of the line.
+
+       If 'restrict'  is true, only accept 'ENT' lines of the format "K: V"
     """
 
     if line == '':
@@ -302,16 +315,20 @@ def _readConfigLine(line, restrict=0):
 
     space = line[0] and line[0] in ' \t'
     line = line.strip()
+    # If we have an all-space line, or comment, we have no data.
     if line == '' or line[0] == '#':
         return None, None
-    elif line[0] == '[':
+    # If the line starts with space, it's a continuation.
+    elif space:
+        return "MORE", line
+    # If the line starts with '[', we've probably got a section heading.
+    elif line[0] == '[' and not space:
         m = _section_re.match(line)
         if not m:
             return "ERR", "Bad section declaration"
         return 'SEC', m.group(1).strip()
-    elif space:
-        return "MORE", line
     else:
+	# Now try to parse the line.
 	if restrict:
 	    m = _restricted_entry_re.match(line)
 	else:
@@ -327,11 +344,14 @@ def _readConfigFile(contents, restrict=0):
 
        Throws ConfigError if the file is malformatted.
     """
+    # List of (heading, [(key, val, lineno), ...])
     sections = []
+    # [(key, val, lineno)] for the current section.
     curSection = None
+    # Current line number
     lineno = 0
-    lastKey = None
 
+    # Make sure all characters in the file are ASCII.
     badchars = contents.translate(_ALLCHARS, _GOODCHARS)
     if badchars:
 	raise ConfigError("Invalid characters in file: %r", badchars)
@@ -348,18 +368,20 @@ def _readConfigFile(contents, restrict=0):
         elif type == 'SEC':
             curSection = [ ]
             sections.append( (val, curSection) )
+	    lastKey = None
         elif type == 'ENT':
             key,val = val
             if curSection is None:
                 raise ConfigError("Unknown section at line %s" %lineno)
-            curSection.append( [key, val, lineno] )
-            lastKey = key
+            curSection.append( (key, val, lineno) )
         elif type == 'MORE':
 	    if restrict:
 		raise ConfigError("Continuation not allowed at line %s"%lineno)
-            if not lastKey:
+	    if not curSection:
                 raise ConfigError("Unexpected indentation at line %s" %lineno)
-            curSection[-1][1] = "%s %s" % (curSection[-1][1], val)
+	    lastLine = curSection[-1]
+            curSection[-1] = (lastLine[0],
+			      "%s %s" % (lastLine[1], val),lastLine[2])
 	else:
 	    assert type is None
 	    if restrict:
@@ -497,7 +519,7 @@ class _ConfigFile:
             secConfig = self._syntax.get(secName, None)
 
             if not secConfig:
-                getLog().warn("Skipping unrecognized section %s", secName)
+                LOG.warn("Skipping unrecognized section %s", secName)
                 continue
 
             # Set entries from the section, searching for bad entries
@@ -645,7 +667,7 @@ class ClientConfig(_ConfigFile):
 	if not 0 < p <= 16:
 	    raise ConfigError("Path length must be between 1 and 16")
 	if p < 4:
-	    getLog().warn("Your default path length is frighteningly low."
+	    LOG.warn("Your default path length is frighteningly low."
 			  "  I'll trust that you know what you're doing.")
 
 SERVER_SYNTAX =  {
@@ -710,7 +732,7 @@ class ServerConfig(_ConfigFile):
         _ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
-	log = getLog()
+	log = LOG
 	_validateHostSection(sections.get('Host', {}))
 	# Server section
 	server = sections['Server']
@@ -746,7 +768,7 @@ class ServerConfig(_ConfigFile):
 	   accordingly."""
         self.moduleManager.setPath(section.get('ModulePath', None))
         for mod in section.get('Module', []):
-	    getLog().info("Loading module %s", mod)
+	    LOG.info("Loading module %s", mod)
             self.moduleManager.loadExtModule(mod)
 
         self._syntax.update(self.moduleManager.getConfigSyntax())

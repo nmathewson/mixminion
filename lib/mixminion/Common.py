@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.29 2002/12/07 04:03:35 nickm Exp $
+# $Id: Common.py,v 1.30 2002/12/09 04:47:39 nickm Exp $
 
 """mixminion.Common
 
@@ -7,7 +7,7 @@
 
 __all__ = [ 'MixError', 'MixFatalError', 'onReset', 'onTerminate',
             'installSignalHandlers', 'secureDelete', 'secureRename',
-            'ceilDiv', 'floorDiv', 'getLog', 'stringContains' ]
+            'ceilDiv', 'floorDiv', 'LOG', 'stringContains' ]
 
 import os
 import signal
@@ -75,7 +75,7 @@ def createPrivateDir(d, nocreate=0):
 	    raise MixFatalError("Nonexistent directory %s" % d)
 	try:
 	    os.makedirs(d, 0700)
-	except OSError, _:
+	except OSError:
 	    raise MixFatalError("Unable to create directory %s" % d)
 
     checkPrivateDir(d)
@@ -121,13 +121,17 @@ def checkPrivateDir(d, recurse=1):
 
 	if (mode & 020) and not (mode & stat.S_ISVTX):
 	    # FFFF We may want to give an even stronger error here.
-	    getLog().warn("Iffy mode %o on directory %s (Writable by gid %s)",
-			  mode, d, st[stat.ST_GID])
+	    LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
+		     mode, d, st[stat.ST_GID])
 
 #----------------------------------------------------------------------
 # Secure filesystem operations.
-#
+
+# A 'shred' command to overwrite and unlink files.  It should accept an
+# arbitrary number of arguments.  (If "---", we haven't configured the 
+# shred command.  If None, we're using our internal implementation.)
 _SHRED_CMD = "---"
+# Tuple of options to be passed to the 'shred' command
 _SHRED_OPTS = None
     
 def configureShredCommand(conf):
@@ -145,13 +149,14 @@ def configureShredCommand(conf):
         if os.path.exists("/usr/bin/shred"):
             cmd, opts = "/usr/bin/shred", ["-uz", "-n0"]
         else:
-            getLog().warn("Files will not be securely deleted.")
+            LOG.warn("Files will not be securely deleted.")
             cmd, opts = None, None
 
     _SHRED_CMD, _SHRED_OPTS = cmd, opts
 
 
-# Size of a block on the filesystem we're overwriting on
+# Size of a block on the filesystem we're overwriting on; If zero, we need
+# to determine it.
 _BLKSIZE = 0
 # A string of _BLKSIZE zeros
 _NILSTR = None
@@ -181,9 +186,7 @@ def secureDelete(fnames, blocking=0):
     """Given a list of filenames, removes the contents of all of those
        files, from the disk, 'securely'.  If blocking=1, does not
        return until the remove is complete.  If blocking=0, returns
-       immediately, and returns the PID of the process removing the
-       files.  (Returns None if this process unlinked the files
-       itself.) 
+       immediately, and continues removing the files in the background.
 
        Securely deleting files only does so much good.  Metadata on
        the file system, such as atime and dtime, can still be used to
@@ -230,7 +233,10 @@ def secureDelete(fnames, blocking=0):
     else:
         mode = os.P_NOWAIT
 
-    return os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+fnames))
+    # Some systems are unhappy when you call them with too many options.
+    for i in xrange(0, len(fnames), 250-len(_SHRED_OPTS)):
+	files = fnames[i:i+250-len(_SHRED_OPTS)]
+	os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
 
 #----------------------------------------------------------------------
 # Logging
@@ -238,29 +244,24 @@ def secureDelete(fnames, blocking=0):
 # I'm trying to make this interface look like a subset of the one in
 # the draft PEP-0282 (http://www.python.org/peps/pep-0282.html).
 
-if sys.version_info[:2] >= (2,1):
-    def _logtime():
-        'Helper function.  Returns current local time formatted for log.'
-        
-        # Note: Python strftime is implemented using that platform libc's
-        # strftime, so in theory, this might barf.  All of the format
-        # elements below are (I think) standard, so we should be ok.
-        return time.strftime("%b %d %H:%M:%S")
-else:
-    def _logtime():
-        'Helper function.  Returns current local time formatted for log.'
-        return time.strftime("%b %d %H:%M:%S", time.localtime(time.time()))
+def _logtime():
+    'Helper function.  Returns current local time formatted for log.'
+    return time.strftime("%b %d %H:%M:%S", time.localtime(time.time()))
 
 class _FileLogHandler:
     """Helper class for logging.  Represents a file on disk, and allows the
        usual close-and-open gimmick for log rotation."""
+     ## Fields:
+     #     file -- a file object, or None if the file is closed.
+     #     fname -- this log's associated filename
     def __init__(self, fname):
 	"Create a new FileLogHandler to append messages to fname"
         self.file = None
         self.fname = fname
         self.reset()
     def reset(self):
-	"Close and reopen our underlying file"
+	"""Close and reopen our underlying file.  This behavior is needed
+	   to implement log rotation."""
         if self.file is not None:
             self.file.close()
 	try: 
@@ -268,25 +269,31 @@ class _FileLogHandler:
 	    if not os.path.exists(parent):
 		createPrivateDir(parent)
 	    self.file = open(self.fname, 'a')
-	except OSError, _:
+	except OSError:
 	    self.file = None
 	    raise MixError("Unable to open log file %r"%self.fname)
     def close(self):
 	"Close the underlying file"
         self.file.close()
     def write(self, severity, message):
+	"""(Used by Log: write a message to this log handler.)"""
 	if self.file is None:
 	    return
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
         
 class _ConsoleLogHandler: 
+    """Helper class for logging: directs all log messages to a stderr-like
+       file object"""
     def __init__(self, file):
+	"Create a new _ConsoleLogHandler attached to a given file."""
         self.file = file 
     def reset(self): pass
     def close(self): pass
     def write(self, severity, message):
+	"""(Used by Log: write a message to this log handler.)"""
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
 
+# Map from log severity name to numeric values
 _SEVERITIES = { 'TRACE' : -2,
                 'DEBUG' : -1,
                 'INFO' : 0,
@@ -308,12 +315,22 @@ class Log:
 	      WARN: recoverable errors
 	      ERROR: nonrecoverable errors that affect only a single 
                  message or a connection.
-	      FATAL: nonrecoverable errors that affect the entire system"""
+	      FATAL: nonrecoverable errors that affect the entire system.
+
+       In practise, we instantiate only a single instance of this class,
+       accessed as mixminion.Common.LOG."""
+    ## Fields:
+    # handlers: a list of logHandler objects.
+    # severity: a severity below which log messages are ignored.
     def __init__(self, minSeverity):
+	"""Create a new Log object that ignores all message less severe than
+	   minSeverity, and sends its output to stderr."""
 	self.configure(None)
 	self.setMinSeverity(minSeverity)
 
     def configure(self, config):
+	"""Set up this Log object based on a ServerConfig or ClientConfig
+	   object"""
         self.handlers = []
         if config == None or not config.has_section("Server"):
             self.setMinSeverity("WARN")
@@ -335,18 +352,25 @@ class Log:
 		del self.handlers[0]
             
     def setMinSeverity(self, minSeverity):
+	"""Sets the minimum severity of messages to be logged.  
+	      minSeverity -- the string representation of a severity level."""
         self.severity = _SEVERITIES.get(minSeverity, 1)
 
     def getMinSeverity(self):
+	"""Return a string representation of this log's minimum severity 
+	   level."""
         for k,v in _SEVERITIES.items():
             if v == self.severity:
                 return k
-	return _SEVERITIES['INFO']
+	return "INFO"
         
     def addHandler(self, handler):
+	"""Add a LogHandler object to the list of objects that receive
+	   messages from this log."""
         self.handlers.append(handler)
 
     def reset(self):
+	"""Flush and re-open all logs."""
         for h in self.handlers:
 	    try:
 		h.reset()
@@ -357,13 +381,19 @@ class Log:
 		    print >>sys.stderr, "Unable to reset log system"
 
     def close(self):
+	"""Close all logs"""
         for h in self.handlers:
             h.close()
         
     def log(self, severity, message, *args):
+	"""Send a message of a given severity to the log.  If additional
+	   arguments are provided, write 'message % args'. """
 	self._log(severity, message, args)
 
     def _log(self, severity, message, args):
+	"""Helper method: If we aren't ignoring messages of level 'severity',
+	   then send message%args to all the underlying log handlers."""
+
         # Enable this block to bail early in production versions
         #if _SEVERITIES.get(severity, 100) < self.severity:
         #    return
@@ -380,18 +410,31 @@ class Log:
             h.write(severity, m)
 
     def trace(self, message, *args):
+	"Write a trace (hyperverbose) message to the log"
         self.log("TRACE", message, *args)
     def debug(self, message, *args):
+	"Write a debug (verbose) message to the log"
         self.log("DEBUG", message, *args)
     def info(self, message, *args):
+	"Write an info (non-error) message to the log"
         self.log("INFO", message, *args)
     def warn(self, message, *args):
+	"Write a warn (recoverable error) message to the log"
         self.log("WARN", message, *args)
     def error(self, message, *args):
+	"Write an error (message loss error) message to the log"
         self.log("ERROR", message, *args)
     def fatal(self, message, *args):
+	"Write a fatal (unrecoverable system error) message to the log"
         self.log("FATAL", message, *args)
     def log_exc(self, severity, (exclass, ex, tb), message=None, *args):
+	"""Write an exception and stack trace to the log.  If message and 
+	   args are provided, use them as an explanitory message; otherwise,
+	   introduce the message as "Unexpected exception".
+
+	   This should usually be called as 
+	       LOG.log_exc('ERROR', sys.exc_info(), message, args...)
+	   """
 	if message is not None:
 	    self.log(severity, message, *args)
 	elif tb is not None:
@@ -408,19 +451,15 @@ class Log:
 	self._log(severity, indented, None)
 
     def error_exc(self, (exclass, ex, tb), message=None, *args):
+	"Same as log_exc, but logs an error message."
 	self.log_exc("ERROR", (exclass, ex, tb), message, *args)
 
     def fatal_exc(self, (exclass, ex, tb), message=None, *args):
+	"Same as log_exc, but logs a fatal message."
 	self.log_exc("FATAL", (exclass, ex, tb), message, *args)
 
-_THE_LOG = None
-def getLog():
-    """Return the MixMinion log object."""
-    global _THE_LOG
-    if _THE_LOG is None:
-        _THE_LOG = Log('WARN')
-
-    return _THE_LOG
+# The global 'Log' instance for the mixminion client or server.
+LOG = Log('WARN')
 
 #----------------------------------------------------------------------
 # Time processing

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.10 2002/12/07 04:03:35 nickm Exp $
+# $Id: ClientMain.py,v 1.11 2002/12/09 04:47:39 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -31,7 +31,7 @@ import sys
 import time
 import types
 
-from mixminion.Common import getLog, floorDiv, createPrivateDir, MixError, \
+from mixminion.Common import LOG, floorDiv, createPrivateDir, MixError, \
      MixFatalError
 import mixminion.Crypto
 import mixminion.BuildMessage
@@ -43,9 +43,27 @@ from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo
 from mixminion.Modules import MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 class TrivialKeystore:
-    '''This is a temporary keystore implementation until we get a working
-       directory server implementation.'''
+    """This is a temporary keystore implementation until we get a working
+       directory server implementation.
+       
+       The idea couldn't be simpler: we just keep a directory of files, each
+       containing a single server descriptor.  We cache nothing; we validate
+       everything; we have no automatic path generation.  Servers can be
+       accessed by nickname, by filename within our directory, or by filename
+       from elsewhere on the filesystem.
+
+       We skip all server descriptors that have expired, that will
+       soon expire, or which aren't yet in effect.
+       """
+    ## Fields:
+    # directory: path to the directory we scan for server descriptors.
+    # byNickname: a map from nickname to valid ServerInfo object.
+    # byFilename: a map from filename within self.directory to valid 
+    #     ServerInfo object.
     def __init__(self, directory, now=None):
+	"""Create a new TrivialKeystore to access the descriptors stored in
+	   directory.  Selects descriptors that are valid at the time 'now', 
+	   or at the current time if 'now' is None."""
 	self.directory = directory
 	createPrivateDir(directory)
 	self.byNickname = {}
@@ -55,52 +73,77 @@ class TrivialKeystore:
 	    now = time.time()
 
 	for f in os.listdir(self.directory):
+	    # Try to read a file: is it a server descriptor?
 	    p = os.path.join(self.directory, f)
 	    try:
 		info = ServerInfo(fname=p, assumeValid=0)
-	    except ConfigError, _:
-		getLog().warn("Invalid server descriptor %s", p)
+	    except ConfigError:
+		LOG.warn("Invalid server descriptor %s", p)
 		continue
 
+	    # Find its nickname and normalized filename
 	    serverSection = info['Server']
 	    nickname = serverSection['Nickname']
 
 	    if '.' in f:
 		f = f[:f.rindex('.')]
 
+	    # Skip the descriptor if it isn't valid yet...
 	    if now < serverSection['Valid-After']:
-		getLog().info("Ignoring future decriptor %s", p)
+		LOG.info("Ignoring future decriptor %s", p)
 		continue
+	    # ... or if it's expired ...
 	    if now >= serverSection['Valid-Until']:
-		getLog().info("Ignoring expired decriptor %s", p)
+		LOG.info("Ignoring expired decriptor %s", p)
 		continue
+	    # ... or if it's going to expire within 3 hours (HACK!).
 	    if now + 3*60*60 >= serverSection['Valid-Until']:
-		getLog().info("Ignoring soon-to-expire decriptor %s", p)
+		LOG.info("Ignoring soon-to-expire decriptor %s", p)
 		continue
+	    # Only allow one server per nickname ...
 	    if self.byNickname.has_key(nickname):
-		getLog().warn(
+		LOG.warn(
 		    "Ignoring descriptor %s with duplicate nickname %s",
 		    p, nickname)
 		continue
+	    # ... and per normalized filename.
 	    if self.byFilename.has_key(f):
-		getLog().warn(
+		LOG.warn(
 		    "Ignoring descriptor %s with duplicate prefix %s",
 		    p, f)
 		continue
-	    getLog().info("Loaded server %s from %s", nickname, f)
+	    LOG.info("Loaded server %s from %s", nickname, f)
+	    # Okay, it's good. Cache it.
 	    self.byNickname[nickname] = info
 	    self.byFilename[f] = info
 
     def getServerInfo(self, name):
+	"""Return a ServerInfo object corresponding to 'name'.  If 'name' is
+ 	   a ServerInfo object, returns 'name'.  Otherwise, checks server by
+ 	   nickname, then by filename within the keystore, then by filename
+ 	   on the file system. If no server is found, returns None."""
 	if isinstance(name, ServerInfo):
 	    return name
-	if self.byNickname.has_key(name):
+	elif self.byNickname.has_key(name):
 	    return self.byNickname[name]
-	if self.byFilename.has_key(name):
+	elif self.byFilename.has_key(name):
 	    return self.byFilename[name]
-	return None
+	elif os.path.exists(name):
+	    try:
+		return ServerInfo(fname=name, assumeValid=0)
+	    except OSError, e:
+		raise MixError("Couldn't read descriptor %s: %s" %
+			       (s, e))
+	    except ConfigError, e:
+		raise MixError("Couldn't parse descriptor %s: %s" %
+			       (s, e))	    
+	else:
+	    return None
 
     def getPath(self, serverList):
+	"""Given a sequence of strings of ServerInfo objects, resolves each
+	   one according to the rule of getServerInfo, and returns a list of
+	   ServerInfos.  Raises MixError if any server can't be resolved."""
 	path = []
 	for s in serverList:
 	    if isinstance(s, ServerInfo):
@@ -109,29 +152,23 @@ class TrivialKeystore:
 		server = self.getServerInfo(s)
 		if server is not None:
 		    path.append(server)
-		elif os.path.exists(s):
-		    try:
-			server = ServerInfo(fname=s, assumeValid=0)
-			path.append(server)
-		    except OSError, e:
-			raise MixError("Couldn't read descriptor %s: %s" %
-				       (s, e))
-		    except ConfigError, e:
-			raise MixError("Couldn't parse descriptor %s: %s" %
-				       (s, e))
 		else:
 		    raise MixError("Couldn't find descriptor %s" % s)
 	return path
 
     def getRandomServers(self, prng, n):
+	"""Returns a list of n different servers, in random order, according
+	   to prng.  Raises MixError if not enough exist.  
+
+	   (This isn't actually used.)"""
 	vals = self.byNickname.values()
 	if len(vals) < n:
-	    raise MixFatalError("Not enough servers (%s requested)", n)
+	    raise MixError("Not enough servers (%s requested)", n)
 	return prng.shuffle(vals, n)
 
 def installDefaultConfig(fname):
     """Create a default, 'fail-safe' configuration in a given file"""
-    getLog().warn("No configuration file found. Installing default file in %s",
+    LOG.warn("No configuration file found. Installing default file in %s",
 		  fname)
     f = open(os.path.expanduser(fname), 'w')
     f.write("""\
@@ -161,7 +198,14 @@ PathLength: 4
     f.close()
 
 class MixminionClient:
+    """Access point for client functionality.  Currently, this is limited
+       to generating and sending forward messages"""
+    ## Fields:
+    # config: The ClientConfig object with the current configuration
+    # keystore: A TrivialKeystore object
+    # prng: A pseudo-random number generator for padding and path selection
     def __init__(self, conf):
+	"""Create a new MixminionClient with a given configuration"""
 	self.config = conf
 
 	# Make directories
@@ -178,13 +222,27 @@ class MixminionClient:
 	self.prng = mixminion.Crypto.AESCounterPRNG()
 
     def sendForwardMessage(self, address, payload, path1, path2):
+	"""Generate and send a forward message.
+	    address -- the results of a parseAddress call
+	    payload -- the contents of the message to send
+	    path1,path2 -- lists of servers or server names for the first and
+	       second legs of the path, respectively.  These are processed
+	       as described in TrivialKeystore.getServerInfo"""
 	message, firstHop = \
 		 self.generateForwardMessage(address, payload, path1, path2)
 
 	self.sendMessages([message], firstHop)
 
     def generateForwardMessage(self, address, payload, path1, path2):
-	if not path1:
+	"""Generate a forward message, but do not send it.  Returns 
+	   a tuple of (the message body, a ServerInfo for the first hop.)
+
+	    address -- the results of a parseAddress call
+	    payload -- the contents of the message to send
+	    path1,path2 -- lists of servers or server names for the first and
+	       second legs of the path, respectively.  These are processed
+	       as described in TrivialKeystore.getServerInfo"""	
+        if not path1:
 	    raise MixError("No servers in first leg of path")
 	if not path2:
 	    raise MixError("No servers in second leg of path")
@@ -208,10 +266,13 @@ class MixminionClient:
 	else:
 	    servers2.append(self.keystore.getServerInfo(lastHop))
 	msg = mixminion.BuildMessage.buildForwardMessage(
-	    payload, routingType, routingInfo, servers1, servers2)
+	    payload, routingType, routingInfo, servers1, servers2, 
+	    self.prng)
 	return msg, servers1[0]
 
     def sendMessages(self, msgList, server):
+	"""Given a list of packets and a ServerInfo object, sends the
+	   packets to the server via MMTP"""
 	con = mixminion.MMTPClient.BlockingClientConnection(server.getAddr(),
 							    server.getPort(),
 							    server.getKeyID())
@@ -223,10 +284,16 @@ class MixminionClient:
 	    con.shutdown()
 
 def parseAddress(s):
-    """DOCDOC 
-           format is mbox:name@server OR [smtp:]mailbox OR drop OR test:rinfo 
-           or 0xABCD:address """
-    # DOCDOC
+    """Parse and validate an address; takes a string, and returns an Address
+       object.
+
+       Accepts strings of the format:
+              mbox:<mailboxname>@<server>
+           OR smtp:<email address>
+	   OR <email address> (smtp is implicit)
+	   OR drop
+	   OR 0x<routing type>:<routing info> 
+    """
     # ???? Should this should get refactored into clientmodules, or someplace?
     if s.lower() == 'drop':
 	return Address(DROP_TYPE, None, None)
@@ -235,14 +302,14 @@ def parseAddress(s):
     elif ':' not in s:
 	try:
 	    return Address(SMTP_TYPE, parseSMTPInfo(s).pack(), None)
-	except ParseError, _:
+	except ParseError:
 	    raise ParseError("Can't parse address %s"%s)
     tp,val = s.split(':', 1)
     tp = tp.lower()
     if tp.startswith("0x"):
 	try:
 	    tp = int(tp[2:], 16)
-	except ValueError, _:
+	except ValueError:
 	    raise ParseError("Invalid hexidecimal value %s"%tp)
 	if not (0x0000 <= tp <= 0xFFFF):
 	    raise ParseError("Invalid type: 0x%04x"%tp)
@@ -262,6 +329,10 @@ def parseAddress(s):
 	raise ParseError("Unrecognized address type: %s"%s)
 
 class Address:
+    """Represents the target address for a Mixminion message.
+       Consists of the exitType for the final hop, the routingInfo for
+       the last hop, and (optionally) a server to use as the last hop.
+       """
     def __init__(self, exitType, exitAddress, lastHop=None):
 	self.exitType = exitType
 	self.exitAddress = exitAddress
@@ -339,11 +410,11 @@ Usage: %s [-h] [-v] [-f configfile] [-i inputfile]
 	installDefaultConfig(configFile)
     config = readConfigFile(configFile)
 
-    getLog().configure(config)
+    LOG.configure(config)
     if verbose:
-	getLog().setMinSeverity("DEBUG")
+	LOG.setMinSeverity("DEBUG")
 
-    getLog().debug("Configuring client")
+    LOG.debug("Configuring client")
     mixminion.Common.configureShredCommand(config)
     mixminion.Crypto.init_crypto(config)
 

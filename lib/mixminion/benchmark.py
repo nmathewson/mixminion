@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.14 2002/12/02 20:18:44 nickm Exp $
+# $Id: benchmark.py,v 1.15 2002/12/09 04:47:40 nickm Exp $
 
 """mixminion.benchmark
 
@@ -105,7 +105,7 @@ def cryptoTiming():
 
     shakey = "8charstr"*2
     print "Keyed SHA1 for lioness (28K, unoptimized)", timeit(
-        (lambda shakey=shakey: _ml.sha1("".join([shakey,s28K,shakey]))), 1000)
+        (lambda shakey=shakey: _ml.sha1("".join((shakey,s28K,shakey)))), 1000)
 
     print "TRNG (20 byte)", timeit((lambda: trng(20)), 100)
     print "TRNG (128 byte)", timeit((lambda: trng(128)), 100)
@@ -406,7 +406,12 @@ def serverProcessTiming():
 #----------------------------------------------------------------------
 def timeEfficiency():
     print "#================= ACTUAL v. IDEAL ====================="
-
+    # Here we compare the time spent in an operation with the time we think
+    # is required for its underlying operations, in order to try to measure
+    # its efficiency.  If function X is pretty efficient, there's not much
+    # reason to try to optimise its implementation; instead, we need to attack
+    # the functions it uses.
+    
     ##### LIONESS
 
     shakey = "z"*20

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.24 2002/12/02 03:22:28 nickm Exp $
+# $Id: Crypto.py,v 1.25 2002/12/09 04:47:40 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -15,7 +15,7 @@ import copy_reg
 from types import StringType
 
 import mixminion._minionlib as _ml
-from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, getLog
+from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, LOG
 
 __all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
             'strxor', 'lioness_encrypt', 'lioness_decrypt',
@@ -29,7 +29,9 @@ __all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
             'APPLICATION_KEY_MODE', 'PAYLOAD_ENCRYPT_MODE',
             'HIDE_HEADER_MODE' ]
 
+# Expose _minionlib.CryptoError as Crypto.CryptoError
 CryptoError = _ml.CryptoError
+# Expose _minionlib.generate_cert
 generate_cert = _ml.generate_cert
 
 # Number of bytes in an AES key.
@@ -40,18 +42,17 @@ DIGEST_LEN = 160 >> 3
 def init_crypto(config=None):
     """Initialize the crypto subsystem."""
     configure_trng(config)
-    trng(1)
     try:
         # Try to read /dev/urandom
         trng(1)
-    except MixFatalError, _:
+    except MixFatalError:
 	raise
     except:
         raise MixFatalError("Error initializing entropy source")
     openssl_seed(40)
     
 def sha1(s):
-    """Return the SHA1 hash of its argument"""
+    """Return the SHA1 hash of a string"""
     return _ml.sha1(s)
 
 def strxor(s1, s2):
@@ -87,20 +88,29 @@ def lioness_encrypt(s,(key1,key2,key3,key4)):
     assert len(key2) == len(key4) == DIGEST_LEN
     assert len(s) > DIGEST_LEN
 
+    # Split the message.
     left = s[:DIGEST_LEN]
     right = s[DIGEST_LEN:]
     del s
     # Performance note: This business with sha1("".join((key,right,key)))
-    # may look slow, but it contributes only a 6% to the hashing step,
-    # which in turn contributes under 11% of the time for LIONESS.
+    # may look slow, but it contributes only .7% to the total time for
+    # LIONESS.
     right = _ml.aes_ctr128_crypt(
-	_ml.aes_key(_ml.sha1("".join((key1,left,key1)))[:AES_KEY_LEN]), 
-	right, 0) 
+ 	_ml.aes_key(_ml.sha1("".join((key1,left,key1)))[:AES_KEY_LEN]), 
+ 	right, 0) 
     left = _ml.strxor(left,  _ml.sha1("".join((key2,right,key2))))
     right = _ml.aes_ctr128_crypt(
 	_ml.aes_key(_ml.sha1("".join((key3,left,key3)))[:AES_KEY_LEN]), 
-	right, 0)
+ 	right, 0)
     left = _ml.strxor(left,  _ml.sha1("".join((key4,right,key4))))
+
+    # You could write the above as:
+    #   right = ctr_crypt(right, "".join((key1,left,key1))[:AES_KEY_LEN])
+    #   left = strxor(left, sha1("".join((key2,right,key2))))
+    #   right = ctr_crypt(right, "".join((key3,left,key3))[:AES_KEY_LEN])
+    #   left = strxor(left, sha1("".join((key4,right,key4))))
+    # but that would be slower by about 10%.  (Since LIONESS is in the 
+    # critical path, we care.)
 
     return left + right
 
@@ -116,10 +126,23 @@ def lioness_decrypt(s,(key1,key2,key3,key4)):
     left = s[:DIGEST_LEN]
     right = s[DIGEST_LEN:]
     del s
-    left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
-    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:AES_KEY_LEN])
-    left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
-    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:AES_KEY_LEN])
+
+    # Slow, comprehensible version:
+    #left = strxor(left,  sha1("".join([key4,right,key4])))
+    #right = ctr_crypt(right, sha1("".join([key3,left,key3]))[:AES_KEY_LEN])
+    #left = strxor(left,  sha1("".join([key2,right,key2])))
+    #right = ctr_crypt(right, sha1("".join([key1,left,key1]))[:AES_KEY_LEN])
+
+    # Equivalent-but-faster version:
+    left = _ml.strxor(left, _ml.sha1("".join((key4,right,key4))))
+    right = _ml.aes_ctr128_crypt(
+	_ml.aes_key(_ml.sha1("".join((key3,left, key3)))[:AES_KEY_LEN]),
+	right, 0)
+    left = _ml.strxor(left, _ml.sha1("".join((key2,right,key2))))
+    right = _ml.aes_ctr128_crypt(
+	_ml.aes_key(_ml.sha1("".join((key1,left, key1)))[:AES_KEY_LEN]),
+	right, 0)
+
     return left + right
 
 def bear_encrypt(s,(key1,key2)):
@@ -164,7 +187,7 @@ def trng(count):
     """
     return _theTrueRNG.getBytes(count)
 
-# Specified in the Mixminion spec.
+# Specified in the Mixminion spec.  It's a Thomas Paine quotation.
 OAEP_PARAMETER = "He who would make his own liberty secure, "+\
                  "must guard even his enemy from oppression."
 
@@ -182,6 +205,7 @@ def pk_sign(data, key):
        in key."""
     bytes = key.get_modulus_bytes()
     data = add_oaep(data,OAEP_PARAMETER,bytes)
+    # private key encrypt
     return key.crypt(data, 0, 1)
 
 def pk_decrypt(data,key):
@@ -496,8 +520,10 @@ class RNG:
 	while 1:
 	    # Get a random positive int between 0 and 0x7fffffff.
 	    b = self.getBytes(4)
-	    o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) + 
-		  _ord(b[2]))<<8) + _ord(b[3])
+	    o = (((((((_ord(b[0])&0x7f)<<8) + 
+ 		       _ord(b[1]))<<8) + 
+	 	       _ord(b[2]))<<8) + 
+	               _ord(b[3]))
 	    # Retry if we got a value that would fall in an incomplete
 	    # run of 'max' elements.
 	    if 0x7fffffff - max >= o:
@@ -519,6 +545,9 @@ class RNG:
 
 class AESCounterPRNG(RNG):
     '''Pseudorandom number generator that yields an AES counter-mode cipher'''
+    ## Fields:
+    # counter: the current index into the AES counter-mode keystream
+    # key: the current AES key.
     def __init__(self, seed=None):
         """Creates a new AESCounterPRNG with a given seed.  If no seed
            is specified, gets one from the true random number generator."""
@@ -572,10 +601,13 @@ def configure_trng(config):
     else:
 	requestedFile = None
 
+    # Build a list of candidates
     defaults = 	PLATFORM_TRNG_DEFAULTS.get(sys.platform,
-				   PLATFORM_TRNG_DEFAULTS['***'])
+			   PLATFORM_TRNG_DEFAULTS['***'])
     files = [ requestedFile ] + defaults
 
+    # Now find the first of our candidates that exists and is a character
+    # device.
     randFile = None
     for file in files:
 	if file is None: 
@@ -584,37 +616,27 @@ def configure_trng(config):
 	verbose = 1#(file == requestedFile)
 	if not os.path.exists(file):
 	    if verbose:
-		getLog().error("No such file as %s", file)
+		LOG.error("No such file as %s", file)
 	else:
 	    st = os.stat(file)
 	    if not (st[stat.ST_MODE] & stat.S_IFCHR):
 		if verbose:
-		    getLog().error("Entropy source %s isn't a character device",
+		    LOG.error("Entropy source %s isn't a character device",
 				   file)
 	    else:
 		randFile = file
 		break
 
     if randFile is None and _TRNG_FILENAME is None:
-        getLog().fatal("No entropy source available")
+        LOG.fatal("No entropy source available")
         raise MixFatalError("No entropy source available")
     elif randFile is None:
-        getLog().warn("Falling back to previous entropy source %s",
-                      _TRNG_FILENAME)
+        LOG.warn("Falling back to previous entropy source %s",
+		 _TRNG_FILENAME)
     else:
-	getLog().info("Setting entropy source to %r", randFile)
+	LOG.info("Setting entropy source to %r", randFile)
         _TRNG_FILENAME = randFile
     
-def _trng_uncached(n):
-    '''Underlying access to our true entropy source.'''
-    if _TRNG_FILENAME is None:
-        configure_trng(None)
-        
-    f = open(_TRNG_FILENAME, 'rb')
-    d = f.read(n)
-    f.close()
-    return d
-
 class _TrueRNG(RNG):
     '''Random number generator that yields pieces of entropy from
        our true rng.'''
@@ -624,7 +646,14 @@ class _TrueRNG(RNG):
         RNG.__init__(self,n)
     def _prng(self,n):
         "Returns n fresh bytes from our true RNG."
-        return _trng_uncached(n)
+	if _TRNG_FILENAME is None:
+	    configure_trng(None)
 
+	f = open(_TRNG_FILENAME, 'rb')
+	d = f.read(n)
+	f.close()
+	return d
+
+# Global _TrueRNG instance, for use by trng().
 _theTrueRNG = _TrueRNG(1024)
 

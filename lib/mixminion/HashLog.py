@@ -1,13 +1,14 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.14 2002/12/07 04:03:35 nickm Exp $
+# $Id: HashLog.py,v 1.15 2002/12/09 04:47:40 nickm Exp $
 
 """mixminion.HashLog
 
-   Persistant memory for the hashed secrets we've seen."""
+   Persistant memory for the hashed secrets we've seen.  Used by
+   PacketHandler to prevent replay attacks."""
 
 import os
 import anydbm, dumbdbm
-from mixminion.Common import MixFatalError, getLog, createPrivateDir
+from mixminion.Common import MixFatalError, LOG, createPrivateDir
 from mixminion.Packet import DIGEST_LEN
 
 __all__ = [ 'HashLog' ]
@@ -17,7 +18,8 @@ __all__ = [ 'HashLog' ]
 # FFFF two-copy journaling to protect against catastrophic failure that
 # FFFF underlying DB code can't handle.
 
-_JOURNAL_OPEN_MODE = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)
+# flags to pass to os.open when opening the journal file.
+_JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)
 class HashLog:
     """A HashLog is a file containing a list of message digests that we've
        already processed.
@@ -46,19 +48,20 @@ class HashLog:
     # we can survive crashes between 'logHash' and 'sync'.
     #
     # Fields:
-    #   log
-    #   journalFileName
-    #   journalFile
-    #   journal
+    #   log: an anydbm instance.
+    #   journalFileName: the name of our journal file
+    #   journalFile: a file object for our journal file
+    #   journal: a dictionary, used to cache values currently in the
+    #       journal file.
     def __init__(self, filename, keyid):
         """Create a new HashLog to store data in 'filename' for the key
            'keyid'."""
         parent = os.path.split(filename)[0]
 	createPrivateDir(parent)
         self.log = anydbm.open(filename, 'c')
-	getLog().debug("Opening database %s for packet digests", filename)
+	LOG.debug("Opening database %s for packet digests", filename)
         if isinstance(self.log, dumbdbm._Database):
-            getLog().warn("Warning: logging packet digests to a flat file.")
+            LOG.warn("Warning: logging packet digests to a flat file.")
         try:
             if self.log["KEYID"] != keyid:
                 raise MixFatalError("Log KEYID does not match current KEYID")
@@ -69,13 +72,14 @@ class HashLog:
 	self.journal = {}
 	if os.path.exists(self.journalFileName):
 	    f = open(self.journalFileName, 'r')
+	    # FFFF deal with really big journals?
 	    j = f.read()
 	    for i in xrange(0, len(j), DIGEST_LEN):
 		self.journal[j[i:i+DIGEST_LEN]] = 1
 	    f.close()
 
 	self.journalFile = os.open(self.journalFileName, 
-		    _JOURNAL_OPEN_MODE|os.O_APPEND, 0600)
+		    _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
 
     def seenHash(self, hash):
         """Return true iff 'hash' has been logged before."""
@@ -91,7 +95,6 @@ class HashLog:
         """Insert 'hash' into the database."""
 	assert len(hash) == DIGEST_LEN
 	self.journal[hash] = 1
-	#self.journalFile.write(hash)
 	os.write(self.journalFile, hash)
 
     def sync(self):
@@ -102,7 +105,7 @@ class HashLog:
             self.log.sync()
 	os.close(self.journalFile)
 	self.journalFile = os.open(self.journalFileName,
-		   _JOURNAL_OPEN_MODE|os.O_TRUNC, 0600)
+		   _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
 	self.journal = {}
 
     def close(self):

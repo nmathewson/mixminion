@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.22 2002/12/07 04:03:35 nickm Exp $
+# $Id: ServerInfo.py,v 1.23 2002/12/09 04:47:40 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,7 +15,7 @@ import os
 import base64
 import socket
 
-from mixminion.Common import createPrivateDir, getLog, MixError
+from mixminion.Common import createPrivateDir, LOG, MixError
 from mixminion.Modules import SWAP_FWD_TYPE, FWD_TYPE
 from mixminion.Packet import IPV4Info
 import mixminion.Config
@@ -80,7 +80,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def __init__(self, fname=None, string=None, assumeValid=0):
 	mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
-	getLog().trace("Reading server descriptor %s from %s",
+	LOG.trace("Reading server descriptor %s from %s",
 		       self['Server']['Nickname'],
 		       fname or "<string>")
 
@@ -120,18 +120,23 @@ class ServerInfo(mixminion.Config._ConfigFile):
 	#### XXXX001 CHECK OTHER SECTIONS
 
     def getNickname(self):
+	"""Returns this server's nickname"""
 	return self['Server']['Nickname']
 
     def getAddr(self):
+	"""Returns this server's IP address"""
 	return self['Server']['IP']
 
     def getPort(self):
+	"""Returns this server's IP port"""
 	return self['Incoming/MMTP']['Port']
 
     def getPacketKey(self):
+	"""Returns the RSA key this server uses to decrypt messages"""
 	return self['Server']['Packet-Key']
 
     def getKeyID(self):
+	"""Returns a hash of this server's MMTP key"""
 	return self['Incoming/MMTP']['Key-Digest']
 
     def getRoutingInfo(self):
@@ -146,14 +151,24 @@ class ServerKeyset:
        A server has one long-lived identity key, and two short-lived
        temporary keys: one for subheader encryption and one for MMTP.  The
        subheader (or 'packet') key has an associated hashlog, and the
-       MMTP key has an associated self-signed certificate.
+       MMTP key has an associated self-signed X509 certificate.
 
        Whether we publish or not, we always generate a server descriptor
        to store the keys' lifetimes.
 
        When we create a new ServerKeyset object, the associated keys are not
        read from disk unil the object's load method is called."""
+    ## Fields:
+    # hashlogFile: filename of this keyset's hashlog.
+    # packetKeyFile, mmtpKeyFile: filename of this keyset's short-term keys
+    # certFile: filename of this keyset's X509 certificate
+    # descFile: filename of this keyset's server descriptor.
+    #
+    # packetKey, mmtpKey: This server's actual short-term keys.
     def __init__(self, keyroot, keyname, hashroot):
+	"""Load a set of keys named "keyname" on a server where all keys
+	   are stored under the directory "keyroot" and hashlogs are stored
+	   under "hashroot". """
 	keydir  = os.path.join(keyroot, "key_"+keyname)
 	self.hashlogFile = os.path.join(hashroot, "hash_"+keyname)
 	self.packetKeyFile = os.path.join(keydir, "mix.key")
@@ -164,13 +179,14 @@ class ServerKeyset:
 	    createPrivateDir(keydir)
 
     def load(self, password=None):
-        "Read this set of keys from disk."
+        """Read the short-term keys from disk.  Must be called before 
+	   getPacketKey or getMMTPKey."""
         self.packetKey = mixminion.Crypto.pk_PEM_load(self.packetKeyFile,
                                                       password)
         self.mmtpKey = mixminion.Crypto.pk_PEM_load(self.mmtpKeyFile,
                                                     password)
     def save(self, password=None):
-        "Save this set of keys to disk."
+        """Save this set of keys to disk."""
         mixminion.Crypto.pk_PEM_save(self.packetKey, self.packetKeyFile,
                                      password)
         mixminion.Crypto.pk_PEM_save(self.mmtpKey, self.mmtpKeyFile,
@@ -189,6 +205,7 @@ def _base64(s):
     return base64.encodestring(s).replace("\n", "")
 
 def _time(t):
+    #XXXX001 move this to common.
     """Helper function: turns a time (in seconds) into the format used by
        Server descriptors"""
     gmt = time.gmtime(t)
@@ -196,12 +213,14 @@ def _time(t):
 	gmt[0],gmt[1],gmt[2],  gmt[3],gmt[4],gmt[5])
 
 def _date(t):
+    #XXXX001 move this to common.
     """Helper function: turns a time (in seconds) into a date in the format
        used by server descriptors"""
     gmt = time.gmtime(t+1) # Add 1 to make sure we round down.
     return "%04d/%02d/%02d" % (gmt[0],gmt[1],gmt[2])
 
 def _rule(allow, (ip, mask, portmin, portmax)):
+    """Return an external represenntation of an IP allow/deny rule."""
     if mask == '0.0.0.0':
         ip="*"
         mask=""
@@ -232,14 +251,19 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
 
+          config -- Our ServerConfig object.
           identityKey -- This server's private identity key
           keydir -- The root directory for storing key sets.
           keyname -- The name of this new key set within keydir
+	  hashdir -- The root directory for storing hash logs.
           validAt -- The starting time (in seconds) for this key's lifetime."""
 
+    # First, we generate both of our short-term keys...
     packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
     mmtpKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
 
+    # ...and save them to disk, setting up our directory structure while
+    # we're at it.
     serverKeys = ServerKeyset(keydir, keyname, hashdir)
     serverKeys.packetKey = packetKey
     serverKeys.mmtpKey = mmtpKey
@@ -248,25 +272,27 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # FFFF unused
     # allowIncoming = config['Incoming/MMTP'].get('Enabled', 0)
 
+    # Now, we pull all the information we need from our configuration.
     nickname = config['Server']['Nickname']
     if not nickname:
         nickname = socket.gethostname()
         if not nickname or nickname.lower().startswith("localhost"):
             nickname = config['Incoming/MMTP'].get('IP', "<Unknown host>")
-	getLog().warn("No nickname given: defaulting to %r", nickname)
+	LOG.warn("No nickname given: defaulting to %r", nickname)
     contact = config['Server']['Contact-Email']
     comments = config['Server']['Comments']
     if not validAt:
         validAt = time.time()
-
-    # Round validAt to previous mignight.
+    
+    # Calculate descriptor and X509 certificate lifetimes.
+    # (Round validAt to previous mignight.)
     validAt = mixminion.Common.previousMidnight(validAt+30)
-
     validUntil = validAt + config['Server']['PublicKeyLifetime'][2]
     certStarts = validAt - CERTIFICATE_EXPIRY_SLOPPINESS
     certEnds = validUntil + CERTIFICATE_EXPIRY_SLOPPINESS + \
                config['Server']['PublicKeySloppiness'][2]
 
+    # Create the X509 certificate.
     mixminion.Crypto.generate_cert(serverKeys.getCertFileName(),
 				   mmtpKey,
 				   "MMTP certificate for %s" %nickname,
@@ -287,14 +313,17 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 	   _base64(serverKeys.getMMTPKeyID()),
 	}
 
+    # If we don't know our IP address, try to guess
     if fields['IP'] == '0.0.0.0':
 	try:
 	    fields['IP'] = _guessLocalIP()
-	    getLog().warn("No IP configured; guessing %s",fields['IP'])
+	    LOG.warn("No IP configured; guessing %s",fields['IP'])
 	except IPGuessError, e:
-	    getLog().error("Can't guess IP: %s", str(e))
+	    LOG.error("Can't guess IP: %s", str(e))
 	    raise MixError("Can't guess IP: %s" % str(e))
 	
+    # Fill in a stock server descriptor.  Note the empty Digest: and 
+    # Signature: lines.
     info = """\
         [Server]
 	Descriptor-Version: 0.1
@@ -313,6 +342,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     if comments:
 	info += "Comments: %s\n"%comments
 
+    # Only advertise incoming MMTP if we support it.
     if config["Incoming/MMTP"].get("Enabled", 0):
 	info += """\
             [Incoming/MMTP]
@@ -326,6 +356,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                 continue
             info += "%s: %s" % (k, _rule(k=='Allow',v))
 
+    # Only advertise outgoing MMTP if we support it.
     if config["Outgoing/MMTP"].get("Enabled", 0):
 	info += """\
             [Outgoing/MMTP]
@@ -337,9 +368,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                 continue
             info += "%s: %s" % (k, _rule(k=='Allow',v))
 
+    # Ask our modules for their configuration information.
     info += "".join(config.moduleManager.getServerInfoBlocks())
 
-    # Remove extra (leading) whitespace.
+    # Remove extra (leading or trailing) whitespace from the lines.
     lines = [ line.strip() for line in info.split("\n") ]
     # Remove empty lines
     lines = filter(None, lines)
@@ -348,6 +380,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     info = "\n".join(lines)
     info = signServerInfo(info, identityKey)
 
+    # Write the desciptor
     f = open(serverKeys.getDescriptorFileName(), 'w')
     try:
         f.write(info)
@@ -412,10 +445,11 @@ def _getServerInfoDigestImpl(info, rsa=None):
 
     return "\n".join(infoLines)
 
-
 class IPGuessError(MixError):
+    """Exception: raised when we can't guess a single best IP."""
     pass
 
+# Cached guessed IP address
 _GUESSED_IP = None
 
 def _guessLocalIP():
@@ -429,10 +463,10 @@ def _guessLocalIP():
     ip_set = {}
     try:
 	ip_set[ socket.gethostbyname(socket.gethostname()) ] = 1
-    except socket.error, _:
+    except socket.error:
 	try:
 	    ip_set[ socket.gethostbyname(socket.getfqdn()) ] = 1
-	except socket.error, _:
+	except socket.error:
 	    pass
 
     # And in case that doesn't work, let's see what other addresses we might
@@ -445,7 +479,7 @@ def _guessLocalIP():
 	    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	    s.connect((target_addr, 9)) #discard port
 	    ip_set[ s.getsockname()[0] ] = 1
-	except socket.error, _:
+	except socket.error:
 	    pass
 
     for ip in ip_set.keys():
