@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.150 2003/08/31 19:29:29 nickm Exp $
+# $Id: test.py,v 1.151 2003/09/03 15:54:18 nickm Exp $
 
 """mixminion.tests
 
@@ -684,6 +684,26 @@ World!
         q.clear()
         self.assert_(q.empty())
         self.assertRaises(Queue.Empty, q.get_nowait)
+
+    def test_englishSequence(self):
+        es = englishSequence
+        self.assertEquals("none", es([]))
+        self.assertEquals("fred", es(["fred"]))
+        self.assertEquals("fred and joe", es(["fred", "joe"]))
+        self.assertEquals("fred, joe, and bob", es(["fred", "joe", "bob"]))
+        self.assertEquals("fred, jr; joe; and bob", 
+                          es(["fred, jr", "joe", "bob"]))
+        self.assertEquals("fred, jr; and bob",
+                          es(["fred, jr", "bob"]))
+        self.assertEquals("Kernighan and Ritchie; and Laurel and Hardy",
+                          es(["Kernighan and Ritchie", "Laurel and Hardy"]))
+        self.assertEquals("Kernighan and Ritchie; or Laurel and Hardy",
+                          es(["Kernighan and Ritchie", "Laurel and Hardy"],
+                             compound="or"))
+        self.assertEquals("fred", es(["fred"], compound="or"))
+        self.assertEquals("fred or joe", es(["fred", "joe"], compound="or"))
+        self.assertEquals("fred, joe, or bob", 
+                          es(["fred", "joe", "bob"], compound="or"))
         
 #----------------------------------------------------------------------
 
@@ -2876,7 +2896,7 @@ class FilestoreTests(FStoreTestBase):
         self.assertEquals(queue._metadata_cache, { h1 : [2,3], h3: h3 })
         self.assert_(os.path.exists(os.path.join(d_d, "rmvm_"+h2)))
         self.assert_(os.path.exists(os.path.join(d_d, "rmv_"+h2)))
-        queue.cleanQueue()
+        queue.cleanQueue(self.unlink)
         self.assert_(not os.path.exists(os.path.join(d_d, "rmvm_"+h2)))
         self.assert_(not os.path.exists(os.path.join(d_d, "rmv_"+h2)))
 
@@ -3834,7 +3854,8 @@ class TestConfigFile(_ConfigFile):
                           'IntAM': ('ALLOW*', _parseInt, None),
                           'IntAMD': ('ALLOW*', _parseInt, ["5", "2"]),
                           'IntAMD2': ('ALLOW*', _parseInt, ["5", "2"]),
-                          'IntRS': ('REQUIRE', _parseInt, None) }
+                          'IntRS': ('REQUIRE', _parseInt, None),
+                          'Quz' : ('ALLOW', None, None) }
                 }
     def __init__(self, fname=None, string=None, restrict=0):
         self._restrictFormat = restrict
@@ -3945,6 +3966,24 @@ IntRS=5
         fails("[Sec2]\nBap = 9\nQuz=6\n") # Missing section
         fails("[Sec1]\nFoo 1\n[Sec2]\nBap = 9\n") # Missing require*
         fails("[Sec1]\nFoo: Bar\n[Sec3]\nIntRS=Z\n") # Failed validation
+
+        try:
+            TestConfigFile(None,"[Sec1]\nFoo: 1\nBap:1\n")
+        except ConfigError, e:
+            self.assertEndsWith(str(e), 
+                                "Unrecognized key Bap on line 3. This "
+                                "key belongs in Sec2, but appears in Sec1.")
+        try:
+            TestConfigFile(None,"[Sec1]\nFoo: 1\nQuz:1\n")
+        except ConfigError, e:
+            self.assertEndsWith(str(e), 
+                               "Unrecognized key Quz on line 3. This key "
+                               "belongs in Sec2 or Sec3, but appears in Sec1.")
+
+        try:
+            TestConfigFile(None,"[Sec1]\nFoo: 1\nBan:1\n")
+        except ConfigError, e:
+            self.assertEndsWith(str(e), "Unrecognized key Ban on line 3")
 
         # now test the restricted format
         def failsR(string, self=self):
