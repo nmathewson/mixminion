@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.34 2003/01/07 04:12:05 nickm Exp $
+# $Id: ClientMain.py,v 1.35 2003/01/07 04:49:10 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -990,7 +990,7 @@ def usageAndExit(cmd, error=None):
         print >>sys.stderr, "ERROR: %s"%error
         print >>sys.stderr, "For usage, run 'mixminion send --help'"
         sys.exit(1)
-    print >>sys.stderr, _SEND_USAGE % { 'cmd' : "mixminion send" }
+    print _SEND_USAGE % { 'cmd' : "mixminion send" }
     sys.exit(0)
 
 # NOTE: This isn't anything LIKE the final client interface.  Many or all

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.22 2003/01/07 03:31:30 nickm Exp $
+# $Id: ServerMain.py,v 1.23 2003/01/07 04:49:11 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -60,6 +60,7 @@ class IncomingQueue(mixminion.server.Queue.DeliveryQueue):
                     # Drop padding before it gets to the mix.
                     LOG.debug("Padding message %s dropped",
                               formatBase64(message[:8]))
+                    self.deliverySucceeded(handle)
                 else:
                     LOG.debug("Processed message %s; inserting into pool",
                               formatBase64(message[:8]))
@@ -418,12 +419,11 @@ _SERVER_USAGE = """\
 Usage: %s [options]
 Options:
   -h, --help:                Print this usage message and exit.
-  -f <file>, --config=<file> Use a configuration file other than
-                                /etc/mixminiond.conf
+  -f <file>, --config=<file> Use a configuration file other than the default.
 """.strip()
 
 def usageAndExit(cmd):
-    print >>sys.stderr, _SERVER_USAGE %cmd
+    print _SERVER_USAGE %cmd
     sys.exit(0)
 
 def configFromServerArgs(cmd, args):
@@ -536,7 +536,7 @@ def runKeygen(cmd, args):
                 print >>sys.stderr,("%s requires an integer" %opt)
                 usage = 1
     if usage:
-        print >>sys.stderr, _KEYGEN_USAGE % cmd
+        print _KEYGEN_USAGE % cmd
         sys.exit(1)
 
     config = readConfigFile(configFile)
@@ -579,7 +579,7 @@ def removeKeys(cmd, args):
         elif opt == '--remove-identity':
             removeIdentity = 1
     if usage:
-        print >>sys.stderr, _REMOVEKEYS_USAGE % cmd
+        print _REMOVEKEYS_USAGE % cmd
         sys.exit(0)
 
     config = readConfigFile(configFile)

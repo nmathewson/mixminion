@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.7 2003/01/06 03:29:46 nickm Exp $
+# $Id: DirMain.py,v 1.8 2003/01/07 04:49:11 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -45,20 +45,20 @@ def getIdentity(baseDir):
 
 def usageAndExit(cmd):
     """Print a usage message and exit"""
-    print >>sys.stderr, USAGE%cmd
+    print USAGE%cmd
     sys.exit(1)
 
 def cmd_import(cmd, base, rest):
     if len(rest) != 1: usageAndExit(cmd)
     lst = ServerList(base)
     lst.importServerInfo(rest[0], knownOnly=1)
-    print >>sys.stderr, "Imported."
+    print "Imported."
 
 def cmd_import_new(cmd, base, rest):
     if len(rest) != 1: usageAndExit(cmd)
     lst = ServerList(base)
     lst.importServerInfo(rest[0], knownOnly=0)
-    print >>sys.stderr, "Imported."
+    print "Imported."
 
 def cmd_generate(cmd, base, rest):
     if len(rest) != 0: usageAndExit(cmd)
