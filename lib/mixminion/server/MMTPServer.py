@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.60 2003/11/28 04:14:04 nickm Exp $
+# $Id: MMTPServer.py,v 1.61 2003/12/08 04:55:43 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -23,6 +23,7 @@ import errno
 import socket
 import select
 import re
+import sys
 import time
 from types import StringType
 
@@ -58,6 +59,7 @@ class AsyncServer:
         self.writers = {}
         self.readers = {}
         self._timeout = None
+        self.wrExceptions = {}
 
     def process(self, timeout):
         """If any relevant file descriptors become available within
@@ -70,7 +72,7 @@ class AsyncServer:
 
         readfds = self.readers.keys()
         writefds = self.writers.keys()
-
+        exfds = self.wrExceptions.keys()
         if not (readfds or writefds):
             # Windows 'select' doesn't timeout properly when we aren't
             # selecting on any FDs.  This should never happen to us,
@@ -79,7 +81,8 @@ class AsyncServer:
             return
 
         try:
-            readfds,writefds,exfds = select.select(readfds,writefds,[],timeout)
+            readfds,writefds,exfds = select.select(readfds,writefds,exfds,
+                                                   timeout)
         except select.error, e:
             if e[0] == errno.EINTR:
                 return
@@ -91,8 +94,10 @@ class AsyncServer:
         for fd in writefds:
             self.writers[fd].handleWrite()
         for fd in exfds:
-            if self.readers.has_key(fd): del self.readers[fd]
-            if self.writers.has_key(fd): del self.writers[fd]
+            #DOCDOC -- for win32 connects.
+            self.wrExceptions[fd].handleWrite()
+            #if self.readers.has_key(fd): del self.readers[fd]
+            #if self.writers.has_key(fd): del self.writers[fd]
 
     def hasReader(self, reader):
         """Return true iff 'reader' is a reader on this server."""
@@ -111,13 +116,18 @@ class AsyncServer:
         self.readers[fd] = reader
         if self.writers.has_key(fd):
             del self.writers[fd]
+            if self.wrExceptions.has_key(fd):
+                del self.wrExceptions[fd]
 
-    def registerWriter(self, writer):
+    def registerWriter(self, writer, connecting=0):
         """Register a connection as a writer.  The connection's 'handleWrite'
            method will be called whenever the buffer is free for writing.
         """
         fd = writer.fileno()
         self.writers[fd] = writer
+        if connecting and sys.platform == 'win32':
+            #DOCDOC
+            self.wrExceptions[fd] = writer
         if self.readers.has_key(fd):
             del self.readers[fd]
 
@@ -301,7 +311,7 @@ class SimpleTLSConnection(Connection):
             server.registerReader(self)
         else:
             assert self.__state == self.__connectFn
-            server.registerWriter(self)
+            server.registerWriter(self, connecting=1)
 
     def expectRead(self, bytes=None, terminator=None):
         """Begin reading from the underlying TLS connection.

@@ -147,22 +147,23 @@ TCP latency, and me.)
                         o Signal code may need to change.
                         o Process mgt code may need to change.
                         o Resolve as-yet-unsuspected platform dependencies
-                . Address everything on Itamar's non-blocking
+                o Address everything on Itamar's non-blocking
                   incompatibility list.
                 . Make sure client works
                 - Make sure server works
                 o Minimal installer
-                - Instructions
+                o Instructions
                 o Py2EXE support
         o Delayed Tests
                 D Tests for ServerInbox and Directory.py
                 D Tests for checkConsistency
                 o What happens when Overlap > Lifetime? (Test manually.)
-        o Cleanup for release
+        . Cleanup for release
                 o Resolve all XXXX006 and DOCDOC items
                 o Resolve all pending bugzilla bugs
                 o Resolve all pending mail bugs
                 o Make README accurate again
+                - Document new 'server-start' switches
 
 For 0.0.7: [Incomplete list: right now, mostly contains 0.0.6 stuff.]
         - Specification

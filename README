@@ -1,4 +1,4 @@
-$Id: README,v 1.62 2003/12/08 02:20:00 nickm Exp $
+$Id: README,v 1.63 2003/12/08 04:55:43 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.6alpha, from the Mixminion CVS repository.
 
@@ -103,6 +103,15 @@ NEW IN VERSION 0.0.6rc1:
        - Many error messages have been cleaned up, including a few related to
          SSL errors, Windows internals, corrupt databases, unsupported
          databases.
+
+   - Build improvements
+       - Use the preferred version of Python if one exists.
+
+       - Add build target to output test vectors for crypto functionality.
+
+       - Support the DESTDIR environment variable
+
+       - Check SHA1 digest on downloaded OpenSSL 0.9.7c.
 
    - Other bugfixes too numerous to mention.
 
