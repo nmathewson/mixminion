@@ -140,11 +140,11 @@ For 0.0.3:
                 o Uninstall support? (Right now, we take a cowardly
                   approach that may be good enough.)
                 o Perhaps 'make install' should nuke dead files. (Queue.py)
-                - Support people who _do_ have OpenSSL 0.9.7 installed.
-        . Make ServerInfo more forward-compatible.
+                . Support people who _do_ have OpenSSL 0.9.7 installed.
+        o Make ServerInfo more forward-compatible.
                 o Support unrecognized keys
-        - SMTP
-                - Add an extra "this is anonymous" header.
+        o SMTP
+                o Add an extra "this is anonymous" header.
         - Break backward compatibility :P
                 - Fix aes_ctr128 and bump packet version and write
                   unit tests for counter mode.

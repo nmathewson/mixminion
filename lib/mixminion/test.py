@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.78 2003/02/05 06:28:31 nickm Exp $
+# $Id: test.py,v 1.79 2003/02/05 07:10:54 nickm Exp $
 
 """mixminion.tests
 
@@ -3966,6 +3966,7 @@ MBOX_EXPECTED_MESSAGE = """\
 To: mixminion@theotherhost
 From: returnaddress@x
 Subject: Anonymous Mixminion message
+X-Anonymous: yes
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server 'nickname' at
 <Unknown IP> has been configured to deliver messages to your address.
@@ -4183,6 +4184,7 @@ SubjectLine: Arr! This be a Type III Anonymous Message
 To: users@everywhere
 From: yo.ho.ho@bottle.of.rum
 Subject: Arr! This be a Type III Anonymous Message
+X-Anonymous: yes
 
 Avast ye mateys!  Prepare to be anonymized!
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.28 2003/02/05 06:28:31 nickm Exp $
+# $Id: Modules.py,v 1.29 2003/02/05 07:10:54 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -717,6 +717,7 @@ class MBoxModule(DeliveryModule):
 To: %(user)s
 From: %(return)s
 Subject: Anonymous Mixminion message
+X-Anonymous: yes
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server '%(nickname)s' at
 %(addr)s has been configured to deliver messages to your address.
@@ -805,7 +806,7 @@ class DirectSMTPModule(SMTPModule):
         subject = sec['SubjectLine']
         self.returnAddress = sec['ReturnAddress']
 
-        self.header = "From: %s\nSubject: %s\n\n%s" %(
+        self.header = "From: %s\nSubject: %s\nX-Anonymous: yes\n\n%s" %(
             self.returnAddress, subject, message)
 
         manager.enableModule(self)
