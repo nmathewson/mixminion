@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.207 2004/12/07 01:26:37 nickm Exp $
+# $Id: test.py,v 1.208 2004/12/11 02:48:54 nickm Exp $
 
 """mixminion.tests
 
@@ -7728,43 +7728,75 @@ class FragmentTests(TestCase):
 
 class PingerTests(TestCase):
 
-    def testPinglogMemory(self):
+    def testPinglog(self):
         #XXXX We need way better tests here. 'now' needs to be an arg to
         #all the new log functions.
         P = mixminion.server.Pinger
         if not P.canRunPinger():
             print "[Skipping ping tests; old python or missing pysqlite]",
 
-        l1 = [5, 9, 11, 13]
-        l2 = [6,10,10,12,15]
-        l3 = list(P._mergeIters(l1,l2))
-        l4 = l3[:]
-        l4.sort()
-        self.assertEquals(l3, l4)
-
         d = mix_mktemp()
         os.mkdir(d)
         loc = os.path.join(d, "db")
+        t = previousMidnight(time.time())+3600
         log = P.openPingLog(loc)
-        log.startup()
-        log.heartbeat()
-        log.heartbeat()
-        log.heartbeat()
-        log.connected("Foobar")
-        log.connectFailed("Foobarbaz")
-        log.queuedPing("BZ"*10, "Foobar")
-        log.queuedPing("BN"*10, "Foobarbazzy")
-        log.gotPing("BZ"*10)
-        log.gotPing("BN"*10)
-        log.gotPing("BL"*10) #Never sent.
-        log.rotate()
-        log.calculateUptimes(time.time()-1000, time.time())
-        log.calculateOneHopResults()
-        log.calculateChainStatus()
+        log.startup(now=t)
+        log.heartbeat(now=t+1)
+        log.heartbeat(now=t+20)
+        log.connected("Foobar",now=t+20)
+        log.connectFailed("Foobarbaz",now=t+20.2)
+        log.connected("Foobar",now=t+30)
+        log.connected("Foobarbaz",now=t+30.2)
+        log.connected("Foobart",now=t+31)
+        log.queuedPing("\x00Z"*10, "Foobar", now=t+31)
+        log.queuedPing("BN"*10, "Foobarbaz", now=t+31)
+        log.queuedPing("!!"*10, "Foobar,Foobarbaz", now=t+31)
+        log.queuedPing("''"*10, "Foobart", now=t+32)
+        log.queuedPing("<>"*10, "Foobar", now=t+32)
+        log.connected("Foobar",now=t+60)
+        log.connected("Foobarbaz",now=t+60.2)
+        log.connectFailed("Foobarbaz",now=t+70)
+        log.connected("Foobar",now=t+90)
+        log.gotPing("\x00Z"*10, now=t+130)
+        log.gotPing("BN"*10, now=t+150)
+        log.gotPing("BL"*10, now=t+160) #Never sent.
+        log.gotPing("''"*10, now=t+161.1)
+        log.rotate(now=t+160)
+        log.heartbeat(t+200)
+        log.calculateUptimes(t,t+200,now=t+200)
+        ups = log.getUptimes(t,t+200)
+        interval = (previousMidnight(t), succeedingMidnight(t))
+
+        # I've been up 200 seconds this day, of which not all has passed.
+        self.assertFloatEq(ups[interval]['<self>'],
+                           200./(24*60*60))
+        # Of the time I've been up, server "foobar" has never been down.
+        self.assertFloatEq(ups[interval]['foobar'], 1.0)
+        # Foobarbaz was down at 20, up at 30, up at 60, down at 70.  So we'll
+        # assume it was down from 20...25, up from 25..65, down from 65..70.
+        # That makes 10 sec down, 40 sec up.
+        self.assertFloatEq(ups[interval]['foobarbaz'], 40/50.)
+        # Foobart was only down once in the interval; we refuse to extrapolate.
+        self.assert_(not ups[interval].has_key('foobart'))
+
+        log.calculateChainStatus(now=t+200)
+        log.calculateAll(now=t+200)
         log.shutdown()
         #log.calculateDailyResults( ) #XXXX TEST
         log.close()
         log = P.openPingLog(loc)
+        t += 3600
+        log.startup(now=t)
+        log.calculateUptimes(t-3600, t+100, now=t+100)
+        log.calculateOneHopResults(t)
+        log.calculateChainStatus(t)
+
+
+        statusFile = os.path.join(d, "status")
+        log.calculateAll(statusFile,now=t+200)
+        env = {}
+        execfile(statusFile,env)
+
         log.close()
 
 #----------------------------------------------------------------------
@@ -7801,7 +7833,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 0:
+    if 1:
         suite.addTest(tc(PingerTests))
         return suite
     testClasses = [MiscTests,
