@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.25 2003/01/13 06:35:52 nickm Exp $
+# $Id: Modules.py,v 1.26 2003/02/04 02:05:02 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -18,7 +18,6 @@ import re
 import sys
 import smtplib
 import socket
-import base64
 import threading
 
 if sys.version_info[:2] >= (2,3):
@@ -62,7 +61,8 @@ class DeliveryModule:
         pass
 
     def getRetrySchedule(self):
-        "DOCDOC"
+        """Return a retry schedule for this module's queue, as specified
+           in ServerQueue.DeliveryQueue.setRetrySchedule."""
         return None
 
     def getConfigSyntax(self):
@@ -243,9 +243,9 @@ class ModuleManager:
     #            queueMessage and sendReadyMessages as in DeliveryQueue.)
     #    _isConfigured: flag: has this modulemanager's configure method been
     #            called?
-    # DOCDOC threaded, thread.
-
-    def __init__(self, threaded=0):
+    #    thread: None, or a DeliveryThread object.
+    
+    def __init__(self):
         "Create a new ModuleManager"
         self.syntax = {}
         self.modules = []
@@ -266,6 +266,8 @@ class ModuleManager:
         self.thread = None
 
     def startThreading(self):
+        """Begin delivering messages in a separte thread.  Should only
+           be called once."""
         self.thread = DeliveryThread(self)
         self.thread.start()
 
@@ -377,7 +379,9 @@ class ModuleManager:
             del self.enabled[module.getName()]
 
     def queueDecodedMessage(self, packet):
-        #DOCDOC
+        """Given a packet of type DeliveryPacket, try to find an appropriate
+           exit module, and queue the packet for delivey by that exit module.
+        """
         exitType = packet.getExitType()
         
         mod = self.typeToModule.get(exitType, None)
@@ -391,8 +395,8 @@ class ModuleManager:
        
         queue.queueDeliveryMessage(packet)
         
-    #DOCDOC
     def shutdown(self):
+        """Tell the delivery thread (if any) to stop."""
         if self.thread is not None:
             self.thread.shutdown()
 
@@ -400,14 +404,19 @@ class ModuleManager:
         if self.thread is not None:
             self.thread.join()
 
-    # XXXX refactor, document
     def sendReadyMessages(self):
+        """Begin message delivery, either by telling every module's queue to
+           try sending its pending messages, or by telling the delivery
+           thread to do so if we're threading."""
         if self.thread is not None:
             self.thread.beginSending()
         else:
             self._sendReadyMessages()
 
     def _sendReadyMessages(self):
+        """Actual implementation of message delivery. Tells every module's
+           queue to send pending messages.  This is called directly if
+           we aren't threading, and from the delivery thread if we are."""
         for name, queue in self.queues.items():
             queue.sendReadyMessages()
 
@@ -591,7 +600,7 @@ class MBoxModule(DeliveryModule):
         self.addresses = {}
 
     def getRetrySchedule(self):
-        return self.retrySchedule #DOCDOC
+        return self.retrySchedule
 
     def getConfigSyntax(self):
         # FFFF There should be some way to say that fields are required
@@ -746,7 +755,7 @@ class DirectSMTPModule(SMTPModule):
         SMTPModule.__init__(self)
 
     def getRetrySchedule(self):
-        return self.retrySchedule #DOCDOC
+        return self.retrySchedule
 
     def getConfigSyntax(self):
         return { "Delivery/SMTP" :
@@ -845,7 +854,7 @@ class MixmasterSMTPModule(SMTPModule):
         SMTPModule.__init__(self)
 
     def getRetrySchedule(self):
-        return self.retrySchedule #DOCDOC
+        return self.retrySchedule
 
     def getConfigSyntax(self):
         return { "Delivery/SMTP-Via-Mixmaster" :
@@ -961,12 +970,7 @@ def _escapeMessageForEmail(packet):
        it is not plaintext ascii, and wrap it in some standard
        boilerplate.  Add a disclaimer if the message is not ascii.
 
-          msg -- A (possibly decoded) message
-          tag -- One of: a 20-byte decoding tag [if the message is encrypted
-                            or a reply]
-                         None [if the message is in plaintext]
-                         'err' [if the message was invalid.]
-                         'long' [if the message might be a zlib bomb'].
+          packet -- an instance of DeliveryPacket
 
        Returns None on an invalid message."""
     if packet.isError():
@@ -990,18 +994,5 @@ before sending it to you.\n\n"""
         assert packet.isPlaintext()
         junk_msg = ""
 
-    if packet.isEncrypted():
-        tag = "Decoding handle: %s\n"%packet.getAsciiTag()
-    else:
-        tag = ""
-
-    contents = packet.getAsciiContents()
-    if contents and contents[-1] != '\n':
-        extra_newline = "\n"
-    else:
-        extra_newline = ""
-
-    return """\
-%s======= TYPE III ANONYMOUS MESSAGE BEGINS ========
-%s%s%s======== TYPE III ANONYMOUS MESSAGE ENDS =========
-""" %(junk_msg, tag, contents, extra_newline)
+    encMsg = packet.getAsciiEncodedMessage()
+    return "%s%s"%(junk_msg, encMsg.pack())

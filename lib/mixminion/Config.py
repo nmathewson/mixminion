@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.36 2003/01/17 06:18:06 nickm Exp $
+# $Id: Config.py,v 1.37 2003/02/04 02:03:35 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -130,7 +130,9 @@ def _parseInterval(interval):
 
 
 def _parseIntervalList(s):
-    """DOCDOC"""
+    """Validation functions. Parse a list of comma-separated intervals
+       in the form ((every)? INTERVAL for INTERVAL)|INTERVAL into a list
+       of interval lengths in seconds."""
     items = s.strip().lower().split(",")
     ilist = []
     for item in items:
@@ -144,8 +146,7 @@ def _parseIntervalList(s):
             if interval < 1:
                 raise ConfigError("Repeated interval too small in %s"%s)
 
-            for _ in xrange(ceilDiv(duration, interval)):
-                ilist.append(interval)
+            ilist += [interval] * ceilDiv(duration, interval)
         elif item.startswith("every "):
             raise ConfigError(
                 "Bad syntax on interval %s. (Did you mean %s for X days?)",
@@ -482,6 +483,8 @@ class _ConfigFile:
     #                                 default, ) }
     #     _restrictFormat is 1/0: do we allow full RFC822ness, or do
     #         we insist on a tight data format?
+    #     _restrictKeys is 1/0: do we raise a ConfigError when we see an
+    #         unrecognized key, or do we simply generate a warning?
 
     ## Validation rules:
     # A key without a corresponding entry in _syntax gives an error.
@@ -497,7 +500,7 @@ class _ConfigFile:
 
     _syntax = None
     _restrictFormat = 0
-    _restrictKeys = 1 #DOCDOC
+    _restrictKeys = 1 
 
     def __init__(self, filename=None, string=None, assumeValid=0):
         """Create a new _ConfigFile.  If <filename> is set, read from

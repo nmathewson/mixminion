@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.18 2003/01/13 06:18:01 nickm Exp $
+# $Id: MMTPServer.py,v 1.19 2003/02/04 02:05:02 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -242,7 +242,8 @@ class SimpleTLSConnection(Connection):
     #    __terminator: None, or a string which will terminate the current read.
     #    __outbuf: None, or the remainder of the string we're currently
     #           writing.
-    # DOCDOC __servermode
+    #    __servermode: If true, we're the server side of the connection.
+    #           Else, we're the client side.
     def __init__(self, sock, tls, serverMode, address=None):
         """Create a new SimpleTLSConnection.
 
@@ -392,14 +393,16 @@ class SimpleTLSConnection(Connection):
             self.finished()
 
     def __handshakeFn(self):
-        "DOCDOC"
-        assert not self.__serverMode #DOCDOC
+        """Callback used when we're renegotiating the connection key.  Must
+           only be used from client mode."""
+        assert not self.__serverMode
         self.__con.do_handshake() #may throw want*
         self.__server.unregister(self)
         self.finished()
 
     def startRenegotiate(self):
-        "DOCDOC"
+        """Begin renegotiation the connection key.  Must only be called from
+           client mode."""
         self.__con.renegotiate() # Succeeds immediately.
         self.__state = self.__handshakeFn
         self.__server.registerBoth(self) #????
@@ -511,7 +514,10 @@ class MMTPServerConnection(SimpleTLSConnection):
     # messageConsumer: a function to call with all received messages.
     # finished: callback when we're done with a read or write; see
     #     SimpleTLSConnection.
-    # DOCDOC protocol
+    # protocol: The MMTP protocol version we're currently using, or None
+    #     if negotiation hasn't completed.
+    # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
+    #     in decreasing order of preference.
     PROTOCOL_VERSIONS = [ '0.2', '0.1' ]
     def __init__(self, sock, tls, consumer):
         """Create an MMTP connection to receive messages sent along a given
@@ -621,7 +627,15 @@ class MMTPClientConnection(SimpleTLSConnection):
     ## Fields:
     # ip, port, keyID, messageList, handleList, sendCallback, failCallback:
     #   As described in the docstring for __init__ below.
-    # DOCDOC protocol
+    # junk: A list of 32KB padding chunks that we're going to send.  We
+    #   pregenerate these to avoid timing attacks.
+    # isJunk: flag.  Is the current chunk padding?
+    # expectedDigest: The digest we expect to receive in response to the 
+    #   current chunk.
+    # protocol: The MMTP protocol version we're currently using, or None
+    #     if negotiation hasn't completed.
+    # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
+    #     in the order we offer them.
     PROTOCOL_VERSIONS = [ '0.1', '0.2' ]
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None):
@@ -631,8 +645,9 @@ class MMTPClientConnection(SimpleTLSConnection):
            ip -- The IP of the destination server.
            port -- The port to connect to.
            keyID -- None, or the expected SHA1 hash of the server's public key
-           messageList -- a list of message payloads to send
-               DOCDOC, or 'JUNK', or 'RENEGOTIATE'.
+           messageList -- a list of message payloads and control strings.
+               The control string "JUNK" sends 32KB of padding; the control
+               string "RENEGOTIATE" renegotiates the connection key.
            handleList -- a list of objects corresponding to the messages in
               messageList.  Used for callback.
            sentCallback -- None, or a function of (msg, handle) to be called
@@ -737,11 +752,11 @@ class MMTPClientConnection(SimpleTLSConnection):
                 return
             self.expectedDigest = sha1(msg+"RECEIVED JUNK")
             msg = JUNK_CONTROL+msg+sha1(msg+"JUNK")
-            self.isJunk = 1 #DOCDOC
+            self.isJunk = 1
         else:
             self.expectedDigest = sha1(msg+"RECEIVED")
             msg = SEND_CONTROL+msg+sha1(msg+"SEND")
-            self.isJunk = 0 #DOCDOC
+            self.isJunk = 0
 
         assert len(msg) == SEND_RECORD_LEN
         self.beginWrite(msg)
