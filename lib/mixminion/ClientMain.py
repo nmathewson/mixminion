@@ -1073,7 +1073,7 @@ Options:
   -D <yes|no>, --download-directory=<yes|no>
                              Force the client to download/not to download a
                                fresh directory.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
   -i <file>, --input=<file>  Read the message from <file>. (Defaults to stdin.)
   -P <path>, --path=<path>   Specify an explicit message path.
@@ -1636,7 +1636,7 @@ Options:
   -D <yes|no>, --download-directory=<yes|no>
                              Force the client to download/not to download a
                                fresh directory.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
   -P <path>, --path=<path>   Specify an explicit path.
   -t address, --to=address   Specify the block's address. (Defaults to value
@@ -1740,7 +1740,7 @@ _INSPECT_SURBS_USAGE = """\
 Usage: %(cmd)s [options] <files>
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
 
 EXAMPLES:
@@ -1787,7 +1787,7 @@ _FLUSH_QUEUE_USAGE = """\
 Usage: %(cmd)s [options] [servername] ...
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
   -n <n>, --count=<n>        Send no more than <n> packets from the queue.
 
@@ -1837,7 +1837,7 @@ _CLEAN_QUEUE_USAGE = """\
 Usage: %(cmd)s  [options] [servername...]
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
   -d <n>, --days=<n>         Remove all packets older than <n> days old.
 
@@ -1883,7 +1883,7 @@ _LIST_QUEUE_USAGE = """\
 Usage: %(cmd)s [options]
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
 
 EXAMPLES:
@@ -1931,7 +1931,7 @@ _LIST_FRAGMENTS_USAGE = """\
 Usage: %(cmd)s [options]
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
 
 EXAMPLES:
@@ -1972,7 +1972,7 @@ _REASSEMBLE_USAGE = """\
 Usage: %(cmd)s [options] <message-id> ...
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
-  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
 """.strip()
 
