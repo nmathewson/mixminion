@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.30 2003/01/06 07:40:51 nickm Exp $
+# $Id: Makefile,v 1.31 2003/01/06 11:43:58 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -91,6 +91,41 @@ install: do_build
 	  export PREFIX;                                                     \
 	  echo $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1; \
 	  $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1;\
+	  echo "MIXMINION SAYS: Ignore that warning about sys.path--It's taken care of.";\
+	fi
+
+#======================================================================
+#  Uninstall target (phony.)
+
+uninstall:
+	@echo "Sorry, I don't do that yet... but if you run";                \
+	echo "'make uninstall-help', I might be able to offer some advice."
+
+uninstall-help:
+	@$(FINDPYTHON);                                                      \
+	PYVER=`$$PYTHON -c 'import sys; print sys.version[:3]'`;             \
+	if [ 'x' = "x$(PREFIX)" ] ; then                                     \
+	  EPFX=`$$PYTHON -c 'import sys; print sys.exec_prefix'`;            \
+	  PFX=`$$PYTHON -c 'import sys; print sys.prefix'`;                  \
+	  BIN=$$EPFX/bin/mixminon;                                           \
+	  LIB=$$PFX/lib/python$$PYVER/site-packages/mixminion;               \
+	else                                                                 \
+	  BIN=$(PREFIX)/bin/mixminion;                                       \
+	  LIB=$(PREFIX)/lib/python$$PYVER/site-packages/mixminion;           \
+	fi;                                                                  \
+	echo "Sorry, but I'm too cowardly to remove files for you.";         \
+	echo "To remove your installation of mixminion, I think you should"; \
+	echo "delete:";                                                      \
+	echo "    * The file $$BIN";                                         \
+	echo "    * All the files under $$LIB";                              \
+	echo;                                                                \
+	if [ 'x' = "x$(PREFIX)" ] ; then                                     \
+	  echo "(But if you installed with 'make install PREFIX=XX', you";   \
+	  echo "should run 'make uninstall-help PREFIX=XX' to get the real"; \
+	  echo "story.)";                                                    \
+	else                                                                 \
+	  echo "(But if you installed without PREFIX, you should run";       \
+	  echo "'make uninstall-help' without PREFIX to get the real story)";\
 	fi
 
 #======================================================================
