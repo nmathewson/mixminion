@@ -1120,7 +1120,7 @@ def runClient(cmd, args):
         # from stdin.
         surblog = client.openSURBLog()
         try:
-            s = surblog.findUnusedSURBs(parser.path2)
+            s = surblog.findUnusedSURBs(parser.surbList)
             if s is None:
                 raise UIError("No unused and unexpired reply blocks found.")
         finally:
