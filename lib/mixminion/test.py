@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.162 2003/11/08 05:35:57 nickm Exp $
+# $Id: test.py,v 1.163 2003/11/08 05:57:38 nickm Exp $
 
 """mixminion.tests
 
@@ -6338,16 +6338,19 @@ class ClientDirectoryTests(TestCase):
 
         # wrap path parsing and verification and generation.
         def ppath(dir, cfg, path, addr, nHops=None, startAt=None, endAt=None,
-                  halfPath=0, defaultNHops=None):
+                  halfPath=0, defaultNHops=None, nPaths=1):
             isReply = halfPath and (addr is None)
             isSURB = halfPath and (addr is not None)
             pathSpec = mixminion.ClientDirectory.parsePath(
                 cfg, path, nHops=nHops, isReply=isReply,
                 isSURB=isSURB, defaultNHops=defaultNHops)
             dir.validatePath(pathSpec, addr, startAt=startAt, endAt=endAt)
-            paths = dir.generatePaths(1, pathSpec, addr, startAt,endAt)
-            assert len(paths) == 1
-            return paths[0]
+            paths = dir.generatePaths(nPaths, pathSpec, addr, startAt, endAt)
+            if nPaths == 1:
+                assert len(paths) == 1
+                return paths[0]
+            else:
+                return paths
         
         paddr = mixminion.ClientDirectory.parseAddress
         email = paddr("smtp:lloyd@dobler.com")
@@ -6392,6 +6395,8 @@ class ClientDirectoryTests(TestCase):
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob", mboxWithServer)
         pathIs((p1,p2), ((alice,fred),(bob,lola)))
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola", mboxWithoutServer)
+        pathIs((p1,p2), ((alice,fred),(bob,lola)))
+        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola", mboxWithServer)
         pathIs((p1,p2), ((alice,fred),(bob,lola)))
         p1,p2 = ppath(ks, None, "Alice,?,?,Bob", mboxWithServer)
         eq((len(p1),len(p2)), (3,2))
@@ -6503,6 +6508,16 @@ class ClientDirectoryTests(TestCase):
         p1,p2 = ppath(ks, None, "*3", email, halfPath=1)
         eq((len(p1),len(p2)), (0,3))
 
+        # 1g. Multiple paths
+        (p1,p2),(p3,p4) = ppath(ks,None,"?:*3",email,nPaths=2)
+        self.assertEquals(map(len,[p1,p2,p3,p4]),[1,3,1,3])
+        fragEmail2 = paddr("foo@bar.com")
+        fragEmail2.setFragmented(1,3)
+        (p1,p2),(p3,p4),(p5,p6) = ppath(ks,None,"?:*3",email,nPaths=3)
+        self.assertEquals(map(len,[p1,p2,p3,p4,p5,p6]),[1,3,1,3,1,3])
+        self.assertEquals(p2[-1].getNickname(), p4[-1].getNickname())
+        self.assertEquals(p2[-1].getNickname(), p6[-1].getNickname())
+        
         # 2. Failing cases
         raises = self.assertRaises
         # Nonexistent server
@@ -6986,7 +7001,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientUtilTests))
+        suite.addTest(tc(ClientDirectoryTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
