@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.69 2003/03/27 15:34:37 nickm Exp $
+# $Id: ClientMain.py,v 1.70 2003/04/04 20:28:55 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -2600,6 +2600,9 @@ def listQueue(cmd, args):
         e.dump()
         print _LIST_QUEUE_USAGE % { 'cmd' : cmd }
         sys.exit(1)
+
+    if cmd.endswith("pool"):
+        LOG.warn("'inspect-pool' is deprecated; use inspect-queue instead")
 
     parser.init()
     client = parser.client

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.37 2003/03/26 16:36:46 nickm Exp $
+# $Id: Main.py,v 1.38 2003/04/04 20:28:55 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -126,8 +126,10 @@ _COMMANDS = {
     "generate-surbs" : ( 'mixminion.ClientMain', 'generateSURB' ),
     "inspect-surb" :   ( 'mixminion.ClientMain', 'inspectSURBs' ),
     "inspect-surbs" :  ( 'mixminion.ClientMain', 'inspectSURBs' ),
-    "flush" :          ( 'mixminion.ClientMain', 'flushPool' ),
-    "inspect-pool" :   ( 'mixminion.ClientMain', 'listPool' ),
+    "flush" :          ( 'mixminion.ClientMain', 'flushQueue' ),
+    "inspect-queue" :   ( 'mixminion.ClientMain', 'listQueue' ),
+    # XXXX Obsolete; use "inspect-queue"; remove in 0.0.5
+    "inspect-pool" :   ( 'mixminion.ClientMain', 'listQueue' ),    
     # XXXX Obsolete; use "server-start"; remove in 0.0.5
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-start" :   ( 'mixminion.server.ServerMain', 'runServer' ),
