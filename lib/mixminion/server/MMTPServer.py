@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
+# $Id: MMTPServer.py,v 1.3 2002/12/15 04:48:46 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -229,15 +229,14 @@ class SimpleTLSConnection(Connection):
     #    __terminator: None, or a string which will terminate the current read.
     #    __outbuf: None, or the remainder of the string we're currently
     #           writing.
-    def __init__(self, sock, tls, serverMode):
+    def __init__(self, sock, tls, serverMode, address=None):
         """Create a new SimpleTLSConnection.
 
            tls -- An underlying TLS connection.
            serverMode -- If true, we start with a server-side negotatiation.
                          otherwise, we start with a client-side negotatiation.
         """
-        self.__sock = sock
-	self.address = "%s:%s" % sock.getpeername()
+        self.__sock = sock            
         self.__con = tls
 	self.fd = self.__con.fileno()
 
@@ -245,6 +244,11 @@ class SimpleTLSConnection(Connection):
             self.__state = self.__acceptFn
         else:
             self.__state = self.__connectFn
+
+        if address is not None:
+            self.address = address
+        else:
+            self.address = "remote host"
 
     def isShutdown(self):
         """Returns true iff this connection is finished shutting down"""
@@ -470,7 +474,8 @@ class MMTPServerConnection(SimpleTLSConnection):
 	"""Create an MMTP connection to receive messages sent along a given
 	   socket.  When valid packets are received, pass them to the
 	   function 'consumer'."""
-        SimpleTLSConnection.__init__(self, sock, tls, 1)
+        SimpleTLSConnection.__init__(self, sock, tls, 1,
+                                     "%s:%s"%sock.getpeername())
         self.messageConsumer = consumer
         self.finished = self.__setupFinished
 
@@ -583,7 +588,7 @@ class MMTPClientConnection(SimpleTLSConnection):
             pass
         tls = context.sock(sock)
 
-        SimpleTLSConnection.__init__(self, sock, tls, 0)
+        SimpleTLSConnection.__init__(self, sock, tls, 0, "%s:%s"%(ip,port))
         self.messageList = messageList
 	self.handleList = handleList
         self.finished = self.__setupFinished
