@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.2 2003/05/25 23:11:43 nickm Exp $
+# $Id: Directory.py,v 1.3 2003/05/26 21:08:13 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -81,6 +81,9 @@ class Directory:
                           self.config.cgi_gid,
                           0640)
 
+    def getConfig(self):
+        return self.config
+
     def getServerList(self):
         if not self.serverList:
             from mixminion.directory.ServerList import ServerList
@@ -92,6 +95,18 @@ class Directory:
             from mixminion.directory.ServerInbox import ServerInbox
             self.inbox = ServerInbox(self.inboxBase, self.getIDCache())
         return self.inbox
+
+    def getIdentity(self):
+        _ = self.getServerList()
+        fname = os.path.join(self.directoryBase, "identity")
+        if not os.path.exists(fname):
+            print "No public key found; generating new key..."
+            key = pk_generate(2048)
+            pk_PEM_save(key, fname)
+            return key
+        else:
+            return pk_PEM_load(fname)
+
             
 class DirectoryConfig(C._ConfigFile):
     _restrictFormat = 1
@@ -99,10 +114,17 @@ class DirectoryConfig(C._ConfigFile):
     _syntax = {
         'Host' : C.ClientConfig._syntax['Host'],
         "Directory-Store" : {
+           "__SECTION__" : ( ), 
            "Homedir" : ('REQUIRE', None, None),
            "DirUser" : ('REQUIRE', None, None),
            "CGIUser" : ('REQUIRE', None, None),
            "CGIGroup" : ('REQUIRE', None, None),
+        },
+        'Directory' : {
+           "BadServer" : ("ALLOW*", None, None)
+        },
+        'Publishing' : {
+           "Location" : ('REQUIRE', None, None)
         } }
     def __init__(self, filename=None, string=None):
         C._ConfigFile.__init__(self, filename, string)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.9 2003/05/23 07:54:11 nickm Exp $
+# $Id: DirMain.py,v 1.10 2003/05/26 21:08:13 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -17,7 +17,7 @@ import time
 from mixminion.Common import createPrivateDir, formatTime, LOG
 from mixminion.Crypto import init_crypto, pk_fingerprint, pk_generate, \
      pk_PEM_load, pk_PEM_save
-from mixminion.directory.ServerList import ServerList
+from mixminion.directory.Directory import Directory, DirectoryConfig
 
 USAGE = """\
 Usage: %s -d <directory> command
@@ -30,98 +30,136 @@ Usage: %s -d <directory> command
       fingerprint              [Return the fingerprint of this directory's pk]
 """.strip()
 
-def getIdentity(baseDir):
-    """Load the identity key stored under the base directory, creating it
-       if necessary."""
-    createPrivateDir(baseDir)
-    fname = os.path.join(baseDir, "identity")
-    if not os.path.exists(fname):
-        print "No public key found; generating new key..."
-        key = pk_generate(2048)
-        pk_PEM_save(key, fname)
-        return key
-    else:
-        return pk_PEM_load(fname)
+def getDirectory():
+    fn = os.environ.get('MINION_DIR_CONF')
+    if not fn:
+        fn = os.expanduser("~/.mixminion_dir.cf")
+        if not os.path.exists(fn):
+            fn = None
+    if not fn:
+        fn = "/etc/mixion_dir.cf"
+        if not os.path.exists(fn):
+            fn = None
+    if not fn:
+        raise UIError("No configuration file found")
+
+    try:
+        config = DirectoryConfig(filename=fn)
+    except ConfigError, e:
+        raise UIError("Error in %s: %s", fn, e)
+
+    return Directory(config)
 
 def usageAndExit(cmd):
     """Print a usage message and exit"""
     print USAGE%cmd
-    sys.exit(1)
+    sys.exit
 
-def cmd_import(cmd, base, rest):
-    if len(rest) != 1: usageAndExit(cmd)
-    lst = ServerList(base)
-    lst.importServerInfo(rest[0], knownOnly=1)
-    print "Imported."
+def cmd_init():
+    d = getDirectory()
+    d.setupDirectories()
+    d.getServerList()
+    d.getServerInbox()
 
-def cmd_import_new(cmd, base, rest):
-    if len(rest) != 1: usageAndExit(cmd)
-    lst = ServerList(base)
-    lst.importServerInfo(rest[0], knownOnly=0)
-    print "Imported."
+def cmd_update(args):
+    if args:
+        raise UIError("mixminion dir update takes no arguments")
+    
+    d = getDirectory()
+    serverList = d.getServerList()
+    inbox = d.getInbox()
+    inbox.acceptUpdates(serverList)
 
-def cmd_generate(cmd, base, rest):
-    if len(rest) != 0: usageAndExit(cmd)
-    lst = ServerList(base)
-    lst.clean()
-    key = getIdentity(base)
-    # XXXX Until we have support for automatic directory generation, we
-    # XXXX set the validity time to be pretty long: 2 months.
+def cmd_list(args):
+    if args:
+        raise UIError("mixminion dir list takes no arguments")
+
+    d = getDirectory()
+    inbox = d.getInbox()
+    inbox.listPendingServers(sys.stdout)
+
+def cmd_import(args):
+    d = getDirectory()
+    inbox = d.getInbox()
+    serverLsit = d.getServerList()
+
+    if not args:
+        print "(No server names given)"
+
+    bad, good = 0,0
+    for name in args:
+        print "Importing server %r..."%name
+        try:
+            inbox.acceptNewServer(serverList, name)
+            good += 1
+            print "Imported."
+        except UIError, e:
+            bad += 1
+            print "Error importing %r: %s"%(name, e)
+
+    print "\n%s servers imported, %s rejected." %(good,bad)
+
+def cmd_generate(args):
+    if args:
+        raise UIError("mixminion dir generate takes no arguments")
+
+    d = getDirectory()
+    serverList = d.getServerList()
+    key = d.getIdentity()
+    serverList.clean()
+
+    config = d.getConfig()
+
+    badServers = config['Directory'].get('BadServer', [])
+    location = config['Publishing']['Location']
+    print >>sys.stderr, "(Bad servers==%r)"%badServers
+
     now = time.time()
-    twoMonthsLater = now + 60*60*24*30*2
-    lst.generateDirectory(startAt=now, endAt=twoMonthsLater, extraTime=0,
-                          identityKey=key)
-    print >>sys.stderr, "Directory generated."
+    tomorrow = now+60*60*24
+    twoWeeks = 60*60*24*14
+    
+    serverList.generateDirectory(startAt=now, endAt=tomorrow,
+                                 extraTime=twoWeeks,
+                                 identityKey=key,
+                                 badServers=badServers)
+    print >>sys.stderr, "Directory generated; publishing."
 
-def cmd_export(cmd, base, rest):
-    if len(rest) != 1: usageAndExit(cmd)
-    lst = ServerList(base)
-    fname = lst.getDirectoryFilename()
-    if not os.path.exists(fname):
-        print >>sys.stderr, "No directory has been generated"
-    st = os.stat(fname)
-    print >>sys.stderr, "Exporting directory from %s"%(
-        formatTime(st[stat.ST_MTIME]))
-    if rest[0] == '-':
-        f = open(fname)
-        d = f.read()
-        f.close()
-        sys.stdout.write(d)
-    elif rest[0].endswith(".gz"):
+    fname = serverList.getDirectoryFilename()
+
+    if location.endswith(".gz"):
         fIn = open(fname)
-        fOut = gzip.GzipFile(rest[0], 'wb')
+        fOut = gzip.GzipFile(location, 'wb')
         fOut.write(fIn.read())
         fIn.close()
         fOut.close()
     else:
-        shutil.copy(fname, rest[0])
-        print >>sys.stderr, "Exported."
+        shutil.copy(fname, location)
 
-def cmd_remove(cmd, base, rest):
-    if len(rest) != 1: usageAndExit(cmd)
-    lst = ServerList(base)
-    lst.expungeServersByNickname(rest[0])
+    print >>sys.stderr, "Published."
 
-def cmd_fingerprint(cmd, base, rest):
-    if len(rest) != 0: usageAndExit(cmd)
-    key = getIdentity(base)
+def cmd_fingerprint(args):
+    if args:
+        raise UIError("mixminion dir fingerprint takes no arguments")
+    d = getDirectory()
+    key = d.getIdentity()
     print pk_fingerprint(key)
 
-SUBCOMMANDS = { 'import' : cmd_import,
-                'import-new' : cmd_import_new,
+SUBCOMMANDS = { 'initialize' : cmd_init,
+                'update' : cmd_update,
+                'list' : cmd_list,
+                'import-new' : cmd_import,
                 'generate' : cmd_generate,
-                'export' : cmd_export,
-                'remove' : cmd_remove,
-                'fingerprint' : cmd_fingerprint }
+                'fingerprint' : cmd_fingerprint
+                }
 
 def main(cmd, args):
-    if len(args) < 3 or args[0] != "-d" or args[0] in ('-h', '--help'):
-        usageAndExit(cmd)
-    baseDir = args[1]
-    command = args[2]
+    if len(args)<1 or ('-h', '--help') in args:
+        usageAndExit()
+    command = args[0]
+    args = args[1:]
     if not SUBCOMMANDS.has_key(command):
         print >>sys.stderr, "Unknown command", command
-        usageAndExit(cmd)
+        usageAndExit()
     init_crypto()
     LOG.setMinSeverity("INFO")
-    SUBCOMMANDS[command](cmd, baseDir, args[3:])
+    SUBCOMMANDS[command](args)

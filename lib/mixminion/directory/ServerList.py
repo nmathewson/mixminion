@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.19 2003/05/25 21:57:05 nickm Exp $
+# $Id: ServerList.py,v 1.20 2003/05/26 21:08:13 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -225,7 +225,7 @@ class ServerList:
                           startAt, endAt, extraTime,
                           identityKey,
                           publicationTime=None,
-                          goodServers=None):
+                          badServers=()):
         """Generate and sign a new directory, to be effective from <startAt>
            through <endAt>.  It includes all servers that are valid at
            any time between <startAt> and <endAt>+>extraTime>.  The directory
@@ -257,10 +257,7 @@ class ServerList:
                 contents.append(f.read())
                 f.close()
 
-            if goodServers is None:
-                goodServers = [n for n,_,_ in included]
-            else:
-                goodServers = [n for n,_,_ in included if n in goodServers]
+            goodServers = [n for n,_,_ in included if n not in badServers]
             g = {}
             for n in goodServers: g[n]=1
             goodServers = g.keys()

@@ -141,14 +141,14 @@ For 0.0.4:
                         . Code to remember whether descriptors are published,
                           and republish as needed
                                 o Implement
-.5                             *- Add 'publish' option
-1                              *- Add explicit 'republish' command.
+                                o Add 'publish' option
+                                o Add explicit 'republish' command.
 1                               - Tests
                         o Design directory liveness format.  Maybe include
                           all servers in "live" list for now?
-1                      *- Add code to make directory list some servers
+                        o Add code to make directory list some servers
                           as 'ungood'
-0.5                    *- Code to automatically regenerate directories as
+                        o Code to automatically regenerate directories as
                           needed.
         o Make "=== BEGIN" stuff comply with openpgp rfc: why rock
           the boat?

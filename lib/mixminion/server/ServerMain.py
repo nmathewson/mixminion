@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.55 2003/05/26 20:04:25 nickm Exp $
+# $Id: ServerMain.py,v 1.56 2003/05/26 21:08:13 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -537,7 +537,8 @@ class MixminionServer(_Scheduler):
         #XXXX004 Check whether config matches serverinfo
         self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
         self.keyring.createKeysAsNeeded()
-        self.keyring.publishKeys()
+        if self.config['DirectoryServers'].get('Publish'):
+            self.keyring.publishKeys()
 
         LOG.debug("Initializing packet handler")
         self.packetHandler = mixminion.server.PacketHandler.PacketHandler()
@@ -600,7 +601,7 @@ class MixminionServer(_Scheduler):
         # as long as it takes to generate several new RSA keys, which would
         # stomp responsiveness on slow computers.
         # ???? Could there be a more elegant approach to this?
-        if not self.keyring.lock(1):
+        if not self.keyring.lock(0):
             LOG.warn("generateKeys in progress:"
                      " updateKeys delaying for 2 minutes")
             # This will cause getNextKeyRotation to return 2 minutes later
@@ -616,14 +617,20 @@ class MixminionServer(_Scheduler):
     def generateKeys(self):
         """DOCDOC"""
         def c(self=self):
-            self.keyring.lock()
             try:
+                self.keyring.lock()
                 self.keyring.createKeysAsNeeded()
-                self.keyring.publishKeys()
+            finally:
+                self.keyring.unlock()
+            self.updateKeys()
+            try:
+                self.keyring.lock()
+                if self.config['DirectoryServers'].get('Publish'):
+                    self.keyring.publishKeys()
             finally:
                 self.keyring.unlock()
         self.processingThread.addJob(c)
-
+        
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         global GOT_HUP
@@ -709,7 +716,7 @@ class MixminionServer(_Scheduler):
         EventStats.log.save()
         LOG.info("Checking for key rotation")
         self.keyring.checkKeys()
-        self.updateKeys()
+        self.generateKeys()
 
     def doMix(self):
         now = time.time()
@@ -1014,18 +1021,19 @@ def _signalServer(config, reload):
         print UIError("Couldn't send signal: %s"%e)
 
 #----------------------------------------------------------------------
-_KEYGEN_USAGE = """\
-Usage: %s [options]
+_REPUBLISH_USAGE = """\
+Usage: mixminion server-republish [options]
 Options:
   -h, --help:                Print this usage message and exit.
   -f <file>, --config=<file> Use a configuration file other than
                                 /etc/mixminiond.conf
-  -n <n>, --keys=<n>         Generate <n> new keys. (Defaults to 1.)
 """.strip()
 
-def runKeygen(cmd, args):
-    options, args = getopt.getopt(args, "hf:n:",
-                                  ["help", "config=", "keys="])
+def runRepublish(cmd, args):
+    options, args = getopt.getopt(args, "hf:",
+                                  ["help", "config=",])
+    
+    
     # FFFF password-encrypted keys
     # FFFF Ability to fill gaps
     # FFFF Ability to generate keys with particular start/end intervals
@@ -1037,66 +1045,30 @@ def runKeygen(cmd, args):
             usage=1
         elif opt in ('-f', '--config'):
             configFile = val
-        elif opt in ('-n', '--keys'):
-            try:
-                keys = int(val)
-            except ValueError:
-                print >>sys.stderr,("%s requires an integer" %opt)
-                usage = 1
     if usage:
-        print _KEYGEN_USAGE % cmd
+        print _REPUBLISH_USAGE
         sys.exit(1)
 
     config = readConfigFile(configFile)
 
     LOG.setMinSeverity("INFO")
     mixminion.Crypto.init_crypto(config)
-    keyring = mixminion.server.ServerKeys.ServerKeyring(config)
-    print "Creating %s keys..." % keys
-    for i in xrange(keys):
-        keyring.createKeys(1)
-        print ".... (%s/%s done)" % (i+1,keys)
 
-#----------------------------------------------------------------------
-_REMOVEKEYS_USAGE = """\
-Usage: %s [options]
-Options:
-  -h, --help:                Print this usage message and exit.
-  -f <file>, --config=<file> Use a configuration file other than
-                                /etc/mixminiond.conf
-  --remove-identity          Remove the identity key as well.  (DANGEROUS!)
-""".strip()
+    keydir = os.path.join(config['Server']['Homedir'], 'keys')
+    items = os.listdir(keydir)
+    items.sort()
+    for fn in items:
+        if not fn.startswith("key_"):
+            continue
+        num = fn[4:]
+        publishedFile = os.path.join(keydir, "fn", "published")
+        try:
+            LOG.info("Marking key %s unpublished", num)
+            if os.path.exists(publishedFile):
+                os.unlink(publishedFile)
+        except OSError, e:
+            LOG.warn("Couldn't mark key %s unpublished: %s",num,e)
+        
+    LOG.info("Telling server to publish descriptors")
 
-def removeKeys(cmd, args):
-    # FFFF Resist removing keys that have been published.
-    # FFFF Generate 'suicide note' for removing identity key.
-    options, args = getopt.getopt(args, "hf:", ["help", "config=",
-                                                "remove-identity"])
-    if args:
-        print >>sys.stderr, "%s takes no arguments"%cmd
-        usage = 1
-        args = options = ()
-    usage = 0
-    removeIdentity = 0
-    configFile = None
-    for opt,val in options:
-        if opt in ('-h', '--help'):
-            usage=1
-        elif opt in ('-f', '--config'):
-            configFile = val
-        elif opt == '--remove-identity':
-            removeIdentity = 1
-    if usage:
-        print _REMOVEKEYS_USAGE % cmd
-        sys.exit(0)
-
-    config = readConfigFile(configFile)
-    mixminion.Common.configureShredCommand(config)
-    LOG.setMinSeverity("INFO")
-    keyring = mixminion.server.ServerKeys.ServerKeyring(config)
-    keyring.checkKeys()
-    # This is impossibly far in the future.
-    keyring.removeDeadKeys(now=(1L << 36))
-    if removeIdentity:
-        keyring.removeIdentityKey()
-    LOG.info("Done removing keys")
+    _signalServer(config, reload=1)

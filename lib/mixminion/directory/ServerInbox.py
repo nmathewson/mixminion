@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.2 2003/05/25 23:11:43 nickm Exp $
+# $Id: ServerInbox.py,v 1.3 2003/05/26 21:08:13 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
@@ -82,7 +82,7 @@ class ServerInbox:
         self._doAccept(serverList, self.updateQueue, incoming, [],
                        knownOnly=1)
 
-    def acceptNewServers(self, serverList, nickname):
+    def acceptNewServer(self, serverList, nickname):
         if ':' in nickname:
             nickname, fingerprint = nickname.split(":")
         else:
