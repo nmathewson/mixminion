@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.17 2002/08/11 07:50:34 nickm Exp $
+# $Id: test.py,v 1.18 2002/08/12 21:05:50 nickm Exp $
 
 """mixminion.tests
 
@@ -405,9 +405,37 @@ class CryptoTests(unittest.TestCase):
                           PRNG.getBytes(15)+PRNG.getBytes(16000)+
                           PRNG.getBytes(34764)))
 
+	# Check getInt, getFloat.
         for i in xrange(1,10000,17):
             self.failUnless(0 <= PRNG.getInt(10) < 10)
             self.failUnless(0 <= PRNG.getInt(i) < i)
+	for i in xrange(100):
+	    self.failUnless(0 <= PRNG.getFloat() < 1)
+	    self.failUnless(0 <= PRNG.getFloat(4) < 1)
+	    self.failUnless(0 <= PRNG.getFloat(5) < 1)
+
+	# Make sure shuffle only shuffles the first n.
+	lst = range(100)
+	PRNG.shuffle(lst,10)
+	later = [ item for item in lst[10:] if item >= 10 ]
+	s = later[:]
+	s.sort()
+	self.failUnless(later == s)
+
+	# Make sure shuffle actually shuffles all positions.
+	lists = [  ]
+	for i in xrange(6):
+	    lists.append(PRNG.shuffle(lst)[:])
+	# This will fail accidentally once in 10,000,000,000 attempts.
+	for crossSection in zip(*lists):
+	    allEq = 1
+	    for z in crossSection:
+		if z != crossSection[0]: allEq = 0
+	    self.failIf(allEq)
+	for lst in lists:
+	    s = lst[:]
+	    s.sort()
+	    self.assertEquals(s, range(100))
 
 #----------------------------------------------------------------------
 import mixminion.Packet

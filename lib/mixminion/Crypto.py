@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.12 2002/08/11 07:50:34 nickm Exp $
+# $Id: Crypto.py,v 1.13 2002/08/12 21:05:50 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -389,6 +389,28 @@ class RNG:
             self.bytes = self.bytes[n:]
             return res
 
+    def shuffle(self, lst, n=None):
+	"""Rearranges the elements of lst so that the first n elements
+	   are randomly chosen from lst.  Returns the first n elements.
+	   (Other elements are still in lst, but may be in a nonrandom
+	   order.)  If n is None, shuffles and returns the entire list"""
+        size = len(lst)
+	if n is None:
+	    n = size
+	else:
+	    n = min(n, size)
+
+
+        # This permutation algorithm yields all permutation with equal
+        # probability (assuming a good rng); others do not.
+        for i in range(n-1):
+            swap = i+self.getInt(size-i)
+            v = lst[swap]
+            lst[swap] = lst[i]
+            lst[i] = v
+
+	return lst[:n]
+
     def getInt(self, max):
         """Returns a random integer i s.t. 0 <= i < max.
 
@@ -419,10 +441,26 @@ class RNG:
             bytes = self.getBytes(nBytes)
             r = 0
             for byte in bytes:
-                r = (r << 8) + ord(byte)
+                r = (r << 8) | ord(byte)
             r = r & mask
             if r < max:
                 return r
+
+    def getFloat(self, bytes=3):
+	"""Return a floating-point number between 0 and 1.  The number
+	   will have 'bytes' bytes of resolution."""
+        # We need to special-case the <4 byte case to get good performance
+	# on Python<2.2
+        if bytes <= 3:
+	    max = 1<<(bytes*8)
+	    tot = 0
+	else:
+	    max = 1L<<(bytes*8)
+	    tot = 0L
+	bytes = self.getBytes(bytes)
+	for byte in bytes:
+	    tot = (tot << 8) | ord(byte)
+	return float(tot)/max
 
     def _prng(self, n):
         """Abstract method: Must be overridden to return n bytes of fresh

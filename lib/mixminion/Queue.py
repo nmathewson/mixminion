@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.9 2002/08/12 18:12:24 nickm Exp $
+# $Id: Queue.py,v 1.10 2002/08/12 21:05:50 nickm Exp $
 
 """mixminion.Queue
 
@@ -129,23 +129,10 @@ class Queue:
 
            If there are fewer than 'count' messages in the queue, all the
            messages will be retained."""
-        messages = [fn for fn in os.listdir(self.dir) if fn.startswith("msg_")]
+        handles = [ fn[4:] for fn in os.listdir(self.dir)
+		           if fn.startswith("msg_") ]
 
-        n = len(messages)
-        if count is None:
-            count = n
-        else:
-            count = min(count, n)
-
-        # This permutation algorithm yields all permutation with equal
-        # probability (assuming a good rng); others do not.
-        for i in range(count-1):
-            swap = i+self.rng.getInt(n-i-1)
-            v = messages[swap]
-            messages[swap] = messages[i]
-            messages[i] = v
-
-        return [m[4:] for m in messages[:count]]
+	return self.rng.shuffle(handles, count)
 
     def getAllMessages(self):
 	"""Returns handles for all messages currently in the queue.
@@ -332,7 +319,8 @@ class DeliveryQueue(Queue):
     def nextMessageReadyAt(self):
 	"""Return the soonest possible time at which sendReadyMessages
 	   will send something.  If some time < now is returned,
-	   the answer is 'immediately'. """
+	   the answer is 'immediately'.  If 'None' is returned, there are
+	   no messages in the queue."""
 	if self.sendableAt:
 	    return self.sendableAt[0][0]
 	else:
@@ -388,27 +376,62 @@ class DeliveryQueue(Queue):
 	    self.queueMessage(addr, msg, retries+1, retryAt)
 	self.removeMessage(handle)	    
 
-class MixQueue(Queue):
-    """A MixQueue holds a group of files, and returns some of them
-       as requested, according to some mixing algorithm.
-       
-       It's the responsibility of the user of this class to only invoke it
-       at the specified interval."""
-    # Right now, we use the 'Cottrell' mixing algorithm with fixed
-    # parameters.  We always keep 5 messages in the pool, and never send
-    # more than 30% of the pool at a time.  These parameters should probably
-    # be more like 100
-    MIN_POOL_SIZE = 5
-    MAX_REPLACEMENT_RATE = 0.3
-    def __init__(self, location):
-	Queue.__init__(self, location, create=1, scrub=1)
+class TimedMixQueue(Queue):
+    """A TimedMixQueue holds a group of files, and returns some of them
+       as requested, according to a mixing algorithm that sends a batch
+       of messages every N seconds."""
+    def __init__(self, location, interval=600):
+	"""Create a TimedMixQueue that sends its entire batch of messages
+	   every 'interval' seconds."""
+        Queue.__init__(self, location, create=1, scrub=1)
+	self.interval = interval
+	self.nextSendTime = time.time + interval
 
-    def pickMessages(self):
-	"""Return a list of handles."""
-	n = self.count()
-	nTransmit = min(n-self.MIN_POOL_SIZE,
-		       int(n*self.MAX_REPLACEMENT_RATE))
+    def nextMessageReadyAt(self):
+	"""Return the next time at which the pool will be ready to send
+	   messages"""
+	return self.nextSendTime
+
+    def getReadyMessages(self):
+	"""Return handles for all messages that the pool is currently ready 
+	   to send."""
+	now = time.time()
+	if now < self.nextSendTime:
+	    return []
+	self.nextSendTime = now + self.interval
+	return self._getBatch()
+
+    def _getBatch(self):
+	"""Internal method: called by getReadyMessages to return a single
+	   batch of handles."""
+	return self.pickRandom()
+
+class CottrellMixQueue(TimedMixQueue):
+    """A CottrellMixQueue holds a group of files, and returns some of them
+       as requested, according the Cottrell (timed dynamic-pool) mixing
+       algorithm from Mixmaster."""
+    def __init__(self, location, interval=600, minPoolSize=6, maxSendRate=.3):
+	"""Create a new queue that yields a batch of message every 'interval'
+	   seconds, never allows its pool size to drop below 'minPoolSize',
+	   and never sends more than maxSendRate * the current pool size."""
+	TimedMixQueue.__init__(self, location, interval)
+	self.minPoolSize = minPoolSize
+	self.maxSendRate = maxSendRate
+
+    def _getBatch(self):
+	pool = self.count()
+	nTransmit = min(pool-self.minPoolSize, int(pool*self.maxSendRate))
 	return self.pickRandom(nTransmit)
+
+class BinomialCottrellMixQueue(CottrellMixQueue):
+    """Same algorithm as CottrellMixQueue, but instead of sending N messages
+       from the pool of size P, sends each message with probability N/P."""
+    def _getBatch(self):
+	pool = self.count()
+	nTransmit = min(pool-self.minPoolSize, int(pool*self.maxSendRate))
+	msgProbability = float(nTransmit) / pool
+	return rng.shuffle([ h for h in self.getAllMessages() 
+			        if self.rng.getFloat() < msgProbability ])
 
 def _secureDelete_bg(files, cleanFile):
     pid = os.fork()
