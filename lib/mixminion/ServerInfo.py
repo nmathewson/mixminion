@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.15 2002/10/30 02:19:39 nickm Exp $
+# $Id: ServerInfo.py,v 1.16 2002/10/30 02:29:11 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -449,7 +449,6 @@ def _guessLocalIP():
 
     if len(ip_set) > 1:
 	raise IPGuessError("Multiple addresses found: %s" % (
-	            ", ".join(ip_set)))
+	            ", ".join(ip_set.keys())))
 
     return ip_set.keys()[0]
-
