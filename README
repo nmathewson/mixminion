@@ -1,9 +1,11 @@
-$Id: README,v 1.31 2003/02/14 03:51:20 arma Exp $
+$Id: README,v 1.32 2003/02/14 16:43:45 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3rc1.
 
  WARNING!  Mixminion 0.0.3 breaks backward compatibility with version 0.0.2.
  Versions older than 0.0.3 are no longer supported; you should upgrade now.
+
+XXXX Clarify only need to d/l openssl once.
 
 CONTENTS:
         I.    Overview
@@ -129,7 +131,9 @@ III. HOW TO UPGRADE FROM MIXMINION 0.0.2
 Just follow the installation instructions below.
 
 If you're running a server, you may want to configure the new 'Retry' options
-in your mixminiond.conf file; see ./etc/mixmioniond.conf for examples.
+in your mixminiond.conf file; see ./etc/mixmioniond.conf for examples.  You
+do not need to generate a new server descriptor or keyset; just upgrade your
+software.
 
 IV. HOW TO INSTALL MIXMINION
 ============================
@@ -306,11 +310,11 @@ instead of "mixminion send":
 
 [NEW IN 0.0.3] To generate a reply block, type:
 
-      mixminion generate-surb -t <target-address>
+      mixminion generate-surb -t <your-address>
 
       To send the reply block to a file, instead of to stdout:
 
-      mixminion generate-surb -t <target-address> -o <filename>
+      mixminion generate-surb -t <your-address> -o <filename>
 
       If you specify a "SURBAddress" field in ~/.mixminionrc, you may
       omit the target address:
