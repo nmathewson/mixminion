@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.161 2003/11/07 09:05:00 nickm Exp $
+# $Id: test.py,v 1.162 2003/11/08 05:35:57 nickm Exp $
 
 """mixminion.tests
 
@@ -5957,6 +5957,7 @@ class ClientUtilTests(TestCase):
         d = mix_mktemp()
         createPrivateDir(d)
         f1 = os.path.join(d, "foo")
+        # Test reading and writing.
         CU.writeEncryptedFile(f1, password="x", magic="ABC", data="xyzzyxyzzy")
         contents = readFile(f1)
         self.assertEquals(contents[:3], "ABC")
@@ -5969,8 +5970,129 @@ class ClientUtilTests(TestCase):
         self.assertEquals("xyzzyxyzzy",
               CU.readEncryptedFile(f1, "x", "ABC"))
 
-        #XXXX006 finish testing corner cases and pickles.
+        # Try reading with wrong password.
+        self.assertRaises(CU.BadPassword, CU.readEncryptedFile,
+                          f1, "nobodaddy", "ABC")
 
+        # Try reading with wrong magic.
+        self.assertRaises(ValueError, CU.readEncryptedFile,
+                          f1, "x", "ABX")
+
+        # Try empty data.
+        CU.writeEncryptedFile(f1, password="x", magic="ABC", data="")
+        self.assertEquals("", CU.readEncryptedFile(f1, "x", "ABC"))
+        
+        # Test pickles.
+        f2 = os.path.join(d, "bar")
+        CU.writeEncryptedPickled(f2, "pswd", "ZZZ", [1,2,3])
+        self.assertEquals([1,2,3],CU.readEncryptedPickled(f2,"pswd","ZZZ"))
+        CU.writeEncryptedPickled(f2, "pswd", "ZZZ", {9:10,11:12})
+        self.assertEquals({9:10,11:12},
+                          CU.readEncryptedPickled(f2,"pswd","ZZZ"))
+        
+        # Test LazyEncryptedPickle
+        class DummyPasswordManager(CU.PasswordManager):
+            def __init__(self,d):
+                mixminion.ClientUtils.PasswordManager.__init__(self)
+                self.d = d
+            def _getPassword(self,name,prompt):
+                return self.d.get(name)
+            def _getNewPassword(self,name,prompt):
+                return self.d.get(name)
+
+        f3 = os.path.join(d, "Baz")
+        dpm = DummyPasswordManager({"Password1" : "p1"})
+        lep = CU.LazyEncryptedPickled(f3, dpm, "Password1", "Q:", "N:",
+                                     "magic0", lambda: "x"*3)
+        # Don't create.
+        self.assert_(not lep.isLoaded())
+        lep.load(create=0)
+        self.assert_(not lep.isLoaded())
+        lep.load(create=1)
+        self.assert_(lep.isLoaded())
+        self.assertEquals("x"*3, lep.get())
+        self.assertEquals("x"*3, CU.readEncryptedPickled(f3,"p1","magic0"))
+
+        lep = CU.LazyEncryptedPickled(f3, dpm, "Password1", "Q:", "N:",
+                                     "magic0", lambda: "x"*3)
+        lep.load()
+        self.assertEquals("x"*3, lep.get())
+        dpm.d = {}
+        self.assertEquals("x"*3, lep.get())
+
+    def testSURBLog(self):
+        brb = BuildMessage.buildReplyBlock
+        SURBLog = mixminion.ClientUtils.SURBLog
+        ServerInfo = mixminion.ServerInfo.ServerInfo
+        dirname = mix_mktemp()
+        fname = os.path.join(dirname, "surblog")
+
+        # generate 3 SURBs.
+        examples = getExampleServerDescriptors()
+        alice = ServerInfo(string=examples["Alice"][0])
+        lola = ServerInfo(string=examples["Lola"][0])
+        joe = ServerInfo(string=examples["Joe"][0])
+        surbs = [brb([alice,lola,joe], SMTP_TYPE, "bjork@iceland", "x",
+                     time.time()+24*60*60)
+                 for _ in range(3)]
+
+        #FFFF check for skipping expired and shortlived SURBs.
+        
+        s = SURBLog(fname)
+        try:
+            self.assert_(not s.isSURBUsed(surbs[0]))
+            self.assert_(not s.isSURBUsed(surbs[1]))
+            s.markSURBUsed(surbs[0])
+            self.assert_(s.isSURBUsed(surbs[0]))
+            s.close()
+            s = SURBLog(fname)
+            self.assert_(s.isSURBUsed(surbs[0]))
+            self.assert_(not s.isSURBUsed(surbs[1]))
+            self.assert_(s.findUnusedSURBs(surbs)[0] is surbs[1])
+            one = s.findUnusedSURBs(surbs,1)
+            self.assertEquals(len(one),1)
+            two = s.findUnusedSURBs(surbs,2)
+            self.assert_(two[0] is surbs[1])
+            self.assert_(two[1] is surbs[2])
+            s.markSURBUsed(surbs[1])
+            self.assert_(s.findUnusedSURBs(surbs)[0] is surbs[2])
+            s.markSURBUsed(surbs[2])
+            self.assert_(s.findUnusedSURBs(surbs) == [])
+        finally:
+            s.close()
+
+    def testClientQueue(self):
+        CQ = mixminion.ClientUtils.ClientQueue
+        d = mix_mktemp()
+        now = time.time()
+        cq = CQ(d)
+        p1 = "Z"*(32*1024)
+        p2 = mixminion.Crypto.getCommonPRNG().getBytes(32*1024)
+        p3 = p2[:1024]*32
+        ipv4 = mixminion.Packet.IPV4Info("10.20.30.40",48099,"KZ"*10)
+        host = mixminion.Packet.MMTPHostInfo("bliznerty.potrzebie",48099,
+                                             "KZ"*10)
+        self.assertEquals(cq.getHandles(), [])
+        self.assert_(not cq.packetExists("Z"))
+        h1 = cq.queuePacket(p1, ipv4, now)
+        h2 = cq.queuePacket(p2, host, now-24*60*60*10)
+        self.assertEquals(ipv4, cq.getRouting(h1))
+        self.assert_(cq.packetExists(h1))
+        self.assertEquals(host, cq.getRouting(h2))
+
+        cq = CQ(d)
+        self.assertUnorderedEq(cq.getHandles(),[h1,h2])
+        self.assertEquals(host, cq.getRouting(h2))
+        v = cq.getPacket(h2)
+        self.assertEquals((host,previousMidnight(now-24*60*60*10)), v[1:])
+        self.assertLongStringEq(v[0], p2)
+        cq.cleanQueue(maxAge=24*60*60,now=now)
+        self.assertEquals([h1], cq.getHandles())
+        v = cq.getPacket(h1)
+        self.assertEquals((ipv4,previousMidnight(now)), v[1:])
+        self.assertLongStringEq(v[0], p1)
+        cq.removePacket(h1)
+        
 class ClientDirectoryTests(TestCase):
     def testClientDirectory(self):
         """Check out ClientMain's directory implementation"""
@@ -6476,46 +6598,6 @@ class ClientMainTests(TestCase):
         parseFails("0x9999") # No data
         parseFails("0xFEEEF:zymurgy") # Hex literal out of range
 
-    def testSURBLog(self): #XXXX move this.
-        brb = BuildMessage.buildReplyBlock
-        SURBLog = mixminion.ClientUtils.SURBLog
-        ServerInfo = mixminion.ServerInfo.ServerInfo
-        dirname = mix_mktemp()
-        fname = os.path.join(dirname, "surblog")
-
-        # generate 3 SURBs.
-        examples = getExampleServerDescriptors()
-        alice = ServerInfo(string=examples["Alice"][0])
-        lola = ServerInfo(string=examples["Lola"][0])
-        joe = ServerInfo(string=examples["Joe"][0])
-        surbs = [brb([alice,lola,joe], SMTP_TYPE, "bjork@iceland", "x",
-                     time.time()+24*60*60)
-                 for _ in range(3)]
-
-        #FFFF check for skipping expired and shortlived SURBs.
-        
-        s = SURBLog(fname)
-        try:
-            self.assert_(not s.isSURBUsed(surbs[0]))
-            self.assert_(not s.isSURBUsed(surbs[1]))
-            s.markSURBUsed(surbs[0])
-            self.assert_(s.isSURBUsed(surbs[0]))
-            s.close()
-            s = SURBLog(fname)
-            self.assert_(s.isSURBUsed(surbs[0]))
-            self.assert_(not s.isSURBUsed(surbs[1]))
-            self.assert_(s.findUnusedSURBs(surbs)[0] is surbs[1])
-            one = s.findUnusedSURBs(surbs,1)
-            self.assertEquals(len(one),1)
-            two = s.findUnusedSURBs(surbs,2)
-            self.assert_(two[0] is surbs[1])
-            self.assert_(two[1] is surbs[2])
-            s.markSURBUsed(surbs[1])
-            self.assert_(s.findUnusedSURBs(surbs)[0] is surbs[2])
-            s.markSURBUsed(surbs[2])
-            self.assert_(s.findUnusedSURBs(surbs) == [])
-        finally:
-            s.close()
 
     def testClientKeyring(self):
         keydir = mix_mktemp()
@@ -6904,7 +6986,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(PacketHandlerTests))
+        suite.addTest(tc(ClientUtilTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
