@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.35 2003/05/30 13:54:45 nickm Exp $
+# $Id: ServerKeys.py,v 1.36 2003/05/30 19:22:29 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -152,22 +152,25 @@ class ServerKeyring:
     def checkDescriptorConsistency(self, regen=1):
         """DOCDOC"""
         identity = None
-        bad = []
+        state = []
         for _,_,ks in self.keySets:
             ok = ks.checkConsistency(self.config, 0)
-            if not ok:
-                bad.append(ks)
-        if not bad:
+            if ok == 'good':
+                continue
+            state.append((ok, ks))
+
+        if not state:
             return
         
         LOG.error("Some generated keysets do not match "
                   "current configuration...")
-        for ks in bad:
+        
+        for ok, ks in state:
             va,vu = ks.getLiveness()
             LOG.error("Keyset %s (%s--%s):",ks.keyname,formatTime(va,1),
                       formatTime(vu,1))
             ks.checkConsistency(self.config, 1)
-            if regen:
+            if regen and ok == 'bad':
                 if not identity: identity = self.getIdentityKey()
                 ks.regenerateServerDescriptor(self.config, identity)
 
@@ -678,10 +681,12 @@ class _WarnWrapper:
        LOG.warn if silence is false."""
     def __init__(self, silence, isPublished):
         self.silence = silence
+        self.errors = 0
         self.called = 0
         self.published = isPublished
     def __call__(self, *args):
-        self.called += 1
+        self.called = 1
+        self.errors += 1
         if not self.published:
             args = list(args)
             args[0] = args[0].replace("published", "in unpublished descriptor")
@@ -693,6 +698,8 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
 
        Return true iff info may have come from 'config'.  If 'log' is
        true, warn as well.  Does not check keys.
+
+       DOCDOC returns 'good', 'so-so', 'bad'
     """
     warn = _WarnWrapper(silence = not log, isPublished=isPublished)
 
@@ -707,7 +714,7 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
     if idBits != confIDBits:
         warn("Mismatched identity bits: %s in configuration; %s published.",
              confIDBits, idBits)
-        warn.called -= 1 # We can't do anything about this!
+        warn.errors -= 1 # We can't do anything about this!
 
     if config_s['Contact-Email'] != info_s['Contact']:
         warn("Mismatched contacts: %s in configuration; %s published.",
@@ -725,7 +732,8 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         previousMidnight(config_s['PublicKeyLifetime'].getSeconds() +
                          info_s['Valid-After'])):
         warn("Published lifetime does not match PublicKeyLifetime")
-        warn("(This problem will go away in a while).")
+        warn("(Future keys will be generated with the correct lifetime")
+        warn.errors -= 2 # We can't do anything about this!
 
     if info_s['Software'] != 'Mixminion %s'%mixminion.__version__:
         warn("Published version (%s) does not match current version (%s)",
@@ -762,7 +770,12 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         if config_out and not info_out:
             warn("%s enabled, but not published.", section)
 
-    return not warn.called
+    if warn.errors:
+        return "bad"
+    elif warn.called:
+        return "so-so"
+    else:
+        return "good"
 
 #----------------------------------------------------------------------
 # Functionality to generate keys and server descriptors
@@ -957,7 +970,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # FFFF Remove this once we're more confident.
     inf = ServerInfo(string=info)
     ok = checkDescriptorConsistency(inf, config, log=0, isPublished=0)
-    assert ok
+    assert ok in ('good', 'so-so')
 
     return info
 
