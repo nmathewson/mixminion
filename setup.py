@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.51 2003/03/05 21:34:01 nickm Exp $
+# $Id: setup.py,v 1.52 2003/04/07 00:48:30 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -11,7 +11,15 @@ import sys
 if not hasattr(sys, 'version_info') or sys.version_info < (2, 0, 0):
     print "Sorry, but I require Python 2.0 or higher."
     sys.exit(1)
-
+if sys.version_info[:3] == (2,1,0):
+    print "Python 2.1.0 has known bugs that keep Mixminion from working."
+    print "Maybe you should upgrade to 2.1.3 or some more recent version."
+    sys.exit(1)    
+if sys.version_info[:3] == (2,1,1):
+    print "Python 2.1.1 has known bugs that keep Mixminion from working."
+    print "Maybe you should upgrade to 2.1.3 or some more recent version."
+    sys.exit(1)
+    
 try:
     import zlib
 except ImportError:
