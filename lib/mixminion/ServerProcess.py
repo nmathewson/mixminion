@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerProcess.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: ServerProcess.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
 
 import mixminion.Crypto as Crypto
 import mixminion.Formats as Formats
@@ -27,7 +27,7 @@ class ServerProcess:
     #  Returns oneof (None), (method, argl)
     def _processMessage(self, msg):
         msg = Formats.parseMessage(msg)
-        header1 = msg.header1
+        header1 = Formats.parseHeader(msg.header1)
         subh = header1[0]
         subh = Crypto.pk_decrypt(subh, self.privatekey)
         subh = Formats.parseSubheader(subh)
@@ -35,7 +35,7 @@ class ServerProcess:
         if subh.major != 3 or subh.minor != 0:
             raise ContentError("Invalid protocol version")
 
-        digest = Crypto.sha1(header1[1:16])
+        digest = Crypto.sha1(header1[1:])
         if digest != subh.digest:
             raise ContentError("Invalid digest")
 
@@ -50,13 +50,19 @@ class ServerProcess:
         else:
             remainingHeader = header1[1:]
 
+        # Replay prevention
         keys = Crypto.Keyset(subh.master)
-
+        replayhash = keys.get(Crypto.REPLAY_PREVENTION_MODE, 20)
+        if self.hashlog.seenHash(replayhash):
+            raise ContentError("Duplicate message detected.")
+        else:
+            self.hashlog.logHash(replayhash)
+            
         if type == Modules.DROP_TYPE:
             return None
 
-        payload = Crypto.sprp_decrypt(msg.payload,
-                                      keys.get(Crypto.PAYLOAD_ENCRYPT_MODE))
+        payload = Crypto.lioness_decrypt(msg.payload,
+                                         keys.get(Crypto.PAYLOAD_ENCRYPT_MODE))
 
         # XXXX This doesn't match what George said.
         if type > Modules.MIN_EXIT_TYPE:
@@ -74,12 +80,12 @@ class ServerProcess:
         header1 = Crypto.ctr_crypt(remainingHeader,
                                    keys.get(Crypto.HEADER_SECRET_MODE))
         
-        header2 = Crypto.sprp_decrypt(msg.header2,
-                                      keys.get(Crypto.HEADER_ENCRYPT_MODE))
+        header2 = Crypto.lioness_decrypt(msg.header2,
+                                         keys.get(Crypto.HEADER_ENCRYPT_MODE))
 
         if type == Modules.SWAP_FWD_TYPE:
-            header2 = Crypto.sprp_decrypt(msg.header2,
-                                          keys.get(Crypto.HIDE_HEADER_MODE))
+            hkey = Crypto.get_lioness_keys_from_payload(payload)
+            header2 = Crypto.lioness_decrypt(msg.header2, hkey)
             header1, header2 = header2, header1
 
         address = Formats.parseIPV4Info(subh.routinginfo)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: BuildMessage.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
 
 from mixminion.Formats import *
 import mixminion.Crypto as Crypto
@@ -110,7 +110,7 @@ def _buildHeaders(path, secrets, exitType, exitInfo, prng):
     for i in range(hops-1, -1, -1):
         jnk = junk[i]
         rest = Crypto.strxor(header, masks[i])
-        digest = Crypto.sha1(rest + junk[i])
+        digest = Crypto.sha1(rest+junk[i])
         pubkey = Crypto.pk_from_modulus(nodes[i].getModulus())
         rt, ri = routing[i]
         subhead = Subheader(MAJOR_NO, MINOR_NO,

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.1 2002/05/29 03:52:13 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.2 2002/05/29 17:46:24 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -18,6 +18,7 @@ void mix_AES_ctr128_encrypt(const unsigned char *in, unsigned char *out,
 /* Functions from crypt.c */
 FUNC_DOC(mm_sha1);
 FUNC_DOC(mm_sha1);
+FUNC_DOC(mm_aes_key);
 FUNC_DOC(mm_aes_ctr128_crypt);
 FUNC_DOC(mm_strxor);
 FUNC_DOC(mm_openssl_seed);

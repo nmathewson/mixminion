@@ -1,8 +1,12 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: Crypto.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
 """mixminion.Crypto
 
-   This package contains XXXX"""
+   This package contains all the cryptographic primitives required
+   my the Mixminion spec.  Some of these are wrappers for functionality
+   implemented in C by OpenSSL.  Nonetheless, other modules should call
+   the functions in mixminion.Crypto, and not call _minionlib's crypto
+   functionality themselves."""
 
 import sys
 import mixminion._minionlib as _ml
@@ -34,19 +38,29 @@ def init_crypto():
 def sha1(s):
     """sha1(s) -> str
 
-    Returns the SHA1 hash of a string"""
+    Returns the SHA1 hash of its argument"""
     return _ml.sha1(s)
+
+def strxor(s1, s2):
+    """strxor(s1, s2) -> str
+
+    Computes the bitwise xor of two strings.  Raises an exception if the
+    strings' lengths are unequal."""
+    return _ml.strxor(s1, s2)
 
 def ctr_crypt(s, key, idx=0):
     """ctr_crypt(s, key, idx=0) -> str
 
        Given a string s and a 16-byte key key, computes the AES counter-mode
        encryption of s using k.  The counter begins at idx."""
-
+    if type(key) == str:
+        key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,s,idx)
 
 def prng(key,count,idx=0):
     """Returns the bytestream 0x00000000...., encrypted in counter mode."""
+    if type(key) == str:
+        key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,"",idx,count)
 
 def lioness_encrypt(s,key):
@@ -64,11 +78,15 @@ def lioness_encrypt(s,key):
     left = s[:20]
     right = s[20:]
     del s
+    # Performance note: This business with sha1("".join([key,right,key]))
+    # may look slow, but it contributes only a 6% to the hashing step,
+    # which in turn contributes under 11% of the time for LIONESS.
+
     #XXXX This slice makes me nervous
     right = ctr_crypt(right, _ml.strxor(left,key1)[:16])
-    left = _ml.strxor(left, _ml.sha1(right, key2))
-    right = ctr_crypt(right, _ml.strxor(left, key3)[:16])
-    left = _ml.strxor(left, _ml.sha1(right, key4))
+    left = _ml.strxor(left, _ml.sha1("".join([key2,right,key2])))
+    right = ctr_crypt(right, _ml.strxor(left,key3)[:16])
+    left = _ml.strxor(left, _ml.sha1("".join([key4,right,key4])))
     return left + right
 
 def lioness_decrypt(s,key):
@@ -87,9 +105,9 @@ def lioness_decrypt(s,key):
     right = s[20:]
     del s
     #XXXX This slice makes me nervous
-    left = _ml.strxor(left, _ml.sha1(right, key4))
+    left = _ml.strxor(left, _ml.sha1("".join([key4,right,key4])))
     right = ctr_crypt(right, _ml.strxor(left, key3)[:16])
-    left = _ml.strxor(left, _ml.sha1(right, key2))
+    left = _ml.strxor(left, _ml.sha1("".join([key2,right,key2])))
     right = ctr_crypt(right, _ml.strxor(left, key1)[:16])
     return left + right
 
@@ -170,6 +188,7 @@ PRNG_MODE = "RANDOM JUNK"
 HEADER_ENCRYPT_MODE = "HEADER ENCRYPT"
 PAYLOAD_ENCRYPT_MODE = "PAYLOAD ENCRYPT"
 HIDE_HEADER_MODE = "HIDE HEADER"
+REPLAY_PREVENTION_MODE = "REPLAY PREVENTION"
 
 class Keyset:
     """A Keyset represents a set of keys generated from a single master
@@ -191,10 +210,12 @@ class Keyset:
 
            Returns a set of 4 lioness keys, as described in the Mixminion
            specification."""
-        return (self.get(mode+" (FIRST SUBKEY)", 20),
-                self.get(mode+" (SECOND SUBKEY)", 16),
-                self.get(mode+" (THIRD SUBKEY)", 20),
-                self.get(mode+" (FOURTH SUBKEY)", 16))
+        key1 = sha1(self.master+mode)
+        key3 = key1[:-1]+_ml.strxor(key1[-1],"\x02")
+        key2 = key1[:AES_KEY_LEN-1] + _ml.strxor(key1[AES_KEY_LEN-1], "\x01")
+        key4 = key1[:AES_KEY_LEN-1] + _ml.strxor(key1[AES_KEY_LEN-1], "\x03")
+        
+        return (key1, key2, key3, key4)
 
 def lioness_keys_from_payload(payload):
     # XXXX Temporary method till George and I agree on a key schedule.
@@ -210,7 +231,7 @@ class AESCounterPRNG:
         self.counter = 0
         self.bytes = ""
         if seed==None: seed=trng(AESCounterPRNG._KEYSIZE)
-        self.key = seed
+        self.key = _ml.aes_key(seed)
 
     def getBytes(self, n):
         if n > len(self.bytes):

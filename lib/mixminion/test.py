@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: test.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
 
 import unittest
 
@@ -28,34 +28,43 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.assertEquals(s,
                self.hexread("84983E441C3BD26EBAAE4AA1F95129E5E54670F1"))
 
-        self.assertEquals(s1("abc", "def"),
-                          s1("defabcdef"))
         self.failUnlessRaises(TypeError, s1, 1)
 
     def test_xor(self):
         xor = _ml.strxor
+        
         self.assertEquals(xor("abc", "\000\000\000"), "abc")
         self.assertEquals(xor("abc", "abc"), "\000\000\000")
         self.assertEquals(xor("\xEF\xF0\x12", "\x11\x22\x35"), '\xFE\xD2\x27')
 
+        # Make sure that the C doesn't (cringe) modify the strings.
+        a = "aaaa"
+        self.assertEquals(xor(a,"\000\000\000a"), "aaa\000")
+        self.assertEquals(a, "aaaa")
+        self.assertEquals(xor("\000\000\000a",a), "aaa\000")
+        self.assertEquals(a, "aaaa")
+        
         self.failUnlessRaises(TypeError, xor, "a", "bb")
         
     def test_aes(self):
         crypt = _ml.aes_ctr128_crypt
 
         # One of the test vectors from AES.
-        key = "\x80" + "\x00" * 15
+        key = txt = "\x80" + "\x00" * 15
+        key = _ml.aes_key(key)
+
         expected = self.hexread("8EDD33D3C621E546455BD8BA1418BEC8")
-        self.failUnless(crypt(key, key, 0) == expected)
-        self.failUnless(crypt(key, key) == expected)
+        self.failUnless(crypt(key, txt, 0) == expected)
+        self.failUnless(crypt(key, txt) == expected)
         self.failUnless(crypt(key, " "*100, 0)[1:] == crypt(key, " "*99, 1))
         self.failUnless(crypt(key,crypt(key, " "*100, 0),0) == " "*100)
 
         teststr = """I have seen the best ciphers of my generation
                      Destroyed by cryptanalysis, broken, insecure,
                      Implemented still in cryptographic libraries"""
-        
-        self.assertEquals(teststr,crypt("xyzz"*4,crypt("xyzz"*4,teststr)))
+
+        key2 = _ml.aes_key("xyzz"*4)
+        self.assertEquals(teststr,crypt(key2,crypt(key2,teststr)))
 
         # PRNG mode
         expected2 = self.hexread("0EDD33D3C621E546455BD8BA1418BEC8")
@@ -143,7 +152,7 @@ class CryptoTests(unittest.TestCase):
 
     def test_wrappers(self):
         self.assertEquals(_ml.sha1("xyzzy"), sha1("xyzzy"))
-        k = "xyzy"*4
+        k = _ml.aes_key("xyzy"*4)
         self.assertEquals(_ml.aes_ctr128_crypt(k,"hello",0),
                           ctr_crypt("hello",k))
         self.assertEquals(_ml.aes_ctr128_crypt(k,"hello",99),
@@ -198,12 +207,15 @@ class CryptoTests(unittest.TestCase):
 
     def test_keyset(self):
         s = sha1
+        x = _ml.strxor
         k = Keyset("a")
         eq = self.assertEquals
         eq(s("aFoo")[:10], k.get("Foo",10))
         eq(s("aBar")[:16], k.get("Bar"))
-        eq( (s("aBaz (FIRST SUBKEY)"), s("aBaz (SECOND SUBKEY)")[:16],
-             s("aBaz (THIRD SUBKEY)"), s("aBaz (FOURTH SUBKEY)")[:16]),
+        z15 = "\x00"*15
+        z19 = "\x00"*19
+        eq( (s("aBaz"),               x(s("aBaz")[:16], z15+"\x01"),
+             x(s("aBaz"),z19+"\x02"), x(s("aBaz")[:16], z15+"\x03") ),
             k.getLionessKeys("Baz"))
 
     def test_aesprng(self):

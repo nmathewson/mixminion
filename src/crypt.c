@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.1 2002/05/29 03:52:13 nickm Exp $ */
+/* $Id: crypt.c,v 1.2 2002/05/29 17:46:24 nickm Exp $ */
 #include <Python.h>
 
 #include <openssl/bn.h>
@@ -28,27 +28,22 @@ SSL_ERR()
 
 const char mm_sha1__doc__[] = 
   "sha1(s) -> str\n\n"
-  "Computes the SHA-1 hash of a string\n";
+  "Computes the SHA-1 hash of a string.\n";
 
 PyObject*
 mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict) 
 {
-	static char *kwlist[] = { "string", "key", NULL};
-	unsigned char *cp = NULL, *keyp = NULL;
-	int len, keylen;
+	static char *kwlist[] = { "string", NULL};
+	unsigned char *cp = NULL;
+	int len;
 	SHA_CTX ctx;
 	PyObject *output;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "s#|s#:sha1", kwlist,
-					 &cp, &len, &keyp, &keylen))
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "s#:sha1", kwlist,
+					 &cp, &len))
 		return NULL;
 	SHA1_Init(&ctx);
-	if (keyp)
-		SHA1_Update(&ctx,keyp,keylen); 
 	SHA1_Update(&ctx,cp,len); 
-	if (keyp)
-		SHA1_Update(&ctx,keyp,keylen); 
-	
 	output = PyString_FromStringAndSize(NULL, SHA_DIGEST_LENGTH);
 	if (!output) {
 		PyErr_NoMemory();
@@ -60,36 +55,103 @@ mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict)
 	return output;
 }
 
+/* Destructor of PyCObject
+ */
+static void
+aes_destruct(void *obj, void *desc)
+{
+	assert(desc==aes_descriptor);
+	memset(obj, 0, sizeof(AES_KEY));
+	free(obj);
+}
+
+static char aes_descriptor[] = "AES key objects descriptor";
+
+static int
+aes_arg_convert(PyObject *obj, void *adr)
+{
+	if (PyCObject_Check(obj) && PyCObject_GetDesc(obj) == aes_descriptor) {
+		*((AES_KEY**) adr) = (AES_KEY*) PyCObject_AsVoidPtr(obj);
+		return 1;
+	} else {
+		TYPE_ERR("Expected an AES key as an argument.");
+		return 0;
+	}
+}
+
+const char mm_aes_key__doc__[] = 
+    "aes_key(str) -> key\n\n"
+    "Converts a 16-byte string to an AES key for use with aes_ctr128_crypt.\n"
+    "\n(The performance advantage to doing so is only significant for small\n"
+    "(<1K) blocks.)\n";  
+
+PyObject*
+mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+	static char *kwlist[] = { "key", NULL }; 
+	char *key;
+	int keylen;
+	AES_KEY *aes_key = NULL;
+	PyObject *result;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "s#:aes_key", kwlist,
+					 &key, &keylen))
+		return NULL;
+	if (keylen != 16) {
+		TYPE_ERR("aes_key() requires a 128-bit (16 byte) string");
+		return NULL;
+	}
+	aes_key = malloc(sizeof(AES_KEY));
+	if (!aes_key) { PyErr_NoMemory(); goto err; }
+	if (AES_set_encrypt_key(key, keylen*8, aes_key)) {
+		SSL_ERR();
+		goto err;
+	}
+	result = PyCObject_FromVoidPtrAndDesc( (void*) aes_key,
+				(void*) aes_descriptor, aes_destruct );
+	if (!result) { PyErr_NoMemory(); goto err; }
+	return result;
+
+ err:
+	if (aes_key) {
+		memset(aes_key, 0, sizeof(AES_KEY));
+		free(aes_key);
+	}
+	return NULL;
+}
+
+
 const char mm_aes_ctr128_crypt__doc__[] = 
   "aes_ctr128_crypt(key, string, idx=0, prng=0) -> str\n\n"
   "Encrypts a string in counter mode.  If idx is nonzero, the counter begins\n"
   "at idx.  If prng is nonzero, ignores string and just produces a stream of\n"
   "length prng.\n\n"
-  "BUG: only the 32 least significant bits of idx are used.";
+  "BUG: only the 32 least significant bits of idx are used.\n\n"
+  "Performance notes:  PRNG mode is much faster (33% @ 32K) than generating\n"
+  "a string of NULs in Python and encrypting it.  Encryption, on the other\n"
+  "hand, is only slightly faster (11% @ 32K) than XORing the prng output\n"
+  "with the plaintext.\n";
 
 PyObject*
 mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict) 
 {
 	static char *kwlist[] = { "key", "string", "idx", "prng", NULL };
-	unsigned char *key, *input;
-        int keylen, inputlen, prng=0;
+	unsigned char *input;
+        int inputlen, prng=0;
 	long idx=0;
 	int shortidx;
-	AES_KEY aes_key;
+	AES_KEY *aes_key =NULL;
 
 	unsigned char *counter;
 	PyObject *output;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
-					 "s#s#|li:aes_ctr128_crypt", kwlist,
-					 &key, &keylen, &input, &inputlen,
+					 "O&s#|li:aes_ctr128_crypt", kwlist,
+					 aes_arg_convert, &aes_key, 
+					 &input, &inputlen,
 					 &idx, &prng))
 		return NULL;
 	
-	if (keylen != 16) {
-		TYPE_ERR("AES key wasn\'t 128 bits long");
-		return NULL;
-	}
 	if (idx < 0) idx = 0;
 	if (prng < 0) prng = 0;
 
@@ -105,20 +167,13 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 		counter[13] = (idx >> 16) & 0xff;
 		counter[12] = (idx >> 24) & 0xff;
 	}
-	if (AES_set_encrypt_key(key, keylen*8, &aes_key)) {
-		SSL_ERR();
-		free(counter);
-		return NULL;
-	}
-
 	if (prng) { 
 		inputlen = prng;
 		input = malloc(prng);
 		if (!input) { PyErr_NoMemory(); return NULL; }
-		memset(input, 0, prng);
-	        output = PyString_FromStringAndSize(NULL, prng);
-	} else
-		output = PyString_FromStringAndSize(input, inputlen);
+		memset(input, 0, inputlen);
+	} 
+	output = PyString_FromStringAndSize(NULL, inputlen);
 	if (!output) {
 		PyErr_NoMemory(); 
 		free(counter); 
@@ -126,14 +181,13 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 		return NULL;
 	}
 
-	AESCRYPT(input, PyString_AS_STRING(output),
-		 inputlen, &aes_key,
+	AESCRYPT((const char*)input, PyString_AS_STRING(output),
+		 inputlen, aes_key,
 		 counter, &shortidx);
 
-	memset(&aes_key, 0, sizeof(AES_KEY));
 	free(counter);
-	if (prng) free(input);
 
+	if (prng) free(input);
 	return output;
 }
 
@@ -160,12 +214,12 @@ mm_strxor(PyObject *self, PyObject *args, PyObject *kwdict)
 		return NULL;
 	}
 
-	output = PyString_FromStringAndSize(s1,s1len);
+	output = PyString_FromStringAndSize(NULL,s1len);
 	if (! output) { PyErr_NoMemory(); return NULL; }
 
 	outp = PyString_AS_STRING(output);
 	while (s1len--) {
-		*(outp++) ^= *(s2++);
+		*(outp++) = *(s1++) ^ *(s2++);
 	}
 
 	return output;
@@ -207,7 +261,8 @@ rsa_destruct(void *obj, void *desc)
 static char rsa_descriptor[] = "RSA objects descriptor";
 
 static int
-rsa_arg_convert(PyObject *obj, void *adr) {
+rsa_arg_convert(PyObject *obj, void *adr) 
+{
 	if (PyCObject_Check(obj) && PyCObject_GetDesc(obj) == rsa_descriptor) {
 		*((RSA**) adr) = (RSA*) PyCObject_AsVoidPtr(obj);
 		return 1;
@@ -221,8 +276,6 @@ rsa_arg_convert(PyObject *obj, void *adr) {
 #define WRAP_RSA(rsa) (PyCObject_FromVoidPtrAndDesc( (void*) (rsa),\
 		       (void*) rsa_descriptor, rsa_destruct))
 					     
-
-
 const char mm_rsa_crypt__doc__[]=
   "rsa_crypt(key, string, public, encrypt) -> str\n\n"
   "Uses RSA to encrypt or decrypt a provided string.  If encrypt is true,\n"

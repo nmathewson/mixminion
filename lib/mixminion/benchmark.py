@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: benchmark.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
 from time import time
 
 loop_overhead = {}
@@ -67,10 +67,12 @@ def cryptoTiming():
     print "SHA1 (32K)", timeit((lambda : sha1(s32K)), 1000)
 
     shakey = "8charstr"*2
-    print "Keyed SHA1 (short)",
-    print timeit((lambda : _ml.sha1(short,shakey)), 100000)
-    print "Keyed SHA1 (8K)", timeit((lambda : _ml.sha1(s8K, shakey)), 10000)
-    print "Keyed SHA1 (32K)", timeit((lambda : _ml.sha1(s32K, shakey)), 1000)
+    #print "Keyed SHA1 (short)",
+    #print timeit((lambda : _ml.sha1(short,shakey)), 100000)
+    #print "Keyed SHA1 (8K)", timeit((lambda : _ml.sha1(s8K, shakey)), 10000)
+    #print "Keyed SHA1 (32K)", timeit((lambda : _ml.sha1(s32K, shakey)), 1000)
+    print "Lioness-keyed SHA1 (32K, unoptimized)", timeit(
+        (lambda : _ml.sha1("".join([shakey,s32K,shakey]))), 1000)
 
     print "TRNG (20 byte)", timeit((lambda: trng(20)), 100)
     print "TRNG (128 byte)", timeit((lambda: trng(128)), 100)
@@ -84,9 +86,19 @@ def cryptoTiming():
     print "aes (1K)", timeit((lambda: ctr_crypt(s1K,key)), 10000)
     print "aes (32K)", timeit((lambda: ctr_crypt(s32K,key)), 100)
 
+    key = _ml.aes_key(key)
+    print "aes (short,pre-key)", timeit((lambda: ctr_crypt(short,key)), 100000)
+    print "aes (1K,pre-key)", timeit((lambda: ctr_crypt(s1K,key)), 10000)
+    print "aes (32K,pre-key)", timeit((lambda: ctr_crypt(s32K,key)), 100)
+
+    print "aes (32K,pre-key,unoptimized)", timeit(
+        (lambda: _ml.strxor(prng(key,32768),s32K)), 100)
+
     print "prng (short)", timeit((lambda: prng(key,8)), 100000)
     print "prng (1K)", timeit((lambda: prng(key,1024)), 10000)
-    print "prng (32)", timeit((lambda: prng(key,32768)), 100)
+    print "prng (32K)", timeit((lambda: prng(key,32768)), 100)
+    print "prng (32K, unoptimized)", timeit(
+        (lambda: ctr_crypt('\x00'*32768, key)), 100)
 
     lkey = Keyset("keymaterial foo bar baz").getLionessKeys("T")
     print "lioness E (1K)", timeit((lambda: lioness_encrypt(s1K, lkey)), 1000)
@@ -160,11 +172,11 @@ def _hashlogTiming(load):
 def testLeaks1():
     print "Trying to leak (sha1,aes,xor,seed,oaep)"
     s20k="a"*20*1024
-    key="a"*16
+    keytxt="a"*16
+    key = _ml.aes_key(keytxt)
     while 1:
         if 1:
             _ml.sha1(s20k)
-            _ml.sha1(s20k,s20k)
             _ml.aes_ctr128_crypt(key,s20k,0)
             _ml.aes_ctr128_crypt(key,s20k,2000)
             _ml.aes_ctr128_crypt(key,"",2000,20000)
@@ -176,7 +188,7 @@ def testLeaks1():
                 pass
             _ml.strxor(s20k,s20k)
             try:
-                _ml.strxor(s20k,key)
+                _ml.strxor(s20k,keytxt)
             except:
                 pass
             _ml.openssl_seed(s20k)
