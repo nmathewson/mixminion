@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.63 2003/10/19 03:12:02 nickm Exp $
+# $Id: Packet.py,v 1.64 2003/11/10 04:12:20 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -12,18 +12,20 @@
 __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'ENC_FWD_OVERHEAD', 'ENC_SUBHEADER_LEN',
             'encodeMailHeaders', 'encodeMessageHeaders',
-            'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_IPV4_TYPE', 'FragmentPayload',
+            'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_HOST_TYPE', 'FWD_IPV4_TYPE',
+            'FragmentPayload',
             'FRAGMENT_MESSAGEID_LEN', 'FRAGMENT_TYPE', 
             'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
             'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
             'MIN_SUBHEADER_LEN', 'MMTPHostInfo', 'Packet',
             'OAEP_OVERHEAD', 'PAYLOAD_LEN', 'ParseError', 'ReplyBlock',
             'ReplyBlock', 'SECRET_LEN', 'SINGLETON_PAYLOAD_OVERHEAD',
-            'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_IPV4_TYPE', 'SingletonPayload',
+            'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_IPV4_TYPE',
+            'SWAP_FWD_HOST_TYPE', 'SingletonPayload',
             'Subheader', 'TAG_LEN', 'TextEncodedMessage',
             'parseHeader', 'parseIPV4Info', 'parseMMTPHostInfo',
             'parseMBOXInfo', 'parsePacket', 'parseMessageAndHeaders',
-            'parsePayload', 'parseReplyBlock',
+            'parsePayload', 'parseRelayInfoByType', 'parseReplyBlock',
             'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
             'parseTextEncodedMessages', 'parseTextReplyBlocks', 
             'uncompressData'            
@@ -556,15 +558,15 @@ First server is: %s""" % (hash, expiry, server)
 # Routing info
 
 def parseRelayInfoByType(routingType,routingInfo):
-    """DOCDOC: Returns rt, (IPV4Info/MMTPHostInfo)."""
-    if routingType in (mixminion.Packet.FWD_IPV4_TYPE,
-                       mixminion.Packet.SWAP_FWD_IPV4_TYPE):
-        parseFn = mixminion.Packet.parseIPV4Info
-        parsedType = mixminion.Packet.IPV4Info
-    elif routingType in (mixminion.Packet.FWD_HOST_TYPE,
-                         mixminion.Packet.SWAP_FWD_HOST_TYPE):
-        parseFn = mixminion.Packet.parseMMTPHost
-        parsedType = mixminion.Packet.MMTPHostInfo
+    """Parse the routingInfo contained in the string 'routinginfo',
+       according to the type in 'routingType'.  Only relay types are
+       supported."""
+    if routingType in (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE):
+        parseFn = parseIPV4Info
+        parsedType = IPV4Info
+    elif routingType in (FWD_HOST_TYPE, SWAP_FWD_HOST_TYPE):
+        parseFn = parseMMTPHostInfo
+        parsedType = MMTPHostInfo
     else:
         raise MixFatalError("Unrecognized relay type 0x%04X"%routingType)
     if type(routingInfo) == types.StringType:
@@ -578,7 +580,7 @@ IPV4_PAT = "!4sH%ds" % DIGEST_LEN
 
 def parseIPV4Info(s):
     """Converts routing info for an IPV4 address into an IPV4Info object,
-       suitable for use by FWD or SWAP_FWD modules."""
+       suitable for use by FWD_IPV4 or SWAP_FWD_IPV4 modules."""
     if len(s) != 4+2+DIGEST_LEN:
         raise ParseError("IPV4 information with wrong length (%d)" % len(s))
     try:
@@ -589,11 +591,13 @@ def parseIPV4Info(s):
     return IPV4Info(ip, port, keyinfo)
 
 class IPV4Info:
-    """An IPV4Info object represents the routinginfo for a FWD or
-       SWAP_FWD hop.
+    """An IPV4Info object represents the routinginfo for a FWD_IPV4 or
+       SWAP_FWD_IPV4 hop.  This kind of routing is only used with older
+       servers that don't support hostname-based routing.
 
        Fields: ip (a dotted quad string), port (an int from 0..65535),
        and keyinfo (a digest)."""
+    #XXXX007/8 phase this out.
     def __init__(self, ip, port, keyinfo):
         """Construct a new IPV4Info"""
         assert 0 <= port <= 65535
@@ -630,7 +634,8 @@ class IPV4Info:
 MMTP_HOST_PAT = "!H%ds" % DIGEST_LEN
 
 def parseMMTPHostInfo(s):
-    """DOCDOC"""
+    """Converts routing info for a hostname address into an MMTPHostInfo
+    object, suitable for use by FWD_HOST or SWAP_FWD_HOST modules."""
     if len(s) < 2+DIGEST_LEN+1:
         raise ParseError("Routing information is too short.")
     try:
@@ -643,7 +648,11 @@ def parseMMTPHostInfo(s):
     return MMTPHostInfo(s[2+DIGEST_LEN:], port, keyinfo)
 
 class MMTPHostInfo:
-    """DOCDOC"""
+    """An MMTPHostInfo object represents the routinginfo for a FWD_HOST or
+       SWAP_FWD_HOST hop.
+
+       Fields: hostname, port (an int from 0..65535), and keyinfo (a
+       digest)."""
     def __init__(self, hostname, port, keyinfo):
         assert 0 <= port <= 65535
         self.hostname = hostname.lower()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.60 2003/11/07 07:03:28 nickm Exp $
+# $Id: ServerInfo.py,v 1.61 2003/11/10 04:12:20 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -250,11 +250,17 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return self['Server']['Digest']
 
     def getIP(self):
-        """Returns this server's IP address"""
+        """Returns this server's IP address.  (Returns None for servers
+           running version 0.0.7 or later.)"""
         return self['Incoming/MMTP'].get('IP')
 
     def getHostname(self):
-        """DOCDOC"""
+        """Return this server's Hostname. (Returns None for servers running
+           version 0.0.5 or earlier.)"""
+        #XXXX006 remove this.  0.0.6alpha1 could crash when it got hostnames.
+        #XXXX006 Sadly, some people installed it anyway.
+        if self['Server'].get("Software","").startswith("0.0.6alpha1"):
+            return None
         return self['Incoming/MMTP'].get("Hostname")
 
     def getPort(self):
@@ -269,37 +275,55 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """Returns a hash of this server's MMTP key"""
         return mixminion.Crypto.sha1(
             mixminion.Crypto.pk_encode_public_key(self['Server']['Identity']))
-        #return self['Incoming/MMTP']['Key-Digest']
 
     def getIPV4Info(self):
         """Returns a mixminion.Packet.IPV4Info object for routing messages
-           to this server."""
-        return IPV4Info(self.getIP(), self.getPort(), self.getKeyDigest())
+           to this server.  (Returns None for servers running version 0.0.5
+           or earlier.)"""
+        ip = self.getIP()
+        if ip is None: return None
+        return IPV4Info(ip, self.getPort(), self.getKeyDigest())
 
     def getMMTPHostInfo(self):
-        """DOCDOC"""
-        return MMTPHostInfo(get.getHostname(), self.getPort(), self.getKeyDigest())
+        """Returns a mixminion.Packet.MMTPHostInfo object for routing messages
+           to this server.  (Returns None for servers running version 0.0.7
+           or later.)"""
+        host = self.getHostname()
+        if host is None: return None
+        return MMTPHostInfo(host, self.getPort(), self.getKeyDigest())
     
     def getRoutingInfo(self):
-        return self.getIPV4Info()
+        """Return whichever of MMTPHostInfo or IPV4 info is best for
+           delivering to this server (assuming that the sending host
+           supports both."""
+        if self.getHostname():
+            return self.getMMTPHostInfo()
+        else:
+            return self.getIPV4Info()
 
     def getIdentity(self):
+        """Return this server's public identity key."""
         return self['Server']['Identity']
 
     def getIncomingMMTPProtocols(self):
+        """Return a list of the MMTP versions supported by this this server
+           for incoming packets."""
         inc = self['Incoming/MMTP']
         if not inc.get("Version"):
             return []
         return [ s.strip() for s in inc["Protocols"].split(",") ]
 
     def getOutgoingMMTPProtocols(self):
+        """Return a list of the MMTP versions supported by this this server
+           for outgoing packets."""
         inc = self['Outgoing/MMTP']
         if not inc.get("Version"):
             return []
         return [ s.strip() for s in inc["Protocols"].split(",") ]
 
     def canRelayTo(self, otherDesc):
-        """DOCDOC"""
+        """Return true iff this server can relay packets to the server
+           described by otherDesc."""
         if self.hasSameNicknameAs(otherDesc):
             return 1
         myOutProtocols = self.getOutgoingMMTPProtocols()
@@ -310,7 +334,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return 0
 
     def canStartAt(self):
-        """DOCDOC"""
+        """Return true iff this server is one we (that is, this
+           version of Mixminion) can send packets to directly."""
         myInProtocols = self.getIncomingMMTPProtocols()
         for out in mixminion.MMTPClient.BlockingClientConnection.PROTOCOL_VERSIONS:
             if out in myInProtocols:
@@ -318,8 +343,10 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return 0
 
     def getRoutingFor(self, otherDesc, swap=0):
-        """DOCDOC"""
-        #XXXX006 use this!
+        """Return a 2-tuple of (routingType, routingInfo) for relaying
+           a packet from this server to the server described by
+           otherDesc.  If swap is true, the relay is at a crossover
+           point."""
         assert self.canRelayTo(otherDesc)
         assert 0 <= swap <= 1
         if self.getHostname() and otherDesc.getHostname():
@@ -334,7 +361,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return rt, ri
         
     def getCaps(self):
-        # FFFF refactor this once we have client addresses.
+        """Return a list of strings to describe this servers abilities in
+           a concise human-readable format."""
         caps = []
         if not self['Incoming/MMTP'].get('Version'):
             return caps
@@ -350,11 +378,12 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return caps
 
     def isSameDescriptorAs(self, other):
-        """DOCDOC"""
+        """Return true iff this is the same server descriptor as other."""
         return self.getDigest() == other.getDigest()
 
     def hasSameNicknameAs(self, other):
-        """DOCDOC"""
+        """Return true iff this server descriptor has the same nickname as
+           other."""
         return self.getNickname().lower() == other.getNickname().lower()
 
     def isValidated(self):
@@ -419,7 +448,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return valid.isEmpty()
 
     def getFeature(self,sec,name):
-        """DOCDOC"""
+        """Overrides getFeature from _ConfigFile."""
         if sec == '-':
             if name in ("caps", "capabilities"):
                 return " ".join(self.getCaps())

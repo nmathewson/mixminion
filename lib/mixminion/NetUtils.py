@@ -8,14 +8,22 @@
 __all__ = [ ]
 
 import errno
+import re
 import select
 import signal
 import socket
+import string
 import time
-from mixminion.Common import LOG, TimeoutError
+from mixminion.Common import LOG, TimeoutError, _ALLCHARS
 
 #======================================================================
+# Global vars
+
+# When we get IPv4 and IPv6 addresses for the same host, which do we use?
 PREFER_INET4 = 1
+
+# Local copies of socket.AF_INET4 and socket.AF_INET6.  (AF_INET6 may be
+#  unsupported.)
 AF_INET = socket.AF_INET
 try:
     AF_INET6 = socket.AF_INET6
@@ -32,7 +40,6 @@ del ename
 #======================================================================
 if hasattr(socket, 'getaddrinfo'):
     def getIPs(name):
-        """DOCDOC"""
         r = []
         ai = socket.getaddrinfo(name,None)
         now = time.time()
@@ -45,8 +52,18 @@ else:
     def getIPs(name):
         addr = socket.gethostbyname(name)
         return [ (AF_INET, addr, time.time()) ]
-        
+
+getIPs.__doc__ = \
+     """Resolve the hostname 'name' and return a list of answers.  Each
+        answer is a 3-tuple of the form: (Family, Address, Time), where
+        Family is AF_INET or AF_INET6, Address is an IPv4 or IPv6 address,
+        and Time is the time at which the answer was returned.  Raise
+        a subclass of socket.error if no answers are found."""
+
 def getIP(name, preferIP4=PREFER_INET4):
+    """Resolve the hostname 'name' and return the 'best' answer.  An
+       answer is either a 3-tuple as returned by getIPs, or a 3-tuple of
+       ('NOENT', reason, Time) if no answers were found."""
     try:
         r = getIPs(name)
         inet4 = [ addr for addr in r if addr[0] == AF_INET ]
@@ -54,12 +71,14 @@ def getIP(name, preferIP4=PREFER_INET4):
         if not (inet4 or inet6):
             LOG.error("getIP returned no inet addresses!")
             return ("NOENT", "No inet addresses returned", time.time())
+        best4=best6=None
         if inet4: best4=inet4[0]
         if inet6: best6=inet6[0]
         if preferIP4:
             res = best4 or best6
         else:
             res = best6 or best4
+        assert res
         protoname = (res[0] == AF_INET) and "inet" or "inet6"
         LOG.trace("Result for getIP(%r): %s:%s (%d others dropped)",
                   name,protoname,res[1],len(r)-1)
@@ -75,7 +94,8 @@ def getIP(name, preferIP4=PREFER_INET4):
 _SOCKETS_SUPPORT_TIMEOUT = hasattr(socket.SocketType, "settimeout")
 
 def connectWithTimeout(sock,dest,timeout=None):
-    """DOCDOC; sock must be blocking."""
+    """Same as sock.connect, but timeout after 'timeout' seconds.  This
+       functionality is built-in to Python2.3 and later."""
     if timeout is None:
         return sock.connect(dest)
     elif _SOCKETS_SUPPORT_TIMEOUT:
@@ -119,16 +139,22 @@ def connectWithTimeout(sock,dest,timeout=None):
 _PREV_DEFAULT_TIMEOUT = None
 
 def setAlarmTimeout(timeout):
+    """Begin a timeout with signal.alarm"""
     if hasattr(signal, 'alarm'):
+        # Windows doesn't have signal.alarm.
         def sigalrmHandler(sig,_): pass
         signal.signal(signal.SIGALRM, sigalrmHandler)
         signal.alarm(timeout)
 
 def clearAlarmTimeout(timeout):
+    """End a timeout set with signal.alarm"""
     if hasattr(signal, 'alarm'):
         signal.alarm(0)
 
 def setGlobalTimeout(timeout,noalarm=0):
+    """Set the global connection timeout to 'timeout' -- either with
+       signal.alarm or socket.setdefaulttimeout, whiche ever we support.
+       (If noalarm is true, don't use signal.alarm.)"""
     global _PREV_DEFAULT_TIMEOUT
     assert timeout > 0
     if _SOCKETS_SUPPORT_TIMEOUT:
@@ -138,6 +164,7 @@ def setGlobalTimeout(timeout,noalarm=0):
         setAlarmTimeout(timeout)
 
 def exceptionIsTimeout(ex):
+    """Return true iff ex is likely to be a timeout."""
     if isinstance(ex, socket.error):
         if ex[0] in IN_PROGRESS_ERRNOS:
             return 1
@@ -146,6 +173,7 @@ def exceptionIsTimeout(ex):
     return 0
 
 def unsetGlobalTimeout(noalarm=0):
+    """Clear the global timeout."""
     global _PREV_DEFAULT_TIMEOUT
     if _SOCKETS_SUPPORT_TIMEOUT:
         socket.setdefaulttimeout(_PREV_DEFAULT_TIMEOUT)
@@ -156,7 +184,8 @@ def unsetGlobalTimeout(noalarm=0):
 _PROTOCOL_SUPPORT = None
 
 def getProtocolSupport():
-    """DOCDOC"""
+    """Return a 2-tuple of booleans: do we support IPv4, and do we
+      support IPv6?"""
     global _PROTOCOL_SUPPORT
     if _PROTOCOL_SUPPORT is not None:
         return _PROTOCOL_SUPPORT
@@ -176,5 +205,96 @@ def getProtocolSupport():
         if s is not None:
             s.close()
             
-    _PROTOCOL_SUPPORT = res
+    _PROTOCOL_SUPPORT = tuple(res)
     return res
+
+#----------------------------------------------------------------------
+
+# Regular expression to match a dotted quad.
+_ip_re = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
+
+def normalizeIP4(ip):
+    """If IP is an IPv4 address, return it in canonical form.  Raise
+       ValueError if it isn't."""
+    
+    i = ip.strip()
+
+    # inet_aton is a bit more permissive about spaces and incomplete
+    # IP's than we want to be.  Thus we use a regex to catch the cases
+    # it doesn't.
+    if not _ip_re.match(i):
+        raise ValueError("Invalid IP %r" % i)
+    try:
+        socket.inet_aton(i)
+    except socket.error:
+        raise ValueError("Invalid IP %r" % i)
+
+    return i
+
+_IP6_CHARS="01233456789ABCDEFabcdef:."
+
+def normalizeIP6(ip6):
+    """If IP is an IPv6 address, return it in canonical form.  Raise
+       ValueError if it isn't."""
+    ip = ip6.strip()
+    bad = ip6.translate(_ALLCHARS, _IP6_CHARS)
+    if bad:
+        raise ValueError("Invalid characters %r in address %r"%(bad,ip))
+    if len(ip) < 2:
+        raise ValueError("IPv6 address %r is too short"%ip)
+        
+    items = ip.split(":")
+    if not items:
+        raise ValueError("Empty IPv6 address")
+    if items[:2] == ["",""]:
+        del items[0]
+    if items[-2:] == ["",""]:
+        del items[-1]
+    foundNils = 0
+    foundWords = 0 # 16-bit words
+
+    for item in items:
+        if item == "":
+            foundNils += 1
+        elif '.' in item:
+            normalizeIP4(item)
+            if item is not items[-1]:
+                raise ValueError("Embedded IPv4 address %r must appear at end of IPv6 address %r"%(item,ip))
+            foundWords += 2
+        else:
+            try:
+                val = string.atoi(item,16)
+            except ValueError:
+                raise ValueError("IPv6 word %r did not parse"%item)
+            if not (0 <= val <= 0xFFFF):
+                raise ValueError("IPv6 word %r out of range"%item)
+            foundWords += 1
+            
+    if foundNils > 1:
+        raise ValueError("Too many ::'s in IPv6 address %r"%ip)
+    elif foundNils == 0 and foundWords < 8:
+        raise ValueError("IPv6 address %r is too short"%ip)
+    elif foundWords > 8:
+        raise ValueError("IPv6 address %r is too long"%ip)
+            
+    return ip
+
+def nameIsStaticIP(name):
+    """If 'name' is a static IPv4 or IPv6 address, return a 3-tuple as getIP
+       would return.  Else return None."""
+    name = name.strip()
+    if ':' in name:
+        try:
+            val = normalizeIP6(name)
+            return (AF_INET6, val, time.time())
+        except ValueError, e:
+            return None
+    elif name and name[0].isdigit():
+        try:
+            val = normalizeIP4(name)
+            return (AF_INET, val, time.time())
+        except ValueError, e:
+            return None
+    else:
+        return None
+            

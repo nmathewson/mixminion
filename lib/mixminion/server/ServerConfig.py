@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.39 2003/11/07 07:03:28 nickm Exp $
+# $Id: ServerConfig.py,v 1.40 2003/11/10 04:12:20 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -289,8 +289,6 @@ SERVER_SYNTAX =  {
                      'MixPoolRate' : ('ALLOW', "fraction", "60%"),
                      'MixPoolMinSize' : ('ALLOW', "int", "5"),
 		     'Timeout' : ('ALLOW', "interval", "5 min"),
-                     #XXXX006 remove this.
-                     '__DEBUG_GC' : ('ALLOW', "boolean", "no"),
                      },
         'DirectoryServers' : { # '__SECTION__' : ('REQUIRE', None, None),
                                'ServerURL' : ('ALLOW*', None, None),

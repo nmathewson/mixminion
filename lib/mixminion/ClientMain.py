@@ -153,12 +153,8 @@ def installDefaultConfig(fname):
 #UserDir: ~/.mixminion
 
 [Security]
-## Default length of forward message paths.
-#PathLength: 4
 ## Address to use by default when generating reply blocks
 #SURBAddress: <your address here>
-## Default length of paths for reply blocks
-#SURBPathLength: 3
 ## Deault reply block lifetime
 #SURBLifetime: 7 days
 
@@ -771,6 +767,12 @@ class CLIArgumentParser:
             elif o in ('--no-queue',):
                 self.forceNoQueue = 1
 
+        if self.nHops and not self.path:
+            LOG.warn("-H/--hops is deprecated; use -P '*%d' instead",
+                     self.nHops)
+        elif self.nHops:
+            LOG.warn("-H/--hops is deprecated")
+
     def init(self):
         """Configure objects and initialize subsystems as specified by the
            command line."""
@@ -1272,7 +1274,7 @@ def listServers(cmd, args):
 
     # Collapse consecutive server descriptors with matching features.
     if showTime < 2:
-        featureMap = mixminion.ClientDirectory.compressServerList(
+        featureMap = mixminion.ClientDirectory.compressFeatureMap(
             featureMap, ignoreGaps=(not showTime), terse=(not showTime))
 
     # Now display the result.

@@ -18,19 +18,55 @@ For 0.0.5.something:
 For 0.0.6:  (The release for integrators, Windows users, senders of
 large replies, people with dynamically assigned IPs, people with high
 TCP latency, and me.)
-        . Infrastructure -- low level
-                . Generic 'encrypted storage' abstraction for
+        o Infrastructure -- low level
+                o Generic 'encrypted storage' abstraction for
                   possibly-encrypted singleton pickled objects.
                         o Implement
                         o Integrate
-                        . Test
+                        o Test
                 o Switch ClientQueue to use metadata
+        o Fix misc annoyances
+                o Don't generate dead keys when restarting the server
+                  after the last keys have long expired.
+                o Make sure we clean out Filestores used by clients.
+                o Don't remove currently-undeliverable messages from client
+                  queue when flushing.
+                o Don't say "foo is not recommended" 7 times!
+        o Dynamic IP support
+                o Change IPv4/IPv6 delivery methods to use DNS if desired.
+                  [Migration plan: Supplement 'IP' with 'Hostname' in
+                   ServerInfo.  If we're routing S1->S2, and both have
+                   'Hostname', use FWD/HOST.  Else use FWD/IPv4.  In 0.0.7,
+                   drop FWD/IPv4 support, and remove IP from ServerInfo.]
+                        o Rename *FWD_TYPE to FWD_IPV4_TYPE
+                        o Implement DNS farm
+                                o Implement
+                                o Unit tests
+                        o ServerInfo changes
+                                o Implement
+                                . Unit tests
+                        o Path generation changes
+                                o Implement stub canRelayTo and getRoutingFor
+                                  in ServerInfo.
+                                o Design functionality for can-i-relay-to and
+                                  how-to-i-route-to.
+                                o Use above functions whenever appropriate
+                                o Extend above functions to use IPV4 or HOST.
+                                o Test above functions
+                        o Implement *FWD/HOST
+                                o Changes in Packet.py
+                                o Test changes in Packet.py
+                                o Multiplex on routingtype.
+                        o Implement Host-based routing
+                                o Implement
+                                o Notice self-routing properly
+                                o Test
         . Infrastructure -- high level
                 o Separate directory downloading, directory caching, path
                   parsing, and path generation into a new module.
                 o Separate SURB logging, keystores, and client queues into
                   client support module.
-                . Refactor path selection to have a nicer interface.
+                o Refactor path selection to have a nicer interface.
                         X Generic, cross-module notion of "address".
                         X Better capability infrastructure.
                         o Better ExitAddress notion.
@@ -38,7 +74,7 @@ TCP latency, and me.)
                           checking specifier list for sanity, and generating
                           path from specifier list.
                         o Switch unit tests to test new interface to ClientDir
-                        - New unit tests for multiple converging paths.
+                        o New unit tests for multiple converging paths.
                 o Rewrite ClientMain path generation to do the right
                   thing with multi-packet messages
                         o Write the code
@@ -48,6 +84,12 @@ TCP latency, and me.)
                   decide whether to look for a tag in the RI field.
                 D Make processing thread and module thread general
                   cases of a thread pool abstraction.?
+        - Fragmentation logic fixes
+                - Deliver non-FRAGMENT fragment messages
+                - Don't allow 'FRAGMENT' exit type if no exit modules are
+                  supported.
+                - Catch wild mismatches between Max-Packets on FRAGMENT 
+                  and Max-Size on SMTP/MBOX/etc.
         - UI improvements:
                 . Add some convenient way to list arbitrary server features.
                         o Refactor Config to have a richer idea of types
@@ -72,60 +114,22 @@ TCP latency, and me.)
                   database type.
                 . List servers by nickname, not by IP.
                 - Make TRACE mode less verbose, or make DEBUG mode more useful.
-        - Large reply messages and efwd messages
-                - Relay non-FRAGMENT fragment messages
-                o Make the fragment path selection not suck.
-                - Send logic for client
-                - Fragment-pool logic for client
-                - Don't allow 'FRAGMENT' exit type if no exit modules are
-                  supported.
-                - Catch wild mismatches between Max-Packets on FRAGMENT 
-                  and Max-Size on SMTP/MBOX/etc.
         - Full windows support
                 - Address everything on Itamar's non-blocking
                   incompatibility list.
                 - Installer
                 - Instructions
                 - Py2EXE support
-        o Fix misc annoyances
-                o Don't generate dead keys when restarting the server
-                  after the last keys have long expired.
-                o Make sure we clean out Filestores used by clients.
-                o Don't remove currently-undeliverable messages from client
-                  queue when flushing.
-                o Don't say "foo is not recommended" 7 times!
-        - Dynamic IP support
-                - Change IPv4/IPv6 delivery methods to use DNS if desired.
-                  [Migration plan: Supplement 'IP' with 'Hostname' in
-                   ServerInfo.  If we're routing S1->S2, and both have
-                   'Hostname', use FWD/HOST.  Else use FWD/IPv4.  In 0.0.7,
-                   drop FWD/IPv4 support, and remove IP from ServerInfo.]
-                        o Rename *FWD_TYPE to FWD_IPV4_TYPE
-                        . Implement DNS farm
-                        . ServerInfo changes
-                        - Path generation changes
-                                o Implement stub canRelayTo and getRoutingFor
-                                  in ServerInfo.
-                                - Design functionality for can-i-relay-to and
-                                  how-to-i-route-to. (impl too)
-                                . Use above functions whenever appropriate
-                                - Extend above functions to use IPV4 or HOST.
-                        . Implement *FWD/HOST
-                                o Changes in Packet.py
-                                - Test changes in Packet.py
-                                o Multiplex on routingtype.
-                        . Implement Host-based routing
-                                o Implement
-                                - Notice self-routing properly
-                                - Test
-         . Spec conformance
+        . Spec conformance
                 . Directory Spec
                         o Implement Packet-Versions
                         o Don't use Key-Digest; mark it for removal in 0.0.7.
                         - Make sure Maximum-Size and Allow-From are obeyed
                           for all types
                 - Support SURB secret exchange format.
-         - Specification
+        - Security
+               - Make sure clients always shuffle packets before delivery.
+        - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
                 - Clear up specification for multiple addrs on MAIL
@@ -146,6 +150,10 @@ Reach for 0.0.6:
                   integrators.
         - MMTP
                 - Make MMTP bursty
+        . Large reply messages and efwd messages
+                o Make the fragment path selection not suck.
+                o Send logic for client
+                - Fragment-pool logic for client
         - Dynamic IP support
                 - Servers redirect to latest IP if old IP is down.  (Dynamic
                   IP support, after a fashion.)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.163 2003/11/08 05:57:38 nickm Exp $
+# $Id: test.py,v 1.164 2003/11/10 04:12:20 nickm Exp $
 
 """mixminion.tests
 
@@ -116,10 +116,10 @@ def findFirstDiff(s1, s2):
             return i
     return last
 
-def floatEq(f1,f2):
+def floatEq(f1,f2,tolerance=.00001):
     """Return true iff f1 is very close to f2."""
     if min(f1, f2) != 0:
-        return abs(f1-f2)/min(f1,f2) < .00001
+        return abs(f1-f2)/min(f1,f2) < tolerance
     else:
         return abs(f1-f2) < .00001
 
@@ -127,6 +127,22 @@ def fileURL(fname):
     """Return a file url suitable for a file named 'fname'"""
     fname = os.path.abspath(fname)
     return "file:%s"%fname
+
+#----------------------------------------------------------------------
+# DNS override
+def overrideDNS(overrideDict,delay=0):
+    """DOCDOC"""
+    def getIPs_replacement(addr,overrideDict=overrideDict,delay=delay):
+        v = overrideDict.get(addr)
+        if delay: time.sleep(delay)
+        if v is None:
+            raise socket.error, "not there"
+        elif '.' in v:
+            return [ (mixminion.NetUtils.AF_INET, v, time.time()) ]
+        else:
+            return [ (mixminion.NetUtils.AF_INET6, v, time.time()) ]
+
+    replaceAttribute(mixminion.NetUtils, "getIPs", getIPs_replacement)
 
 #----------------------------------------------------------------------
 # RSA key caching functionality
@@ -176,9 +192,9 @@ class TestCase(unittest.TestCase):
        'assertFoo' functions."""
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
-    def assertFloatEq(self, f1, f2):
+    def assertFloatEq(self, f1, f2, tolerance=.00001):
         """Fail unless f1 and f2 are very close to one another."""
-        if not floatEq(f1, f2):
+        if not floatEq(f1, f2, tolerance):
             self.fail("%s != %s" % (f1, f2))
     def assertLongStringEq(self, s1, s2):
         """Fail unless the string s1 equals the string s2.  If they aren't 
@@ -1339,6 +1355,9 @@ class PacketTests(TestCase):
         self.assertEquals(IPV4Info("18.244.0.188", 48099, ri[-20:]).pack(),
                           ri)
 
+        self.assertEquals(inf, parseRelayInfoByType(FWD_IPV4_TYPE,inf.pack()))
+        self.assertEquals(inf, parseRelayInfoByType(SWAP_FWD_IPV4_TYPE,inf.pack()))
+
         self.failUnlessRaises(ParseError, parseIPV4Info, ri[:-1])
         self.failUnlessRaises(ParseError, parseIPV4Info, ri+"x")
 
@@ -1352,6 +1371,9 @@ class PacketTests(TestCase):
         self.assertEquals(inf.pack(), ri)
         self.assertEquals(MMTPHostInfo("the.hostname.is.here", 0x3055,
                                        keyid).pack(), ri)
+
+        self.assertEquals(inf, parseRelayInfoByType(FWD_HOST_TYPE,inf.pack()))
+        self.assertEquals(inf, parseRelayInfoByType(SWAP_FWD_HOST_TYPE,inf.pack()))
 
         self.failUnlessRaises(ParseError, parseMMTPHostInfo, "z")
         self.failUnlessRaises(ParseError, parseMMTPHostInfo, "\x30\x55"+keyid)
@@ -1662,6 +1684,78 @@ class HashLogTests(TestCase):
         h[0].close()
 
 #----------------------------------------------------------------------
+class NetUtilTests(TestCase):
+    def testGetIP(self):
+        overridedict = {}
+        if hasattr(socket, 'getaddrinfo'):
+            def override_getaddrinfo(name,port,overridedict=overridedict):
+                v = overridedict.get(name)
+                if v:
+                    r = []
+                    for addr in v:
+                        if '.' in addr:
+                            r.append( (mixminion.NetUtils.AF_INET, -1, -1, name, (addr,port) ) )
+                        else:
+                            r.append( (mixminion.NetUtils.AF_INET6, -1, -1, name, (addr,port)) )
+                    return r
+                else:
+                    raise socket.error, "foo"
+            replaceAttribute(socket, "getaddrinfo", override_getaddrinfo)
+        else:
+            def override_gethostbyname(name,overridedict=overridedict):
+                v = overridedict.get(name)
+                if v:
+                    return v[0]
+                else:
+                    raise socket.error, "foo"
+            replaceAttribute(socket, "gethostbyname", override_gethostbyname)
+
+        overridedict['revolving.restaurant'] = [ '30.1.0.50', "00FE::3" ]
+        now = time.time()
+        try:
+            r = mixminion.NetUtils.getIPs('revolving.restaurant')
+
+            self.assertEquals((socket.AF_INET, "30.1.0.50"), r[0][:2])
+            self.assertFloatEq(now, r[0][2])
+
+            if hasattr(socket, 'getaddrinfo'):
+                self.assertEquals(2, len(r))
+                self.assertEquals((mixminion.NetUtils.AF_INET6, "00FE::3"), r[1][:2])
+                self.assertFloatEq(now, r[1][2])
+                self.assertEquals((socket.AF_INET, "30.1.0.50"),
+                       mixminion.NetUtils.getIP("revolving.restaurant",1)[:2])
+                self.assertEquals((mixminion.NetUtils.AF_INET6, "00FE::3"),
+                       mixminion.NetUtils.getIP("revolving.restaurant",0)[:2])
+            else:
+                self.assertEquals(1, len(r))
+                self.assertEquals((socket.AF_INET, "30.1.0.50"),
+                       mixminion.NetUtils.getIP("revolving.restaurant",0)[:2])
+                self.assertEquals((socket.AF_INET, "30.1.0.50"),
+                       mixminion.NetUtils.getIP("revolving.restaurant",1)[:2])
+
+            self.assertRaises(socket.error, mixminion.NetUtils.getIPs,
+                              "nowhere.nowhen.nohow")
+            self.assertEquals(("NOENT", "foo"),
+                      mixminion.NetUtils.getIP("nowhere.nowhen.nohow")[:2])
+        finally:
+            undoReplacedAttributes()
+
+    def testGetProtocolSupport(self):
+        ps = mixminion.NetUtils.getProtocolSupport()
+        self.assertEquals(len(ps),2)
+        self.assertEquals(ps[0], 1) # IPv4 support is required.
+        self.assert_(ps[1] in (0,1))
+
+    def testNameIsStaticIP(self):
+        nisi = mixminion.NetUtils.nameIsStaticIP
+        from mixminion.NetUtils import AF_INET, AF_INET6
+        self.assertEquals(nisi("foo"), None)
+        self.assertEquals(nisi("18.244.0.0")[:2], (AF_INET, "18.244.0.0"))
+        self.assertEquals(nisi("::F00f")[:2], (AF_INET6, "::F00f"))
+        self.assertEquals(nisi("4starts-with-digit.tld"), None)
+        self.assertEquals(nisi("bogus-with-a-colon:wow"), None)
+
+#----------------------------------------------------------------------
 
 # Dummy PRNG class that just returns 0-valued bytes.  We use this to make
 # generated padding predictable in our BuildMessage tests below.
@@ -1689,6 +1783,10 @@ class FakeServerInfo:
         return IPV4Info(self.addr, self.port, self.keyid)
     def getIPV4Info(self):
         return self.getRoutingInfo()
+    def getRoutingFor(self,other,swap):
+        tp = [FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE][swap]
+        return (tp, other.getRoutingInfo().pack())
+                
 
 class BuildMessageTests(TestCase):
     def setUp(self):
@@ -2709,11 +2807,12 @@ class PacketHandlerTests(TestCase):
             # (We temporarily override the setting from 'BuildMessage',
             #  not Packet; BuildMessage has already imported a copy of this
             #  constant.)
-            save = mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE
-            mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE = 50
+            global SWAP_FWD_IPV4_TYPE# override the copy used by FakeServerInfo
+            save = SWAP_FWD_IPV4_TYPE
+            SWAP_FWD_IPV4_TYPE = 50
             m_x = bfm(zPayload, 500, "", [self.server1], [self.server2])
         finally:
-            mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE = save
+            SWAP_FWD_IPV4_TYPE = save
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
 
         # Subhead with bad length
@@ -2723,7 +2822,6 @@ class PacketHandlerTests(TestCase):
         # Subhead we can't parse.
         m_x = pk_encrypt("f"*(256-42), self.pk1)+m[256:]
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
-
 
         # Bad IPV4 info
         subh_real = pk_decrypt(m[:256], self.pk1)
@@ -4458,6 +4556,11 @@ class ServerInfoTests(TestCase):
         eq(info['Server']['Published'], loaded['Server']['Published'])
         eq(info.isValidated(), loaded.isValidated())
 
+        # Other functionality.
+        eq(info.getIPV4Info(), IPV4Info("192.168.0.1", 48099, info.getKeyDigest()))
+        eq(info.getMMTPHostInfo(), MMTPHostInfo("Theserver", 48099, info.getKeyDigest()))
+        eq(info.getMMTPHostInfo(), info.getRoutingInfo())
+        self.assert_(info.canStartAt())
 
         #XXXX006 this is a workaround to deal with the fact that we've
         #XXXX006 opened a fragment DB just to configure the server. Not
@@ -4563,10 +4666,20 @@ IP: 192.168.100.4
         eq(info3['Incoming/MMTP']['IP'], "192.168.100.3")
         self.assert_('smtp' in info3.getCaps())
 
+        # Check routing info
+        self.assert_(info.canRelayTo(info))
+        self.assert_(info.getRoutingFor(info), info.getRoutingInfo())
+        self.assert_(info.canRelayTo(info3))
+        self.assert_(not info3.canRelayTo(info)) # info3 has no outgoing/mmtp
+        self.assertEquals(info.getRoutingFor(info3)[1],
+                          info3.getRoutingInfo().pack())
+        #XXXX006 Test negative (IPv4) cases, somehow.
+
         key3.regenerateServerDescriptor(conf2, identity)
         info3 = key3.getServerDescriptor()
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver4")
         eq(info3['Incoming/MMTP']['IP'], "192.168.100.4")
+
 
     def test_directory(self):
         eq = self.assertEquals
@@ -5765,9 +5878,62 @@ class ServerKeysTests(TestCase):
             # Test getTLSContext
             keyring._getTLSContext()
 
+#----------------------------------------------------------------------
+class DNSFarmTests(TestCase):
+    def testDNSCache(self):
+        import mixminion.server.DNSFarm
+        cache = mixminion.server.DNSFarm.DNSCache()
+        receiveDict = {}
+        lock = threading.RLock()
+        def callback(name,val,receiveDict=receiveDict,lock=lock):
+            lock.acquire()
+            receiveDict[name]=val
+            lock.release()
+        try:
+            DELAY = 0.2
+            overrideDNS({'foo'    : '10.2.4.11',
+                         'bar'    : '18:0FFF::4:1',
+                         'baz.com': '10.99.22.8'},
+                        delay=DELAY)
+            self.assertEquals(None, cache.getNonblocking("foo"))
+            start = time.time()
+            cache.lookup('foo',callback)
+            cache.lookup('bar',callback)
+            self.assertEquals(cache.getNonblocking("bar"),
+                              mixminion.server.DNSFarm.PENDING)
+            time.sleep(DELAY/4)
+            cache.lookup('baz.com',callback)
+            cache.lookup('nowhere.noplace',callback)
+            cache.lookup('1.2.3.4', callback)
 
+            while len(receiveDict)<5:
+                time.sleep(DELAY/4)
+            self.assertEquals(receiveDict['foo'][:2],
+                              (socket.AF_INET, '10.2.4.11'))
+            self.assertEquals(receiveDict['bar'][:2],
+                              (mixminion.NetUtils.AF_INET6, '18:0FFF::4:1'))
+            self.assertFloatEq(receiveDict['foo'][2]-start, DELAY, .3)
+            self.assertFloatEq(receiveDict['bar'][2]-start, DELAY, .3)
+            self.assertEquals(receiveDict['nowhere.noplace'][0], "NOENT")
+            self.assertEquals(cache.getNonblocking("foo"),
+                              receiveDict['foo'])
+            self.assertEquals(cache.getNonblocking("baz.com")[:2],
+                              (socket.AF_INET, '10.99.22.8'))
+            self.assertFloatEq(receiveDict['baz.com'][2]-start, DELAY*1.25, .3)
+            cache.cleanCache(receiveDict['foo'][2]+
+                             mixminion.server.DNSFarm.MAX_ENTRY_TTL+.001)
+            self.assertEquals(cache.getNonblocking('foo'), None)
+            self.assertEquals(cache.getNonblocking('nowhere.noplace'),
+                              receiveDict['nowhere.noplace'])
 
+            self.assertEquals(receiveDict['1.2.3.4'][:2],
+                              (socket.AF_INET, '1.2.3.4'))
 
+            cache.shutdown(wait=1)
+            self.assertEquals(5, len(receiveDict))
+        finally:
+            undoReplacedAttributes()
+            
 #----------------------------------------------------------------------
 
 class ServerMainTests(TestCase):
@@ -5949,7 +6115,6 @@ def getDirectory(servers, identity):
 
 # variable to hold the latest instance of FakeBCC.
 BCC_INSTANCE = None
-
 
 class ClientUtilTests(TestCase):
     def testEncryptedFiles(self):
@@ -6351,6 +6516,9 @@ class ClientDirectoryTests(TestCase):
                 return paths[0]
             else:
                 return paths
+
+        #XXXX007 remove
+        mixminion.ClientDirectory.WARN_STAR = 0
         
         paddr = mixminion.ClientDirectory.parseAddress
         email = paddr("smtp:lloyd@dobler.com")
@@ -6766,6 +6934,7 @@ class ClientMainTests(TestCase):
 
         replaceAttribute(mixminion.MMTPClient, "BlockingClientConnection",
                          FakeBCC)
+        overrideDNS({'alice' : "10.0.0.100"})
         try:
             client.sendForwardMessage(
                 directory,
@@ -6774,8 +6943,9 @@ class ClientMainTests(TestCase):
                 "You only give me your information.",
                 time.time(), time.time()+300)
             bcc = BCC_INSTANCE
+
             # first hop is alice
-            self.assertEquals(bcc.addr, "10.0.0.9")
+            self.assertEquals(bcc.addr, "10.0.0.100")
             self.assertEquals(bcc.port, 48099)
             self.assertEquals(0, bcc.connected)
             self.assertEquals(1, len(bcc.packets))
@@ -7001,7 +7171,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientDirectoryTests))
+        suite.addTest(tc(PacketTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -7018,6 +7188,8 @@ def testSuite():
                    FragmentTests,
                    QueueTests,
                    EventStatsTests,
+                   NetUtilTests,
+                   DNSFarmTests,
            
                    ModuleTests,
                    ClientDirectoryTests,

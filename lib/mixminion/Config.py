@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.64 2003/11/07 10:43:18 nickm Exp $
+# $Id: Config.py,v 1.65 2003/11/10 04:12:20 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -66,6 +66,7 @@ from cStringIO import StringIO
 
 import mixminion.Common
 import mixminion.Crypto
+import mixminion.NetUtils
 
 from mixminion.Common import MixError, LOG, ceilDiv, englishSequence, \
      formatBase64, isPrintingAscii, stripSpace, stringContains, UIError
@@ -167,6 +168,8 @@ def _parseIntervalList(s):
     return ilist
 
 def _unparseIntervalList(lst):
+    """Helper function: given an interval list, converts it back to the
+       expected format."""
     if lst == []:
         return ""
     r = [ (lst[0], 1) ]
@@ -225,75 +228,25 @@ def _unparseSize(size):
             idx += 1
             size >>= 10
 
-# Regular expression to match a dotted quad.
-_ip_re = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
-
 def _parseIP(ip):
     """Validation function.  Converts a config value to an IP address.
        Raises ConfigError on failure."""
-    i = ip.strip()
-
-    # inet_aton is a bit more permissive about spaces and incomplete
-    # IP's than we want to be.  Thus we use a regex to catch the cases
-    # it doesn't.
-    if not _ip_re.match(i):
-        raise ConfigError("Invalid IP %r" % i)
     try:
-        socket.inet_aton(i)
-    except socket.error:
-        raise ConfigError("Invalid IP %r" % i)
-
-    return i
-
-_IP6_CHARS="01233456789ABCDEFabcdef:."
+        return mixminion.NetUtils.normalizeIP4(ip)
+    except ValueError, e:
+        raise ConfigError(str(e))
 
 def _parseIP6(ip6):
-    """DOCDOC"""
-    ip = ip6.strip()
-    bad = ip6.translate(mixminion.Common._ALLCHARS, _IP6_CHARS)
-    if bad:
-        raise ConfigError("Invalid characters %r in address %r"%(bad,ip))
-    if len(ip) < 2:
-        raise ConfigError("IPv6 address %r is too short"%ip)
-        
-    items = ip.split(":")
-    if not items:
-        raise ConfigError("Empty IPv6 address")
-    if items[:2] == ["",""]:
-        del items[0]
-    if items[-2:] == ["",""]:
-        del items[-1]
-    foundNils = 0
-    foundWords = 0 # 16-bit words
-
-    for item in items:
-        if item == "":
-            foundNils += 1
-        elif '.' in item:
-            _parseIP(item)
-            if item is not items[-1]:
-                raise ConfigError("Embedded IPv4 address %r must appear at end of IPv6 address %r"%(item,ip))
-            foundWords += 2
-        else:
-            try:
-                val = string.atoi(item,16)
-            except ValueError:
-                raise ConfigError("IPv6 word %r did not parse"%item)
-            if not (0 <= val <= 0xFFFF):
-                raise ConfigError("IPv6 word %r out of range"%item)
-            foundWords += 1
-            
-    if foundNils > 1:
-        raise ConfigError("Too many ::'s in IPv6 address %r"%ip)
-    elif foundNils == 0 and foundWords < 8:
-        raise ConfigError("IPv6 address %r is too short"%ip)
-    elif foundWords > 8:
-        raise ConfigError("IPv6 address %r is too long"%ip)
-            
-    return ip
+    """Validation function.  Converts a config value to an IP address.
+       Raises ConfigError on failure."""
+    try:
+        return mixminion.NetUtils.normalizeIP6(ip6)
+    except ValueError, e:
+        raise ConfigError(str(e))
 
 def _parseHost(host):
-    """DOCDOC"""
+    """Validation function.  Checks a config value as a valid hostname.
+       Raises ConfigError on failure."""
     host = host.strip()
     if not mixminion.Common.isPlausibleHostname(host):
         raise ConfigError("%r doesn't look like a valid hostname",host)
@@ -553,6 +506,8 @@ def _readConfigFile(contents):
     return sections
 
 def _readRestrictedConfigFile(contents):
+    """Same interface as _readConfigFile, but only supports the restrictd
+       file format as used by directories and descriptors."""
     # List of (heading, [(key, val, lineno), ...])
     sections = []
     # [(key, val, lineno)] for the current section.
@@ -617,10 +572,21 @@ def _formatEntry(key,val,w=79,ind=4):
     lines.append("") # so the last line ends with \n
     return "\n".join(lines)
 
-
 def resolveFeatureName(name, klass):
-    """DOCDOC"""
-    #XXXX006 this should be case insensitive.
+    """Given a feature name and a subclass of _ConfigFile, check whether
+       the feature exists, and return a sec/name tuple that, when passed to
+       _ConfigFile.getFeature, gives the value of the appropriate feature.
+       Raises a UIError if the feature name is invalid.
+
+       A feature is either: a special string handled by the class (like
+       'caps' for ServerInfo), a special string handled outside the class
+       (like 'status' for ClientDirectory), a Section:Entry string, or an
+       Entry string.  (If the Entry string is not unique within a section,
+       raises UIError.)  All features are case-insensitive.
+
+       Example features are: 'caps', 'status', 'Incoming/MMTP:Version',
+         'hostname'.
+       """
     syn = klass._syntax
     name = name.lower()
     if klass._features.has_key(name):
@@ -681,6 +647,8 @@ class _ConfigFile:
     #         unrecognized key, or do we simply generate a warning?
     #     _restrictSections is 1/0: do we raise a ConfigError when we see an
     #         unrecognized section, or do we simply generate a warning?
+    #     _features is a map from lowercase feature name to 1 for
+    #         features that should be handled by getFeature.
 
     ## Validation rules:
     # A key without a corresponding entry in _syntax gives an error.
@@ -719,7 +687,7 @@ class _ConfigFile:
         }
 
     _syntax = None
-    _features = {}
+    _features = {} 
     _restrictFormat = 0
     _restrictKeys = 1
     _restrictSections = 1
@@ -890,7 +858,8 @@ class _ConfigFile:
         return contents
 
     def getFeature(self,sec,name):
-        """DOCDOC"""
+        """Given a sec/name pair returned by resolveFeatureName, return a
+           string value of that feature for the class."""
         assert sec not in ("+","-")
         parseType = self._syntax[sec].get(name)[1]
         _, unparseFn = self.CODING_FNS.get(parseType, (None,str))
@@ -959,9 +928,9 @@ class ClientConfig(_ConfigFile):
                        'SURBAddress' : ('ALLOW', None, None),
                        'SURBPathLength' : ('ALLOW', "int", "4"),
                        'SURBLifetime' : ('ALLOW', "interval", "7 days"),
-                       'ForwardPath' : ('ALLOW', None, "*"),
-                       'ReplyPath' : ('ALLOW', None, "*"),
-                       'SURBPath' : ('ALLOW', None, "*"),
+                       'ForwardPath' : ('ALLOW', None, "*6"),
+                       'ReplyPath' : ('ALLOW', None, "*4"),
+                       'SURBPath' : ('ALLOW', None, "*4"),
                        },
         'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", None) }
         }
@@ -1008,4 +977,4 @@ def _validateHostSection(sec):
     # in configure_trng and configureShredCommand, respectively.
 
     # Host is checked in setupTrustedUIDs.
-
+    

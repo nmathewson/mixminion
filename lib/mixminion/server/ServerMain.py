@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.99 2003/11/07 08:11:36 nickm Exp $
+# $Id: ServerMain.py,v 1.100 2003/11/10 04:12:20 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -300,7 +300,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         mixminion.server.ServerQueue.DeliveryQueue.__init__(self, location)
         self.server = None
         self.incomingQueue = None
-        self.addr = (ip,port,keyid) #XXXX006 need to detect same host.
+        self.keyID = keyid
 
     def configure(self, config):
         """Set up this queue according to a ServerConfig object."""
@@ -327,9 +327,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 continue
             msgs.setdefault(addr, []).append(pending)
         for routing, messages in msgs.items():
-            if self.addr[:2] == (routing.ip, routing.port): #XXX006 detect host
-                if self.addr[2] != routing.keyinfo:
-                    LOG.warn("Delivering messages to myself with bad KeyID")
+            if self.keyID == routing.keyinfo:
                 for pending in messages:
                     LOG.trace("Delivering message OUT:%s to myself.",
                               pending.getHandle())
@@ -1056,12 +1054,6 @@ def runServer(cmd, args):
         LOG.fatal_exc(info,"Exception while configuring server")
         LOG.fatal("Shutting down because of exception: %s", info[0])
         sys.exit(1)
-
-    # Undocumented feature to cajole python into dumping gc info.
-    if config['Server']['__DEBUG_GC']:
-        import gc
-        gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_COLLECTABLE|gc.DEBUG_UNCOLLECTABLE
-                     |gc.DEBUG_INSTANCES|gc.DEBUG_OBJECTS)
 
     if daemonMode:
         LOG.info("Starting server in the background")

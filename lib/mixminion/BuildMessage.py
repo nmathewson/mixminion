@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.60 2003/10/19 03:12:01 nickm Exp $
+# $Id: BuildMessage.py,v 1.61 2003/11/10 04:12:20 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -258,7 +258,8 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
     header = _buildHeader(path, headerSecrets, exitType, tag+exitInfo,
                           paddingPRNG=Crypto.getCommonPRNG())
 
-    # XXXX007 switch to Host info.
+    # XXXX007 switch to Host info.  We need to use IPV4 for reply blocks
+    # XXXX007 for now, since we don't know which servers will support HOST.
     return ReplyBlock(header, expiryTime,
                       SWAP_FWD_IPV4_TYPE,
                       path[0].getIPV4Info().pack(), sharedKey), secrets, tag
@@ -308,7 +309,8 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     err = 0 # 0: no error. 1: 1st leg too big. 2: 1st leg okay, 2nd too big.
     if path1 is not None:
         try:
-            _getRouting(path1, SWAP_FWD_IPV4_TYPE, path2[0].getRoutingInfo().pack())
+            rt,ri = path1[-1].getRoutingFor(path2[0],swap=1)
+            _getRouting(path1, rt, ri)
         except MixError:
             err = 1
     # Add a dummy tag as needed to last exitinfo.
@@ -457,7 +459,7 @@ def _decodeStatelessReplyPayload(payload, tag, userKey):
 
 #----------------------------------------------------------------------
 def _buildPacket(payload, exitType, exitInfo,
-                path1, path2, paddingPRNG=None, paranoia=0):
+                 path1, path2, paddingPRNG=None, paranoia=0):
     """Helper method to create a message.
 
     The following fields must be set:
@@ -511,8 +513,7 @@ def _buildPacket(payload, exitType, exitInfo,
         path1exittype = reply.routingType
         path1exitinfo = reply.routingInfo
     else:
-        path1exittype = SWAP_FWD_IPV4_TYPE
-        path1exitinfo = path2[0].getRoutingInfo().pack()
+        path1exittype, path1exitinfo = path1[-1].getRoutingFor(path2[0],swap=1)
 
     # Generate secrets for path1.
     secrets1 = [ secretRNG.getBytes(SECRET_LEN) for _ in path1 ]
@@ -700,8 +701,9 @@ def _getRouting(path, exitType, exitInfo):
        Raises MixError if the routing info is too big to fit into a single
        header. """
     # Construct a list 'routing' of exitType, exitInfo.
-    routing = [ (FWD_IPV4_TYPE, node.getRoutingInfo().pack()) for
-                node in path[1:] ]
+    routing = []
+    for i in xrange(len(path)-1):
+        routing.append(path[i].getRoutingFor(path[i+1],swap=0))
     routing.append((exitType, exitInfo))
 
     # sizes[i] is number of bytes added to header for subheader i.

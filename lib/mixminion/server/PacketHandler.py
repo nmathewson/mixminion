@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.29 2003/10/13 17:30:24 nickm Exp $
+# $Id: PacketHandler.py,v 1.30 2003/11/10 04:12:20 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -212,7 +212,8 @@ class PacketHandler:
 
         # If we're not an exit node, make sure that what we recognize our
         # routing type.
-        if rt not in (Packet.SWAP_FWD_IPV4_TYPE, Packet.FWD_IPV4_TYPE):
+        if rt not in (Packet.SWAP_FWD_IPV4_TYPE, Packet.FWD_IPV4_TYPE,
+                      Packet.SWAP_FWD_HOST_TYPE, Packet.FWD_HOST_TYPE):
             raise ContentError("Unrecognized Mixminion routing type")
 
         # Decrypt header 2.
@@ -232,7 +233,7 @@ class PacketHandler:
             header1, header2 = header2, header1
 
         # Build the address object for the next hop
-        address = Packet.parseIPV4Info(subh.routinginfo)
+        address = Packet.parseRelayInfoByType(rt, subh.routinginfo)
 
         # Construct the message for the next hop.
         pkt = Packet.Packet(header1, header2, payload).pack()
@@ -246,9 +247,9 @@ class RelayedPacket:
     # address -- an instance of IPV4Info
     # msg -- a 32K packet.
     def __init__(self, address, msg):
-        """Create a new packet, given an instance of IPV4Info and a 32K
-           packet."""
-        assert isinstance(address, Packet.IPV4Info)
+        """Create a new packet, given an instance of IPV4Info or
+           MMTPHostInfo and a 32K packet."""
+        assert isinstance(address, Packet.IPV4Info) or isinstance(address, Packet.MMTPHostInfo)
         assert len(msg) == 1<<15
         self.address = address
         self.msg = msg
@@ -258,8 +259,8 @@ class RelayedPacket:
         return 0
 
     def getAddress(self):
-        """Return an instance of IPV4Info indicating the address where this
-           packet is to be delivered."""
+        """Return an instance of IPV4Info or MMTPHostInfo indicating
+           the address where this packet is to be delivered."""
         return self.address
 
     def getPacket(self):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.34 2003/09/28 04:12:29 nickm Exp $
+# $Id: ServerQueue.py,v 1.35 2003/11/10 04:12:21 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -176,6 +176,7 @@ class PendingMessage:
     def getMessage(self):
         """Return the underlying object stored in the delivery queue, loading
            it from disk if necessary. May raise CorruptedFile."""
+        assert self.handle is not None
         if self.message is None:
             self.message = self.queue.store.getObject(self.handle)
         return self.message

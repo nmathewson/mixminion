@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.56 2003/11/07 08:11:36 nickm Exp $
+# $Id: ServerKeys.py,v 1.57 2003/11/10 04:12:20 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -1196,6 +1196,7 @@ def _checkHostnameIsLocal(name):
                     LOG.warn("Hostname %r resolves to reserved address %s",
                              name,addr)
     except socket.error, e:
+        # XXXX006 Turn into a warning?
         raise UIError("Cannot resolve hostname %r: %s"%(name,e))
     _KNOWN_LOCAL_HOSTNAMES[name] = 1
 

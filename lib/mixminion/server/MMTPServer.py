@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.55 2003/11/07 08:11:36 nickm Exp $
+# $Id: MMTPServer.py,v 1.56 2003/11/10 04:12:20 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -32,7 +32,7 @@ from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN, IPV4Info, MMTPHostInfo
 from mixminion.MMTPClient import PeerCertificateCache
-from mixminion.NetUtils import IN_PROGRESS_ERRNOS, getProtocolSupport
+from mixminion.NetUtils import IN_PROGRESS_ERRNOS, getProtocolSupport, AF_INET, AF_INET6
 import mixminion.server.EventStats as EventStats
 from mixminion.Filestore import CorruptedFile
 
@@ -763,6 +763,9 @@ class DeliverablePacket(DeliverableMessage):
        PacketHandler.RelayPacket objects."""
     def __init__(self, pending):
         DeliverableMessage.__init__(self)
+        assert hasattr(pending, 'succeeded')
+        assert hasattr(pending, 'failed')
+        assert hasattr(pending, 'getMessage')        
         self.pending = pending
     def succeeded(self):
         self.pending.succeeded()
@@ -823,8 +826,11 @@ class MMTPClientConnection(SimpleTLSConnection):
         if certCache is None:
             certCache = PeerCertificateCache()
         self.certCache = certCache
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if ':' in ip:
+            family = AF_INET6
+        else:
+            family = AF_INET
+        sock = socket.socket(family, socket.SOCK_STREAM)
         sock.setblocking(0)
         self.keyID = keyID
         self.ip = ip
@@ -1087,8 +1093,8 @@ class MMTPAsyncServer(AsyncServer):
             port = config['Incoming/MMTP']['Port']
 
         self.listeners = [] #DOCDOC
-        for (supported, addr, family) in [(ip4_supported,IP,socket.AF_INET),
-                                          (ip6_supported,IP6,socket.AF_INET6)]:
+        for (supported, addr, family) in [(ip4_supported,IP,AF_INET),
+                                          (ip6_supported,IP6,AF_INET6)]:
             if not supported or not addr:
                 continue
             listener = ListenConnection(family, addr, port,
@@ -1136,7 +1142,7 @@ class MMTPAsyncServer(AsyncServer):
     def sendMessagesByRouting(self, routing, deliverable):
         """DOCDOC"""
         if isinstance(routing, IPV4Info):
-            self.sendMessages(socket.AF_INET, routing.ip, routing.port,
+            self.sendMessages(AF_INET, routing.ip, routing.port,
                               routing.keyinfo, deliverable)
         else:
             assert isinstance(routing, MMTPHostInfo)
