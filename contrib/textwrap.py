@@ -1,34 +1,41 @@
 """Text wrapping and filling.
 
-   Backported to Python 2.0 for inclusion in Mixminion.
+   Backported to Python 2.0 for Mixminion
 """
 
 # Copyright (C) 1999-2001 Gregory P. Ward.
-# Copyright (C) 2002 Python Software Foundation.
+# Copyright (C) 2002, 2003 Python Software Foundation.
 # Written by Greg Ward <gward@python.net>
 
-# XXX currently this module does not work very well with Unicode
-# strings.  See http://www.python.org/sf/622831 for updates.
-
-
-
-__revision__ = "$Id: textwrap.py,v 1.1 2002/12/16 19:17:46 nickm Exp $"
+__revision__ = "$Id: textwrap.py,v 1.2 2003/06/21 21:44:01 nickm Exp $"
 
 import string, re
 
 # THIS SECTION IS HERE TO BACKPORT THIS MODULE TO PYTHON 2.0.
-
+#
 #   Later in the file, we replace ininstance(x, str) with
 #   isinstance(x, types.StringType) and so on.
 import types
 
-
-#   The 'True' and 'False' constants weren't introduced until Python 2.3.
+# Do the right thing with boolean values for all known Python versions
+# (so this module can be copied to projects that don't depend on Python
+# 2.3, e.g. Optik and Docutils).
 try:
-    True
+    True, False
 except NameError:
-    True, False = 1, 0
-# END BACKPORT SECTION.
+    (True, False) = (1, 0)
+
+__all__ = ['TextWrapper', 'wrap', 'fill']
+
+# Hardcode the recognized whitespace characters to the US-ASCII
+# whitespace characters.  The main reason for doing this is that in
+# ISO-8859-1, 0xa0 is non-breaking whitespace, so in certain locales
+# that character winds up in string.whitespace.  Respecting
+# string.whitespace in those cases would 1) make textwrap treat 0xa0 the
+# same as any other whitespace char, which is clearly wrong (it's a
+# *non-breaking* space), 2) possibly cause problems with Unicode,
+# since 0xa0 is not in range(128).
+_whitespace = '\t\n\x0b\x0c\r '
 
 class TextWrapper:
     """
@@ -59,19 +66,19 @@ class TextWrapper:
         single space!
       fix_sentence_endings (default: false)
         Ensure that sentence-ending punctuation is always followed
-        by two spaces.  Off by default becaus the algorithm is
+        by two spaces.  Off by default because the algorithm is
         (unavoidably) imperfect.
       break_long_words (default: true)
         Break words longer than 'width'.  If false, those words will not
         be broken, and some lines might be longer than 'width'.
     """
 
-    whitespace_trans = string.maketrans(string.whitespace,
-                                        ' ' * len(string.whitespace))
+    whitespace_trans = string.maketrans(_whitespace, ' ' * len(_whitespace))
 
     unicode_whitespace_trans = {}
-    for c in string.whitespace:
-        unicode_whitespace_trans[ord(unicode(c))] = ord(u' ')
+    uspace = ord(u' ')
+    for x in map(ord, _whitespace):
+        unicode_whitespace_trans[x] = uspace
 
     # This funky little regex is just the trick for splitting
     # text up into word-wrappable chunks.  E.g.
@@ -81,7 +88,7 @@ class TextWrapper:
     # (after stripping out empty strings).
     wordsep_re = re.compile(r'(\s+|'                  # any whitespace
                             r'-*\w{2,}-(?=\w{2,})|'   # hyphenated words
-                            r'(?<=\S)-{2,}(?=\w))')   # em-dash
+                            r'(?<=[\w\!\"\'\&\.\,\?])-{2,}(?=\w))')   # em-dash
 
     # XXX will there be a locale-or-charset-aware version of
     # string.lowercase in 2.3?
@@ -203,6 +210,8 @@ class TextWrapper:
         lines, but apart from that whitespace is preserved.
         """
         lines = []
+        if self.width <= 0:
+            raise ValueError("invalid width %r (must be > 0)" % self.width)
 
         while chunks:
 
@@ -310,3 +319,45 @@ def fill(text, width=70, **kwargs):
     """
     w = TextWrapper(width=width, **kwargs)
     return w.fill(text)
+
+
+# -- Loosely related functionality -------------------------------------
+
+def dedent(text):
+    """dedent(text : string) -> string
+
+    Remove any whitespace than can be uniformly removed from the left
+    of every line in `text`.
+
+    This can be used e.g. to make triple-quoted strings line up with
+    the left edge of screen/whatever, while still presenting it in the
+    source code in indented form.
+
+    For example:
+
+        def test():
+            # end first line with \ to avoid the empty line!
+            s = '''\
+            hello
+              world
+            '''
+            print repr(s)          # prints '    hello\n      world\n    '
+            print repr(dedent(s))  # prints 'hello\n  world\n'
+    """
+    lines = text.expandtabs().split('\n')
+    margin = None
+    for line in lines:
+        content = line.lstrip()
+        if not content:
+            continue
+        indent = len(line) - len(content)
+        if margin is None:
+            margin = indent
+        else:
+            margin = min(margin, indent)
+
+    if margin is not None and margin > 0:
+        for i in range(len(lines)):
+            lines[i] = lines[i][margin:]
+
+    return '\n'.join(lines)
