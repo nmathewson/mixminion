@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.4 2003/01/10 20:12:05 nickm Exp $
+# $Id: PacketHandler.py,v 1.5 2003/01/13 06:28:49 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -252,15 +252,6 @@ class DeliveryPacket:
     def isError(self):
         if self.type is None: self.decode()
         return self.type == 'err'
-
-    def getFakeTag(self):
-        if self.type is None: self.decode()
-        if self.type == 'enc':
-            return self.tag
-        elif self.type == 'plain':
-            return None
-        else:
-            return self.type
 
     def decode(self):
         if self.payload is None:
