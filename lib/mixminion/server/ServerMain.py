@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.128 2004/05/17 21:07:12 nickm Exp $
+# $Id: ServerMain.py,v 1.129 2004/05/17 21:18:22 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -322,7 +322,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
     def __init__(self, location, (ip,port,keyid)):
         """Create a new OutgoingQueue that stores its packets in a given
            location."""
-        mixminion.server.ServerQueue.DeliveryQueue.__init__(self, location)
+        mixminion.server.ServerQueue.PerAddressDeliveryQueue.__init__(self, location)
         self.server = None
         self.incomingQueue = None
         self.keyID = keyid
@@ -725,7 +725,7 @@ class MixminionServer(_Scheduler):
         LOG.debug("Initializing directory client")
         self.dirClient = mixminion.ClientDirectory.ClientDirectory(config)
         try:
-            self.dirClient.updateDirectory()
+            self.dirClient.update()
         except UIError, e:
             LOG.warn(str(e))
             LOG.warn("   (I'll use the old directory until I have a new one.)")
@@ -834,7 +834,7 @@ class MixminionServer(_Scheduler):
     def updateDirectoryClient(self):
         def c(self=self):
             try:
-                self.dirClient.updateDirectory()
+                self.dirClient.update()
                 nextUpdate = succeedingMidnight(time.time()+30)
                 prng = mixminion.Crypto.getCommonPRNG()
                 # Randomly retrieve the directory within an hour after
