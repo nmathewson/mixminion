@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.16 2003/05/30 03:07:56 nickm Exp $
+# $Id: testSupport.py,v 1.17 2003/06/05 05:34:56 nickm Exp $
 
 """mixminion.testSupport
 
@@ -124,8 +124,8 @@ Decoding handle: %s%s==========MESSAGE ENDS""" % (
 
 # Name of our temporary directory: all temporary files go under this
 # directory.  If None, it hasn't been created yet.  If it exists,
-# it must be owned by us, mode 700, and have no parents that an adversary
-# (other than root) could write to.
+# it must be owned by us, mode 700.
+
 _MM_TESTING_TEMPDIR = None
 # How many temporary files have we created so far?
 _MM_TESTING_TEMPDIR_COUNTER = 0
@@ -175,7 +175,6 @@ def mix_mktemp(extra=""):
         if st[stat.ST_UID] != os.getuid():
             print "The wrong user owns temp dir %r"%temp
             sys.exit(1)
-        parent = temp
 
         _MM_TESTING_TEMPDIR = temp
         if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:

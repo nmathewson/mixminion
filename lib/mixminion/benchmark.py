@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.38 2003/06/05 02:27:30 nickm Exp $
+# $Id: benchmark.py,v 1.39 2003/06/05 05:34:56 nickm Exp $
 
 """mixminion.benchmark
 
@@ -13,6 +13,7 @@
 __pychecker__ = 'no-funcdoc no-reimport'
 __all__ = [ 'timeAll', 'testLeaks1', 'testLeaks2' ]
 
+import gc
 import os
 import stat
 import cPickle
@@ -850,8 +851,6 @@ def testLeaks5_send():
         print n, "sent"
 
 
-import gc
-import pprint
 
 def testLeaks5_send2():
     from mixminion.test import _getMMTPServer

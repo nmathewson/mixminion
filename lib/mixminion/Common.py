@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.86 2003/06/05 05:24:23 nickm Exp $
+# $Id: Common.py,v 1.87 2003/06/05 05:34:56 nickm Exp $
 
 """mixminion.Common
 
@@ -1247,6 +1247,8 @@ def openUnique(fname, mode='w', perms=0600):
                 raise
         idx += 1
         fname = os.path.join(base, "%s.%s"%(rest,idx))
+
+    raise MixFatalError("unreachable code")
 
 #----------------------------------------------------------------------
 class Lockfile:

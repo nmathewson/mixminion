@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.70 2003/06/05 05:24:23 nickm Exp $
+# $Id: ServerMain.py,v 1.71 2003/06/05 05:34:56 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -85,7 +85,7 @@ def getHomedirVersion(config):
             if e.errno == errno.ENOENT:
                 # The file doesn't exist; the version must be '1000'.
                 dirVersion = "1000"
-            elif e.errno == errnoe.EACCES:
+            elif e.errno == errno.EACCES:
                 raise UIError("You don't have permission to read %s"%
                               versionFile)
             else:
@@ -1133,7 +1133,7 @@ def runUpgrade(cmd, args):
     keep = 0
     for keyset in keysets:
         try:
-            inf = keyset.getServerDescriptor()
+            _ = keyset.getServerDescriptor()
             keep += 1
         except mixminion.Config.ConfigError, e:
             errors += 1            
@@ -1194,7 +1194,6 @@ def runDELKEYS(cmd, args):
     homeDir = config['Server']['Homedir']
     keyDir = os.path.join(homeDir, 'keys')
     hashDir = os.path.join(homeDir, 'work', 'hashlogs')
-    keysets = []
     if not os.path.exists(keyDir):
         print >>sys.stderr, "No server keys to delete"
     else:
