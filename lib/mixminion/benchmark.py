@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.47 2003/08/21 21:34:03 nickm Exp $
+# $Id: benchmark.py,v 1.48 2003/11/10 04:04:35 nickm Exp $
 
 """mixminion.benchmark
 
@@ -23,7 +23,7 @@ from time import time
 import mixminion._minionlib as _ml
 import mixminion.server.ServerQueue
 
-from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
+from mixminion.BuildMessage import _buildHeader, buildForwardPacket, \
      compressData, uncompressData, encodeMessage, decodePayload
 from mixminion.Common import secureDelete, installSIGCHLDHandler, \
      waitForChildren, formatBase64, Lockfile
@@ -460,10 +460,12 @@ def buildMessageTiming():
     bh(8,20)
     bh(16,10)
 
+    payload = encodeMessage(payload, 0)[0]
+
     def bm(np1,np2,it,serverinfo=serverinfo,payload=payload):
         tm = timeit_( \
               lambda np1=np1,np2=np2,it=it,serverinfo=serverinfo,
-                      payload=payload: buildForwardMessage(payload,
+                      payload=payload: buildForwardPacket(payload,
                                                500,
                                                "Hello",
                                                serverinfo[:np1],
@@ -553,13 +555,14 @@ def serverProcessTiming():
     server = FakeServerInfo("127.0.0.1", 1, pk, "X"*20)
     sp = PacketHandler([pk], [DummyLog()])
 
-    m_noswap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
-                                   [server, server], [server, server])
+    payload = encodeMessage("Hello world",0)[0]
+    m_noswap = buildForwardPacket(payload, SMTP_TYPE, "f@invalid",
+                                  [server, server], [server, server])
 
     print "Server process (no swap, no log)", timeit(
         lambda sp=sp, m_noswap=m_noswap: sp.processMessage(m_noswap), 100)
 
-    m_swap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
+    m_swap = buildForwardPacket(payload, SMTP_TYPE, "f@invalid",
                                  [server], [server, server])
 
     print "Server process (swap, no log)", timeit(
@@ -665,8 +668,9 @@ def timeEfficiency():
     server = FakeServerInfo("127.0.0.1", 1, pk, "X"*20)
     sp = PacketHandler([pk], [DummyLog()])
 
-    m_noswap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
-                                   [server, server], [server, server])
+    payload = encodeMessage("Hello world",0)[0]
+    m_noswap = buildForwardPacket(payload, SMTP_TYPE, "f@invalid",
+                                  [server, server], [server, server])
 
     sp_ns = timeit_(
         lambda sp=sp, m_noswap=m_noswap: sp.processMessage(m_noswap), 100)
@@ -1007,6 +1011,7 @@ def timeAll(name, args):
     if 0:
         timeEfficiency()
         return
+
     fecTiming()    
     cryptoTiming()
     rsaTiming()
