@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.131 2003/07/07 23:46:51 nickm Exp $
+# $Id: test.py,v 1.132 2003/07/08 18:38:25 nickm Exp $
 
 """mixminion.tests
 
@@ -842,29 +842,36 @@ class MinionlibCryptoTests(unittest.TestCase):
 
 #----------------------------------------------------------------------
 class MinionlibFECTests(unittest.TestCase):
-    def test_good_fec(self):
+    def do_fec_test(self, k, n, sz):
+        r = getCommonPRNG()
+
         eq = self.assertEquals
-        f3_5 = _ml.FEC_generate(3,5)
-        eq((3,5), f3_5.getParameters())
-        inp = [ "Amidst the mists   ",
-                "and coolests frosts",
-                "with barest wrists " ]
+        fec = _ml.FEC_generate(k,n)
+        eq((k,n), fec.getParameters())
 
-        eq(inp[0], f3_5.encode(0, inp))
-        eq(inp[1], f3_5.encode(1, inp))
-        eq(inp[2], f3_5.encode(2, inp))
-                
-        ch1 = f3_5.encode(3, inp)
-        ch2 = f3_5.encode(4, inp)
-        
-        print inp
+        inpChunks = [ r.getBytes(sz) for i in xrange(k) ]
+        inp = "".join(inpChunks)
+        outChunks = [ fec.encode(i, inpChunks) for i in xrange(n) ]
+        for i in xrange(n):
+            if n < k:
+                eq(outChunks[i], inChunks[i])
+            eq(len(outChunks[i]), sz)
 
-        eq("".join(inp), f3_5.decode([(0, inp[0]), (1, inp[1]), (2, inp[2])]))
-        print inp
-        eq("".join(inp), f3_5.decode([(0, inp[0]), (1, inp[1]), (3, ch1)]))
+        numberedChunks = [ (i, outChunks[i]) for i in xrange(n) ]
 
-        print "HERE"
-
+        for i in xrange(200):
+            chk = r.shuffle(numberedChunks, k)
+            #print [ i for i,_ in chk ]
+            out = fec.decode(chk)
+            eq(out, inpChunks)
+            eq("".join(out), inp)
+          
+    def test_good_fec(self):
+        self.do_fec_test(3,5,10)
+        self.do_fec_test(10,20,1024)
+        self.do_fec_test(30,40,1024)
+        self.do_fec_test(3,4,128)
+        self.do_fec_test(3,3,2048)
 
 #----------------------------------------------------------------------
 

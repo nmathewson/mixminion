@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.42 2003/06/06 07:54:46 nickm Exp $
+# $Id: benchmark.py,v 1.43 2003/07/08 18:38:24 nickm Exp $
 
 """mixminion.benchmark
 
@@ -724,7 +724,30 @@ def fileOpsTiming():
     t = time()-t1
     print "          (sync)", timestr(t/100)
 
+#----------------------------------------------------------------------
+def fecTiming():
+    print "#================= FEC =========================="
 
+    r = getCommonPRNG()
+    for k,n,it in [(5,10,1000),
+                   (20,25,300),
+                   (30,40,100),
+                   (40,50,100)
+                   ]:
+        print "FEC (%s/%s)"%(k,n)
+        msg = [ r.getBytes(28*1024) for i in xrange(k) ]
+        fec = _ml.FEC_generate(k,n)
+        tm = timeit_(lambda f=fec, m=msg,k=k: f.encode(k+1,m), it)
+        print "Encode a single 28KB check block:", timestr(tm)
+        print "                (time/(k*28KB)) =", timestr(tm/(k*28)), "/ KB"
+        missing_1 = [ (i, fec.encode(i,msg)) for i in xrange(1,k+1) ]
+        missing_max = [ (i, fec.encode(i,msg)) for i in xrange(n-k,n) ]
+        tm = timeit_(lambda f=fec, m=missing_1: f.decode(m), it)
+        print "              Decode (1 missing):", timestr(tm)
+        print "              (time/(k*28KB*1)) =", timestr(tm/(k*28)), "/ KB"
+        tm = timeit_(lambda f=fec, m=missing_max: f.decode(m), it)
+        print "            Decode (k-n missing):", timestr(tm)
+        print "          (time/(k*28KB*(n-k))) =", timestr(tm/(k*28*(n-k))), "/ KB"
 #----------------------------------------------------------------------
 def testLeaks1():
     print "Trying to leak (sha1,aes,xor,seed,oaep)"
@@ -968,12 +991,20 @@ def testLeaks6_2():
         tls.shutdown()
         sock.close()
 
+def testLeaks_FEC():
+    inp = [ "aaaaa"*1024, "bbbbb"*1024, "ccccc"*1024 ]
+    while 1:
+        fec = _ml.FEC_generate(3,5)
+        chunks = [ fec.encode(i, inp) for i in xrange(5) ]
+        dec = fec.decode([(i, chunks[i]) for i in xrange(2,5) ])
+
 #----------------------------------------------------------------------
 def timeAll(name, args):
     if 0:
-        testLeaks5_send()
+        testLeaks_FEC()
         return
-    
+
+    fecTiming()    
     cryptoTiming()
     rsaTiming()
     buildMessageTiming()

@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.3 2003/07/07 23:46:51 nickm Exp $ */ 
+/* $Id: fec.c,v 1.4 2003/07/08 18:38:25 nickm Exp $ */ 
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -649,7 +649,7 @@ fec_encode(struct fec_parms *code, gf *src[], gf *fec, int index, int sz)
 	sz /= 2 ;
 
     if (index < k)
-         memcpy(src[index], fec, sz*sizeof(gf) ) ;
+         memcpy(fec, src[index], sz*sizeof(gf) ) ;
     else if (index < code->n) {
 	p = &(code->enc_matrix[index*k] );
 	memset(fec, 0, sz*sizeof(gf));
@@ -660,11 +660,8 @@ fec_encode(struct fec_parms *code, gf *src[], gf *fec, int index, int sz)
 	    index, code->n - 1 );
 }
 
-/*
- * shuffle move src packets in their position
- */
 static int
-shuffle(gf *pkt[], int index[], int k)
+shuffle(PyObject *pkt[], int index[], int k)
 {
     int i;
 
@@ -681,11 +678,13 @@ shuffle(gf *pkt[], int index[], int k)
 		return 1 ;
 	    }
 	    SWAP(index[i], index[c], int) ;
-	    SWAP(pkt[i], pkt[c], gf *) ;
+	    SWAP(pkt[i], pkt[c], PyObject *) ;
 	}
     }
     return 0 ;
 }
+
+
 
 /*
  * build_decode_matrix constructs the encoding matrix given the
@@ -706,7 +705,7 @@ build_decode_matrix(struct fec_parms *code, gf *pkt[], int index[])
 	} else
 #endif
 	if (index[i] < code->n )
-	    memcpy( &(code->enc_matrix[index[i]*k]), p, k*sizeof(gf) ); 
+	    memcpy(p, &(code->enc_matrix[index[i]*k]), k*sizeof(gf) ); 
 	else {
 	    fprintf(stderr, "decode: invalid index %d (max %d)\n",
 		index[i], code->n - 1 );
@@ -742,8 +741,11 @@ fec_decode(struct fec_parms *code, gf *pkt[], int index[], int sz)
     if (GF_BITS > 8)
 	sz /= 2 ;
 
+#if 0
+    /* Unnecessary now, but harmless -NM */
     if (shuffle(pkt, index, k))	/* error if true */
 	return 1 ;
+#endif
     m_dec = build_decode_matrix(code, pkt, index);
 
     if (m_dec == NULL)
@@ -765,7 +767,7 @@ fec_decode(struct fec_parms *code, gf *pkt[], int index[], int sz)
      */
     for (row = 0 ; row < k ; row++ ) {
 	if (index[row] >= k) {
-	    memcpy(new_pkt[row], pkt[row], sz*sizeof(gf));
+	    memcpy(pkt[row], new_pkt[row], sz*sizeof(gf));
 	    free(new_pkt[row]);
 	}
     }
@@ -959,11 +961,13 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
         PyObject *blocks;
 
         int tmp;
+        char *s;
         int sz = -1;
-        int i;
+        int i, j;
         PyObject *o;
 
         PyObject *tup = NULL;
+        PyObject **objPtrs = NULL;
         char **stringPtrs = NULL;
         int *indices = NULL;
         PyObject *result = NULL;
@@ -993,35 +997,67 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
         if (!(tup = PySequence_Tuple(blocks))) {
                 return NULL;
         }
-        if (!(stringPtrs = malloc((sizeof(gf*))*fec->k))) {
+        if (!(stringPtrs = malloc(sizeof(gf*)*fec->k))) {
                 PyErr_NoMemory();
                 goto err;
-        }        
-        if (!(indices = malloc((sizeof(int))*fec->k))) {
+        }
+        if (!(indices = malloc(sizeof(int)*fec->k))) {
+                PyErr_NoMemory();
+                goto err;
+        }
+        if (!(objPtrs = malloc(sizeof(PyObject*)*fec->k))) {
                 PyErr_NoMemory();
                 goto err;
         }
         for (i = 0; i < fec->k; ++i) {
                 o = PyTuple_GET_ITEM(tup, i);
-                if (!PyArg_ParseTuple(o, "is#", &indices[i], &stringPtrs[i],
-                                      &tmp)) {
+                if (!PyArg_ParseTuple(o, "is#", &j, &s, &tmp)) {
                         PyErr_SetString(mm_FECError, 
                                "decode expects a list of index-string tuples");
                         goto err;
                 }
-                if (sz<0)
+                if (sz<0) {
                         sz = tmp;
-                else if (sz != tmp) {
+                } else if (sz != tmp) {
                         PyErr_SetString(mm_FECError, 
                               "decode expects equally long strings");
                         goto err;
                 }
+                indices[i] = j;
+                objPtrs[i] = PyTuple_GET_ITEM(o, 1);
         }
-
-        if (!(result = PyString_FromStringAndSize(NULL, sz*fec->k))) {
+        if (shuffle(objPtrs, indices, fec->k))
+                goto err;
+        if (!(result = PyList_New(fec->k))) {
                 PyErr_NoMemory(); goto err;
         }
-        
+
+        /* Now set up the result for the user, and stringPtrs/indices
+         * for fec_decode.  Any string objects that are in the right
+         * place in objPtrs won't have their underlying string buffers
+         * touched: we just incref those objects and use them in the
+         * result.  Any other strings, however, will have their
+         * contents zapped by fec_decode: we need to copy those to
+         * keep Python strings nice and immutable.
+         *
+         * This way, we never allocate more memory than we need.
+         * 
+         */
+        for (i = 0; i < fec->k; ++i) {
+                o = objPtrs[i];
+                if (indices[i] < fec->k) {
+                        assert(indices[i] == i);
+                        Py_INCREF(o);
+                        PyList_SET_ITEM(result, i, o);
+                        stringPtrs[i] = PyString_AS_STRING(o);
+                } else {
+                        o = PyString_FromStringAndSize(NULL, sz);
+                        memcpy(PyString_AS_STRING(o), 
+                               PyString_AS_STRING(objPtrs[i]), sz);
+                        PyList_SET_ITEM(result, i, o);
+                        stringPtrs[i] = PyString_AS_STRING(o);
+                }                                                    
+        }
         Py_BEGIN_ALLOW_THREADS
         tmp = fec_decode(fec, (gf**) stringPtrs, (int*) indices, sz);
         Py_END_ALLOW_THREADS 
@@ -1029,13 +1065,9 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
         if (tmp)
                 goto err;
 
-        for (i = 0; i < fec->k; ++i) {
-                memcpy(PyString_AsString(result)+sz*i, stringPtrs[i], sz);
-                free(stringPtrs[i]);
-        }
-
         free(stringPtrs);
         free(indices);
+        free(objPtrs);
         Py_DECREF(tup);
 
         return result;
@@ -1044,11 +1076,17 @@ mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
                 Py_DECREF(tup);
         if (indices)
                 free(indices);
-        if (stringPtrs)
+        if (objPtrs)
+                free(objPtrs);
+        if (stringPtrs) {
                 free(stringPtrs);
+        }
+        if (result)
+                Py_DECREF(result);
 	
 	return NULL;
 }
+
 
 static PyMethodDef mm_FEC_methods[] = {
         METHOD(mm_FEC, getParameters),
