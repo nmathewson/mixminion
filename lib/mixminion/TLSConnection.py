@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.2 2004/01/03 07:35:23 nickm Exp $
+# $Id: TLSConnection.py,v 1.3 2004/01/04 19:36:29 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -239,7 +239,7 @@ class TLSConnection:
         self.sock.close()
         self.sock = None
         self.tls = None
-        self.__stateFn = None
+        self.__stateFn = self.__closedFn
         self.onClosed()
 
     def __connectFn(self, r, w):
@@ -292,6 +292,11 @@ class TLSConnection:
                 LOG.trace("Shutdown returned zero -- entering read mode.")
                 self.__awaitingShutdown = 1
                 self.__bytesReadOnShutdown = 0
+
+    def __closedFn(self,r,w):
+        """state function: called when the connection is closed"""
+        self.__sock = None
+        return 0
 
     def __readTooMuch(self):
         """Helper function -- called if we read too much data while we're
