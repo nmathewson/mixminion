@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.9.2.1 2003/09/19 04:26:57 nickm Exp $
+# $Id: Filestore.py,v 1.9.2.2 2003/09/26 02:16:22 nickm Exp $
 
 """mixminion.Filestore
 
@@ -317,7 +317,7 @@ class ObjectStoreMixin:
             f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
             try:
                 res = cPickle.load(f)
-            except cpickle.UnpicklingError, e:
+            except cPickle.UnpicklingError, e:
                 LOG.error("Found damaged object %s in filestore %s: %s",
                           handle, self.dir, str(e))
                 self.removeMessage(handle)
@@ -406,7 +406,7 @@ class BaseMetadataStore(BaseStore):
             f = open(fname, 'rb')
             try:
                 res = cPickle.load(f)
-            except cpickle.UnpicklingError, e:
+            except cPickle.UnpicklingError, e:
                 LOG.error("Found damaged metadata for %s in filestore %s: %s",
                           handle, self.dir, str(e))
                 self.removeMessage(handle)
