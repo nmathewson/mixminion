@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.49 2003/06/06 07:17:35 nickm Exp $
+# $Id: Main.py,v 1.50 2003/06/21 07:24:07 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -116,8 +116,6 @@ _COMMANDS = {
     "unittests" :      ( 'mixminion.test',       'testAll' ),
     "benchmarks" :     ( 'mixminion.benchmark',  'timeAll' ),
     "send" :           ( 'mixminion.ClientMain', 'runClient' ),
-    # XXXX005 Obsolete; use "queue"; remove in 0.0.5
-    "pool" :           ( 'mixminion.ClientMain', 'runClient' ),
     "queue" :          ( 'mixminion.ClientMain', 'runClient' ),
     "import-server" :  ( 'mixminion.ClientMain', 'importServer' ),
     "list-servers" :   ( 'mixminion.ClientMain', 'listServers' ),
@@ -129,11 +127,7 @@ _COMMANDS = {
     "inspect-surbs" :  ( 'mixminion.ClientMain', 'inspectSURBs' ),
     "flush" :          ( 'mixminion.ClientMain', 'flushQueue' ),
     "inspect-queue" :   ( 'mixminion.ClientMain', 'listQueue' ),
-    # XXXX005 Obsolete; use "inspect-queue"; remove in 0.0.5
-    "inspect-pool" :   ( 'mixminion.ClientMain', 'listQueue' ),
     "ping" :           ( 'mixminion.ClientMain', 'runPing' ),
-    # XXXX005 Obsolete; use "server-start"; remove in 0.0.5
-    "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-start" :   ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-stop" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
     "server-reload" :  ( 'mixminion.server.ServerMain', 'signalServer' ),
@@ -142,6 +136,11 @@ _COMMANDS = {
     "server-stats" :   ( 'mixminion.server.ServerMain', 'printServerStats' ),
     "server-DELKEYS" : ( 'mixminion.server.ServerMain', 'runDELKEYS'),
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
+    
+    # XXXX006 Obsolete commands.  Remove in 0.0.6
+    "server" :         ( 'mixminion.Main', 'rejectCommand' ),
+    "inspect-pool" :   ( 'mixminion.Main', 'rejectCommand' ),
+    "pool" :           ( 'mixminion.Main', 'rejectCommand' ),
 }
 
 _USAGE = (
@@ -184,6 +183,19 @@ def printVersion(cmd,args):
            "See LICENSE for licensing information.")
     print "NOTE: This software is for testing only.  The user set is too small"
     print "      to be anonymous, and the code is too alpha to be reliable."
+
+def rejectCommand(cmd,args):
+    cmd = cmd.split()[-1]
+    newCmd = { "client" : "send",
+               "pool" : "queue",
+               "inspect-pool" : "inspect-queue",
+               "server" : "server-start" }.get(cmd)
+    if newCmd:
+        print "The command %r is obsolete.  Use %r instead."%(cmd,newCmd)
+    else:
+        print "The command %r is obsolete."%cmd
+
+    sys.exit(1)
 
 def printUsage():
     import mixminion
@@ -232,6 +244,13 @@ def main(args):
         e.dumpAndExit()
     except KeyboardInterrupt:
         print "Interrupted."
+    except ImportError, e:
+        if str(e).find("_socket") >= 0:
+            print "Error: Your python installation is missing the standard "
+            print "socket module.  Halting."
+            sys.exit(1)
+        else:
+            raise
 
 if __name__ == '__main__':
     main(sys.argv)

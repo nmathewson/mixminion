@@ -39,12 +39,16 @@ For 0.0.5:
                 - 'Iffy mode' messages are confusing.
         - Configurability:
                 - Ability to disable or relax directory paranoia.
-                - Trusted groups, trusted users for directory permissions
-        - Deferred tests
+                - Trusted groups, trusted users for directory
+                  permissions
+                - Change maximum on Overlap.
+        - Tests
                 - Tests for online key rotation
                 - Tests for ServerInbox and Directory.py
                 - Tests for checkConsistency
+                - What happens when Overlap > Lifetime?
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
+        - Change descriptors to accept YYYY-MM-DD.
         . Performance
                 o Lazy-load deliverable messages.
                 o Don't block while shredding messages at startup.
@@ -53,7 +57,10 @@ For 0.0.5:
 
 For 0.0.6:
         - Dummies and pinging
-        - Rudimentary MIME support (content-type, content-encoding only.)
+        - Rudimentary MIME support (content-type, content-encoding
+          only.)
+        - Servers need to download and use directories
+        - Servers redirect to latest IP if old IP is down.
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
 [Release criteria: Workable replacement for type II.  At least as

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.63 2003/06/12 06:30:40 nickm Exp $
+# $Id: setup.py,v 1.64 2003/06/21 07:24:06 nickm Exp $
 import sys
 
 #
@@ -30,7 +30,17 @@ if sys.version_info[:3] == (2,1,1):
 try:
     import zlib
 except ImportError:
-    print "Zlib support seems to be missing; install python with zlib support."
+    print "Zlib support seems to be missing; install Python with zlib support."
+    sys.exit(1)
+
+try:
+    import _socket
+    del _socket
+except ImportError:
+    print "Your Python installation is somehow missing socket support."
+    if sys.platform.startswith("sunos") or sys.platform.startswith("solaris"):
+        print "This is a known issue when building some versions of Python"
+        print "on Solaris."
     sys.exit(1)
 
 import os, re, shutil, string, struct

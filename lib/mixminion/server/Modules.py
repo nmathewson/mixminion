@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.43 2003/06/13 01:03:46 nickm Exp $
+# $Id: Modules.py,v 1.44 2003/06/21 07:24:07 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -626,6 +626,8 @@ class MBoxModule(DeliveryModule):
         return self.retrySchedule
 
     def getConfigSyntax(self):
+        # Validate returnaddress! XXXX005
+
         # FFFF There should be some way to say that fields are required
         # FFFF if the module is enabled.
         return { "Delivery/MBOX" :
@@ -780,6 +782,8 @@ class DirectSMTPModule(SMTPModule):
         return self.retrySchedule
 
     def getConfigSyntax(self):
+        # Validate returnaddress! XXXX005
+        
         return { "Delivery/SMTP" :
                  { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
                    'Retry': ('ALLOW', _parseIntervalList,
