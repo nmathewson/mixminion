@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientAPI.py,v 1.2 2004/09/15 17:30:33 nickm Exp $
+# $Id: ClientAPI.py,v 1.3 2004/12/02 06:49:03 nickm Exp $
 
 """mixminion.ClientAPI
 
@@ -13,6 +13,8 @@
    This module is intended to present a semi-stable front-end to the
    other Mixminion client modules.  Client implementors shouldn't need to
    use functions from any other modules.
+
+   DOCDOC discuss dataflow
 """
 
 ## XXXX        THIS IS AN UNIMPLEMENTED DRAFT API!
