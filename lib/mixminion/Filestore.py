@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.9.2.3 2003/09/28 03:57:32 nickm Exp $
+# $Id: Filestore.py,v 1.9.2.4 2003/09/28 04:08:37 nickm Exp $
 
 """mixminion.Filestore
 
@@ -69,6 +69,7 @@ class BaseStore:
              rmv_HANDLE  (A message waiting to be deleted)
              msg_HANDLE  (A message waiting in the queue.
              inp_HANDLE  (An incomplete message being created.)
+             crp_HANDLE  (A corrupted message awaiting debugging analysis)
        (Where HANDLE is a randomly chosen 8-character string of characters
        chosen from 'A-Za-z0-9+-'.  [Collision probability is negligible, and
        collisions are detected.])
@@ -77,6 +78,7 @@ class BaseStore:
              rmvm_HANDLE
              meta_HANDLE
              inpm_HANDLE
+             crpm_HANDLE
  
        Threading notes:  Although BaseStore itself is threadsafe, you'll want
        to synchronize around any multistep operations that you want to
@@ -165,10 +167,17 @@ class BaseStore:
            'handle'."""
         return os.path.exists(os.path.join(self.dir, "msg_"+handle))
 
+    def _doRemove(self, handle, newState):
+        self._changeState(handle, "msg", newState)
+        
+    def _preserveCorrupted(self, handle):
+        """Given a handle, change the message state to 'crp'."""
+        self._doRemove(handle, "crp")
+
     def removeMessage(self, handle):
         """Given a handle, removes the corresponding message from the
            filestore.  """
-        self._changeState(handle, "msg", "rmv") # handles locking.
+        self._doRemove(handle, "rmv") # handles locking.
 
     def removeAll(self, secureDeleteFn=None):
         """Removes all messages from this filestore."""
@@ -327,7 +336,7 @@ class ObjectStoreMixin:
             except cPickle.UnpicklingError, e:
                 LOG.error("Found damaged object %s in filestore %s: %s",
                           handle, self.dir, str(e))
-                self.removeMessage(handle)
+                self._preserveCorrupted(handle)
                 raise CorruptedFile()
         finally:
             self._lock.release()
@@ -395,8 +404,7 @@ class BaseMetadataStore(BaseStore):
                     LOG.warn("Missing metadata for file %s",h)
                     self.setMetadata(h, newDataFn(h))
                 except CorruptedFile:
-                    LOG.warn("Repairing metadata for file %s",h)
-                    self.setMetadata(h, newDataFn(h))
+                    continue
         finally:
             self._lock.release()
 
@@ -418,7 +426,7 @@ class BaseMetadataStore(BaseStore):
             except cPickle.UnpicklingError, e:
                 LOG.error("Found damaged metadata for %s in filestore %s: %s",
                           handle, self.dir, str(e))
-                self.removeMessage(handle)
+                self._preserveCorrupted(handle)
                 raise CorruptedFile()
             f.close()
             self._metadata_cache[handle] = res
@@ -439,16 +447,14 @@ class BaseMetadataStore(BaseStore):
         finally:
             self._lock.release()
 
-    def removeMessage(self, handle):
-        """Given a handle, removes the corresponding message from the
-           filestore.  """
+    def _doRemove(self, handle, newState):
         try:
             self._lock.acquire()
             # Remove the message before the metadata, so we don't have
             # a message without metadata.
-            BaseStore.removeMessage(self, handle)
+            BaseStore._doRemove(self, handle, newState)
             if os.path.exists(os.path.join(self.dir, "meta_"+handle)):
-                self._changeState(handle, "meta", "rmvm")
+                self._changeState(handle, "meta", newState+"m")
 
             try:
                 del self._metadata_cache[handle]
