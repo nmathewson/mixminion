@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.69 2003/07/10 23:12:02 nickm Exp $
+# $Id: setup.py,v 1.70 2003/07/10 23:27:50 nickm Exp $
 import sys
 
 #
@@ -307,21 +307,25 @@ mixminion.Main.main(sys.argv)
 """)
 f.close()
 
+SCRIPTS = [ SCRIPT_PATH ]
+
 if sys.platform == 'win32':
     f = open(SCRIPT_PATH+"i.py", 'wt')
     f.write("import sys\n")
     if pathextra:
         f.write("sys.path[0:0] = [%r]\n"%pathextra)
     f.write("""\
-    try:
-        import mixminion.Main
-    except:
-        print 'ERROR importing mixminion package.'
-        raise
+try:
+    import mixminion.Main
+except:
+    print 'ERROR importing mixminion package.'
+    raise
 
-    mixminion.Main.main(sys.argv+['shell'])
-    """)
+mixminion.Main.main(sys.argv+['shell'])
+""")
     f.close()
+
+    SCRIPTS.append(SCRIPT_PATH+"i.py")
 
 #======================================================================
 # Define a helper to let us run commands from the compiled code.
@@ -457,11 +461,12 @@ setup(name='Mixminion',
       url="http://www.mixminion.net/",
       package_dir={ '' : 'lib' },
       packages=['mixminion', 'mixminion.server', 'mixminion.directory'],
-      scripts=[SCRIPT_PATH],
+      scripts=SCRIPTS,
       ext_modules=[extmodule],
       cmdclass={'run': runMMCommand})
 
 try:
-    os.unlink(SCRIPT_PATH)
+    for s in SCRIPTS:
+        os.unlink(s)
 except:
     pass
