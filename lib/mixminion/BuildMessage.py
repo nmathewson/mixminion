@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.74 2004/05/14 23:44:08 nickm Exp $
+# $Id: BuildMessage.py,v 1.75 2004/07/27 03:00:14 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -132,10 +132,10 @@ def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
 
     assert len(payload) == PAYLOAD_LEN
 
-    LOG.debug("  Using path %s:%s",
+    LOG.trace("  Building packet with path %s:%s; delivering to %04x:%r",
                    ",".join([s.getNickname() for s in path1]),
-                   ",".join([s.getNickname() for s in path2]))
-    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
+                   ",".join([s.getNickname() for s in path2]),
+                   exitType, exitInfo)
 
     # Choose a random decoding tag.
     if not suppressTag:
