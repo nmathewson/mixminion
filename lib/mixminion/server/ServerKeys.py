@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.54 2003/10/20 18:49:11 nickm Exp $
+# $Id: ServerKeys.py,v 1.55 2003/11/07 07:30:37 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -132,9 +132,9 @@ class ServerKeyring:
             ok = 1
             try:
                 keyset.checkKeys()
-            except MixError:
+            except MixError, e:
                 LOG.warn("Error checking private keys in keyset %s: %s",
-                         keysetname, val)
+                         keysetname, str(e))
                 ok = 0
 
             try:
