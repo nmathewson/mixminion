@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.115 2003/11/07 07:35:11 nickm Exp $
+# $Id: Common.py,v 1.116 2003/11/07 08:02:23 nickm Exp $
 
 """mixminion.Common
 
@@ -1579,9 +1579,9 @@ if BUILTIN_QUEUE_HAS_TIMEOUT:
 else:
     class TimeoutQueue(ClearableQueue):
         """DOCDOC -- for python 2.2 and earlier."""
-        def get(self, blocking=1, timeout=None):
+        def get(self, block=1, timeout=None):
             if timeout is None:
-                return MessageQueue.get(self, blocking)
+                return MessageQueue.get(self, block)
 
             # Adapted from 'Condition'.
             _time = time.time
