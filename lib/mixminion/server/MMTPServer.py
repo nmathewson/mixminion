@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.38 2003/06/06 06:08:39 nickm Exp $
+# $Id: MMTPServer.py,v 1.39 2003/06/06 07:17:35 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -655,8 +655,8 @@ class MMTPServerConnection(SimpleTLSConnection):
                 replyControl = RECEIVED_CONTROL
             isJunk = 0
         else:
-            warn("Unrecognized command from %s.  Closing connection.",
-                 self.address)
+            warn("Unrecognized command (%r) from %s.  Closing connection.",
+                 data[:4], self.address)
             self.shutdown(err=1)
             return
         if expectedDigest != digest:
@@ -665,8 +665,11 @@ class MMTPServerConnection(SimpleTLSConnection):
             self.shutdown(err=1)
             return
         else:
-            debug("%s packet received from %s; Checksum valid.",
-                  data[:4], self.address)
+            if isJunk:
+                debug("Link padding received from %s; Checksum valid.",
+                      self.address)
+            else:
+                debug("Packet received from %s; Checksum valid.", self.address)
             self.finished = self.__sentAck
             self.beginWrite(replyControl+replyDigest)
             if isJunk:

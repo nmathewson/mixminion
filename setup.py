@@ -1,7 +1,14 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.58 2003/06/06 06:08:39 nickm Exp $
+# $Id: setup.py,v 1.59 2003/06/06 07:17:35 nickm Exp $
 import sys
+
+#
+#   Current Mixminion version
+#
+VERSION = '0.0.4rc3'
+# System: 0==alpha, 50==beta, 99==release candidate, 100==release
+VERSION_INFO = (0,0,4,99,3)
 
 # Check the version.  We need to make sure version_info exists before we
 # compare to it: it was only added as of Python version 1.6.
@@ -29,10 +36,6 @@ except ImportError:
 import os, re, shutil, string, struct
 
 os.umask(022)
-
-VERSION = '0.0.4rc2'
-# System: 0==alpha, 50==beta, 99==release candidate, 100==release
-VERSION_INFO = (0,0,4,99,2)
 
 # Function to pull openssl version number out of an opensslv.h file.  This
 # isn't a real C preprocessor, but it seems to work well enough.

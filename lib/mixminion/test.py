@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.119 2003/06/06 06:04:58 nickm Exp $
+# $Id: test.py,v 1.120 2003/06/06 07:17:35 nickm Exp $
 
 """mixminion.tests
 
@@ -4952,10 +4952,40 @@ class ServerKeysTests(unittest.TestCase):
         self.assertEquals(vu, keyring.getNextKeyRotation())
 
         # Check the second key we created.
-        va, vu, curKey = keyring._getLiveKeys(vu + 3600)[0]
+        key2time = vu+3600
+        va, vu, curKey = keyring._getLiveKeys(key2time)[0]
         self.assertEquals(va, finish)
         self.assertEquals(vu, mixminion.Common.previousMidnight(
             finish+10*24*60*60+60))
+
+        # Does published-marking work right?
+        self.assert_(not curKey.isPublished())
+        curKey.markAsPublished()
+        self.assert_(curKey.isPublished())
+        keyring.checkKeys()
+        va, vu, curKey = keyring._getLiveKeys(key2time)[0]
+        self.assert_(curKey.isPublished())
+        curKey.markAsUnpublished()
+        self.assert_(not curKey.isPublished())
+        keyring.checkKeys()
+        va, vu, curKey = keyring._getLiveKeys(key2time)[0]
+        self.assert_(not curKey.isPublished())
+        curKey.markAsPublished()
+
+        # Does 'regenerate' work?
+        cfg2 = SERVERCFG%{'home':_FAKE_HOME}
+        cfg2 = cfg2.replace("10.0.0.1", "10.0.0.2")
+        config2 = mixminion.server.ServerConfig.ServerConfig(string=cfg2)
+
+        self.assert_(curKey.isPublished())
+        curKey.load()
+        key0 = curKey.getPacketKeyID()
+        curKey.regenerateServerDescriptor(config2, keyring.getIdentityKey())
+        self.assert_(not curKey.isPublished())
+        inf = curKey.getServerDescriptor()
+        self.assertEquals(inf['Incoming/MMTP']['IP'], "10.0.0.2")
+        curKey.load()
+        self.assertEquals(key0, curKey.getPacketKeyID())
 
         # Make a key in the past, to see if it gets scrubbed.
         keyring.createKeys(1, mixminion.Common.previousMidnight(
@@ -4979,8 +5009,7 @@ class ServerKeysTests(unittest.TestCase):
             # Test getTLSContext
             keyring._getTLSContext()
 
-        # Test getPacketHandler
-        #_ = keyring.getPacketHandler()
+
 
 
 #----------------------------------------------------------------------
@@ -5864,7 +5893,7 @@ def testAll(name, args):
     LOG.setMinSeverity("FATAL")
     mixminion.Common.secureDelete([],1)
 
-    # Don't complain about owner on /tmp, no matter who is is.
+    # Don't complain about owner on /tmp, no matter who it is.
     mixminion.Common._VALID_DIRECTORIES["/tmp"] = 1
     mixminion.Common._VALID_DIRECTORIES["/var/tmp"] = 1
 

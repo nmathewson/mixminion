@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.48 2003/06/06 06:04:57 nickm Exp $
+# $Id: Main.py,v 1.49 2003/06/06 07:17:35 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -205,7 +205,7 @@ def main(args):
         printUsage()
         sys.exit(1)
 
-    if args[1] not in ('unittests', 'benchmarks'):
+    if args[1] not in ('unittests', 'benchmarks', 'version'):
         print "This software is for testing purposes only."\
               "  Anonymity is not guaranteed."
 

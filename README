@@ -1,6 +1,6 @@
-$Id: README,v 1.46 2003/06/06 06:08:39 nickm Exp $
+$Id: README,v 1.47 2003/06/06 07:17:35 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.4, Release Candidate 2.
+This is Mixminion version 0.0.4, Release Candidate 3.
 
  WARNING!  Mixminion 0.0.4 breaks backward compatibility with version 0.0.3.
  Versions older than 0.0.3 are no longer supported; you should upgrade now.
@@ -40,6 +40,42 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.4rc3:
+   BUGFIXES:
+   - Memory leaks:
+       - Made server code release memory more aggressively.
+       - Fixed a race condition where messages could be queued on a server
+         connection that was already shutting down.
+       - Fixed memory leaks on certificate checking.
+   - Server bugs:
+       - Fixed a server crash on key-rotation that would occur when to trying
+         to open the same hash log db file twice.
+       - Fixed bug that would crash server if PublicKeyLifetime changed.
+       - Made server differentiate between ENOENT and EACCES when starting.
+       - Fixed a bug that would cause key generation to happen at the wrong
+         times.
+   - Other bugs:
+       - Fixed a bug related to using client keyrings without passwords.
+       - Made ASCII armor more reliable in the face of extraneous space,
+         headerless armor, and so on.
+       - Excluded superceeded servers from directories more thoroughly.
+
+   OTHER CHANGES:
+   - Cosmetic:
+       - Commented most uncommented code.
+       - Refactored path selection again.
+       - Refactored code to use more reliable file accessing functions.
+       - Added more unit tests
+   - Performance enhancements:
+       - Changed recommended OpenSSL version to 0.9.7b.
+   - Implementation quality
+       - Improved a few log messages.
+       - Made included etc/mixminiond.conf more reasonable by using a less
+         aggressive retry schedule, commenting out unused Allow lines, and
+         decreasing PublicKeyLifetime.
+       - Made os.expanduser work on more configuration values.
+   - Enabled threading on more C functions.
 
 NEW IN VERSION 0.0.4rc2:
    BUGFIXES:
@@ -274,9 +310,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4rc2.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4rc3.tar.gz>
 
-  % cd Mixminion-0.0.4rc2
+  % cd Mixminion-0.0.4rc3
   % make download-openssl
   % make build-openssl
   % make

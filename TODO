@@ -170,12 +170,10 @@ For 0.0.4:
         o Resolve all the memory leaks.
         o resolve all XXXX004s
         o Finish all documentation
-        - Add a warning banner.
-        - Remaining unit tests
-                - Tests for remembering whether keys are published
-                - Tests for ServerKeyset.regenerate
-                - Tests for checkConsistency
-
+        o Add a warning banner.
+        o Remaining unit tests
+                o Tests for remembering whether keys are published
+                o Tests for ServerKeyset.regenerate
 
 For 0.0.5:
         - Background projects:
@@ -200,6 +198,7 @@ For 0.0.5:
         - Deferred tests
                 - Tests for online key rotation
                 - Tests for ServerInbox and Directory.py
+                - Tests for checkConsistency
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
 
 
