@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.52 2003/10/19 05:21:45 nickm Exp $
+# $Id: ServerKeys.py,v 1.53 2003/10/20 18:20:28 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -22,8 +22,8 @@ import urllib2
 
 import mixminion._minionlib
 import mixminion.Crypto
+import mixminion.NetUtils
 import mixminion.Packet
-import mixminion.server.DNSFarm
 import mixminion.server.HashLog
 import mixminion.server.MMTPServer
 import mixminion.server.ServerMain
@@ -1145,9 +1145,9 @@ def _checkHostnameIsLocal(name):
     if _KNOWN_LOCAL_HOSTNAMES.has_key(name):
         return
     try:
-        r = mixminion.server.DNSFarm.getIPs(name)
+        r = mixminion.NetUtils.getIPs(name)
         for family, addr, _ in r:
-            if family == mixminion.server.DNSFarm.AF_INET:
+            if family == mixminion.NetUtils.AF_INET:
                 if addr.startswith("127.") or addr.startswith("0."):
                     raise UIError("Hostname %r resolves to reserved address %s"
                                   %(name, addr))
