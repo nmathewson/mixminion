@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.21 2003/01/04 04:12:51 nickm Exp $
+# $Id: ClientMain.py,v 1.22 2003/01/05 01:27:35 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -68,6 +68,9 @@ class ClientKeystore:
     # DIR/servers/: A directory of server descriptors.
 
     MAGIC = "ClientKeystore-0"
+    #DOCDOC
+    DEFAULT_REQUIRED_LIFETIME = 3600
+    
     def __init__(self, directory):
         """Create a new ClientKeystore to keep directories and descriptors
            under <directory>."""
@@ -411,7 +414,7 @@ class ClientKeystore:
         if startAt is None:
             startAt = time.time()
         if endAt is None:
-            endAt = startAt + 3600
+            endAt = startAt + self.DEFAULT_REQUIRED_LIFETIME
 
         if isinstance(name, ServerInfo):
             if name.isValidFrom(startAt, endAt):
@@ -457,7 +460,7 @@ class ClientKeystore:
         if startAt is None:
             startAt = time.time()
         if endAt is None:
-            endAt = startAt + 3600
+            endAt = startAt + self.DEFAULT_REQUIRED_LIFETIME
         if prng is None:
             prng = mixminion.Crypto.getCommonPRNG()
         
@@ -576,11 +579,6 @@ def resolvePath(keystore, address, enterPath, exitPath,
        specified descriptors don't support the required capabilities,
        we raise MixError.
        """
-    if startAt is None:
-        startAt = time.time()
-    if endAt is None:
-        endAt = startAt+3*60*60 # FFFF Configurable
-
     # First, find out what the exit node needs to be (or support).
     routingType, _, exitNode = address.getRouting()
     if exitNode:
