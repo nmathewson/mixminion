@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.17 2003/06/05 05:34:56 nickm Exp $
+# $Id: testSupport.py,v 1.18 2003/06/26 17:52:09 nickm Exp $
 
 """mixminion.testSupport
 
@@ -126,6 +126,11 @@ Decoding handle: %s%s==========MESSAGE ENDS""" % (
 # directory.  If None, it hasn't been created yet.  If it exists,
 # it must be owned by us, mode 700.
 
+_CHECK_MODE = 1
+_CHECK_UID = 1
+if sys.platform in ('cygwin', 'win32') or os.environ.get("MM_NO_FILE_PARANOIA"):
+    _CHECK_MODE = _CHECK_UID = 0
+
 _MM_TESTING_TEMPDIR = None
 # How many temporary files have we created so far?
 _MM_TESTING_TEMPDIR_COUNTER = 0
@@ -168,11 +173,11 @@ def mix_mktemp(extra=""):
         st = os.stat(temp)
 
         # And be writeable only by us...
-        if st[stat.ST_MODE] & 077:
+        if _CHECK_MODE and st[stat.ST_MODE] & 077:
             print "Couldn't make temp dir %r with secure permissions" %temp
             sys.exit(1)
         # And be owned by us...
-        if st[stat.ST_UID] != os.getuid():
+        if _CHECK_UID and st[stat.ST_UID] != os.getuid():
             print "The wrong user owns temp dir %r"%temp
             sys.exit(1)
 

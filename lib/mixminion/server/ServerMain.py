@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.81 2003/06/26 03:23:53 nickm Exp $
+# $Id: ServerMain.py,v 1.82 2003/06/26 17:52:09 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1075,7 +1075,7 @@ def runServer(cmd, args):
 
     try:
         mixminion.Common.configureShredCommand(config)
-        mixminion.Common.configureTrustedUsers(config)
+        mixminion.Common.configureFileParanoia(config)
         mixminion.Crypto.init_crypto(config)
 
         server = MixminionServer(config)
@@ -1125,7 +1125,7 @@ def runUpgrade(cmd, args):
     assert config
 
     mixminion.Common.configureShredCommand(config)
-    mixminion.Common.configureTrustedUsers(config)
+    mixminion.Common.configureFileParanoia(config)
     mixminion.Crypto.init_crypto(config)
 
     curVersion = getHomedirVersion(config)
@@ -1211,7 +1211,7 @@ def runDELKEYS(cmd, args):
     assert config
 
     mixminion.Common.configureShredCommand(config)
-    mixminion.Common.configureTrustedUsers(config)
+    mixminion.Common.configureFileParanoia(config)
     mixminion.Crypto.init_crypto(config)
 
     checkHomedirVersion(config)

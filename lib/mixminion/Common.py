@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.93 2003/06/26 17:43:27 nickm Exp $
+# $Id: Common.py,v 1.94 2003/06/26 17:52:08 nickm Exp $
 
 """mixminion.Common
 
@@ -452,7 +452,14 @@ def checkPrivateDir(d, recurse=1):
                          d, groupName, mode&0777)
                 _WARNED_DIRECTORIES[d] = 1
 
-def configureTrustedUsers(config):
+def configureFileParanoia(config):
+    global _CHECK_UID
+    global _CHECK_GID
+    global _CHECK_MODE
+    paranoia = config['Host']['FileParanoia']
+    if not paranoia:
+        _CHECK_UID = _CHECK_GID = _CHECK_MODE = 0
+
     users = config['Host']['TrustedUser']
     if not users:
         return

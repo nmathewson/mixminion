@@ -1907,7 +1907,7 @@ class CLIArgumentParser:
                 else:
                     LOG.setMinSeverity("INFO")
             mixminion.Common.configureShredCommand(self.config)
-            mixminion.Common.configureTrustedUsers(self.config)
+            mixminion.Common.configureFileParanoia(self.config)
             if not self.verbose:
                 try:
                     LOG.setMinSeverity("WARN")
