@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.33 2003/08/31 19:29:29 nickm Exp $
+# $Id: ServerQueue.py,v 1.33.2.1 2003/09/28 03:57:33 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -18,6 +18,7 @@ import mixminion.Filestore
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir, readPickled, writePickled, formatTime, readFile
 from mixminion.Crypto import getCommonPRNG
+from mixminion.Filestore import CorruptedFile
 
 __all__ = [ 'DeliveryQueue', 'TimedMixPool', 'CottrellMixPool',
             'BinomialCottrellMixPool' ]
@@ -174,11 +175,9 @@ class PendingMessage:
 
     def getMessage(self):
         """Return the underlying object stored in the delivery queue, loading
-           it from disk if necessary."""
+           it from disk if necessary. May raise CorruptedFile."""
         if self.message is None:
             self.message = self.queue.store.getObject(self.handle)
-            #XXXX There's an error case where getObject returns none
-            #XXXX if the data is corrupt on disk.
         return self.message
 
 class DeliveryQueue:
@@ -358,10 +357,11 @@ class DeliveryQueue:
             self._lock.acquire()
             messages = []
             for h in self.store._metadata_cache.keys():
-                state = self.store.getMetadata(h)
-                if state is None:
+                try:
+                    state = self.store.getMetadata(h)
+                except CorruptedFile:
                     continue
-                elif state.isPending():
+                if state.isPending():
                     LOG.trace("     [%s] is pending delivery", h)
                     continue
                 elif state and state.isRemovable():
@@ -438,6 +438,8 @@ class DeliveryQueue:
                 ds = self.store.getMetadata(handle)
             except KeyError:
                 ds = None
+            except CorruptedFile:
+                return
 
             if ds is None:
                 # This should never happen

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.9.2.2 2003/09/26 02:16:22 nickm Exp $
+# $Id: Filestore.py,v 1.9.2.3 2003/09/28 03:57:32 nickm Exp $
 
 """mixminion.Filestore
 
@@ -23,16 +23,20 @@ import stat
 import threading
 import time
 
-from mixminion.Common import MixFatalError, secureDelete, LOG, \
+from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir, readFile, tryUnlink
 from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ "StringStore", "StringMetadataStore",
             "ObjectStore", "ObjectMetadataStore", 
             "MixedStore", "MixedMetadataStore",
-            "DBBase", "JournaledDBBase", "BooleanJournaledDBBase"
+            "DBBase", "JournaledDBBase", "BooleanJournaledDBBase",
+            "CorruptedFile",
             ]
 
+class CorruptedFile(MixError):
+    """Raised when a pickled object cannot be properly decoded."""
+    pass
 
 # ======================================================================
 # Filestores.
@@ -309,21 +313,22 @@ class ObjectStoreMixin:
     """
     def __init__(self): pass
     def getObject(self, handle):
-        """Given a message handle, read and unpickle the contents of the
-           corresponding message.  In rare error cases, defaults to 'None'.
+        """Given a message handle, read and unpickle the contents of
+           the corresponding message.  In rare error cases, raises
+           CorruptedFile.
            """
         try:
             self._lock.acquire()
             f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
             try:
                 res = cPickle.load(f)
+                f.close()
+                return res
             except cPickle.UnpicklingError, e:
                 LOG.error("Found damaged object %s in filestore %s: %s",
                           handle, self.dir, str(e))
                 self.removeMessage(handle)
-                res = None
-            f.close()
-            return res
+                raise CorruptedFile()
         finally:
             self._lock.release()
 
@@ -389,11 +394,15 @@ class BaseMetadataStore(BaseStore):
                 except KeyError:
                     LOG.warn("Missing metadata for file %s",h)
                     self.setMetadata(h, newDataFn(h))
+                except CorruptedFile:
+                    LOG.warn("Repairing metadata for file %s",h)
+                    self.setMetadata(h, newDataFn(h))
         finally:
             self._lock.release()
 
     def getMetadata(self, handle):
-        """Return the metadata associated with a given handle."""
+        """Return the metadata associated with a given handle.  If the
+           metadata is damaged, may raise CorruptedFile."""
         fname = os.path.join(self.dir, "meta_"+handle)
         if not os.path.exists(fname):
             raise KeyError(handle)
@@ -410,7 +419,7 @@ class BaseMetadataStore(BaseStore):
                 LOG.error("Found damaged metadata for %s in filestore %s: %s",
                           handle, self.dir, str(e))
                 self.removeMessage(handle)
-                return None
+                raise CorruptedFile()
             f.close()
             self._metadata_cache[handle] = res
             return res
