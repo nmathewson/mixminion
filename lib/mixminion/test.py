@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.121 2003/06/13 01:03:45 nickm Exp $
+# $Id: test.py,v 1.122 2003/06/21 07:29:32 nickm Exp $
 
 """mixminion.tests
 
@@ -3569,8 +3569,13 @@ IntRS=5
         # Command
         if not sys.platform == 'win32':
             # WIN32 This should get implemented for Windows.
-            self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
+            c = C._parseCommand("ls -l")
+            self.assert_(os.path.exists(c[0]) and c[0].endswith("/ls"))
+            self.assertEquals(c[1], ['-l'])
             self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
+            c = C._parseCommand("rm")
+            self.assert_(os.path.exists(c[0]) and c[0].endswith("/rm"))
+            self.assertEquals(c[1], [])
             self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
             self.failUnless(C._parseCommand("python")[0] is not None)
 
