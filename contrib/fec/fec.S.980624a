@@ -1,0 +1,1459 @@
+	.file	"fec.c"
+gcc2_compiled.:
+___gnu_compiled_c:
+.data
+	.align 2
+	.type	 _allPp,@object
+_allPp:
+	.long 0
+	.long 0
+	.long LC0
+	.long LC1
+	.long LC2
+	.long LC3
+	.long LC4
+	.long LC5
+	.long LC6
+	.long LC7
+	.long LC8
+	.long LC9
+	.long LC10
+	.long LC11
+	.long LC12
+	.long LC13
+	.long LC14
+.text
+LC14:
+	.ascii "11010000000010001\0"
+LC13:
+	.ascii "1100000000000001\0"
+LC12:
+	.ascii "110000100010001\0"
+LC11:
+	.ascii "11011000000001\0"
+LC10:
+	.ascii "1100101000001\0"
+LC9:
+	.ascii "101000000001\0"
+LC8:
+	.ascii "10010000001\0"
+LC7:
+	.ascii "1000100001\0"
+LC6:
+	.ascii "101110001\0"
+LC5:
+	.ascii "10010001\0"
+LC4:
+	.ascii "1100001\0"
+LC3:
+	.ascii "101001\0"
+LC2:
+	.ascii "11001\0"
+LC1:
+	.ascii "1101\0"
+LC0:
+	.ascii "111\0"
+	.size	 _allPp,68
+	.align 2
+	.type	 _init_mul_table,@function
+_init_mul_table:
+	pushl %ebp
+	movl %esp,%ebp
+	pushl %esi
+	pushl %ebx
+	xorl %ebx,%ebx
+	.align 2,0x90
+L24:
+	xorl %ecx,%ecx
+	movl %ebx,%eax
+	sall $8,%eax
+	leal _gf_mul_table(%eax),%esi
+	.align 2,0x90
+L28:
+	movl _gf_log(,%ebx,4),%eax
+	addl _gf_log(,%ecx,4),%eax
+	cmpl $254,%eax
+	jle L31
+	.align 2,0x90
+L32:
+	addl $-255,%eax
+	movl %eax,%edx
+	sarl $8,%edx
+	andl $255,%eax
+	addl %edx,%eax
+	cmpl $254,%eax
+	jg L32
+L31:
+	andl $255,%eax
+	movb _gf_exp(%eax),%al
+	movb %al,(%ecx,%esi)
+	incl %ecx
+	cmpl $255,%ecx
+	jle L28
+	incl %ebx
+	cmpl $255,%ebx
+	jle L24
+	xorl %ecx,%ecx
+	.align 2,0x90
+L39:
+	movl %ecx,%eax
+	sall $8,%eax
+	movb $0,_gf_mul_table(%eax)
+	movb $0,_gf_mul_table(%ecx)
+	incl %ecx
+	cmpl $255,%ecx
+	jle L39
+	leal -8(%ebp),%esp
+	popl %ebx
+	popl %esi
+	leave
+	ret
+Lfe1:
+	.size	 _init_mul_table,Lfe1-_init_mul_table
+LC15:
+	.ascii "-- malloc failure allocating %s\12\0"
+	.align 2
+	.type	 _my_malloc,@function
+_my_malloc:
+	pushl %ebp
+	movl %esp,%ebp
+	pushl 8(%ebp)
+	call _malloc
+	addl $4,%esp
+	testl %eax,%eax
+	jne L42
+	pushl 12(%ebp)
+	pushl $LC15
+	pushl $___sF+176
+	call _fprintf
+	pushl $1
+	call _exit
+	.align 2,0x90
+L42:
+	leave
+	ret
+Lfe2:
+	.size	 _my_malloc,Lfe2-_my_malloc
+	.align 2
+	.type	 _generate_gf,@function
+_generate_gf:
+	pushl %ebp
+	movl %esp,%ebp
+	pushl %esi
+	pushl %ebx
+	movl _allPp+32,%esi
+	movb $1,%cl
+	movb $0,_gf_exp+8
+	xorl %edx,%edx
+	.align 2,0x90
+L47:
+	movb %cl,_gf_exp(%edx)
+	movzbl %cl,%eax
+	movl %edx,_gf_log(,%eax,4)
+	cmpb $49,(%edx,%esi)
+	jne L46
+	xorb %cl,_gf_exp+8
+L46:
+	incl %edx
+	addb %cl,%cl
+	cmpl $7,%edx
+	jle L47
+	movzbl _gf_exp+8,%eax
+	movl $8,_gf_log(,%eax,4)
+	movb $128,%cl
+	movl $9,%edx
+	.align 2,0x90
+L53:
+	cmpb %cl,_gf_exp-1(%edx)
+	jb L54
+	movb %cl,%al
+	xorb _gf_exp-1(%edx),%al
+	addb %al,%al
+	xorb _gf_exp+8,%al
+	movb %al,_gf_exp(%edx)
+	jmp L55
+	.align 2,0x90
+L54:
+	movb _gf_exp-1(%edx),%bl
+	addb %bl,%bl
+	movb %bl,_gf_exp(%edx)
+L55:
+	movzbl _gf_exp(%edx),%eax
+	movl %edx,_gf_log(,%eax,4)
+	incl %edx
+	cmpl $254,%edx
+	jle L53
+	movl $255,_gf_log
+	xorl %edx,%edx
+	.align 2,0x90
+L60:
+	movb _gf_exp(%edx),%al
+	movb %al,_gf_exp+255(%edx)
+	incl %edx
+	cmpl $254,%edx
+	jle L60
+	movb $0,_inverse
+	movb $1,_inverse+1
+	movl $2,%edx
+	.align 2,0x90
+L65:
+	movl $_gf_exp+255,%eax
+	subl _gf_log(,%edx,4),%eax
+	movb (%eax),%al
+	movb %al,_inverse(%edx)
+	incl %edx
+	cmpl $255,%edx
+	jle L65
+	leal -8(%ebp),%esp
+	popl %ebx
+	popl %esi
+	leave
+	ret
+Lfe3:
+	.size	 _generate_gf,Lfe3-_generate_gf
+	.align 2
+	.type	 _addmul1,@function
+_addmul1:
+	pushl %ebp
+	movl %esp,%ebp
+	pushl %esi
+	pushl %ebx
+	movl 8(%ebp),%edx
+	movl 12(%ebp),%ecx
+	movl 20(%ebp),%eax
+	addl $-15,%eax
+	leal (%eax,%edx),%esi
+	movzbl 16(%ebp),%eax
+	sall $8,%eax
+	leal _gf_mul_table(%eax),%ebx
+	pushl %edi
+	cmpl %esi,%edx
+	jae L69
+	.align 2,0x90
+L71:
+#define XYZ_0(n) /* this is basic code */ \
+	movzbl (n)(%ecx),%eax ; \
+	movb (%eax,%ebx),%al ; \
+	xorb %al,(n)(%edx) ;
+
+#if 0
+#define XYZ(n) \
+	XYZ_0(n) ; \
+	XYZ_0(n+1) ; \
+	XYZ_0(n+2) ; \
+	XYZ_0(n+3) ;
+#else
+#define XYZ(n) /* this is x4 code */ \
+	movl n(%ecx),%eax ; \
+	movzbl %al, %edi ; \
+	movb (%edi,%ebx),%al ; \
+	movzbl %ah, %edi ; \
+	movb (%edi,%ebx),%ah ; \
+	roll $16, %eax ; \
+	movzbl %al, %edi ; \
+	movb (%edi,%ebx),%al ; \
+	movzbl %ah, %edi ; \
+	movb (%edi,%ebx),%ah ; \
+	roll $16, %eax ; \
+	xorl %eax,n(%edx) ;
+#endif
+	XYZ(0)
+	XYZ(4)
+	XYZ(8)
+	XYZ(12)
+
+	addl $16,%edx
+	addl $16,%ecx
+	cmpl %esi,%edx
+	jb L71
+L69:
+	addl $15,%esi
+	cmpl %esi,%edx
+	jae L74
+	.align 2,0x90
+L76:
+	movzbl (%ecx),%eax
+	movb (%eax,%ebx),%al
+	xorb %al,(%edx)
+	incl %edx
+	incl %ecx
+	cmpl %esi,%edx
+	jb L76
+L74:
+	popl %edi
+	leal -8(%ebp),%esp
+	popl %ebx
+	popl %esi
+	leave
+	ret
+Lfe4:
+	.size	 _addmul1,Lfe4-_addmul1
+	.align 2
+	.type	 _matmul,@function
+_matmul:
+	pushl %ebp
+	movl %esp,%ebp
+	subl $28,%esp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl $0,-4(%ebp)
+	movl 20(%ebp),%eax
+	cmpl %eax,-4(%ebp)
+	jge L80
+	.align 2,0x90
+L82:
+	xorl %ebx,%ebx
+	cmpl %ebx,28(%ebp)
+	jle L81
+	movl -4(%ebp),%esi
+	imull 24(%ebp),%esi
+	movl %esi,-8(%ebp)
+	movl -4(%ebp),%edi
+	imull 28(%ebp),%edi
+	movl %edi,-16(%ebp)
+	.align 2,0x90
+L86:
+	movl 8(%ebp),%eax
+	addl -8(%ebp),%eax
+	movl %eax,-28(%ebp)
+	movl 12(%ebp),%esi
+	addl %ebx,%esi
+	movl %esi,-24(%ebp)
+	movb $0,-12(%ebp)
+	xorl %ecx,%ecx
+	cmpl %ecx,24(%ebp)
+	jle L88
+	.align 2,0x90
+L90:
+	movl -28(%ebp),%edi
+	movzbl (%edi),%edx
+	sall $8,%edx
+	movl -24(%ebp),%eax
+	movzbl (%eax),%eax
+	movb _gf_mul_table(%eax,%edx),%dl
+	xorb %dl,-12(%ebp)
+	incl %ecx
+	incl %edi
+	movl %edi,-28(%ebp)
+	movl 28(%ebp),%esi
+	addl %esi,-24(%ebp)
+	cmpl %ecx,24(%ebp)
+	jg L90
+L88:
+	movl -16(%ebp),%edi
+	addl %ebx,%edi
+	movb -12(%ebp),%al
+	movl 16(%ebp),%esi
+	movb %al,(%edi,%esi)
+	incl %ebx
+	cmpl %ebx,28(%ebp)
+	jg L86
+L81:
+	incl -4(%ebp)
+	movl 20(%ebp),%edi
+	cmpl %edi,-4(%ebp)
+	jl L82
+L80:
+	leal -40(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe5:
+	.size	 _matmul,Lfe5-_matmul
+LC16:
+	.ascii "indxc\0"
+LC17:
+	.ascii "indxr\0"
+LC18:
+	.ascii "ipiv\0"
+LC19:
+	.ascii " ## __LINE__ ## \0"
+LC20:
+	.ascii "singular matrix\12\0"
+LC21:
+	.ascii "XXX pivot not found!\12\0"
+LC22:
+	.ascii "singular matrix 2\12\0"
+LC23:
+	.ascii "AARGH, indxr[col] %d\12\0"
+LC24:
+	.ascii "AARGH, indxc[col] %d\12\0"
+	.align 2
+	.type	 _invert_mat,@function
+_invert_mat:
+	pushl %ebp
+	movl %esp,%ebp
+	subl $52,%esp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl $1,-16(%ebp)
+	pushl $LC16
+	movl 12(%ebp),%edx
+	sall $2,%edx
+	movl %edx,-52(%ebp)
+	pushl %edx
+	call _my_malloc
+	movl %eax,-20(%ebp)
+	pushl $LC17
+	pushl -52(%ebp)
+	call _my_malloc
+	movl %eax,-24(%ebp)
+	pushl $LC18
+	pushl -52(%ebp)
+	call _my_malloc
+	movl %eax,-28(%ebp)
+	pushl $LC19
+	pushl 12(%ebp)
+	call _my_malloc
+	movl %eax,-32(%ebp)
+	addl $32,%esp
+	pushl $LC19
+	pushl 12(%ebp)
+	call _my_malloc
+	movl %eax,-36(%ebp)
+	pushl 12(%ebp)
+	pushl -32(%ebp)
+	call _bzero
+	xorl %eax,%eax
+	addl $16,%esp
+	cmpl %eax,12(%ebp)
+	jle L96
+	.align 2,0x90
+L98:
+	movl -28(%ebp),%ecx
+	movl $0,(%ecx,%eax,4)
+	incl %eax
+	cmpl %eax,12(%ebp)
+	jg L98
+L96:
+	movl $0,-12(%ebp)
+	movl 12(%ebp),%ebx
+	cmpl %ebx,-12(%ebp)
+	jge L101
+	.align 2,0x90
+L103:
+	movl $-1,-8(%ebp)
+	movl $-1,-4(%ebp)
+	movl -12(%ebp),%edx
+	movl -28(%ebp),%ecx
+	cmpl $1,(%ecx,%edx,4)
+	je L104
+	movl %edx,%eax
+	imull 12(%ebp),%eax
+	addl %edx,%eax
+	movl 8(%ebp),%ebx
+	cmpb $0,(%eax,%ebx)
+	je L104
+	movl %edx,-4(%ebp)
+	movl %edx,-8(%ebp)
+	jmp L105
+	.align 2,0x90
+L104:
+	xorl %edi,%edi
+	cmpl %edi,12(%ebp)
+	jle L107
+	.align 2,0x90
+L109:
+	movl -28(%ebp),%edx
+	cmpl $1,(%edx,%edi,4)
+	je L108
+	xorl %esi,%esi
+	cmpl %esi,12(%ebp)
+	jle L108
+	.align 2,0x90
+L114:
+	movl -28(%ebp),%ecx
+	cmpl $0,(%ecx,%esi,4)
+	jne L115
+	movl 12(%ebp),%eax
+	imull %edi,%eax
+	addl %esi,%eax
+	movl 8(%ebp),%ebx
+	cmpb $0,(%eax,%ebx)
+	je L113
+	movl %edi,-4(%ebp)
+	movl %esi,-8(%ebp)
+	jmp L105
+	.align 2,0x90
+L115:
+	movl -28(%ebp),%edx
+	cmpl $1,(%edx,%esi,4)
+	jle L113
+	pushl $LC20
+	jmp L162
+	.align 2,0x90
+L113:
+	incl %esi
+	cmpl %esi,12(%ebp)
+	jg L114
+L108:
+	incl %edi
+	cmpl %edi,12(%ebp)
+	jg L109
+L107:
+	cmpl $-1,-8(%ebp)
+	jne L105
+	pushl $LC21
+	jmp L162
+	.align 2,0x90
+L105:
+	movl -8(%ebp),%ecx
+	movl -28(%ebp),%ebx
+	incl (%ebx,%ecx,4)
+	cmpl %ecx,-4(%ebp)
+	je L123
+	xorl %esi,%esi
+	cmpl %esi,12(%ebp)
+	jle L123
+	movl -4(%ebp),%edx
+	imull 12(%ebp),%edx
+	movl %edx,-40(%ebp)
+	movl -8(%ebp),%edi
+	imull 12(%ebp),%edi
+	.align 2,0x90
+L127:
+	movl -40(%ebp),%ecx
+	addl %esi,%ecx
+	movl %ecx,-44(%ebp)
+	movl 8(%ebp),%ebx
+	movb (%ecx,%ebx),%bl
+	movb %bl,-52(%ebp)
+	leal (%esi,%edi),%edx
+	movl 8(%ebp),%ecx
+	movb (%edx,%ecx),%al
+	movl -44(%ebp),%ebx
+	movb %al,(%ebx,%ecx)
+	movb -52(%ebp),%bl
+	movb %bl,(%edx,%ecx)
+	incl %esi
+	cmpl %esi,12(%ebp)
+	jg L127
+L123:
+	movl -4(%ebp),%ebx
+	movl -12(%ebp),%edx
+	movl -24(%ebp),%ecx
+	movl %ebx,(%ecx,%edx,4)
+	movl -8(%ebp),%ecx
+	movl -20(%ebp),%ebx
+	movl %ecx,(%ebx,%edx,4)
+	movl -8(%ebp),%eax
+	imull 12(%ebp),%eax
+	movl 8(%ebp),%edi
+	addl %eax,%edi
+	movb (%ecx,%edi),%al
+	testb %al,%al
+	jne L129
+	pushl $LC22
+L162:
+	pushl $___sF+176
+	call _fprintf
+	addl $8,%esp
+	jmp L119
+	.align 2,0x90
+L129:
+	cmpb $1,%al
+	je L130
+	andl $255,%eax
+	movb _inverse(%eax),%al
+	movl -8(%ebp),%edx
+	movb $1,(%edx,%edi)
+	xorl %esi,%esi
+	cmpl %esi,12(%ebp)
+	jle L130
+	andl $255,%eax
+	sall $8,%eax
+	addl $_gf_mul_table,%eax
+	movl %eax,-52(%ebp)
+	.align 2,0x90
+L134:
+	movzbl (%esi,%edi),%eax
+	movl -52(%ebp),%ecx
+	movb (%eax,%ecx),%al
+	movb %al,(%esi,%edi)
+	incl %esi
+	cmpl %esi,12(%ebp)
+	jg L134
+L130:
+	movl -32(%ebp),%ebx
+	movl -8(%ebp),%edx
+	movb $1,(%edx,%ebx)
+	pushl 12(%ebp)
+	pushl %ebx
+	pushl %edi
+	call _bcmp
+	addl $12,%esp
+	testl %eax,%eax
+	je L136
+	movl 8(%ebp),%ecx
+	movl %ecx,-52(%ebp)
+	xorl %esi,%esi
+	cmpl %esi,12(%ebp)
+	jle L136
+	.align 2,0x90
+L140:
+	cmpl %esi,-8(%ebp)
+	je L139
+	movl -52(%ebp),%ebx
+	movl -8(%ebp),%edx
+	movb (%edx,%ebx),%al
+	movb $0,(%edx,%ebx)
+	testb %al,%al
+	je L139
+	pushl 12(%ebp)
+	andl $255,%eax
+	pushl %eax
+	pushl %edi
+	pushl %ebx
+	call _addmul1
+	addl $16,%esp
+L139:
+	incl %esi
+	movl 12(%ebp),%ecx
+	addl %ecx,-52(%ebp)
+	cmpl %ecx,%esi
+	jl L140
+L136:
+	movl -32(%ebp),%ebx
+	movl -8(%ebp),%edx
+	movb $0,(%edx,%ebx)
+	incl -12(%ebp)
+	movl 12(%ebp),%ecx
+	cmpl %ecx,-12(%ebp)
+	jl L103
+L101:
+	movl 12(%ebp),%ebx
+	decl %ebx
+	movl %ebx,-12(%ebp)
+	js L146
+	.align 2,0x90
+L148:
+	movl -12(%ebp),%edx
+	movl -24(%ebp),%ecx
+	cmpl $0,(%ecx,%edx,4)
+	jl L150
+	movl 12(%ebp),%ebx
+	cmpl %ebx,(%ecx,%edx,4)
+	jl L149
+L150:
+	movl -12(%ebp),%edx
+	movl -24(%ebp),%ecx
+	pushl (%ecx,%edx,4)
+	pushl $LC23
+	jmp L163
+	.align 2,0x90
+L149:
+	movl -12(%ebp),%ebx
+	movl -20(%ebp),%edx
+	cmpl $0,(%edx,%ebx,4)
+	jl L153
+	movl 12(%ebp),%ecx
+	cmpl %ecx,(%edx,%ebx,4)
+	jl L152
+L153:
+	movl -12(%ebp),%ebx
+	movl -20(%ebp),%edx
+	pushl (%edx,%ebx,4)
+	pushl $LC24
+L163:
+	pushl $___sF+176
+	call _fprintf
+	addl $12,%esp
+	jmp L147
+	.align 2,0x90
+L152:
+	movl -12(%ebp),%ecx
+	movl -24(%ebp),%ebx
+	movl (%ebx,%ecx,4),%eax
+	movl -20(%ebp),%edx
+	cmpl %eax,(%edx,%ecx,4)
+	je L147
+	xorl %edi,%edi
+	cmpl %edi,12(%ebp)
+	jle L147
+	.align 2,0x90
+L159:
+	movl 12(%ebp),%ecx
+	imull %edi,%ecx
+	movl %ecx,-48(%ebp)
+	movl -12(%ebp),%ebx
+	movl -24(%ebp),%edx
+	addl (%edx,%ebx,4),%ecx
+	movl %ecx,-44(%ebp)
+	movl 8(%ebp),%ebx
+	movb (%ecx,%ebx),%cl
+	movb %cl,-52(%ebp)
+	movl -48(%ebp),%eax
+	movl -12(%ebp),%edx
+	movl -20(%ebp),%ecx
+	addl (%ecx,%edx,4),%eax
+	movb (%eax,%ebx),%al
+	movl -44(%ebp),%edx
+	movb %al,(%edx,%ebx)
+	movl -48(%ebp),%edx
+	movl -12(%ebp),%ebx
+	addl (%ecx,%ebx,4),%edx
+	movb -52(%ebp),%cl
+	movl 8(%ebp),%ebx
+	movb %cl,(%edx,%ebx)
+	incl %edi
+	cmpl %edi,12(%ebp)
+	jg L159
+L147:
+	decl -12(%ebp)
+	jns L148
+L146:
+	movl $0,-16(%ebp)
+L119:
+	pushl -20(%ebp)
+	call _free
+	pushl -24(%ebp)
+	call _free
+	pushl -28(%ebp)
+	call _free
+	pushl -32(%ebp)
+	call _free
+	pushl -36(%ebp)
+	call _free
+	movl -16(%ebp),%eax
+	leal -64(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe6:
+	.size	 _invert_mat,Lfe6-_invert_mat
+	.align 2
+.globl _invert_vdm
+	.type	 _invert_vdm,@function
+_invert_vdm:
+	pushl %ebp
+	movl %esp,%ebp
+	subl $32,%esp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl 12(%ebp),%esi
+	cmpl $1,%esi
+	je L197
+	pushl $LC19
+	pushl %esi
+	call _my_malloc
+	movl %eax,-8(%ebp)
+	pushl $LC19
+	pushl %esi
+	call _my_malloc
+	movl %eax,-4(%ebp)
+	pushl $LC19
+	pushl %esi
+	call _my_malloc
+	movl %eax,-12(%ebp)
+	movl $1,%ecx
+	xorl %edx,%edx
+	addl $24,%esp
+	cmpl %esi,%edx
+	jge L167
+	.align 2,0x90
+L169:
+	movl -8(%ebp),%ebx
+	movb $0,(%edx,%ebx)
+	movl 8(%ebp),%edi
+	movb (%ecx,%edi),%al
+	movl -12(%ebp),%ebx
+	movb %al,(%edx,%ebx)
+	incl %edx
+	addl %esi,%ecx
+	cmpl %esi,%edx
+	jl L169
+L167:
+	movl -12(%ebp),%edi
+	movb (%edi),%al
+	movl -8(%ebp),%ebx
+	movb %al,-1(%ebx,%esi)
+	movl $1,%edx
+	cmpl %esi,%edx
+	jge L172
+	leal -1(%esi),%edi
+	movl %edi,-32(%ebp)
+	.align 2,0x90
+L174:
+	movl -12(%ebp),%ebx
+	movb (%edx,%ebx),%bl
+	movb %bl,-20(%ebp)
+	movl %esi,%ecx
+	subl %edx,%ecx
+	cmpl %ecx,-32(%ebp)
+	jle L176
+	movzbl %bl,%eax
+	sall $8,%eax
+	addl $_gf_mul_table,%eax
+	movl %eax,-28(%ebp)
+	.align 2,0x90
+L178:
+	movl -8(%ebp),%edi
+	movzbl 1(%edi,%ecx),%eax
+	movl -28(%ebp),%ebx
+	movb (%eax,%ebx),%al
+	xorb %al,(%ecx,%edi)
+	incl %ecx
+	cmpl %ecx,-32(%ebp)
+	jg L178
+L176:
+	movb -20(%ebp),%bl
+	movl -8(%ebp),%edi
+	xorb %bl,-1(%edi,%esi)
+	incl %edx
+	cmpl %esi,%edx
+	jl L174
+L172:
+	movl $0,-32(%ebp)
+	cmpl %esi,-32(%ebp)
+	jge L182
+	.align 2,0x90
+L184:
+	movl -12(%ebp),%ebx
+	movl -32(%ebp),%edi
+	movb (%edi,%ebx),%al
+	movb $1,-16(%ebp)
+	movl -4(%ebp),%ebx
+	movb $1,-1(%ebx,%esi)
+	leal -2(%esi),%edx
+	testl %edx,%edx
+	jl L186
+	andl $255,%eax
+	sall $8,%eax
+	leal _gf_mul_table(%eax),%ecx
+	.align 2,0x90
+L188:
+	movl -4(%ebp),%edi
+	movzbl 1(%edi,%edx),%eax
+	movl -8(%ebp),%ebx
+	movb 1(%ebx,%edx),%bl
+	xorb (%eax,%ecx),%bl
+	movb %bl,(%edx,%edi)
+	movzbl -16(%ebp),%eax
+	movb (%eax,%ecx),%al
+	xorb (%edx,%edi),%al
+	movb %al,-16(%ebp)
+	decl %edx
+	jns L188
+L186:
+	movl $0,-28(%ebp)
+	cmpl %esi,-28(%ebp)
+	jge L183
+	movzbl -16(%ebp),%edi
+	movl %edi,-24(%ebp)
+	.align 2,0x90
+L193:
+	movl -28(%ebp),%ecx
+	imull %esi,%ecx
+	addl -32(%ebp),%ecx
+	movl -24(%ebp),%ebx
+	movzbl _inverse(%ebx),%eax
+	sall $8,%eax
+	movl -4(%ebp),%edi
+	movl -28(%ebp),%ebx
+	movzbl (%ebx,%edi),%edx
+	movb _gf_mul_table(%edx,%eax),%al
+	movl 8(%ebp),%edi
+	movb %al,(%ecx,%edi)
+	incl %ebx
+	movl %ebx,-28(%ebp)
+	cmpl %esi,%ebx
+	jl L193
+L183:
+	incl -32(%ebp)
+	cmpl %esi,-32(%ebp)
+	jl L184
+L182:
+	pushl -8(%ebp)
+	call _free
+	pushl -4(%ebp)
+	call _free
+	pushl -12(%ebp)
+	call _free
+L197:
+	xorl %eax,%eax
+	leal -44(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe7:
+	.size	 _invert_vdm,Lfe7-_invert_vdm
+.data
+	.align 2
+	.type	 _fec_initialized,@object
+	.size	 _fec_initialized,4
+_fec_initialized:
+	.long 0
+.text
+	.align 2
+	.type	 _init_fec,@function
+_init_fec:
+	pushl %ebp
+	movl %esp,%ebp
+	call _generate_gf
+	call _init_mul_table
+	movl $1,_fec_initialized
+	leave
+	ret
+Lfe8:
+	.size	 _init_fec,Lfe8-_init_fec
+LC25:
+	.ascii "bad parameters to fec_free\12\0"
+	.align 2
+.globl _fec_free
+	.type	 _fec_free,@function
+_fec_free:
+	pushl %ebp
+	movl %esp,%ebp
+	pushl %ebx
+	movl 8(%ebp),%ebx
+	testl %ebx,%ebx
+	je L201
+	movl 8(%ebx),%eax
+	xorl $-20181524,%eax
+	xorl 4(%ebx),%eax
+	xorl 12(%ebx),%eax
+	cmpl %eax,(%ebx)
+	je L200
+L201:
+	pushl $LC25
+	pushl $___sF+176
+	call _fprintf
+	jmp L199
+	.align 2,0x90
+L200:
+	pushl 12(%ebx)
+	call _free
+	pushl %ebx
+	call _free
+L199:
+	movl -4(%ebp),%ebx
+	leave
+	ret
+Lfe9:
+	.size	 _fec_free,Lfe9-_fec_free
+LC26:
+	.ascii "Invalid parameters k %d n %d GF_SIZE %d\12\0"
+LC27:
+	.ascii "new_code\0"
+	.align 2
+.globl _fec_new
+	.type	 _fec_new,@function
+_fec_new:
+	pushl %ebp
+	movl %esp,%ebp
+	subl $16,%esp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl 8(%ebp),%edi
+	cmpl $0,_fec_initialized
+	jne L203
+	call _init_fec
+L203:
+	cmpl $256,%edi
+	jg L205
+	cmpl $256,12(%ebp)
+	jg L205
+	cmpl %edi,12(%ebp)
+	jge L204
+L205:
+	pushl $255
+	pushl 12(%ebp)
+	pushl %edi
+	pushl $LC26
+	pushl $___sF+176
+	call _fprintf
+	xorl %eax,%eax
+	jmp L231
+	.align 2,0x90
+L204:
+	pushl $LC27
+	pushl $16
+	call _my_malloc
+	movl %eax,-8(%ebp)
+	movl %edi,4(%eax)
+	movl 12(%ebp),%esi
+	movl -8(%ebp),%edx
+	movl %esi,8(%edx)
+	pushl $LC19
+	movl 12(%ebp),%ebx
+	imull %edi,%ebx
+	pushl %ebx
+	call _my_malloc
+	movl -8(%ebp),%edx
+	movl %eax,12(%edx)
+	movl 12(%ebp),%eax
+	xorl $-20181524,%eax
+	xorl %edi,%eax
+	movl -8(%ebp),%edx
+	xorl 12(%edx),%eax
+	movl %eax,(%edx)
+	pushl $LC19
+	pushl %ebx
+	call _my_malloc
+	movl %eax,-4(%ebp)
+	movb $1,(%eax)
+	movl $1,%ecx
+	addl $24,%esp
+	cmpl %edi,%ecx
+	jge L207
+	.align 2,0x90
+L209:
+	movl -4(%ebp),%esi
+	movb $0,(%ecx,%esi)
+	incl %ecx
+	cmpl %edi,%ecx
+	jl L209
+L207:
+	movl -4(%ebp),%edx
+	addl %edi,%edx
+	movl %edx,-16(%ebp)
+	xorl %ebx,%ebx
+	movl 12(%ebp),%eax
+	decl %eax
+	cmpl %eax,%ebx
+	jge L212
+	movl 12(%ebp),%esi
+	decl %esi
+	movl %esi,-12(%ebp)
+	.align 2,0x90
+L214:
+	xorl %ecx,%ecx
+	cmpl %edi,%ecx
+	jge L213
+	.align 2,0x90
+L218:
+	movl %ebx,%eax
+	imull %ecx,%eax
+	cmpl $254,%eax
+	jle L221
+	.align 2,0x90
+L222:
+	addl $-255,%eax
+	movl %eax,%edx
+	sarl $8,%edx
+	andl $255,%eax
+	addl %edx,%eax
+	cmpl $254,%eax
+	jg L222
+L221:
+	andl $255,%eax
+	movb _gf_exp(%eax),%al
+	movl -16(%ebp),%edx
+	movb %al,(%ecx,%edx)
+	incl %ecx
+	cmpl %edi,%ecx
+	jl L218
+L213:
+	incl %ebx
+	addl %edi,-16(%ebp)
+	cmpl %ebx,-12(%ebp)
+	jg L214
+L212:
+	pushl %edi
+	pushl -4(%ebp)
+	call _invert_vdm
+	pushl %edi
+	pushl %edi
+	movl 12(%ebp),%eax
+	subl %edi,%eax
+	pushl %eax
+	movl %edi,%ebx
+	imull %edi,%ebx
+	movl %ebx,%eax
+	movl -8(%ebp),%esi
+	addl 12(%esi),%eax
+	pushl %eax
+	pushl -4(%ebp)
+	movl -4(%ebp),%eax
+	addl %ebx,%eax
+	pushl %eax
+	call _matmul
+	addl $32,%esp
+	pushl %ebx
+	pushl 12(%esi)
+	call _bzero
+	movl 12(%esi),%edx
+	movl %edx,-16(%ebp)
+	xorl %ecx,%ecx
+	addl $8,%esp
+	cmpl %edi,%ecx
+	jge L227
+	leal 1(%edi),%eax
+	.align 2,0x90
+L229:
+	movl -16(%ebp),%esi
+	movb $1,(%esi)
+	incl %ecx
+	addl %eax,%esi
+	movl %esi,-16(%ebp)
+	cmpl %edi,%ecx
+	jl L229
+L227:
+	pushl -4(%ebp)
+	call _free
+	movl -8(%ebp),%eax
+L231:
+	leal -28(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe10:
+	.size	 _fec_new,Lfe10-_fec_new
+LC28:
+	.ascii "Invalid index %d (max %d)\12\0"
+	.align 2
+.globl _fec_encode
+	.type	 _fec_encode,@function
+_fec_encode:
+	pushl %ebp
+	movl %esp,%ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl 8(%ebp),%ebx
+	movl 20(%ebp),%edx
+	movl 4(%ebx),%edi
+	cmpl %edi,%edx
+	jge L234
+	pushl 24(%ebp)
+	pushl 16(%ebp)
+	movl 12(%ebp),%ecx
+	pushl (%ecx,%edx,4)
+	call _bcopy
+	jmp L235
+	.align 2,0x90
+L234:
+	cmpl %edx,8(%ebx)
+	jle L236
+	movl %edx,%eax
+	imull %edi,%eax
+	movl %eax,%esi
+	addl 12(%ebx),%esi
+	pushl 24(%ebp)
+	pushl 16(%ebp)
+	call _bzero
+	xorl %ebx,%ebx
+	addl $8,%esp
+	cmpl %edi,%ebx
+	jge L235
+	.align 2,0x90
+L240:
+	cmpb $0,(%ebx,%esi)
+	je L239
+	pushl 24(%ebp)
+	movzbl (%ebx,%esi),%eax
+	pushl %eax
+	movl 12(%ebp),%ecx
+	pushl (%ecx,%ebx,4)
+	pushl 16(%ebp)
+	call _addmul1
+	addl $16,%esp
+L239:
+	incl %ebx
+	cmpl %edi,%ebx
+	jl L240
+	jmp L235
+	.align 2,0x90
+L236:
+	movl 8(%ebx),%eax
+	decl %eax
+	pushl %eax
+	pushl %edx
+	pushl $LC28
+	pushl $___sF+176
+	call _fprintf
+L235:
+	leal -12(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe11:
+	.size	 _fec_encode,Lfe11-_fec_encode
+	.align 2
+	.type	 _shuffle,@function
+_shuffle:
+	pushl %ebp
+	movl %esp,%ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl 8(%ebp),%edi
+	movl 12(%ebp),%esi
+	xorl %ecx,%ecx
+L255:
+	cmpl %ecx,16(%ebp)
+	jle L246
+	movl 16(%ebp),%edx
+	cmpl %edx,(%esi,%ecx,4)
+	jge L250
+	cmpl %ecx,(%esi,%ecx,4)
+	jne L249
+L250:
+	incl %ecx
+	jmp L255
+	.align 2,0x90
+L249:
+	movl (%esi,%ecx,4),%ebx
+	cmpl %ebx,(%esi,%ebx,4)
+	jne L252
+	movl $1,%eax
+	jmp L254
+	.align 2,0x90
+L252:
+	movl (%esi,%ecx,4),%edx
+	movl (%esi,%ebx,4),%eax
+	movl %eax,(%esi,%ecx,4)
+	movl %edx,(%esi,%ebx,4)
+	movl (%edi,%ecx,4),%edx
+	movl (%edi,%ebx,4),%eax
+	movl %eax,(%edi,%ecx,4)
+	movl %edx,(%edi,%ebx,4)
+	jmp L255
+	.align 2,0x90
+L246:
+	xorl %eax,%eax
+L254:
+	leal -12(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe12:
+	.size	 _shuffle,Lfe12-_shuffle
+LC29:
+	.ascii "decode: invalid index %d (max %d)\12\0"
+	.align 2
+	.type	 _build_decode_matrix,@function
+_build_decode_matrix:
+	pushl %ebp
+	movl %esp,%ebp
+	subl $4,%esp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl 8(%ebp),%ecx
+	movl 4(%ecx),%esi
+	pushl $LC19
+	movl %esi,%eax
+	imull %esi,%eax
+	pushl %eax
+	call _my_malloc
+	movl %eax,-4(%ebp)
+	xorl %ebx,%ebx
+	movl -4(%ebp),%edi
+	addl $8,%esp
+	cmpl %esi,%ebx
+	jge L258
+	.align 2,0x90
+L260:
+	movl 16(%ebp),%ecx
+	cmpl %esi,(%ecx,%ebx,4)
+	jge L261
+	pushl %esi
+	pushl %edi
+	call _bzero
+	movb $1,(%ebx,%edi)
+	addl $8,%esp
+	jmp L259
+	.align 2,0x90
+L261:
+	movl 16(%ebp),%ecx
+	movl (%ecx,%ebx,4),%edx
+	movl 8(%ebp),%ecx
+	cmpl %edx,8(%ecx)
+	jg L263
+	movl 8(%ecx),%eax
+	decl %eax
+	pushl %eax
+	pushl %edx
+	pushl $LC29
+	pushl $___sF+176
+	call _fprintf
+	pushl -4(%ebp)
+	call _free
+	xorl %eax,%eax
+	jmp L267
+	.align 2,0x90
+L263:
+	pushl %esi
+	pushl %edi
+	movl %esi,%eax
+	movl 16(%ebp),%ecx
+	imull (%ecx,%ebx,4),%eax
+	movl 8(%ebp),%ecx
+	addl 12(%ecx),%eax
+	pushl %eax
+	call _bcopy
+	addl $12,%esp
+L259:
+	incl %ebx
+	addl %esi,%edi
+	cmpl %esi,%ebx
+	jl L260
+L258:
+	pushl %esi
+	pushl -4(%ebp)
+	call _invert_mat
+	addl $8,%esp
+	testl %eax,%eax
+	je L266
+	pushl -4(%ebp)
+	call _free
+	movl $0,-4(%ebp)
+L266:
+	movl -4(%ebp),%eax
+L267:
+	leal -16(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe13:
+	.size	 _build_decode_matrix,Lfe13-_build_decode_matrix
+LC30:
+	.ascii "new pkt pointers\0"
+LC31:
+	.ascii "new pkt buffer\0"
+	.align 2
+.globl _fec_decode
+	.type	 _fec_decode,@function
+_fec_decode:
+	pushl %ebp
+	movl %esp,%ebp
+	subl $12,%esp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	movl 8(%ebp),%ebx
+	movl 4(%ebx),%edi
+	pushl %edi
+	pushl 16(%ebp)
+	pushl 12(%ebp)
+	call _shuffle
+	addl $12,%esp
+	testl %eax,%eax
+	jne L291
+	pushl 16(%ebp)
+	pushl 12(%ebp)
+	pushl %ebx
+	call _build_decode_matrix
+	movl %eax,-4(%ebp)
+	addl $12,%esp
+	testl %eax,%eax
+	jne L271
+L291:
+	movl $1,%eax
+	jmp L290
+	.align 2,0x90
+L271:
+	pushl $LC30
+	leal 0(,%edi,4),%eax
+	pushl %eax
+	call _my_malloc
+	movl %eax,-8(%ebp)
+	xorl %esi,%esi
+	addl $8,%esp
+	cmpl %edi,%esi
+	jge L273
+	.align 2,0x90
+L275:
+	movl 16(%ebp),%edx
+	cmpl %edi,(%edx,%esi,4)
+	jl L274
+	pushl $LC31
+	pushl 20(%ebp)
+	call _my_malloc
+	movl -8(%ebp),%edx
+	movl %eax,(%edx,%esi,4)
+	pushl 20(%ebp)
+	pushl %eax
+	call _bzero
+	xorl %ebx,%ebx
+	addl $16,%esp
+	cmpl %edi,%ebx
+	jge L274
+	movl %esi,%edx
+	imull %edi,%edx
+	movl %edx,-12(%ebp)
+	.align 2,0x90
+L280:
+	movl -12(%ebp),%eax
+	addl %ebx,%eax
+	movl -4(%ebp),%edx
+	cmpb $0,(%eax,%edx)
+	je L279
+	pushl 20(%ebp)
+	movzbl (%eax,%edx),%eax
+	pushl %eax
+	movl 12(%ebp),%edx
+	pushl (%edx,%ebx,4)
+	movl -8(%ebp),%edx
+	pushl (%edx,%esi,4)
+	call _addmul1
+	addl $16,%esp
+L279:
+	incl %ebx
+	cmpl %edi,%ebx
+	jl L280
+L274:
+	incl %esi
+	cmpl %edi,%esi
+	jl L275
+L273:
+	xorl %esi,%esi
+	cmpl %edi,%esi
+	jge L285
+	.align 2,0x90
+L287:
+	movl 16(%ebp),%edx
+	cmpl %edi,(%edx,%esi,4)
+	jl L286
+	pushl 20(%ebp)
+	movl 12(%ebp),%edx
+	pushl (%edx,%esi,4)
+	movl -8(%ebp),%edx
+	pushl (%edx,%esi,4)
+	call _bcopy
+	movl -8(%ebp),%edx
+	pushl (%edx,%esi,4)
+	call _free
+	addl $16,%esp
+L286:
+	incl %esi
+	cmpl %edi,%esi
+	jl L287
+L285:
+	pushl -8(%ebp)
+	call _free
+	pushl -4(%ebp)
+	call _free
+	xorl %eax,%eax
+L290:
+	leal -24(%ebp),%esp
+	popl %ebx
+	popl %esi
+	popl %edi
+	leave
+	ret
+Lfe14:
+	.size	 _fec_decode,Lfe14-_fec_decode
+.lcomm _gf_exp,512
+.lcomm _gf_log,1024
+.lcomm _inverse,256
+.lcomm _gf_mul_table,65536

@@ -1,0 +1,112 @@
+.\"
+.\" Copyright 1998 by Luigi Rizzo, Dip. Ingegneria dell'Informazione,
+.\" Universitaet Berlin.  See the source code for copyright details.
+.\" THERE IS ABSOLUTELY NO WARRANTY FOR THIS SOFTWARE.
+.\"
+.Dd July 15, 1998
+.Dt FEC 3
+.Os
+.Sh NAME
+.Nm fec_new, fec_encode, fec_encode, fec_free
+.Nd An erasure code in GF(2^m)
+.Sh SYNOPSIS
+.Fd #include <fec.h>
+.Ft void *
+.Fn fec_new "int k" "int n"
+.Ft void
+.Fn fec_encode "void *code" "void *data[]" "void *dst" "int i" "int sz"
+.Ft int
+.Fn fec_decode "void *code" "void *data[]" "int i[]" "int sz"
+.Ft void *
+.Fn fec_free "void *code"
+.Sh "DESCRIPTION"
+This library implements a simple (n,k)
+erasure code based on Vandermonde matrices.
+The encoder takes 
+.Fa k
+packets of size
+.Fa sz
+each, and is able to produce up to
+.Fa n
+different encoded packets, numbered from 0 to n-1,
+such that any subset of
+.Fa k
+of them permits reconstruction of the original data.
+.Pp
+The data structures necessary for the encoding/decoding must
+first be created using calling
+.Fn fec_new
+with the desired parameters. The code descriptor returned by the function
+must be passed to other functions, and destroyed calling
+.Fn fec_free
+.Pp
+Allowed values for k and n depend on a compile-time value
+of
+.Fa GF_BITS
+and must be k <= n <= 2^GF_BITS.
+Best performance is achieved with GF_BITS=8, although the code supports
+also GF_BITS=16.
+.Pp
+Encoding is done by calling
+.Fn fec_encode
+and passing it pointers to the code descriptor, the source and
+destination data packets, the index of the packet to be produced,
+and the size of the packet.
+
+.Pp Decoding is done calling
+.Fn fec_decode
+with pointers to the code, received packets, indexes of received
+packets, and packet size. Decoding is done in place, possibly
+shuffling the arrays passed as parameters.  Decoding is deterministic
+as long as the received packets are different. The decoding procedure
+does some limited testing on this and returns if parameters are
+invalid.
+
+.Sh EXAMPLE
+.nf
+#include <fec.h>
+
+/*
+ * example of sender code
+ */
+void *code ;
+int n, k ;
+
+void *src[] ;
+void *pkt ;
+
+code = new_code (k, n );
+
+for (i = 0 ; i < k ; i++ )
+    src[i] = .. pointer to i-th source packet ..
+for (each packet to transmit) {
+   i = ... index of the packet ;
+   fec_encode(code, src, pkt, i, size) ;
+   .. use packet in pkt
+}
+fec_free(code) ;
+
+/*
+ * example of receiver code
+ */
+void *code ;
+int n, k ;
+
+void *data[] ;
+int *ix[] ;
+
+code = new_code (k, n );
+
+for (i = 0 ; i < k ; i++ ) {
+    ... receive a new packet ...
+    data[i] = .. pointer to i-th source packet ..
+    ix[i] = .. index of i-th source packet ..
+}
+fec_decode(code, data, ix, size) ;
+/*
+ * now data[] has pointers to the source packets
+ */
+   
+.SH BUGS
+Please direct bug reports to luigi@iet.unipi.it .
+.Sh "SEE ALSO"
