@@ -1,10 +1,11 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.15 2003/05/05 00:38:46 nickm Exp $
+# $Id: PacketHandler.py,v 1.16 2003/05/17 00:08:45 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
 import binascii
 import threading
+import types
 
 from mixminion.Common import encodeBase64, formatBase64
 import mixminion.Crypto as Crypto
@@ -31,26 +32,27 @@ class PacketHandler:
     # privatekeys: a list of 2-tuples of
     #      (1) a RSA private key that we accept
     #      (2) a HashLog objects corresponding to the given key
-    def __init__(self, privatekey, hashlog):
-        """Constructs a new packet handler, given a private key object for
-           header encryption, and a hashlog object to prevent replays.
+    def __init__(self, privatekey=(), hashlog=()):
+        """Constructs a new packet handler, given a sequence of
+           private key object for header encryption, and a sequence of
+           corresponding hashlog object to prevent replays.
 
-           A sequence of private keys may be provided, if you'd like the
-           server to accept messages encrypted with any of them.  Beware,
-           though: PK decryption is expensive.  Also, a hashlog must be
-           provided for each private key.
+           The lists must be equally long.  When a new packet is
+           processed, we try each of the private keys in sequence.  If
+           the packet is decodeable with one of the keys, we log it in
+           the corresponding entry of the hashlog list.
         """
         self.privatekeys = []
         self.lock = threading.Lock()
-        
-        try:
-            _ = privatekey[0]
-            self.setKeys(privatekey, hashlog)
-        except TypeError:
-            self.setKeys([privatekey], [hashlog])
+
+        assert type(privatekey) in (types.ListType, types.TupleType)
+
+        self.setKeys(privatekey, hashlog)
 
     def setKeys(self, keys, hashlogs):
-        """DOCDOC"""
+        """Change the keys and hashlogs used by this PacketHandler.
+           Arguments are as to PacketHandler.__init__
+        """
         self.lock.acquire()
         newKeys = {}
         try:
@@ -84,7 +86,7 @@ class PacketHandler:
             self.lock.acquire()
             for _, h in self.privatekeys:
                 h.close()
-        finally:        
+        finally:
             self.lock.release()
 
     def processMessage(self, msg):
@@ -177,7 +179,7 @@ class PacketHandler:
             header1 = header1[overflowLength:]
 
         header1 = subh.underflow + header1
-        
+
         # Decrypt the payload.
         payload = Crypto.lioness_decrypt(msg.payload,
                               keys.getLionessKeys(Crypto.PAYLOAD_ENCRYPT_MODE))
@@ -217,7 +219,7 @@ class PacketHandler:
         msg = Packet.Message(header1, header2, payload).pack()
 
         return RelayedPacket(address, msg)
-        
+
 class RelayedPacket:
     """A packet that is to be relayed to another server; returned by
        returned by PacketHandler.processMessage."""
@@ -373,5 +375,5 @@ class DeliveryPacket:
         else:
             assert self.isPlaintext()
             tp = 'BIN'
-            
+
         return Packet.TextEncodedMessage(self.contents, tp, tag)

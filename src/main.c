@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.13 2003/02/20 16:57:40 nickm Exp $ */
+/* $Id: main.c,v 1.14 2003/05/17 00:08:45 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -120,7 +120,6 @@ init_minionlib(void)
         /* We set ob_type here so that Cygwin is happy. */
         mm_RSA_Type.ob_type = mm_TLSContext_Type.ob_type =
                 mm_TLSSock_Type.ob_type = &PyType_Type;
-                
 
         Py_INCREF(&mm_RSA_Type);
         if (PyDict_SetItemString(d, "RSA", (PyObject*)&mm_RSA_Type) < 0)

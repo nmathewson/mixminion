@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.44 2003/05/05 00:38:45 nickm Exp $
+# $Id: BuildMessage.py,v 1.45 2003/05/17 00:08:41 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -59,7 +59,7 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
                    ",".join([s.getNickname() for s in path1]),
                    ",".join([s.getNickname() for s in path2]))
     LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
-    
+
     # Choose a random decoding tag.
     if not suppressTag:
         tag = _getRandomTag(paddingPRNG)
@@ -265,7 +265,7 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
     elif err:
         raise UIError("Address and %s leg of path will not fit in one header",
                       ["first", "second"][err-1])
-    
+
 #----------------------------------------------------------------------
 # MESSAGE DECODING
 
@@ -486,8 +486,8 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
         # Node i+1 sees the junk that node i saw, plus the junk that i appends,
         # all encrypted by i.
 
-        prngKey = Crypto.Keyset(secret).get(Crypto.RANDOM_JUNK_MODE) 
-    
+        prngKey = Crypto.Keyset(secret).get(Crypto.RANDOM_JUNK_MODE)
+
         # newJunk is the junk that node i will append. (It's as long as
         #   the data that i removes.)
         newJunk = Crypto.prng(prngKey,size)

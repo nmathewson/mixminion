@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.21 2003/04/26 14:37:43 nickm Exp $ */
+/* $Id: tls.c,v 1.22 2003/05/17 00:08:46 nickm Exp $ */
 #include "_minionlib.h"
 
 /* XXXX REMOVE*/
@@ -276,7 +276,7 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
                 mm_SSL_ERR(0);
                 return NULL;
         }
-        
+
 }
 
 static PyMethodDef mm_TLSContext_methods[] = {
@@ -563,8 +563,10 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 
-static char mm_TLSSock_check_cert_alive__doc__[] = 
-    "DOCDOC";
+static char mm_TLSSock_check_cert_alive__doc__[] =
+  "check_cert_alive()\n\n"
+  "Raise a TLSError if the peer\'s certificate on this TLS connection is\n"
+  "not currently valid.  Otherwise return None.\n";
 
 static PyObject*
 mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -575,7 +577,7 @@ mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
 
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
-        
+
         ssl = ((mm_TLSSock*)self)->ssl;
         if (!(cert = SSL_get_peer_certificate(ssl))) {
                 mm_SSL_ERR(0); return NULL;
@@ -596,8 +598,14 @@ mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 
-static char mm_TLSSock_verify_cert_and_get_identity_pk__doc__[] = 
-    "DOCDOC";
+static char mm_TLSSock_verify_cert_and_get_identity_pk__doc__[] =
+  "verify_cert_and_get_identity_pk()\n\n"
+  "Check whether all of the following conditions hold:\n"
+  "    1) The peer of this TLS connection has a 2-certificate chain.\n"
+  "    2) The certificate for the public key used for this connection is\n"
+  "       signed by the other certificate.\n"
+  "If not, raise a TLSError.  Otherwise, return the public key on the\n"
+  "signing (identity) certificate.\n";
 
 static PyObject*
 mm_TLSSock_verify_cert_and_get_identity_pk(
@@ -615,7 +623,7 @@ mm_TLSSock_verify_cert_and_get_identity_pk(
 
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
-        
+
         ssl = ((mm_TLSSock*)self)->ssl;
         if (!(chain = SSL_get_peer_cert_chain(ssl))) {
                 mm_SSL_ERR(0); return NULL;
@@ -672,7 +680,7 @@ mm_TLSSock_renegotiate(PyObject *self, PyObject *args, PyObject *kwargs)
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
         ssl = ((mm_TLSSock*)self)->ssl;
-        
+
         Py_BEGIN_ALLOW_THREADS
         r = SSL_renegotiate(ssl);
         Py_END_ALLOW_THREADS
@@ -699,7 +707,7 @@ mm_TLSSock_do_handshake(PyObject *self, PyObject *args, PyObject *kwargs)
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
         ssl = ((mm_TLSSock*)self)->ssl;
-        
+
         Py_BEGIN_ALLOW_THREADS
         r = SSL_do_handshake(ssl);
         Py_END_ALLOW_THREADS
@@ -724,7 +732,7 @@ mm_TLSSock_get_num_renegotiations(PyObject *self, PyObject *args,
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
         ssl = ((mm_TLSSock*)self)->ssl;
-        
+
         return PyInt_FromLong(SSL_num_renegotiations(ssl));
 }
 #endif

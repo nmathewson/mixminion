@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.40 2003/05/05 00:38:45 nickm Exp $
+# $Id: Packet.py,v 1.41 2003/05/17 00:08:43 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -142,21 +142,23 @@ def parseSubheader(s):
         ri, underflow = ri[:rlen], ri[rlen:]
     if rt >= MIN_EXIT_TYPE and rlen < 20:
         raise ParseError("Subheader missing tag")
-    #XXXX004 test underflow
     return Subheader(major,minor,secret,digest,rt,ri,rlen,underflow)
 
 class Subheader:
-    """Represents a decoded Mixminion subheader
+    """Represents a decoded Mixminion subheader.
 
        Fields: major, minor, secret, digest, routinglen, routinginfo,
                routingtype.
 
        A Subheader can exist in a half-initialized state where routing
-       info has been read from the first header, but not from the
-       extened headers.  If this is so, routinglen will be > len(routinginfo).
-       DOCDOC underflow
-       """
+       info has been read from the first RSA-encrypted data, but not
+       from the symmetrically encrypted data in the rest of the
+       header.  If this is so, routinglen will be > len(routinginfo).
 
+       If 'underflow' is present, it contains material that does not
+       belong to this subheader that was provided to 'parseSubheader'
+       anyway.
+       """
     def __init__(self, major, minor, secret, digest, routingtype,
                  routinginfo, routinglen=None, underflow=""):
         """Initialize a new subheader"""
@@ -198,26 +200,27 @@ class Subheader:
         self.routinglen = len(info)
 
     def appendOverflow(self, data):
-        """Given a string containing additional 
-           routing info, add it to the routinginfo of this
-           object.
-           DOCDOC
-        """
-        #XXXX004 test
+        """Given a string containing additional routing info, add it
+           to the routinginfo of this object.  """
         self.routinginfo += data
         assert len(self.routinginfo) <= self.routinglen
 
     def getUnderflowLength(self):
+        """Return the number of bytes from the rest of the header that should
+           be included in the RSA-encrypted part of the header.
+        """
         return max(0, MAX_ROUTING_INFO_LEN - self.routinglen)
 
     def getOverflowLength(self):
-        """DOCDOC"""
-        #XXXX004 test
+        """Return the length of the data from routinginfo that will
+           not fit in the RSA-encrypted part of the header.
+        """
         return max(0, self.routinglen - MAX_ROUTING_INFO_LEN)
 
     def getOverflow(self):
-        """DOCDOC"""
-        #XXXX004 test
+        """Return the portion of routinginfo that doesn't fit into the
+           RSA-encrypted part of the header.
+        """
         return self.routinginfo[MAX_ROUTING_INFO_LEN:]
 
     def pack(self):
@@ -473,7 +476,7 @@ First server is: %s""" % (hash, expiry, server)
         if not text.endswith("\n"):
             text += "\n"
         return "%s\nVersion: 0.1\n\n%s%s\n"%(RB_TEXT_START,text,RB_TEXT_END)
-    
+
 #----------------------------------------------------------------------
 # Routing info
 
@@ -691,7 +694,7 @@ class TextEncodedMessage:
             if (c.startswith("Decoding-handle:") or
                 c.startswith("Message-type:")):
                 preNL = "\n"
-                
+
         if self.messageType == 'TXT':
             tagLine = ""
         elif self.messageType == 'ENC':

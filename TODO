@@ -25,6 +25,7 @@ For 0.0.4:
                 o Ctrl-C should just print "interrupted."
                 o Change behavior on binary messages; don't dump 'em
                   to terminals.
+                o Client queues should have max-packets-to-send option.
                 . DELKEYS should work. (neruaL)
                         - Test
         . Internal statistics
@@ -33,7 +34,7 @@ For 0.0.4:
                 o Event log configurability
                 o server-stats command
                 o Test event log
-                . Document log and events
+                o Document log and events
                 - Test use of event log
         o Security:
                 o Support multiple SURB keys
@@ -87,31 +88,72 @@ For 0.0.4:
                 o Implement frontend
                 X Test backend
                 o Test frontend
-        - Key management:
-                . Refactor the scheduler code in ServerMain.  We know
+        o Bugfixes
+                o "Unexpectedly closed connection" sometimes means 
+                  "server not there." Log accordingly.
+                o The retry scheduling logic is bogus.
+                o Attach debugging log calls to DeliveryQueue.
+        o Improved path selection
+                o Better syntax
+                o Improved implementation
+                o Tests
+        . Key management:
+                o Refactor the scheduler code in ServerMain.  We know
                   too many events now.
                         o Implement
-                        - Document
-                        - Tests
+                        o Document
+                        o Tests
                 . Ability to generate new serverdesc with old keys.
                         o Implement
-                        - Test backend
-                        - CLI
+                        o Test backend
+                        - Automate
                 . Ability to notice discrepancies between SD and
                   server configuration.
                         o Implement
                         - Test backend
                         - Integrate with frontend
                 . Online key rotation
-                        - Function to determine time for next rotation event.
+                        o Function to determine time for next rotation event.
                         o Ability to add PK to packethandler
                         o Ability to remove PK from packethandler.
                         o Ability to change TLS context for new connections.
-                        - Ability to delete PK.
-                        - Trigger all of the above as timed events occur.
-                        - Somehow test the whole business.
+                        o Ability to delete PK.
+                        o Trigger all of the above as timed events occur.
+1-3                     - Generate new SD's as needed, publish as needed
+2.5                     - Somehow test the whole business.
                 - Rudimentary directory automation (with trivial pinging)
-                - Automatic key generation 
+                        - CGI to receive server descriptors:
+1-4                             - replace old ones if superceded, 
+                                  reject them if invalid,
+                                  and queue them if unrecognized.
+2                               - Tests for above
+.5-1.5                          - The actual CGI
+1                       - Ability to move servers from queue to good-list.
+0.5                             - Tests
+1                       - Code to publish directories
+2-3                     - Code to remember whether descriptors are published,
+                          and republish as needed, and retry if directory
+                          is down.
+1                               - Tests
+                        - Trivial pinger: make a list of servers,
+                          check which are up, send 1-hop dummies, see
+                          which come back.
+.5                              - Get server list
+3                               - Do pinging, remember results
+2                               - Send messages with client
+1                               - Receive messages from an mbox? a directory?
+2                               - Recognize messages that come back
+2                               - Decide whom to include; make dirgen
+                                  include them
+3                               - Tests
+?                       - Design directory liveness format.  Maybe include
+                          all servers and "live" list for now?
+0.5                     - Code to automatically regenerate directories as
+                          needed.
+1       - Make "=== BEGIN" stuff comply with openpgp rfc: why rock
+          the boat?
+4       - Finish all documentation, resolve all XXXX004s
+3       - Try out all functionality by hand
 
 Deferred from 0.0.4:
         . UI
@@ -133,8 +175,7 @@ Deferred from 0.0.4:
                   server home, if not absolute.
         - Security:
         	- Password-protect dirserver keys
-                - Client queues should be locked, and have
-                  max-packets-to-send option.
+                - Client queues should be locked. (Aren't they?)
         - Key mgt
                 - Consider linewrap protection on server descriptors,
                   if demand warrants.  (None yet.)
@@ -180,7 +221,7 @@ Required for "1.0":
                 - Incoming email gateway
                         - Insert encoded packet into net.
                         - Reply to a reply block
-                        - "Anonymize" is
+                        - "Anonymize" is  ("Is?" Is what?)
                 - Some notion of 'client modules' would be a good idea.
                 - Put 'address' someplace more reasonable.
         - End-to-end issues
@@ -272,6 +313,9 @@ Required for "1.0":
                 - Support for full-blown multiple-server agreement mechanism
                 - Consider linewrap protection on server descriptors,
                   if demand warrants.  (None yet.)
+                - Servers should download directories
+                - Servers should use downloaded directories to print useful
+                  nicknames for other servers rather than just IP addresses.
         - Full documentation
                 - Complete docs for all code, with comments and examples.
                 - Write guide for module developers

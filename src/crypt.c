@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.22 2003/04/10 03:01:07 nickm Exp $ */
+/* $Id: crypt.c,v 1.23 2003/05/17 00:08:45 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -180,7 +180,7 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
         int inputlen, prng=0;
         long idx=0;
         AES_KEY *aes_key = NULL;
-        
+
         PyObject *output;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwdict,
@@ -920,7 +920,7 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
         static char *kwlist[] = { "filename", "verbose", "bits", NULL };
         char *filename;
         int bits=512, verbose=0;
- 
+
         BIO *out = NULL;
         DH *dh = NULL;
 
@@ -953,13 +953,15 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 const char mm_generate_cert__doc__[] =
-  "generate_cert(filename, rsa, cn, start_time, end_time)\n\n"
-  "Generate a self-signed X509 certificate suitable for use by a Mixminion\n"
-  "server.  The certificate will be stored to <filename>, and use the\n"
-  "=private= key <rsa>.  The certificate\'s commonName field will be set to\n"
-  "<cn>.  The key will be valid from <start_time> until <end_time>.\n"
-  "All other fields will be given reasonable defaults.\n";
-/* DOCDOC new arguments */
+  "generate_cert(filename, rsa, rsa_sign, cn, cn_issuer, \n"
+  "              start_time, end_time)\n\n"
+  "Generate a signed X509 certificate suitable for use by a Mixminion\n"
+  "server.  The certificate is stored to <filename>, uses the =private= key\n"
+  "<rsa>, and is signed using the =private= key <rsa_sign>.  The\n"
+  "certificate\'s commonName field is set to <cn>, and the issuer\'s\n"
+  "commonName will be set to <cn_issuer>. The key is valid from <start_time>\n"
+  "until <end_time>.  All other fields are given reasonable defaults.\n";
+
 PyObject *
 mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
@@ -990,11 +992,11 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
         PyObject *retval;
         time_t time;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs,
                                          "sO!O!ssdd:generate_cert",
                                          kwlist, &filename,
-                                         &mm_RSA_Type, &_rsa, 
-                                         &mm_RSA_Type, &_rsa_sign, 
+                                         &mm_RSA_Type, &_rsa,
+                                         &mm_RSA_Type, &_rsa_sign,
                                          &cn, &cn_issuer,
                                          &start_time, &end_time))
                 return NULL;

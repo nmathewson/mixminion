@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.103 2003/05/05 02:52:00 nickm Exp $
+# $Id: test.py,v 1.104 2003/05/17 00:08:43 nickm Exp $
 
 """mixminion.tests
 
@@ -491,11 +491,6 @@ class MiscTests(unittest.TestCase):
         LF2.release()
         LF1.acquire(blocking=1)
 
-        # XXXX004 reenable this once we figure out how to do so
-        #         happily on *BSD.  (The issue is that a blocking
-        #         flock seems to block _all_ the threads in this
-        #         process, not just this one.)
-
         # Now try a blocking lock.  We need to block in another process
         # because of some platforms' implementations of threading.
         releasedFile = mix_mktemp()
@@ -514,6 +509,18 @@ class MiscTests(unittest.TestCase):
         LF1.release()
         os.waitpid(pid, 0)
         self.assertEquals("GOOD", readFile(releasedFile))
+
+    def test_encodeBase64(self):
+        longish = "xyzzyasjklsadjsakldjsakldjsakldjskljaskldjsadkljsa"*10
+        d32 = encodeBase64(longish, lineWidth=32)
+        d64 = encodeBase64(longish, lineWidth=64)
+        self.assertEquals(longish, base64.decodestring(d32))
+        self.assertEquals(longish, base64.decodestring(d64))
+        for enc, max in ((d32, 33), (d64,65)):
+            lines = enc.split("\n")
+            for line in lines[-1]:
+                self.assertEquals(len(line), max)
+            self.assert_(len(lines[-1]) <= max)
 
     def _intervalEq(self, a, *others):
         eq = self.assertEquals
@@ -1356,7 +1363,7 @@ class FakeServerInfo:
     def __init__(self, addr, port, key, keyid):
         assert key.get_modulus_bytes() == 256
         self.addr = addr
-        self.port = port        
+        self.port = port
         self.key = key
         self.keyid = keyid
 
@@ -1741,12 +1748,12 @@ class BuildMessageTests(unittest.TestCase):
 
         # Drop message gets no tag, random payload
         m = bfm(payload, DROP_TYPE, "", [self.server1], [self.server3])
-        
+
         def decoderDrop(p,t,self=self):
             self.assertEquals(None, t)
             self.failIf(BuildMessage._checkPayload(p))
             return ""
-            
+
         self.do_message_test(m,
                              ( (self.pk1,), None,
                                (SWAP_FWD_TYPE,),
@@ -1756,7 +1763,7 @@ class BuildMessageTests(unittest.TestCase):
                                ("",) ),
                              "",
                              decoder=decoderDrop)
-        
+
 
         # Encrypted forward message
         rsa1, rsa2 = self.pk1, self.pk512
@@ -1891,7 +1898,7 @@ class BuildMessageTests(unittest.TestCase):
               "Version: 0.1\n"+
               "xyz\n"+
               "== END TYPE III REPLY BLOCK ==\n")
-        
+
         # Test decoding
         seed = loc[:20]
         prng = AESCounterPRNG(sha1(seed+"Tyrone SlothropGenerate")[:16])
@@ -2097,9 +2104,9 @@ class PacketHandlerTests(unittest.TestCase):
         self.server1 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
         self.server2 = FakeServerInfo("127.0.0.2", 3, self.pk2, "Z"*20)
         self.server3 = FakeServerInfo("127.0.0.3", 5, self.pk3, "Q"*20)
-        self.sp1 = PacketHandler(self.pk1, h)
-        self.sp2 = PacketHandler(self.pk2, h)
-        self.sp3 = PacketHandler(self.pk3, h)
+        self.sp1 = PacketHandler([self.pk1], [h])
+        self.sp2 = PacketHandler([self.pk2], [h])
+        self.sp3 = PacketHandler([self.pk3], [h])
         self.sp2_3 = PacketHandler((self.pk2,self.pk3), (h,h))
 
     def tearDown(self):
@@ -2151,14 +2158,14 @@ class PacketHandlerTests(unittest.TestCase):
 
         # A one-hop/one-hop message.
         m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
-        
+
         self.do_test_chain(m,
                            [self.sp1,self.sp3],
                            [FWD_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"],
                            p)
-        
+
         # Try servers with multiple keys
         m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])
         self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_TYPE, SMTP_TYPE],
@@ -2192,7 +2199,7 @@ class PacketHandlerTests(unittest.TestCase):
 
         p = "That gum you like, it's coming back in style."
         m = bfm(p, SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
-        
+
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
                                  [FWD_TYPE, SMTP_TYPE],
@@ -2255,7 +2262,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.assertEquals(len(pkt.getContents()), 28*1024)
         self.assertEquals(encodeBase64(pkt.getContents()),
                           pkt.getAsciiContents())
-        
+
     def test_rejected(self):
         bfm = BuildMessage.buildForwardMessage
         brm = BuildMessage.buildReplyMessage
@@ -2367,8 +2374,8 @@ class PacketHandlerTests(unittest.TestCase):
 
 
 class TestDeliveryQueue(DeliveryQueue):
-    def __init__(self,d):
-        DeliveryQueue.__init__(self,d)
+    def __init__(self,d,now=None):
+        DeliveryQueue.__init__(self,d,now=now)
         self._msgs = None
     def sendReadyMessages(self, *x, **y):
         self._msgs = None
@@ -2511,28 +2518,29 @@ class QueueTests(unittest.TestCase):
     def testDeliveryQueues(self):
         d_d = mix_mktemp("qd")
 
-        queue = TestDeliveryQueue(d_d)
+        now = 10000 # time.time()
+        queue = TestDeliveryQueue(d_d, now)
         queue.setRetrySchedule([10, 10, 10, 10]) # Retry up to 40 sec.
-        now = time.time()
         # First, make sure the queue stores messages correctly.
-        h1 = queue.queueDeliveryMessage("Message 1")
-        h2 = queue.queueDeliveryMessage("Message 2")
-        self.assertEquals((0, "Message 1", 0), queue.get(h1))
+        h1 = queue.queueDeliveryMessage("Message 1", now)
+        h2 = queue.queueDeliveryMessage("Message 2", now)
+        self.assertEquals(("Message 1", now, None, now), queue._inspect(h1))
+        self.assertEquals(("Message 2", now, None, now), queue._inspect(h2))
 
         # Call sendReadyMessages to begin 'sending' msg1 and msg2.
         queue.sendReadyMessages(now)
         msgs = queue._msgs
         self.assertEquals(2, len(msgs))
         # _deliverMessages should have gotten them both.
-        self.failUnless((h1, "Message 1", 0) in msgs)
-        self.failUnless((h2, "Message 2", 0) in msgs)
+        self.failUnless((h1, "Message 1") in msgs)
+        self.failUnless((h2, "Message 2") in msgs)
         # Add msg3, and acknowledge that msg1 succeeded.  msg2 is now in limbo
-        h3 = queue.queueDeliveryMessage("Message 3")
+        h3 = queue.queueDeliveryMessage("Message 3", now)
         queue.deliverySucceeded(h1)
         # Only msg3 should get sent out, since msg2 is still in progress.
         queue.sendReadyMessages(now+1)
         msgs = queue._msgs
-        self.assertEquals([(h3, "Message 3", 0)], msgs)
+        self.assertEquals([(h3, "Message 3")], msgs)
 
         # Now, make sure that msg1 is gone from the pool.
         allHandles = queue.getAllMessages()
@@ -2544,11 +2552,23 @@ class QueueTests(unittest.TestCase):
         # Now, fail msg2 retriably, and fail msg3 hard.  Only one message
         # should be left.  (It will have a different handle from the old
         # msg2.)
-        queue.deliveryFailed(h2, retriable=1)
-        queue.deliveryFailed(h3, retriable=0)
+        queue.deliveryFailed(h2, retriable=1, now=now+4)
+        queue.deliveryFailed(h3, retriable=0, now=now+4)
         allHandles = queue.getAllMessages()
         h4 = allHandles[0]
+        queue.cleanQueue()
+        files = os.listdir(d_d)
+        files.sort()
+        self.assertEquals(files, ["meta_"+h4, "msg_"+h4])
         self.assertEquals([h4], queue.getAllMessages())
+        self.assertEquals(("Message 2", now, now, now+10), queue._inspect(h2))
+
+        # Reload the queue; and try that again.
+        queue = TestDeliveryQueue(d_d, now+4)
+        queue.setRetrySchedule([10, 10, 10, 10]) # Retry up to 40 sec.
+        self.assertEquals([h4], queue.getAllMessages())
+        self.assertEquals(("Message 2", now, now, now+10), queue._inspect(h2))
+
         # When we try to send messages again after 5 seconds, nothing happens.
         queue.sendReadyMessages(now+5)
         msgs = queue._msgs
@@ -2556,29 +2576,46 @@ class QueueTests(unittest.TestCase):
         # When we try to send again after after 11 seconds, message 2 fires.
         queue.sendReadyMessages(now+11)
         msgs = queue._msgs
-        self.assertEquals([(h4, "Message 2", 1)], msgs)
-        self.assertNotEquals(h2, h4)
-        queue.deliveryFailed(h4, retriable=1)
-        # At 30 seconds, message 2 fires.
+        self.assertEquals([(h4, "Message 2")], msgs)
+        self.assertEquals(h2, h4)
+        queue.deliveryFailed(h4, retriable=1, now=now+15)
+        self.assertEquals(("Message 2", now, now+11, now+20),
+                          queue._inspect(h2))
+        # At 31 seconds, message 2 fires.
         h5 = queue.getAllMessages()[0]
-        queue.sendReadyMessages(now+30)
+        queue.sendReadyMessages(now+31)
         msgs = queue._msgs
-        self.assertEquals([(h5, "Message 2", 2)], msgs)
-        self.assertNotEquals(h5, h4)
-        queue.deliveryFailed(h5, retriable=1)
+        self.assertEquals([(h5, "Message 2")], msgs)
+        self.assertEquals(h5, h4)
+        queue.deliveryFailed(h5, retriable=1, now=now+33)
+        self.assertEquals(("Message 2", now, now+31, now+40),
+                          queue._inspect(h2))
         # At 45 sec, it fires one last time.  It will have gotten up to #4
         # already.
         h6 = queue.getAllMessages()[0]
         queue.sendReadyMessages(now+45)
         msgs = queue._msgs
-        self.assertEquals([(h6, "Message 2", 4)], msgs)
-        self.assertNotEquals(h6, h5)
-        queue.deliveryFailed(h6, retriable=1)
+        self.assertEquals([(h6, "Message 2")], msgs)
+        self.assertEquals(h6, h5)
+        queue.deliveryFailed(h6, retriable=1, now=now+100)
         # Now Message 2 is timed out.
         self.assertEquals([], queue.getAllMessages())
-        
+
         queue.removeAll()
         queue.cleanQueue()
+
+        # Make sure old-style messages get nuked.
+        writePickled(os.path.join(d_d, "msg_ABCDEFGH"),
+                     (5, None, "xyzzy", 6))
+        try:
+            suspendLog("TRACE")
+            queue = TestDeliveryQueue(d_d, now+4)
+        finally:
+            s = resumeLog()
+        self.assert_(stringContains(s, "No metadata for file handle ABCDEFGH"))
+        self.assert_(stringContains(s, "Removing item ABCDEFGH"))
+        queue.setRetrySchedule([10, 10, 10, 10]) # Retry up to 40 sec.
+        self.assertEquals([], queue.getAllMessages())
 
     def testMixPools(self):
         d_m = mix_mktemp("qm")
@@ -2711,17 +2748,21 @@ class LogTests(unittest.TestCase):
 
 
 class FileParanoiaTests(unittest.TestCase):
-    def testPrivateDirs(self):
-        # Pick a private directory under tempdir, but don't create it.
-        noia = mix_mktemp("noia")
+    def ensureParanoia(self, whatkind):
         tempdir = mixminion.testSupport._MM_TESTING_TEMPDIR
 
         # If our tempdir doesn't exist and isn't private, we can't go on.
         try:
             checkPrivateDir(tempdir)
         except MixFatalError, e:
-            self.fail("Can't test directory paranoia, because something's\n"
-                      +" wrong with %s: %s"%(tempdir, str(e)))
+            self.fail(("Can't test %s paranoia, because something's\n"
+                      +" wrong with %s: %s")%(whatkind, tempdir, str(e)))
+
+    def testPrivateDirs(self):
+        self.ensureParanoia("directory")
+
+        # Pick a private directory under tempdir, but don't create it.
+        noia = mix_mktemp("noia")
 
         # Nonexistant directory.
         self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
@@ -2809,6 +2850,61 @@ class FileParanoiaTests(unittest.TestCase):
             if old_mask is not None:
                 os.umask(old_mask)
 
+    def testPrivateFiles(self):
+        self.ensureParanoia("file")
+        dir = mix_mktemp()
+        os.mkdir(dir, 0700)
+        subdir = os.path.join(dir, "subdir")
+        os.mkdir(subdir, 0777)
+
+        # File doesn't exist.
+        self.failUnlessRaises(MixFatalError,
+                              checkPrivateFile, os.path.join(dir, "x"))
+
+        # Parent not private.
+        subdir_x = os.path.join(subdir, "x")
+        writeFile(subdir_x, "zzz")
+        os.chmod(subdir_x, 0600)
+        self.failUnlessRaises(MixFatalError,
+                              checkPrivateFile, subdir_x)
+
+        # File not owned by us. (???)
+        if os.getuid() == 0:
+            os.chmod(subdir_x, 0600)
+            os.chown(subdir_x, 1)
+            self.failUnlessRaises(MixFatalError, checkPrivateFile, subdir_x)
+            os.chown(subdir_x, 0)
+        else:
+            if os.path.exists("/etc/shadow"):
+                self.failUnlessRaises(MixFatalError, checkPrivateFile,
+                                      "/etc/shadow")
+
+        # File not private (fix, noex)
+        os.chmod(subdir, 0700)
+        os.chmod(subdir_x, 0777)
+        try:
+            suspendLog()
+            checkPrivateFile(subdir_x)
+        finally:
+            s = resumeLog()
+        self.assertEquals(0700, os.stat(subdir_x)[stat.ST_MODE] & 0777)
+        self.assert_(stringContains(s,
+                             "Repairing permissions on file "+subdir_x))
+
+        os.chmod(subdir_x, 0606)
+        try:
+            suspendLog()
+            checkPrivateFile(subdir_x)
+        finally:
+            s = resumeLog()
+        self.assertEquals(0600, os.stat(subdir_x)[stat.ST_MODE] & 0777)
+        self.assert_(stringContains(s,
+                             "Repairing permissions on file "+subdir_x))
+
+        # File not private, nofix.
+        os.chmod(subdir_x, 0701)
+        self.failUnlessRaises(MixFatalError, checkPrivateFile, subdir_x, 0)
+
 #----------------------------------------------------------------------
 # SIGHANDLERS
 # FFFF Write tests here
@@ -2816,7 +2912,6 @@ class FileParanoiaTests(unittest.TestCase):
 
 #----------------------------------------------------------------------
 # MMTP
-# FFFF Write more tests
 
 # Run on a different port so we don't conflict with any actual servers
 # running on this machine.
@@ -2971,12 +3066,12 @@ class MMTPTests(unittest.TestCase):
         t.join()
 
     def testStallingTransmission(self):
-        # XXXX004 I know this works, but there doesn't seem to be a good
-        # XXXX004 way to test it.  It's hard to open a connection that
-        # XXXX004 will surely stall.  For now, I'm disabling this test.
+        # XXXX I know this works, but there doesn't seem to be a good
+        # XXXX way to test it.  It's hard to open a connection that
+        # XXXX will surely stall.  For now, I'm disabling this test.
         if 1:
             return
-        
+
         def threadfn(pausing):
             # helper fn to run in a different thread: bind a socket,
             # but don't listen.
@@ -2994,7 +3089,7 @@ class MMTPTests(unittest.TestCase):
         pausing = [4]
         t = threading.Thread(None, threadfn, args=(pausing,))
         t.start()
-        
+
         now = time.time()
         timedout = 0
         try:
@@ -3009,7 +3104,7 @@ class MMTPTests(unittest.TestCase):
             passed = time.time() - now
             pausing[0] = 0
             t.join()
-            
+
         self.assert_(passed < 2)
         self.assert_(timedout)
 
@@ -3053,7 +3148,7 @@ class MMTPTests(unittest.TestCase):
         self.failUnless(len(c) == 1)
         self.failUnless(startTime <= c[0].lastActivity <= endTime)
         self.assertEquals(2, server.nJunkPackets)
-        
+
         # Again, with bad keyid.
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, "Z"*20,
@@ -3074,7 +3169,7 @@ class MMTPTests(unittest.TestCase):
             t.join()
         finally:
             resumeLog()  #unsuppress warning
-        
+
     def _testTimeout(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
         self.listener = listener
@@ -3160,7 +3255,7 @@ class MMTPTests(unittest.TestCase):
             except mixminion.Common.MixProtocolReject:
                 ok[0] = 1
             done[0] = 1
-            
+
         t = threading.Thread(None, _t)
         t.start()
         while not done[0]:
@@ -3348,14 +3443,20 @@ IntRS=5
         self.assertEquals(C._parseServerMode(" relay "), "relay")
         self.assertEquals(C._parseServerMode("Local"), "local")
         # interval
-        self.assertEquals(C._parseInterval(" 1 sec "), (1,"second", 1))
-        self.assertEquals(C._parseInterval(" 99 sec "), (99,"second", 99))
-        self.failUnless(floatEq(C._parseInterval("1.5 minutes")[2],
+        self.assertEquals(str(C._parseInterval(" 1 sec ")),"1 second")
+        self.assertEquals(str(C._parseInterval(" 99 sec ")),"99 seconds")
+        self.failUnless(floatEq(float(C._parseInterval("1.5 minutes")),
                                 90))
-        self.assertEquals(C._parseInterval("2 houRS"), (2,"hour",7200))
+        h2 = C._parseInterval("2 houRS")
+        m120 = C._parseInterval("120 minutes")
+        self.assertEquals(str(h2), "2 hours")
+        self.assertEquals(str(m120), "120 minutes")
+        self.assert_(int(h2) == int(m120) == 7200)
+        m120.reduce()
+        self.assertEquals(str(m120), "2 hours")
         # IntervalList
         self.assertEquals(C._parseIntervalList(" 5 sec, 1 min, 2 hours"),
-                          [ 5, 60, 7200 ])#XXXX mode
+                          [ 5, 60, 7200 ])
         self.assertEquals([5,5,5,5,5,5, 8*3600,8*3600,8*3600,8*3600,],
               C._parseIntervalList("5 sec for 30 sec, 8 hours for 1.3 days"))
         self.assertEquals([60], C._parseIntervalList("1 min for 1 min"))
@@ -3482,12 +3583,11 @@ IntRS=5
 
         # IntervalSet validation
         def warns(mixInterval, retryList, self=self):
-            ents = { "Section":
-               [('Retry', mixminion.Config._parseIntervalList(retryList))]}
+            ent = mixminion.Config._parseIntervalList(retryList)
             try:
                 suspendLog()
                 mixminion.server.ServerConfig._validateRetrySchedule(
-                    mixInterval, ents, "Section")
+                    mixInterval, ent, "Section")
             finally:
                 r = resumeLog()
             self.assert_(stringContains(r, "[WARN]"))
@@ -3650,7 +3750,12 @@ class ServerInfoTests(unittest.TestCase):
         # Make sure we accept an extra key.
         inf2 = inf+"Unexpected-Key: foo\n"
         inf2 = mixminion.ServerInfo.signServerInfo(inf2, identity)
-        mixminion.ServerInfo.ServerInfo(string=inf2)
+        try:
+            suspendLog()
+            mixminion.ServerInfo.ServerInfo(string=inf2)
+        finally:
+            s = resumeLog()
+        self.assert_(stringContains(s,"Unrecognized key Unexpected-Key on line"))
 
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
@@ -3736,6 +3841,40 @@ IP: 192.168.0.99
         except ConfigError, p:
             self.assertEquals(str(p), "Unrecognized descriptor version 0.99")
 
+        # Try regenerating server descriptor with existing keys.
+        key2 = mixminion.server.ServerKeys.ServerKeyset(d, "key2", d)
+        key2.load()
+        try:
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(
+                string=(SERVER_CONFIG_SHORT%mix_mktemp())+
+                                           """[Incoming/MMTP]
+Enabled: yes
+IP: 192.168.100.3
+[Delivery/SMTP]
+Enabled: yes
+ReturnAddress: X@Y.Z
+""")
+        finally:
+            resumeLog()
+
+        inf3 = generateServerDescriptorAndKeys(conf,
+                                               identity,
+                                               d,
+                                               "key2",
+                                               d,
+                                               useServerKeys=1)
+
+        key3 = mixminion.server.ServerKeys.ServerKeyset(d, "key2", d)
+        key3.load()
+        info3 = key3.getServerDescriptor()
+        self.assertEquals(key3.getMMTPKey().get_public_key(),
+                          key2.getMMTPKey().get_public_key())
+        self.assertEquals(key3.getPacketKey().get_public_key(),
+                          key2.getPacketKey().get_public_key())
+        eq(info3['Incoming/MMTP']['IP'], "192.168.100.3")
+        self.assert_('smtp' in info3.getCaps())
+
     def test_directory(self):
         eq = self.assertEquals
         examples = getExampleServerDescriptors()
@@ -3794,7 +3933,7 @@ IP: 192.168.0.99
         self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
         # Bad signature.
         dBad = re.compile(r"^DirectorySignature: ........", re.M).sub(
-            "Directory: ZZZZZZZZ", d)
+            "DirectorySignature: ZZZZZZZZ", d)
         self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
 
         # Can we use messed-up spaces and line-endings?
@@ -4014,7 +4153,7 @@ class EventStatsTests(unittest.TestCase):
         ES.log.lastSave = pm-1800
         ES.log._setNextRotation(now=pm-1800)
         eq(ES.log.getNextRotation(), pm+3600)
-        
+
         # 2) Rotation interval is not a multiple of hours: We don't round
         # 2A) Accumulated time << interval
         ES.log.rotateInterval = 40*60
@@ -4046,10 +4185,12 @@ class TestModule(mixminion.server.Modules.DeliveryModule):
     def getConfigSyntax(self):
         return { "Example" : { "Foo" : ("REQUIRE",
                                         mixminion.Config._parseInt, None) } }
-    def validateConfig(self, cfg, entries, lines, contents):
+    def validateConfig(self, cfg, lines, contents):
         if cfg['Example'] is not None:
             if cfg['Example'].get('Foo',1) % 2 == 0:
                 raise ConfigError("Foo was even")
+    def getRetrySchedule(self):
+        return [.1] *100
     def configure(self,cfg, manager):
         if cfg['Example']:
             self.enabled = 1
@@ -4141,6 +4282,7 @@ IP: 1.0.0.1
         # It should have processed all three.
         self.assertEquals(3, len(exampleMod.processedMessages))
         # If we try to send agin, the second message should get re-sent.
+        time.sleep(.15) # so we retry.
         manager.sendReadyMessages()
         self.assertEquals(1, queue.count())
         self.assertEquals(4, len(exampleMod.processedMessages))
@@ -4555,7 +4697,8 @@ Free to hide no more.
         module.configure({'Testing/DirectoryDump' : {}}, manager)
         self.assert_(not manager.queues.has_key('Testing_DirectoryDump'))
         module.configure({'Testing/DirectoryDump' :
-                          {'Location': dir, 'UseQueue' : 0}}, manager)
+                          {'Location': dir, 'UseQueue' : 0,
+                           'Retry': [60]}}, manager)
         # Try sending a couple of messages.
         queue = manager.queues['Testing_DirectoryDump']
         p1 = FDP('plain',0xFFFE, "addr1","this is the message","t"*20)
@@ -4594,7 +4737,8 @@ Free to hide no more.
         module = mixminion.testSupport.DirectoryStoreModule()
         # This time, use a queue.
         module.configure({'Testing/DirectoryDump' :
-                          {'Location': dir, 'UseQueue' : 1}}, manager)
+                          {'Location': dir, 'UseQueue' : 1,
+                           'Retry': [60]}}, manager)
         # Do we skip over the missing messages?
         self.assertEquals(module.next, 91)
         self.assertEquals(len(os.listdir(dir)), 3)
@@ -4603,7 +4747,7 @@ Free to hide no more.
                 FDP('plain',0xFFFE, "addr91", "This is message 91"))
         queue.queueDeliveryMessage(
                 FDP('plain',0xFFFE, "addr92", "This is message 92"))
-        queue.queueDeliveryMessage(
+        h3 = queue.queueDeliveryMessage(
                 FDP('plain',0xFFFE, "fail", "This is message 93"))
         queue.queueDeliveryMessage(
                 FDP('plain',0xFFFE, "FAIL!", "This is message 94"))
@@ -4666,6 +4810,7 @@ def _getServerKeyring():
 
 class ServerKeysTests(unittest.TestCase):
     def testServerKeyring(self):
+        #XXXX004 rethink this
         keyring = _getServerKeyring()
         home = _FAKE_HOME
 
@@ -4699,17 +4844,17 @@ class ServerKeysTests(unittest.TestCase):
         keyring.createKeys(2)
 
         # Check the first key we created
-        va, vu, curKey = keyring._getLiveKey()
+        va, vu, curKey = keyring._getLiveKeys()[0]
         self.assertEquals(va, start)
         self.assertEquals(vu, finish)
-        self.assertEquals(vu, keyring.getNextKeyRotation())
         self.assertEquals(curKey, "0001")
-        keyset = keyring.getServerKeyset()
+        keyset = keyring.getServerKeysets()[0]
         self.assertEquals(keyset.getHashLogFileName(),
                           os.path.join(home, "work", "hashlogs", "hash_0001"))
+        self.assertEquals(vu, keyring.getNextKeyRotation())
 
         # Check the second key we created.
-        va, vu, curKey = keyring._getLiveKey(vu + 3600)
+        va, vu, curKey = keyring._getLiveKeys(vu + 3600)[0]
         self.assertEquals(va, finish)
         self.assertEquals(vu, mixminion.Common.previousMidnight(
             finish+10*24*60*60+60))
@@ -4734,15 +4879,47 @@ class ServerKeysTests(unittest.TestCase):
             self.assertEquals(f, f2)
 
             # Test getTLSContext
-            keyring.getTLSContext()
+            keyring._getTLSContext()
 
         # Test getPacketHandler
-        _ = keyring.getPacketHandler()
+        #_ = keyring.getPacketHandler()
 
 
 #----------------------------------------------------------------------
 
 class ServerMainTests(unittest.TestCase):
+    def testScheduler(self):
+        _Scheduler = mixminion.server.ServerMain._Scheduler
+        _RecurringEvent = mixminion.server.ServerMain._RecurringEvent
+        lst=[]
+        def a(lst=lst): lst.append('a')
+        def b(lst=lst): lst.append('b')
+        def c(lst=lst): lst.append('c')
+        def d(lst=lst): lst.append('d')
+        def e(lst=lst): lst.append('e')
+        s = _Scheduler()
+        self.assertEquals(s.firstEventTime(), -1)
+        tm = time.time()
+
+        s.scheduleOnce(tm+1, "A", a)
+        s.scheduleOnce(tm+2, "B", b)
+        self.assertEquals(s.firstEventTime(), tm+1)
+        s.processEvents(tm+1)
+        self.assertEquals(['a'],lst)
+        del lst[:]
+
+        s.scheduleRecurring(tm+1.5, 1, "C", c)
+        s.scheduleOnce(tm+1.9, "D", d)
+        self.assertEquals(s.firstEventTime(), tm+1.5)
+        s.processEvents(tm+1.5)
+        self.assertEquals(["c"], lst)
+        diff = abs(s.firstEventTime()-(time.time()+1))
+        self.assert_(diff < 0.01)
+
+        s.processEvents(tm+5)
+        self.assertEquals(["c", "c", "d", "b"], lst)
+
+
     def testMixPool(self):
         ServerConfig = mixminion.server.ServerConfig.ServerConfig
         MixPool = mixminion.server.ServerMain.MixPool
@@ -5029,12 +5206,6 @@ class ClientMainTests(unittest.TestCase):
                     n += 1
             return n
 
-        def allUnique(lst):
-            d = {}
-            for item in lst:
-                d[item] = 1
-            return len(d) == len(lst)
-
         # Override ks.DEFAULT_REQUIRED_LIFETIME so we don't need to
         # explicitly specify a really early endAt all the time.
         ks.DEFAULT_REQUIRED_LIFETIME = 1
@@ -5048,43 +5219,35 @@ class ClientMainTests(unittest.TestCase):
         try:
             ### Try out getPath.
             # 1. Fully-specified paths.
-            p = ks.getPath(startServers=("Joe", "Lisa"),
-                           endServers=("Alice", "Joe"))
-            p = ks.getPath(startServers=("Joe", "Lisa", "Alice", "Joe"))
-            p = ks.getPath(endServers=("Joe", "Lisa", "Alice", "Joe"))
+            p = ks.getPath(None, ['Joe', 'Lisa', 'Alice', 'Joe'])
 
             # 2. Partly-specified paths...
             # 2a. With plenty of servers
-            p = ks.getPath(length=2)
+            p = ks.getPath(None, [None, None])
             eq(2, len(p))
             neq(p[0].getNickname(), p[1].getNickname())
 
-            p = ks.getPath(startServers=("Joe",), length=3)
+            p = ks.getPath(None, ["Joe", None, None])
             eq(3, len(p))
             self.assertSameSD(p[0], joe[0])
-            self.assert_(allUnique([s.getNickname() for s in p]))
             neq(p[1].getNickname(), "Joe")
             neq(p[2].getNickname(), "Joe")
             neq(p[1].getNickname(), p[2].getNickname())
 
-            p = ks.getPath(endServers=("Joe",), length=3)
+            p = ks.getPath(None, [None, None, "Joe"])
             eq(3, len(p))
             self.assertSameSD(joe[0], p[2])
-            self.assert_(allUnique([s.getNickname() for s in p]))
 
-            p = ks.getPath(startServers=("Alice",),endServers=("Joe",),
-                           length=4)
+            p = ks.getPath(None, ["Alice", None, None, "Joe"])
             eq(4, len(p))
             self.assertSameSD(alice[0], p[0])
             self.assertSameSD(joe[0], p[3])
             nicks = [ s.getNickname() for s in p ]
-            eq(1, nicks.count("Alice"))
-            eq(1, nicks.count("Joe"))
+            self.assert_(nicks.count("Alice")>=1)
+            self.assert_(nicks.count("Joe")>=1)
             neq(nicks[1],nicks[2])
-            self.assert_(allUnique([s.getNickname() for s in p]))
 
-            p = ks.getPath(startServers=("Joe",),endServers=("Alice","Joe"),
-                           length=4)
+            p = ks.getPath(None, ["Joe", None, "Alice", "Joe"])
             eq(4, len(p))
             self.assertSameSD(alice[0], p[2])
             self.assertSameSD(joe[0], p[0])
@@ -5098,23 +5261,22 @@ class ClientMainTests(unittest.TestCase):
             ks2.importFromFile(os.path.join(impdirname, "Lisa1"))
             ks2.importFromFile(os.path.join(impdirname, "Bob0"))
 
-            p = ks2.getPath(length=9)
+            p = ks2.getPath(None, [None]*9)
             eq(9, len(p))
             self.failIf(nRuns([s.getNickname() for s in p]))
 
-            p = ks2.getPath(startServers=("Joe",),endServers=("Joe",),
-                            length=8)
+            p = ks2.getPath(None, ["Joe"]+[None]*6+["Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(8, len(p))
             self.assertSameSD(joe[0], p[0])
             self.assertSameSD(joe[0], p[-1])
 
-            p = ks2.getPath(startServers=("Joe",),length=7)
+            p = ks2.getPath(None, ["Joe"]+[None]*6)
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(7, len(p))
             self.assertSameSD(joe[0], p[0])
 
-            p = ks2.getPath(endServers=("Joe",),length=7)
+            p = ks2.getPath(None, [None]*6+["Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]))
             eq(7, len(p))
             self.assertSameSD(joe[0], p[-1])
@@ -5122,30 +5284,30 @@ class ClientMainTests(unittest.TestCase):
             # 2c. With 2 servers
             ks2.expungeByNickname("Alice")
             ks2.expungeByNickname("Bob")
-            p = ks2.getPath(length=4)
+            p = ks2.getPath(None, [None]*4)
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
-            p = ks2.getPath(length=4,startServers=("Joe",))
+            p = ks2.getPath(None, ["Joe",None,None,None])
 
             self.failIf(nRuns([s.getNickname() for s in p]) > 2)
-            p = ks2.getPath(length=4, endServers=("Joe",))
+            p = ks2.getPath(None, [None, None, None, "Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
-            p = ks2.getPath(length=6, endServers=("Joe",))
+            p = ks2.getPath(None, [None,None,None,None,None, "Joe"])
             self.failIf(nRuns([s.getNickname() for s in p]) > 1)
 
             # 2d. With only 1.
             ks2.expungeByNickname("Lisa")
-            p = ks2.getPath(length=4)
-            eq(len(p), 2)
-            p = ks2.getPath(length=4, startServers=("Joe",))
-            eq(len(p), 3)
-            p = ks2.getPath(length=4, endServers=("Joe",))
-            eq(len(p), 2)
+            p = ks2.getPath(None,[None]*4)
+            eq(len(p), 4)
+            p = ks2.getPath(None,["Joe",None,None,None])
+            eq(len(p), 4)
+            p = ks2.getPath(None,[None,None,None,"Joe"])
+            eq(len(p), 4)
 
             # 2e. With 0
             self.assertRaises(MixError, ks.getPath,
-                              length=4, startAt=now+100*oneDay)
+                              None, [None]*4, startAt=now+100*oneDay)
         finally:
             s = resumeLog()
         self.assertEquals(4, s.count("Not enough servers for distinct"))
@@ -5153,22 +5315,20 @@ class ClientMainTests(unittest.TestCase):
         self.assertEquals(3, s.count("Only one relay known"))
 
         # 3. With capabilities.
-        p = ks.getPath(length=5, endCap="smtp", midCap="relay")
+        p = ks.getPath("smtp", [None]*5)
         eq(5, len(p))
         self.assertSameSD(p[-1], joe[0]) # Only Joe has SMTP
 
-        p = ks.getPath(length=4, endCap="mbox", midCap="relay")
+        p = ks.getPath("mbox", [None]*4)
         eq(4, len(p))
         self.assertSameSD(p[-1], lola[1]) # Only Lola has MBOX
 
-        p = ks.getPath(length=5, endCap="mbox", midCap="relay",
-                       startServers=("Alice",))
+        p = ks.getPath("mbox", ["Alice", None, None, None, None])
         eq(5, len(p))
         self.assertSameSD(p[-1], lola[1]) # Only Lola has MBOX
         self.assertSameSD(p[0], alice[0])
 
-        p = ks.getPath(length=5, endCap="mbox", midCap="relay",
-                       endServers=("Alice",))
+        p = ks.getPath("mbox", [None,None,None,None, "Alice"])
         eq(5, len(p))
         self.assertSameSD(p[-1], alice[0]) # We ignore endCap with endServers
 
@@ -5212,19 +5372,15 @@ class ClientMainTests(unittest.TestCase):
         fredfile = os.path.join(impdirname, "Fred1")
         p1,p2 = ppath(ks, None, "Alice,%s,Bob,Joe"%fredfile, email)
         pathIs((p1,p2), ((alice,fred),(bob,joe)))
-        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Joe", email, nHops=4, nSwap=1)
-        pathIs((p1,p2), ((alice,fred),(bob,joe)))
-        p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola,Joe", email, nHops=5,
-                      nSwap=1)
-        pathIs((p1,p2), ((alice,fred),(bob,lola,joe)))
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola,Joe", email, nHops=5)
         pathIs((p1,p2), ((alice,fred,bob),(lola,joe)))
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob", mboxWithServer)
         pathIs((p1,p2), ((alice,fred),(bob,lola)))
         p1,p2 = ppath(ks, None, "Alice,Fred,Bob,Lola", mboxWithoutServer)
         pathIs((p1,p2), ((alice,fred),(bob,lola)))
-        p1,p2 = ppath(ks, None, "Alice,Fred,Bob", mboxWithServer, nSwap=0)
-        pathIs((p1,p2), ((alice,),(fred,bob,lola)))
+        p1,p2 = ppath(ks, None, "Alice,?,?,Bob", mboxWithServer)
+        eq((len(p1),len(p2)), (2,3))
+        pathIs((p1[:1],p2[-2:]), ((alice,),(bob,lola)))
 
         # 1b. Colon, no star
         p1,p2 = ppath(ks, None, "Alice:Fred,Joe", email)
@@ -5233,9 +5389,10 @@ class ClientMainTests(unittest.TestCase):
         pathIs((p1,p2), ((alice,),(bob,fred,joe)))
         p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email)
         pathIs((p1,p2), ((alice,bob,fred),(joe,)))
+        p1,p2 = ppath(ks, None, "Alice,Bob,?:Joe", email)
+        eq((len(p1),len(p2)), (3,1))
+        pathIs((p1[:-1],p2), ((alice,bob),(joe,)))
         p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email, nHops=4)
-        pathIs((p1,p2), ((alice,bob,fred),(joe,)))
-        p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", email, nSwap=2)
         pathIs((p1,p2), ((alice,bob,fred),(joe,)))
         p1,p2 = ppath(ks, None, "Alice,Bob,Fred:Joe", mboxWithServer)
         pathIs((p1,p2), ((alice,bob,fred),(joe,lola)))
@@ -5244,70 +5401,66 @@ class ClientMainTests(unittest.TestCase):
 
         # 1c. Star, no colon
         p1,p2 = ppath(ks, None, 'Alice,*,Joe', email, nHops=5)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p2[-1]), (alice, joe))
         eq((len(p1),len(p2)), (3,2))
 
         p1,p2 = ppath(ks, None, 'Alice,Bob,*,Joe', email, nHops=6)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p1[1],p2[-1]), (alice, bob, joe))
         eq((len(p1),len(p2)), (3,3))
 
         p1,p2 = ppath(ks, None, 'Alice,Bob,*', email, nHops=6)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p1[1],p2[-1]), (alice, bob, joe))
         eq((len(p1),len(p2)), (3,3))
 
         p1,p2 = ppath(ks, None, '*,Bob,Joe', email) #default nHops=6
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p2[-2],p2[-1]), (bob, joe))
         eq((len(p1),len(p2)), (3,3))
 
-        p1,p2 = ppath(ks, None, 'Bob,*,Alice', mboxWithServer) #default nHops=6
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        p1,p2 = ppath(ks, None, 'Bob,*,Alice', mboxWithServer, nHops=5)
         pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (3,3))
 
         p1,p2 = ppath(ks, None, 'Bob,*,Alice,Lola', mboxWithoutServer)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (3,3))
 
         # 1d. Star and colon
-        p1,p2 = ppath(ks, None, 'Bob:*,Alice', mboxWithServer)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        p1,p2 = ppath(ks, None, 'Bob:*,Alice', mboxWithServer, nHops=5)
         pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (1,5))
 
-        p1,p2 = ppath(ks, None, 'Bob,*:Alice', mboxWithServer)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        p1,p2 = ppath(ks, None, 'Bob,*:Alice', mboxWithServer, nHops=5)
         pathIs((p1[0],p2[-2],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (4,2))
 
-        p1,p2 = ppath(ks, None, 'Bob,*,Joe:Alice', mboxWithServer)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        p1,p2 = ppath(ks, None, 'Bob,*,Joe:Alice', mboxWithServer, nHops=5)
         pathIs((p1[0],p1[-1],p2[-2],p2[-1]), (bob, joe, alice, lola))
         eq((len(p1),len(p2)), (4,2))
 
         p1,p2 = ppath(ks, None, 'Bob,*,Lola:Alice,Joe', email)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p1[-1],p2[-2],p2[-1]), (bob, lola, alice, joe))
         eq((len(p1),len(p2)), (4,2))
 
         p1,p2 = ppath(ks, None, '*,Lola:Alice,Joe', email)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[-1],p2[-2],p2[-1]), (lola, alice, joe))
         eq((len(p1),len(p2)), (4,2))
 
         p1,p2 = ppath(ks, None, 'Lola:Alice,*', email)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
         pathIs((p1[0],p2[0],p2[-1]), (lola, alice, joe))
         eq((len(p1),len(p2)), (1,5))
 
-        p1,p2 = ppath(ks, None, 'Bob:Alice,*', mboxWithServer)
-        self.assert_(allUnique([s.getNickname() for s in p1+p2]))
+        p1,p2 = ppath(ks, None, 'Bob:Alice,*', mboxWithServer, nHops=5)
         pathIs((p1[0],p2[0],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (1,5))
+
+        # 1e. Complex.
+        try:
+            suspendLog()
+            p1,p2 = ppath(ks, None, '?,Bob,*:Joe,*2,Joe', email, nHops=9)
+        finally:
+            resumeLog()
+        pathIs((p1[1],p2[0],p2[-1]), (bob, joe, joe))
+        eq((len(p1),len(p2)), (5,4))
 
         # 2. Failing cases
         raises = self.assertRaises
@@ -5320,8 +5473,6 @@ class ClientMainTests(unittest.TestCase):
         raises(MixError, ppath, ks, None, "Alice:Bob,Fred", mboxWithoutServer)
         # Two stars.
         raises(MixError, ppath, ks, None, "Alice,*,Bob,*,Joe", email)
-        # Swap point mismatch
-        raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nSwap=1)
         # NHops mismatch
         raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=2)
         raises(MixError, ppath, ks, None, "Alice:Bob,Joe", email, nHops=4)
@@ -5567,8 +5718,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
-        #suite.addTest(tc(MiscTests))
+        suite.addTest(tc(ClientMainTests))
         return suite
 
     suite.addTest(tc(MiscTests))

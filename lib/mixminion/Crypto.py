@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.42 2003/04/26 14:39:58 nickm Exp $
+# $Id: Crypto.py,v 1.43 2003/05/17 00:08:42 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -481,7 +481,7 @@ class RNG:
            bytes at a time."""
         self.bytes = ""
         self.chunksize = chunksize
-        
+
     def getBytes(self, n):
         """Returns a string of 'n' random bytes."""
 
@@ -702,7 +702,7 @@ class _TrueRNG(RNG):
            bytes at a time"""
         RNG.__init__(self,n)
         self.__lock = threading.Lock()
-        
+
     def _prng(self,n):
         "Returns n fresh bytes from our true RNG."
         if _TRNG_FILENAME is None:

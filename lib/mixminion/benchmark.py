@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.33 2003/04/26 14:39:59 nickm Exp $
+# $Id: benchmark.py,v 1.34 2003/05/17 00:08:43 nickm Exp $
 
 """mixminion.benchmark
 
@@ -19,8 +19,9 @@ import cPickle
 import threading
 from time import time
 
-
 import mixminion._minionlib as _ml
+import mixminion.server.ServerQueue
+
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
      compressData, uncompressData, _encodePayload, decodePayload
 from mixminion.Common import secureDelete, installSIGCHLDHandler, \
@@ -83,9 +84,9 @@ def timeit(fn,times):
 
 def spacestr(n):
     """Converts number of bytes to readable representation)"""
-    if abs(n) < 1e4:
-        return "%d bytes" %n
-    elif abs(n) < 1e7:
+    if abs(n) < 1024:
+        return "%d B" %n
+    elif abs(n) < 1048576:
         return "%d KB" % (n >> 10)
     elif abs(n) < 1e10:
         return "%d MB" % (n >> 20)
@@ -223,6 +224,8 @@ def cryptoTiming():
     print "bear D (32K)", timeit((
         lambda bkey=bkey: bear_decrypt(s32K, bkey)), 100)
 
+def rsaTiming():
+    c = AESCounterPRNG()
     if hasattr(_ml, 'add_oaep_padding'):
         print "OAEP_add (70->128B) (C)",
         print timeit((lambda: _ml.add_oaep_padding(s70b,OAEP_PARAMETER,128)),
@@ -265,7 +268,7 @@ def cryptoTiming():
 
     print "RSA generate (1024 bit,e=65535)", timeit((lambda: pk_generate(1024,
                                                                   65535)),10)
-    rsa = pk_generate()
+    rsa = pk_generate(1024,65535)
     print "Pad+RSA public encrypt",
     print timeit((lambda rsa=rsa: pk_encrypt(s70b, rsa)),1000)
     enc = pk_encrypt(s70b, rsa)
@@ -274,7 +277,17 @@ def cryptoTiming():
 
     print "RSA generate (1024 bit,e=3)", timeit((lambda: pk_generate(1024,
                                                                   3)),10)
-    rsa = pk_generate()
+    rsa = pk_generate(1024,3)
+    print "Pad+RSA public encrypt",
+    print timeit((lambda rsa=rsa: pk_encrypt(s70b, rsa)),1000)
+    enc = pk_encrypt(s70b, rsa)
+    print "Pad+RSA private decrypt", \
+          timeit((lambda enc=enc,rsa=rsa: pk_decrypt(enc, rsa)),100)
+
+    print "RSA generate (1024 bit,e=100073471)", timeit(
+        lambda: pk_generate(1024, 100073471), 10)
+                             
+    rsa = pk_generate(1024, 100073471)
     print "Pad+RSA public encrypt",
     print timeit((lambda rsa=rsa: pk_encrypt(s70b, rsa)),1000)
     enc = pk_encrypt(s70b, rsa)
@@ -381,7 +394,7 @@ IP: 1.1.1.1
     keyring = ServerKeyring(config)
     keyring.getIdentityKey()
     print "Create and sign server descriptor", timeit(keyring.createKeys, 10)
-    liveKey = keyring.getServerKeyset()
+    liveKey = keyring.getServerKeysets()[0]
     descFile = liveKey.getDescriptorFileName()
     desc = open(descFile).read()
 ##     for _ in xrange(2000):
@@ -463,6 +476,70 @@ def buildMessageTiming():
     bm(16,16,10)
 
 #----------------------------------------------------------------------
+def serverQueueTiming():
+    print "#================= SERVER QUEUES ====================="    
+    Queue = mixminion.server.ServerQueue.Queue
+    DeliveryQueue = mixminion.server.ServerQueue.DeliveryQueue
+    d1 = mix_mktemp()
+    q1 = Queue(d1, create=1)
+
+    d2 = mix_mktemp()
+    os.mkdir(d2,0700)
+    getCommonPRNG().getBytes(1)
+    
+    #for ln,it in (32*1024,100),(128,400),(1024,400), (32*1024,100):
+    for ln,it in ():
+        msg = "z"*ln
+        def y(msg=msg,idx=[0],d2=d2):
+            fn = os.path.join(d2,"k_"+str(idx[0]))
+            idx[0] += 1
+            f = open(fn, 'wb')
+            f.write(msg)
+            f.close()
+        def x(msg=msg,d2=d2):
+            f,b=getCommonPRNG().openNewFile(d2,"k_",1)
+            f.write(msg)
+            f.close()
+        print "Base: write %s file: %s" %(
+            spacestr(ln), timestr(timeit_(y, it)))
+        for p in os.listdir(d2):
+            os.unlink(os.path.join(d2,p))
+        print "Base: write %s file with random name: %s" %(
+            spacestr(ln), timestr(timeit_(x, it)))
+        for p in os.listdir(d2):
+            os.unlink(os.path.join(d2,p))
+
+        tm = timeit_(lambda q1=q1,msg=msg:q1.queueMessage(msg),  it)
+        print "Queue %s message: %s" %(spacestr(ln), timestr(tm))
+        t2 = time()
+        q1.removeAll()
+        q1.cleanQueue()
+        t2 = time() - t2
+        print "Scrub %s message: %s" %(spacestr(ln), timestr(t2/float(it)))
+
+        msg = [ 123, 414, msg ]
+        tm = timeit_(lambda q1=q1,msg=msg:q1.queueObject(msg), it)
+        print "Pickle %s message: %s" %(spacestr(ln), timestr(tm))
+        q1.removeAll()
+        q1.cleanQueue()
+
+    for ln,it in (128,400),(1024,400), (32*1024,100):
+        q1 = DeliveryQueue(d1, [100,100,100,100])
+        msg = "z"*ln
+        print "Delivery queue: %s message: %s" %(
+            spacestr(ln),
+            timeit(lambda q1=q1,msg=msg: q1.queueDeliveryMessage(msg), it))
+        print "            (repOK):", \
+              timeit(lambda q1=q1: q1._repOk(), it*10)
+#        q1._bs2()
+#        print "          (set metadata 2):", \
+#              timeit(lambda q1=q1: q1._saveState2(), it)
+
+        for p in os.listdir(d1):
+            os.unlink(os.path.join(d1,p))
+
+
+#----------------------------------------------------------------------
 class DummyLog:
     def seenHash(self,h): return 0
     def logHash(self,h): pass
@@ -472,7 +549,7 @@ def serverProcessTiming():
 
     pk = pk_generate(2048)
     server = FakeServerInfo("127.0.0.1", 1, pk, "X"*20)
-    sp = PacketHandler(pk, DummyLog())
+    sp = PacketHandler([pk], [DummyLog()])
 
     m_noswap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
                                    [server, server], [server, server])
@@ -494,7 +571,7 @@ def encodingTiming():
     t = prng.getBytes(20)
     print "Decode short payload", timeit(
         lambda p=p,t=t: decodePayload(p, t), 1000)
-    
+
     k20 = prng.getBytes(20*1024)
     p = _encodePayload(k20, 0, prng)
     t = prng.getBytes(20)
@@ -510,7 +587,7 @@ def encodingTiming():
         except CompressedDataTooLong:
             pass
     print "Decode overcompressed payload", timeit(decode, 1000)
-       
+
 #----------------------------------------------------------------------
 def timeEfficiency():
     print "#================= ACTUAL v. IDEAL ====================="
@@ -580,7 +657,7 @@ def timeEfficiency():
     prng_128b = timeit_((lambda k=aeskey: prng(k,128)),10000)
 
     server = FakeServerInfo("127.0.0.1", 1, pk, "X"*20)
-    sp = PacketHandler(pk, DummyLog())
+    sp = PacketHandler([pk], [DummyLog()])
 
     m_noswap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
                                    [server, server], [server, server])
@@ -620,7 +697,7 @@ def fileOpsTiming():
         lockfile.release()
     t = time()-t1
     print "Lockfile: lock+unlock", timestr(t/2000.)
-    
+
     for i in xrange(200):
         f = open(os.path.join(dname, str(i)), 'wb')
         f.write(s32K)
@@ -745,14 +822,14 @@ def testLeaks4():
             context = _ml.TLSContext_new(fn, p, dh)
             s1 = context.sock(0, 0)
             s2 = context.sock(0, 1)
-            
+
 def testLeaks5():
     from mixminion.test import _getMMTPServer
     server, listener, messagesIn, keyid = _getMMTPServer(1)
     #t = threading.Thread(None, testLeaks5_send,
     #                     args=(keyid,))
     #t.start()
-        
+
     while 1:
         server.process(0.5)
         #if messagesIn:
@@ -789,7 +866,7 @@ def testLeaks6():
         _ml.generate_dh_parameters(dh, 1, 512)
     print "OK"
     context = _ml.TLSContext_new(fn, p)#XXXX, dh)
-    
+
     listenSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listenSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listenSock.bind(("127.0.0.1", 48999))
@@ -827,10 +904,12 @@ def testLeaks6_2():
 #----------------------------------------------------------------------
 def timeAll(name, args):
     cryptoTiming()
+    rsaTiming()
     buildMessageTiming()
     directoryTiming()
     fileOpsTiming()
     encodingTiming()
+    serverQueueTiming()
     serverProcessTiming()
     hashlogTiming()
     timeEfficiency()

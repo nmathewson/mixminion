@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.30 2003/05/05 00:42:49 nickm Exp $
+# $Id: MMTPClient.py,v 1.31 2003/05/17 00:08:43 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -94,7 +94,7 @@ class BlockingClientConnection:
             assert sig == signal.SIGALRM
         if connectTimeout:
             signal.signal(signal.SIGALRM, sigalarmHandler)
-        
+
         # Connect to the server
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setblocking(1)
@@ -114,7 +114,7 @@ class BlockingClientConnection:
         finally:
             if connectTimeout:
                 signal.alarm(0)
-            
+
         LOG.debug("Handshaking with %s:%s",self.targetIP, self.targetPort)
         self.tls = self.context.sock(self.sock.fileno())
         self.tls.connect()
@@ -164,7 +164,7 @@ class BlockingClientConnection:
         self._sendPacket(packet,
                          control="JUNK\r\n", serverControl="RECEIVED\r\n",
                          hashExtra="JUNK", serverHashExtra="RECEIVED JUNK")
-        
+
     def _sendPacket(self, packet,
                     control="SEND\r\n", serverControl="RECEIVED\r\n",
                     hashExtra="SEND",serverHashExtra="RECEIVED"):
@@ -199,7 +199,7 @@ class BlockingClientConnection:
             LOG.debug("ACK received; packet successfully delivered")
         except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
             self._raise(e, "sending packet")
-            
+
     def shutdown(self):
         """Close this connection."""
         LOG.debug("Shutting down connection to %s:%s",
@@ -256,28 +256,37 @@ def sendMessages(routing, packetList, connectTimeout=None, callback=None):
 
 def pingServer(routing, connectTimeout=5):
     """Try to connect to a server and send a junk packet.
-    
+
        May raise MixProtocolBadAuth, or other MixProtocolError if server
        isn't up."""
     sendMessages(routing, ["JUNK"], connectTimeout=connectTimeout)
-    
+
 class PeerCertificateCache:
-    "DOCDOC"
+    """A PeerCertificateCache validates certificate chains from MMTP servers,
+       and remembers which chains we've already seen and validated."""
+    ## Fieleds
+    # cache: A map from peer (temporary) KeyID's to a (signing) KeyID.
     def __init__(self):
-        self.cache = {} # hashed peer pk -> identity keyid that it is valid for
+        self.cache = {}
 
     def check(self, tls, targetKeyID, address):
-        "DOCDOC"
-        if targetKeyID is None:
-            return
-
+        """Check whether the certificate chain on the TLS connection 'tls'
+           is valid, current, and matches the keyID 'targetKeyID'.  If so,
+           return.  If not, raise MixProtocolBadAuth.
+        """
+        # First, make sure the certificate is neither premature nor expired.
         try:
             tls.check_cert_alive()
         except _ml.TLSError, e:
             raise MixProtocolBadAuth("Invalid certificate: %s", str(e))
 
-        peer_pk = tls.get_peer_cert_pk()
-        hashed_peer_pk = sha1(peer_pk.encode_key(public=1))
+        # If we don't care whom we're talking to, we don't need to check
+        # them out.
+        if targetKeyID is None:
+            return
+
+        # Get the KeyID for the peer (temporary) key.
+        hashed_peer_pk = sha1(tls.get_peer_cert_pk().encode_key(public=1))
         # Before 0.0.4alpha, a server's keyID was a hash of its current
         # TLS public key.  In 0.0.4alpha, we allowed this for backward
         # compatibility.  As of 0.0.4alpha2, since we've dropped backward
@@ -287,28 +296,41 @@ class PeerCertificateCache:
             raise MixProtocolBadAuth(
                "Pre-0.0.4 (non-rotatable) certificate from server at %s",
                address)
+
         try:
-            if self.cache[hashed_peer_pk] == targetKeyID:
+            if targetKeyID == self.cache[hashed_peer_pk]:
+                # We recognize the key, and have already seen it to be
+                # signed by the target identity.
                 LOG.trace("Got a cached certificate from server at %s",
                           address)
                 return # All is well.
             else:
+                # We recognize the key, but some other identity signed it.
                 raise MixProtocolBadAuth(
                     "Mismatch between expected and actual key id")
         except KeyError:
-            # We haven't found an identity for this pk yet.
             pass
 
+        # We haven't found an identity for this pk yet.  Try to check the
+        # signature on it.
         try:
             identity = tls.verify_cert_and_get_identity_pk()
         except _ml.TLSError, e:
             raise MixProtocolBadAuth("Invalid KeyID from server at %s: %s"
                                    %(address, e))
 
+        # Okay, remember who has signed this certificate.
         hashed_identity = sha1(identity.encode_key(public=1))
         LOG.trace("Remembering valid certificate for server at %s",
                   address)
         self.cache[hashed_peer_pk] = hashed_identity
+
+        # Note: we don't need to worry about two identities signing the
+        # same certificate.  While this *is* possible to do, it's useless:
+        # You could get someone else's certificate and sign it, but you
+        # couldn't start up a TLS connection with that certificate without
+        # stealing their private key too.
+
+        # Was the signer the right person?
         if hashed_identity != targetKeyID:
             raise MixProtocolBadAuth("Invalid KeyID for server at %s" %address)
-

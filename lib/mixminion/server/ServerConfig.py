@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.23 2003/05/05 00:38:46 nickm Exp $
+# $Id: ServerConfig.py,v 1.24 2003/05/17 00:08:45 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -55,10 +55,10 @@ class ServerConfig(mixminion.Config._ConfigFile):
             LOG.warn("Identity key encryption not yet implemented")
         if server['EncryptPrivateKey']:
             LOG.warn("Encrypted private keys not yet implemented")
-        if server['PublicKeyLifetime'][2] < 24*60*60:
+        if server['PublicKeyLifetime'].getSeconds() < 24*60*60:
             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
-        if server['PublicKeySloppiness'][2] > 20*60:
-            raise ConfigError("PublicKeySloppiness must be <= 20 minutes.")
+        if server['PublicKeyOverlap'].getSeconds() > 6*60*60:
+            raise ConfigError("PublicKeyOverlap must be <= 6 hours")
 
         if _haveEntry(self, 'Server', 'NoDaemon'):
             LOG.warn("The NoDaemon option is obsolete.  Use Daemon instead.")
@@ -66,7 +66,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
         if _haveEntry(self, 'Server', 'Mode'):
             LOG.warn("Mode specification is not yet supported.")
 
-        mixInterval = server['MixInterval'][2]
+        mixInterval = server['MixInterval'].getSeconds()
         if mixInterval < 30*60:
             LOG.warn("Dangerously low MixInterval")
         if server['MixAlgorithm'] == 'TimedMixPool':
@@ -94,11 +94,9 @@ class ServerConfig(mixminion.Config._ConfigFile):
             if e[0] in ('Allow', 'Deny')]:
             LOG.warn("Allow/deny are not yet supported")
 
-        _validateRetrySchedule(mixInterval, self._sectionEntries,
-                               "Outgoing/MMTP")
+        self.validateRetrySchedule("Outgoing/MMTP")
 
-        self.moduleManager.validate(self._sections, self._sectionEntries,
-                                    lines, contents)
+        self.moduleManager.validate(self, lines, contents)
 
     def __loadModules(self, section, sectionEntries):
         """Callback from the [Server] section of a config file.  Parses
@@ -124,20 +122,21 @@ class ServerConfig(mixminion.Config._ConfigFile):
         server = self['Server']
         if server['LogLevel'] in ('TRACE', 'DEBUG'):
             reasons.append("Log is too verbose")
-        if server['LogStats'] and server['StatsInterval'][2] < 24*60*60:
+        if server['LogStats'] and server['StatsInterval'].getSeconds() \
+               < 24*60*60:
             reasons.append("StatsInterval is too short")
         if not server["EncryptIdentityKey"]:
             reasons.append("Identity key is not encrypted")
-        # ????004 Pkey lifetime, sloppiness? 
+        # ????004 Pkey lifetime, sloppiness?
         if server["MixAlgorithm"] not in _SECURE_MIX_RULES:
             reasons.append("Mix algorithm is not secure")
         else:
             if server["MixPoolMinSize"] < 5:
                 reasons.append("MixPoolMinSize is too small")
             #MixPoolRate?
-        if server["MixInterval"][2] < 30*60:
+        if server["MixInterval"].getSeconds() < 30*60:
             reasons.append("Mix interval under 30 minutes")
-        
+
         # ????004 DIRSERVERS?
 
         # ????004 Incoming/MMTP
@@ -146,40 +145,52 @@ class ServerConfig(mixminion.Config._ConfigFile):
 
         # ????004 Modules?
 
-def _validateRetrySchedule(mixInterval, entries, sectionname,
-                           entryname='Retry'):
-    """DOCDOC"""
-    entry = [e for e in entries.get(sectionname,[]) if e[0] == entryname]
-    if not entry:
-        return
-    assert len(entry) == 1
-    sched = entry[0][1]
-    total = reduce(operator.add, sched, 0)
+        return reasons
+
+    def validateRetrySchedule(self, sectionName, entryName='Retry'):
+        """Check whether the retry schedule in self[sectionName][entryName]
+           is reasonable.  Warn or raise ConfigError if it isn't.  Ignore
+           the entry if it isn't there.
+        """
+        entry = self[sectionName].get(entryName,None)
+        if not entry:
+            return
+        mixInterval = self['Server']['MixInterval'].getSeconds()
+        _validateRetrySchedule(mixInterval, entry, sectionName)
+
+def _validateRetrySchedule(mixInterval, schedule, sectionName):
+    """Backend for ServerConfig.validateRetrySchedule -- separated for testing.
+
+       mixInterval -- our batching interval.
+       schedule -- a retry schedule as returned by _parseIntervalList.
+       sectionName -- the name of the retrying subsystem: used for messages.
+    """
+    total = reduce(operator.add, schedule, 0)
 
     # Warn if we try for less than a day.
     if total < 24*60*60:
-        LOG.warn("Dangerously low retry timeout for %s (<1 day)", sectionname)
-        
+        LOG.warn("Dangerously low retry timeout for %s (<1 day)", sectionName)
+
     # Warn if we try for more than two weeks.
     if total > 2*7*24*60*60:
-        LOG.warn("Very high retry timeout for %s (>14 days)", sectionname)
+        LOG.warn("Very high retry timeout for %s (>14 days)", sectionName)
 
     # Warn if any of our intervals are less than the mix interval...
-    if min(sched) < mixInterval-2:
-        LOG.warn("Rounding retry intervals for %s to the nearest mix interval",
-                 sectionname)
+    if min(schedule) < mixInterval-2:
+        LOG.warn("Rounding retry intervals for %s to the nearest mix",
+                 sectionName)
 
     # ... or less than 5 minutes.
-    elif min(sched) < 5*60:
-        LOG.warn("Very fast retry intervals for %s (< 5 minutes)", sectionname)
+    elif min(schedule) < 5*60:
+        LOG.warn("Very fast retry intervals for %s (< 5 minutes)", sectionName)
 
     # Warn if we make fewer than 5 attempts.
-    if len(sched) < 5:
-        LOG.warn("Dangerously low number of retries for %s (<5)", sectionname)
+    if len(schedule) < 5:
+        LOG.warn("Dangerously low number of retries for %s (<5)", sectionName)
 
     # Warn if we make more than 50 attempts.
-    if len(sched) > 50:
-        LOG.warn("Very high number of retries for %s (>50)", sectionname)
+    if len(schedule) > 50:
+        LOG.warn("Very high number of retries for %s (>50)", sectionName)
 
 #======================================================================
 
@@ -240,8 +251,8 @@ SERVER_SYNTAX =  {
                      'IdentityKeyBits': ('ALLOW', C._parseInt, "2048"),
                      'PublicKeyLifetime' : ('ALLOW', C._parseInterval,
                                             "30 days"),
-                     'PublicKeySloppiness': ('ALLOW', C._parseInterval,
-                                             "5 minutes"),
+                     'PublicKeyOverlap': ('ALLOW', C._parseInterval,
+                                          "5 minutes"),
                      'EncryptPrivateKey' : ('ALLOW', C._parseBoolean, "no"),
                      'Mode' : ('REQUIRE', C._parseServerMode, "local"),
                      'Nickname': ('ALLOW', C._parseNickname, None),

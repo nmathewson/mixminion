@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.14 2003/02/09 22:30:58 nickm Exp $
+# $Id: testSupport.py,v 1.15 2003/05/17 00:08:44 nickm Exp $
 
 """mixminion.testSupport
 
@@ -15,7 +15,7 @@ import sys
 import mixminion.Crypto
 import mixminion.Common
 from mixminion.Common import waitForChildren, createPrivateDir, LOG
-from mixminion.Config import _parseBoolean, ConfigError
+from mixminion.Config import _parseBoolean, _parseIntervalList, ConfigError
 
 from mixminion.server.Modules import DELIVER_FAIL_NORETRY, DELIVER_FAIL_RETRY,\
      DELIVER_OK, DeliveryModule, ImmediateDeliveryQueue, \
@@ -35,6 +35,9 @@ class DirectoryStoreModule(DeliveryModule):
        Otherwise, creates a file in the specified directory, containing
           the routing info, a newline, and the message contents.
     """
+    def __init__(self):
+        DeliveryModule.__init__(self)
+
     ## Fields:
     # loc -- The directory to store files in.  All filenames are numbers;
     #    we always put new messages in the smallest number greater than
@@ -43,18 +46,22 @@ class DirectoryStoreModule(DeliveryModule):
     def getConfigSyntax(self):
         return { 'Testing/DirectoryDump':
                  { 'Location' : ('REQUIRE', None, None),
-                   'UseQueue': ('REQUIRE', _parseBoolean, None) } }
+                   'UseQueue': ('REQUIRE', _parseBoolean, None),
+                   'Retry' : ('ALLOW', _parseIntervalList,
+                              "every 1 min for 10 min") } }
 
-    def validateConfig(self, sections, entries, lines, contents):
+    def validateConfig(self, config, lines, contents):
         # loc = sections['Testing/DirectoryDump'].get('Location')
         pass
+
+    def getRetrySchedule(self):
+        return self.retry
 
     def configure(self, config, manager):
         self.loc = config['Testing/DirectoryDump'].get('Location')
         if not self.loc:
             return
         self.useQueue = config['Testing/DirectoryDump']['UseQueue']
-        manager.enableModule(self)
 
         if not os.path.exists(self.loc):
             createPrivateDir(self.loc)
@@ -64,6 +71,9 @@ class DirectoryStoreModule(DeliveryModule):
             if int(f) > max:
                 max = int(f)
         self.next = max+1
+
+        self.retry = config['Testing/DirectoryDump']['Retry']
+        manager.enableModule(self)
 
     def getServerInfoBlock(self):
         return ""
@@ -76,7 +86,8 @@ class DirectoryStoreModule(DeliveryModule):
 
     def createDeliveryQueue(self, queueDir):
         if self.useQueue:
-            return SimpleModuleDeliveryQueue(self, queueDir)
+            return SimpleModuleDeliveryQueue(self, queueDir,
+                                             retrySchedule=self.retry)
         else:
             return ImmediateDeliveryQueue(self)
 

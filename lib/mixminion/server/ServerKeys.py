@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.20 2003/05/05 00:38:46 nickm Exp $
+# $Id: ServerKeys.py,v 1.21 2003/05/17 00:08:45 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -20,12 +20,14 @@ import mixminion._minionlib
 import mixminion.Crypto
 import mixminion.Packet
 import mixminion.server.HashLog
-import mixminion.server.PacketHandler
 import mixminion.server.MMTPServer
+import mixminion.server.ServerMain
 
 from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
      signServerInfo
-from mixminion.Common import LOG, MixError, MixFatalError, createPrivateDir, \
+
+from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
+     createPrivateDir, \
      checkPrivateFile, formatBase64, formatDate, formatTime, previousMidnight,\
      secureDelete
 
@@ -34,16 +36,17 @@ class ServerKeyring:
     """A ServerKeyring remembers current and future keys, descriptors, and
        hash logs for a mixminion server.
 
+       DOCDOC
+
        FFFF We need a way to generate keys as needed, not just a month's
        FFFF worth of keys up front.
        """
     ## Fields:
     # homeDir: server home directory
     # keyDir: server key directory
-    # keySloppiness: fudge-factor: how forgiving are we about key liveness?
+    # keyOverlap: How long after a new key begins do we accept the old one?
     # keyIntervals: list of (start, end, keyset Name)
-    # liveKey: list of (start, end, keyset name for current key.)
-    # nextRotation: time_t when this key expires.
+    # nextRotation: time_t when this key expires, DOCDOCDOC not so.
     # keyRange: tuple of (firstKey, lastKey) to represent which key names
     #      have keys on disk.
 
@@ -78,7 +81,8 @@ class ServerKeyring:
         self.homeDir = config['Server']['Homedir']
         self.keyDir = os.path.join(self.homeDir, 'keys')
         self.hashDir = os.path.join(self.homeDir, 'work', 'hashlogs')
-        self.keySloppiness = config['Server']['PublicKeySloppiness'][2]
+        self.keyOverlap = config['Server']['PublicKeyOverlap'].getSeconds()
+        self.nextUpdate = None
         self.checkKeys()
 
     def checkKeys(self):
@@ -143,10 +147,6 @@ class ServerKeyring:
             elif start > end:
                 LOG.warn("Gap in key schedule: no key from %s to %s",
                               formatDate(end), formatDate(start))
-
-        self.nextKeyRotation = 0 # Make sure that now > nextKeyRotation before
-                                 # we call _getLiveKey()
-        self._getLiveKey()       # Set up liveKey, nextKeyRotation.
 
     def getIdentityKey(self):
         """Return this server's identity key.  Generate one if it doesn't
@@ -216,7 +216,7 @@ class ServerKeyring:
 
             keyname = "%04d" % keynum
 
-            nextStart = startAt + self.config['Server']['PublicKeyLifetime'][2]
+            nextStart = startAt + self.config['Server']['PublicKeyLifetime'].getSeconds()
 
             LOG.info("Generating key %s to run from %s through %s (GMT)",
                      keyname, formatDate(startAt),
@@ -241,7 +241,7 @@ class ServerKeyring:
         else:
             expiryStr = ""
 
-        cutoff = now - self.keySloppiness
+        cutoff = now - self.keyOverlap
 
         for va, vu, name in self.keyIntervals:
             if vu >= cutoff:
@@ -259,47 +259,50 @@ class ServerKeyring:
 
         self.checkKeys()
 
-    def _getLiveKey(self, when=None):
-        """Find the first key that is now valid.  Return (Valid-after,
+    def _getLiveKeys(self, now=None):
+        """Find all keys that are now valid.  Return list of (Valid-after,
            valid-util, name)."""
         if not self.keyIntervals:
-            self.liveKey = None
-            self.nextKeyRotation = 0
-            return None
+            return []
+        if now is None:
+            now = time.time()
+        if self.nextUpdate and now > self.nextUpdate:
+            self.nextUpdate = None
 
-        w = when
-        if when is None:
-            when = time.time()
-            if when < self.nextKeyRotation:
-                return self.liveKey
+        cutoff = now-self.keyOverlap
+        # A key is live if
+        #     * it became valid before now, and
+        #     * it did not become invalid until keyOverlap seconds ago
 
-        idx = bisect.bisect(self.keyIntervals, (when, None, None))-1
-        k = self.keyIntervals[idx]
-        if w is None:
-            self.liveKey = k
-            self.nextKeyRotation = k[1]
+        return [ k for k in self.keyIntervals
+                 if k[0] < now and k[1] > cutoff ]
 
-        return k
+    def getServerKeysets(self):
+        """Return a ServerKeyset object for the currently live key.
 
-    def getNextKeyRotation(self):
-        """Return the expiration time of the current key"""
-        return self.nextKeyRotation
-
-    def getServerKeyset(self):
-        """Return a ServerKeyset object for the currently live key."""
+           DOCDOC"""
         # FFFF Support passwords on keys
-        _, _, name = self._getLiveKey()
-        keyset = ServerKeyset(self.keyDir, name, self.hashDir)
-        keyset.load()
-        return keyset
+        keysets = [ ]
+        for va, vu, name in self._getLiveKeys():
+            ks = ServerKeyset(self.keyDir, name, self.hashDir)
+            ks.validAfter = va
+            ks.validUntil = vu
+            ks.load()
+            keysets.append(ks)
+
+        #XXXX004 there should only be 2.
+        return keysets
 
     def getDHFile(self):
         """Return the filename for the diffie-helman parameters for the
            server.  Creates the file if it doesn't yet exist."""
+        #XXXX Make me private????004
         dhdir = os.path.join(self.homeDir, 'work', 'tls')
         createPrivateDir(dhdir)
         dhfile = os.path.join(dhdir, 'dhparam')
         if not os.path.exists(dhfile):
+            # ???? This is only using 512-bit Diffie-Hellman!  That isn't
+            # ???? remotely enough.
             LOG.info("Generating Diffie-Helman parameters for TLS...")
             mixminion._minionlib.generate_dh_parameters(dhfile, verbose=0)
             LOG.info("...done")
@@ -309,25 +312,61 @@ class ServerKeyring:
 
         return dhfile
 
-    def getTLSContext(self):
+    def _getTLSContext(self, keys=None):
         """Create and return a TLS context from the currently live key."""
-        keys = self.getServerKeyset()
+        if keys is None:
+            keys = self.getServerKeysets()[-1]
         return mixminion._minionlib.TLSContext_new(keys.getCertFileName(),
                                                    keys.getMMTPKey(),
                                                    self.getDHFile())
 
-    def getPacketHandler(self):
-        """Create and return a PacketHandler from the currently live key."""
-        keys = self.getServerKeyset()
-        packetKey = keys.getPacketKey()
-        hashlog = mixminion.server.HashLog.HashLog(keys.getHashLogFileName(),
-                                                 keys.getMMTPKeyID())
-        return mixminion.server.PacketHandler.PacketHandler(packetKey,
-                                                     hashlog)
+    def updateKeys(self, packetHandler, mmtpServer, when=None):
+        """DOCDOC: Return next rotation."""
+        self.removeDeadKeys()
+        keys = self.getServerKeysets(when)
+        LOG.info("Updating keys: %s currently valid", len(keys))
+        if mmtpServer is not None:
+            context = self._getTLSContext(keys[-1])
+            mmtpServer.setContext(context)
+        if packetHandler is not None:
+            packetKeys = []
+            hashLogs = []
+
+            for k in keys:
+                packetKeys.append(k.getPacketKey())
+                hashLogs.append(mixminion.server.HashLog.HashLog(
+                    k.getHashLogFileName(), k.getPacketKeyID()))
+            packetHandler.setKeys(packetkeys, hashLogs)
+
+        self.getNextKeyRotation(keys)
+
+    def getNextKeyRotation(self, keys=None):
+        if self.nextUpdate is None:
+            if keys is None:
+                keys = self.getServerKeysets()
+            addKeyEvents = []
+            rmKeyEvents = []
+            for k in keys:
+                va, vu = k.getLiveness()
+                rmKeyEvents.append(vu+self.keyOverlap)
+                addKeyEvents.append(vu)
+            add = min(addKeyEvents); rm = min(rmKeyEvents)
+
+            if add < rm:
+                LOG.info("Next event: new key becomes valid at %s",
+                         formatTime(add,1))
+                self.nextUpdate = add
+            else:
+                LOG.info("Next event: old key is removed at %s",
+                         formatTime(rm,1))
+                self.nextUpdate = rm
+
+
+        return self.nextUpdate
 
     def getAddress(self):
         """Return out current ip/port/keyid tuple"""
-        keys = self.getServerKeyset()
+        keys = self.getServerKeysets()[0]
         desc = keys.getServerDescriptor()
         return (desc['Incoming/MMTP']['IP'],
                 desc['Incoming/MMTP']['Port'],
@@ -354,16 +393,24 @@ class ServerKeyset:
     # descFile: filename of this keyset's server descriptor.
     #
     # packetKey, mmtpKey: This server's actual short-term keys.
+    # DOCDOC serverinfo, validAfter, validUntil
     def __init__(self, keyroot, keyname, hashroot):
         """Load a set of keys named "keyname" on a server where all keys
            are stored under the directory "keyroot" and hashlogs are stored
            under "hashroot". """
+        self.keyroot = keyroot
+        self.keyname = keyname
+        self.hashroot= hashroot
+
         keydir  = os.path.join(keyroot, "key_"+keyname)
         self.hashlogFile = os.path.join(hashroot, "hash_"+keyname)
         self.packetKeyFile = os.path.join(keydir, "mix.key")
         self.mmtpKeyFile = os.path.join(keydir, "mmtp.key")
         self.certFile = os.path.join(keydir, "mmtp.cert")
         self.descFile = os.path.join(keydir, "ServerDesc")
+        self.serverinfo = None
+        self.validAfter = None
+        self.validUntil = None
         if not os.path.exists(keydir):
             createPrivateDir(keydir)
 
@@ -387,13 +434,33 @@ class ServerKeyset:
     def getDescriptorFileName(self): return self.descFile
     def getPacketKey(self): return self.packetKey
     def getMMTPKey(self): return self.mmtpKey
-    def getMMTPKeyID(self):
-        "Return the sha1 hash of the asn1 encoding of the MMTP public key"
-        return mixminion.Crypto.sha1(self.mmtpKey.encode_key(1))
+    def getPacketKeyID(self):
+        "Return the sha1 hash of the asn1 encoding of the packet public key"
+        return mixminion.Crypto.sha1(self.packetKey.encode_key(1))
     def getServerDescriptor(self):
-        return ServerInfo(fname=self.descFile)
+        if self.serverinfo is None:
+            self.serverinfo = ServerInfo(fname=self.descFile)
+        return self.serverinfo
+    def getLiveness(self):
+        if self.validAfter is None or self.validUntil is None:
+            info = self.getServerDescriptor()
+            self.validAfter = info['Server']['Valid-After']
+            self.validUntil = info['Server']['Valid-Until']
+        return self.validAfter, self.validUntil
+    def regenerateServerDescriptor(self, config, identityKey, validAt=None):
+        """DOCDOC"""
+        self.load()
+        if validAt is None:
+            validAt = self.getLiveness()[0]
+        generateServerDescriptorAndKeys(config, identityKey,
+                         self.keyroot, self.keyname, self.hashroot,
+                         validAt=validAt, useServerKeys=1)
+        self.serverinfo = self.validAfter = self.validUntil = None
 
 class _WarnWrapper:
+    """Helper for 'checkDescriptorConsistency' to keep its implementation
+       short.  Counts the number of times it's invoked, and delegates to
+       LOG.warn if silence is false."""
     def __init__(self, silence):
         self.silence = silence
         self.called = 0
@@ -403,12 +470,12 @@ class _WarnWrapper:
             LOG.warn(*args)
 
 def checkDescriptorConsistency(info, config, log=1):
-    """DOCDOC
+    """Given a ServerInfo and a ServerConfig, compare them for consistency.
 
-    Return true iff info may have come from 'config'.  If log is true,
-    warn as well.  Does not check keys.
+       Return true iff info may have come from 'config'.  If 'log' is
+       true, warn as well.  Does not check keys.
     """
-    
+
     if log:
         warn = _WarnWrapper(0)
     else:
@@ -419,7 +486,7 @@ def checkDescriptorConsistency(info, config, log=1):
     if config_s['Nickname'] and (info_s['Nickname'] != config_s['Nickname']):
         warn("Mismatched nicknames: %s in configuration; %s published.",
              config_s['Nickname'], info_s['Nickname'])
-    
+
     idBits = info_s['Identity'].get_modulus_bytes()*8
     confIDBits = config_s['IdentityKeyBits']
     if idBits != confIDBits:
@@ -438,7 +505,7 @@ def checkDescriptorConsistency(info, config, log=1):
         warn("Mismatched comments field.")
 
     if (previousMidnight(info_s['Valid-Until']) !=
-        previousMidnight(config_s['PublicKeyLifetime'][2] +
+        previousMidnight(config_s['PublicKeyLifetime'].getSeconds() +
                          info_s['Valid-After'])):
         warn("Published lifetime does not match PublicKeyLifetime")
 
@@ -478,7 +545,7 @@ def checkDescriptorConsistency(info, config, log=1):
             warn("%s enabled, but not published.", section)
 
     return not warn.called
-        
+
 #----------------------------------------------------------------------
 # Functionality to generate keys and server descriptors
 
@@ -489,7 +556,7 @@ CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
 
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                                     hashdir, validAt=None, now=None,
-                                    useServerKeys=None):
+                                    useServerKeys=0):
     #XXXX reorder args
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
@@ -501,10 +568,15 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           hashdir -- The root directory for storing hash logs.
           validAt -- The starting time (in seconds) for this key's lifetime.
 
-          DOCDOC useServerKeys, 
+          DOCDOC useServerKeys
           """
 
-    if useServerKeys is None:
+    if useServerKeys:
+        serverKeys = ServerKeyset(keydir, keyname, hashdir)
+        serverKeys.load()
+        packetKey = serverKeys.packetKey
+        mmtpKey = serverKeys.mmtpKey # not used
+    else:
         # First, we generate both of our short-term keys...
         packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
         mmtpKey = mixminion.Crypto.pk_generate(MMTP_KEY_BYTES*8)
@@ -515,12 +587,6 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         serverKeys.packetKey = packetKey
         serverKeys.mmtpKey = mmtpKey
         serverKeys.save()
-    else:
-        #XXXX drop this once we've tested and added more validation logic.
-        LOG.warn("EXPERIMENTAL FEATURE: Regenerating server descriptor from old keys")
-        serverKeys = useServerKeys
-        packetKey = serverKeys.getPacketKey()
-        mmtpKey = serverKeys.getMMTPKey()
 
     # FFFF unused
     # allowIncoming = config['Incoming/MMTP'].get('Enabled', 0)
@@ -547,15 +613,14 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # Calculate descriptor and X509 certificate lifetimes.
     # (Round validAt to previous mignight.)
     validAt = mixminion.Common.previousMidnight(validAt+30)
-    validUntil = validAt + config['Server']['PublicKeyLifetime'][2]
+    validUntil = validAt + config['Server']['PublicKeyLifetime'].getSeconds()
     certStarts = validAt - CERTIFICATE_EXPIRY_SLOPPINESS
-    certEnds = validUntil + CERTIFICATE_EXPIRY_SLOPPINESS + \
-               config['Server']['PublicKeySloppiness'][2]
+    certEnds = validUntil + CERTIFICATE_EXPIRY_SLOPPINESS
 
-    if useServerKeys is None:
-        # Create the X509 certificates
-        generateCertChain(serverKeys.getCertFileName(),
-                          mmtpKey, identityKey, nickname, certStarts, certEnds)
+    # Create the X509 certificates in any case, in case one of the parameters
+    # has changed.
+    generateCertChain(serverKeys.getCertFileName(),
+                      mmtpKey, identityKey, nickname, certStarts, certEnds)
 
     mmtpProtocolsIn = mixminion.server.MMTPServer.MMTPServerConnection \
                       .PROTOCOL_VERSIONS[:]
@@ -581,7 +646,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "ValidUntil": formatDate(validUntil),
         "PacketKey":
            formatBase64(mixminion.Crypto.pk_encode_public_key(packetKey)),
-        "KeyID": identityKeyID,        
+        "KeyID": identityKeyID,
         "MMTPProtocolsIn" : mmtpProtocolsIn,
         "MMTPProtocolsOut" : mmtpProtocolsOut,
         "PacketFormat" : "%s.%s"%(mixminion.Packet.MAJOR_NO,
@@ -664,11 +729,13 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     info = signServerInfo(info, identityKey)
 
     # Write the desciptor
-    f = open(serverKeys.getDescriptorFileName(), 'w')
+    f = AtomicFile(serverKeys.getDescriptorFileName(), 'w')
     try:
         f.write(info)
-    finally:
         f.close()
+    except:
+        f.discard()
+        raise
 
     # This is for debugging: we try to parse and validate the descriptor
     #   we just made.
@@ -755,7 +822,7 @@ def _guessLocalIP():
 
 def generateCertChain(filename, mmtpKey, identityKey, nickname,
                       certStarts, certEnds):
-    "DOCDOC"
+    """Create a two-certificate chain DOCDOC"""
     fname = filename+"_tmp"
     mixminion.Crypto.generate_cert(fname,
                                    mmtpKey, identityKey,

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.41 2003/04/26 14:39:58 nickm Exp $
+# $Id: Config.py,v 1.42 2003/05/17 00:08:42 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -118,16 +118,19 @@ _seconds_per_unit = {
 _canonical_unit_names = { 'sec' : 'second', 'min': 'minute', 'mon' : 'month' }
 def _parseInterval(interval):
     """Validation function.  Converts a config value to an interval of time,
-       in the format (number of units, name of unit, total number of seconds).
-       Raises ConfigError on failure."""
+       returning a Duration object. Raises ConfigError on failure."""
     inter = interval.strip().lower()
     m = _interval_re.match(inter)
     if not m:
         raise ConfigError("Unrecognized interval %r" % inter)
-    num, unit = float(m.group(1)), m.group(2)
+    num, unit = m.group(1), m.group(2)
+    if '.' in num:
+        num = float(num)
+    else:
+        num = int(num)
     nsec = num * _seconds_per_unit[unit]
-    return num, _canonical_unit_names.get(unit,unit), nsec
-
+    return mixminion.Common.Duration(nsec,
+                    _canonical_unit_names.get(unit,unit), num)
 
 def _parseIntervalList(s):
     """Validation functions. Parse a list of comma-separated intervals
@@ -141,8 +144,8 @@ def _parseIntervalList(s):
             if item.startswith("every "):
                 item = item[6:]
             interval, duration = item.split(" for ", 1)
-            interval = int(_parseInterval(interval)[2])
-            duration = int(_parseInterval(duration)[2])
+            interval = int(_parseInterval(interval))
+            duration = int(_parseInterval(duration))
             if interval < 1:
                 raise ConfigError("Repeated interval too small in %s"%s)
 
@@ -152,7 +155,7 @@ def _parseIntervalList(s):
                 "Bad syntax on interval %s. (Did you mean %s for X days?)",
                 item, item)
         else:
-            interval = _parseInterval(item)[2]
+            interval = int(_parseInterval(item))
             ilist.append(interval)
     return ilist
 
@@ -512,7 +515,7 @@ class _ConfigFile:
            steps.  (Use this to load a file that's already been checked as
            valid.)"""
         assert (filename is None) != (string is None)
-        
+
         if not hasattr(self, '_callbacks'):
             self._callbacks = {}
 
@@ -571,7 +574,7 @@ class _ConfigFile:
                         raise ConfigError("Unrecognized key %s on line %s" %
                                           (k, line))
                     else:
-                        LOG.warn("Unregognized key %s on line %s", k, line)
+                        LOG.warn("Unrecognized key %s on line %s", k, line)
                         continue
 
                 # Parse and validate the value of this entry.
@@ -700,7 +703,11 @@ class ClientConfig(_ConfigFile):
         'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
                        'SURBAddress' : ('ALLOW', None, None),
                        'SURBPathLength' : ('ALLOW', _parseInt, "4"),
-                       'SURBLifetime' : ('ALLOW', _parseInterval, "7 days") },
+                       'SURBLifetime' : ('ALLOW', _parseInterval, "7 days"),
+                       'ForwardPath' : ('ALLOW', None, "*"),
+                       'ReplyPath' : ('ALLOW', None, "*"),
+                       'SURBPath' : ('ALLOW', None, "*"),
+                       },
         'Network' : { 'ConnectionTimeout' : ('ALLOW', _parseInterval, None) }
         }
     def __init__(self, fname=None, string=None):
@@ -719,9 +726,9 @@ class ClientConfig(_ConfigFile):
 
         t = self['Network'].get('ConnectionTimeout')
         if t:
-            if t[2] < 5:
+            if int(t) < 5:
                 LOG.warn("Very short connection timeout")
-            elif t[2] > 60:
+            elif int(t) > 60:
                 LOG.warn("Very long connection timeout")
 
 def _validateHostSection(sec):

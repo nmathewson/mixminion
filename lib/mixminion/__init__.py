@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.31 2003/04/26 14:39:59 nickm Exp $
+# $Id: __init__.py,v 1.32 2003/05/17 00:08:43 nickm Exp $
 
 """mixminion
 
@@ -90,7 +90,7 @@ def cmp_versions(a,b):
         raise ValueError, "Can't compare versions"
 
     return cmp(a[4],b[4])
-    
+
 assert __version__ == version_tuple_to_string(version_info)
 assert parse_version_string(__version__) == version_info
 assert cmp_versions(version_info, version_info) == 0

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.3 2003/05/05 00:38:46 nickm Exp $
+# $Id: EventStats.py,v 1.4 2003/05/17 00:08:44 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -7,15 +7,14 @@
 
 __all__ = [ 'EventLog', 'NilEventLog' ]
 
-import cPickle
 import os
 from threading import RLock
 from time import time
 
 from mixminion.Common import formatTime, LOG, previousMidnight, floorDiv, \
-     createPrivateDir, MixError
+     createPrivateDir, MixError, readPickled, writePickled
 
-# _EVENTS: a list of all recognized event types. 
+# _EVENTS: a list of all recognized event types.
 _EVENTS = [ 'ReceivedPacket',
            'AttemptedRelay',
            'SuccessfulRelay', 'FailedRelay', 'UnretriableRelay',
@@ -25,7 +24,7 @@ _EVENTS = [ 'ReceivedPacket',
 
 class NilEventLog:
     """Null implementation of EventLog interface: ignores all events and
-       logs nothing.  
+       logs nothing.
     """
     def __init__(self):
         pass
@@ -33,10 +32,13 @@ class NilEventLog:
         """Flushes this eventlog to disk."""
         pass
     def rotate(self, now=None):
-        """DOCDOC"""
+        """Move the pending events from this EventLog into a
+           summarized text listing, and start a new pool.  Requires
+           that it's time to rotate.
+        """
         pass
     def getNextRotation(self):
-        """DOCDOC"""
+        """Return a time after which it's okay to rotate the log."""
         return 0
     def _log(self, event, arg=None):
         """Notes that an event has occurred.
@@ -79,7 +81,7 @@ class NilEventLog:
            module fails unretriably.
         """
         self._log("UnretriableDelivery", arg)
-        
+
 class EventLog(NilEventLog):
     """An EventLog records events, aggregates them according to some time
        periods, and logs the totals to disk.
@@ -124,10 +126,7 @@ class EventLog(NilEventLog):
            periodically writes to 'historyFile' every 'interval' seconds."""
         NilEventLog.__init__(self)
         if os.path.exists(filename):
-            # XXXX If this doesn't work, then we should ????004
-            f = open(filename, 'rb')
-            self.__dict__.update(cPickle.load(f))
-            f.close()
+            self.__dict__.update(readPickled(filename))
             assert self.count is not None
             assert self.lastRotation is not None
             assert self.accumulatedTime is not None
@@ -155,7 +154,7 @@ class EventLog(NilEventLog):
             self._save(now)
         finally:
             self._lock.release()
-            
+
     def _save(self, now=None):
         """Implements 'save' method.  For internal use.  Must hold self._lock
            to invoke."""
@@ -168,14 +167,10 @@ class EventLog(NilEventLog):
             pass
         self.accumulatedTime += int(now-self.lastSave)
         self.lastSave = now
-        f = open(tmpfile, 'wb')
-        cPickle.dump({ 'count' : self.count,
-                       'lastRotation' : self.lastRotation,
-                       'accumulatedTime' : self.accumulatedTime,
-                       },
-                     f, 1)
-        f.close()
-        os.rename(tmpfile, self.filename)
+        writePickled(self.filename, { 'count' : self.count,
+                                      'lastRotation' : self.lastRotation,
+                                      'accumulatedTime' : self.accumulatedTime,
+                                      })
 
     def _log(self, event, arg=None):
         try:
@@ -206,11 +201,11 @@ class EventLog(NilEventLog):
     def _rotate(self, now=None):
         """Flush all events since the last rotation to the history file,
            and clears the current event log."""
-        
+
         # Must hold lock
         LOG.debug("Flushing statistics log")
         if now is None: now = time()
-            
+
         f = open(self.historyFilename, 'a')
         self.dump(f, now)
         f.close()
@@ -220,7 +215,7 @@ class EventLog(NilEventLog):
             self.count[e] = {}
         self.lastRotation = now
         self._save(now)
-        self.accumulatedTime = 0        
+        self.accumulatedTime = 0
         self._setNextRotation(now)
 
     def dump(self, f, now=None):
@@ -257,7 +252,7 @@ class EventLog(NilEventLog):
             self._lock.release()
 
     def _setNextRotation(self, now=None):
-        # DOCDOC
+        """Helper function: calculate the time when we next rotate the log."""
         # ???? Lock to 24-hour cycle
 
         # This is a little weird.  We won't save *until*:
@@ -283,7 +278,9 @@ class EventLog(NilEventLog):
             self.nextRotation = mid + 3600 * floorDiv(rest+55*60, 3600)
 
 def configureLog(config):
-    """DOCDOC"""
+    """Given a configuration file, set up the log.  May replace the log global
+       variable.
+    """
     global log
     if config['Server']['LogStats']:
         LOG.info("Enabling statistics logging")
@@ -293,9 +290,11 @@ def configureLog(config):
             statsfile = os.path.join(homedir, "stats")
         workfile = os.path.join(homedir, "work", "stats.tmp")
         log = EventLog(
-            workfile, statsfile, config['Server']['StatsInterval'][2])
+           workfile, statsfile, config['Server']['StatsInterval'].getSeconds())
+        LOG.info("Statistics logging enabled")
     else:
         log = NilEventLog()
         LOG.info("Statistics logging disabled")
 
+# Global variable: The currently configured event log.
 log = NilEventLog()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.51 2003/05/05 00:38:46 nickm Exp $
+# $Id: ServerMain.py,v 1.52 2003/05/17 00:08:45 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -39,7 +39,7 @@ from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
      installSIGCHLDHandler, Lockfile, secureDelete, waitForChildren
 
 class IncomingQueue(mixminion.server.ServerQueue.Queue):
-    """A DeliveryQueue to accept packets from incoming MMTP connections,
+    """A Queue to accept packets from incoming MMTP connections,
        and hold them until they can be processed.  As packets arrive, and
        are stored to disk, we notify a message queue so that another thread
        can read them."""
@@ -126,7 +126,7 @@ class MixPool:
            queue location."""
 
         server = config['Server']
-        interval = server['MixInterval'][2]
+        interval = server['MixInterval'].getSeconds()
         if server['MixAlgorithm'] == 'TimedMixPool':
             self.queue = mixminion.server.ServerQueue.TimedMixPool(
                 location=queueDir, interval=interval)
@@ -177,7 +177,7 @@ class MixPool:
         handles = self.queue.getBatch()
         LOG.debug("%s messages in the mix pool; delivering %s.",
                   self.queue.count(), len(handles))
-        
+
         for h in handles:
             packet = self.queue.getObject(h)
             if type(packet) == type(()):
@@ -209,7 +209,8 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
     ## Fields:
     # server -- an instance of _MMTPServer
     # addr -- (publishedIP, publishedPort, publishedKeyID)
-    # incomingQueue -- DOCDOC
+    # incomingQueue -- pointer to IncomingQueue object to be used for
+    #        self->self communication.
     def __init__(self, location, (ip,port,keyid)):
         """Create a new OutgoingQueue that stores its messages in a given
            location."""
@@ -224,8 +225,9 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         self.setRetrySchedule(retry)
 
     def connectQueues(self, server, incoming):
-        """Set the MMTPServer that this OutgoingQueue informs of its
-           deliverable messages."""
+        """Set the MMTPServer and IncomingQueue that this
+           OutgoingQueue informs of its deliverable messages."""
+
         self.server = server
         self.incomingQueue = incoming
 
@@ -233,7 +235,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         "Implementation of abstract method from DeliveryQueue."
         # Map from addr -> [ (handle, msg) ... ]
         msgs = {}
-        for handle, packet, n_retries in msgList:
+        for handle, packet in msgList:
             if not isinstance(packet,
                               mixminion.server.PacketHandler.RelayedPacket):
                 LOG.warn("Skipping packet in obsolete format")
@@ -290,7 +292,7 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
             EventStats.log.failedRelay() # XXXX replace with addr
         else:
             EventStats.log.unretriableRelay() # XXXX replace with addr
-        
+
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
     """Thread that handles file deletion.  Some methods of secure deletion
@@ -402,23 +404,38 @@ def installSignalHandlers():
 #----------------------------------------------------------------------
 
 class _Scheduler:
-    """Mixin class for server.  Implements DOCDOC"""
-    # DOCDOC
+    """Mixin class for server.  Implements a priority queue of ongoing,
+       scheduled tasks with a loose (few seconds) granularity.
+    """
+    # Fields:
+    #   scheduledEvents: list of (time, identifying-string, callable)
+    #       Sorted by time.  We could use a heap here instead, but
+    #       that doesn't turn into a net benefit until we have a hundred
+    #       events or so.
     def __init__(self):
+        """Create a new _Scheduler"""
         self.scheduledEvents = []
 
     def firstEventTime(self):
+        """Return the time at which the earliest-scheduled event is
+           supposed to occur.  Returns -1 if no events.
+        """
         if self.scheduledEvents:
             return self.scheduledEvents[0][0]
         else:
             return -1
 
     def scheduleOnce(self, when, name, cb):
+        """Schedule a callback function, 'cb', to be invoked at time 'when.'
+        """
         assert type(name) is StringType
         assert type(when) in (IntType, LongType, FloatType)
         insort(self.scheduledEvents, (when, name, cb))
 
     def scheduleRecurring(self, first, interval, name, cb):
+        """Schedule a callback function 'cb' to be invoked at time 'first,'
+           and every 'interval' seconds thereafter.
+        """
         assert type(name) is StringType
         assert type(first) in (IntType, LongType, FloatType)
         assert type(interval) in (IntType, LongType, FloatType)
@@ -427,20 +444,42 @@ class _Scheduler:
                                       _RecurringEvent(name, cb, self, next)))
 
     def scheduleRecurringComplex(self, first, name, cb, nextFn):
+        """Schedule a callback function 'cb' to be invoked at time 'first,'
+           and thereafter at times returned by 'nextFn'.
+
+           (nextFn is called immediately after the callback is invoked,
+           every time it is invoked, and should return a time at which.)
+        """
         assert type(name) is StringType
         assert type(first) in (IntType, LongType, FloatType)
         insort(self.scheduledEvents, (first, name,
                                       _RecurringEvent(name, cb, self, nextFn)))
 
     def processEvents(self, now=None):
+        """Run all events that are scheduled to occur before 'now'.
+
+           Note: if an event reschedules itself for a time _before_ now,
+           it will only be run once per invocation of processEvents.
+
+           The right way to run this class is something like:
+               while 1:
+                   interval = time.time() - scheduler.firstEventTime()
+                   if interval > 0:
+                       time.sleep(interval)
+                       # or maybe, select.select(...,...,...,interval)
+                   scheduler.processEvents()
+        """
         if now is None: now = time.time()
         se = self.scheduledEvents
+        cbs = []
         while se and se[0][0] <= now:
-            cb = se[0][2]
+            cbs.append(se[0][2])
             del se[0]
+        for cb in cbs:
             cb()
 
 class _RecurringEvent:
+    """helper for _Scheduler. Calls a callback, then reschedules it."""
     def __init__(self, name, cb, scheduler, nextFn):
         self.name = name
         self.cb = cb
@@ -499,20 +538,20 @@ class MixminionServer(_Scheduler):
         #XXXX004 Catch ConfigError for bad serverinfo.
         #XXXX004 Check whether config matches serverinfo
         self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
-        if self.keyring._getLiveKey() is None:
+        if not self.keyring.getLiveKeys():
             LOG.info("Generating a month's worth of keys.")
             LOG.info("(Don't count on this feature in future versions.)")
             # We might not be able to do this, if we password-encrypt keys
-            keylife = config['Server']['PublicKeyLifetime'][2]
+            keylife = config['Server']['PublicKeyLifetime'].getSeconds()
             nKeys = ceilDiv(30*24*60*60, keylife)
             self.keyring.createKeys(nKeys)
 
         LOG.debug("Initializing packet handler")
-        self.packetHandler = self.keyring.getPacketHandler()
-        LOG.debug("Initializing TLS context")
-        tlsContext = self.keyring.getTLSContext()
+        self.packetHandler = mixminion.server.PacketHandler.PacketHandler()
         LOG.debug("Initializing MMTP server")
-        self.mmtpServer = _MMTPServer(config, tlsContext)
+        self.mmtpServer = _MMTPServer(config, None)
+        LOG.debug("Initializing keys")
+        self.keyring.updateKeys(self.packetHandler, self.mmtpServer)
 
         publishedIP, publishedPort, publishedKeyID = self.keyring.getAddress()
 
@@ -562,6 +601,10 @@ class MixminionServer(_Scheduler):
         self.processingThread.start()
         self.moduleManager.startThreading()
 
+    def updateKeys(self):
+        """DOCDOC"""
+        self.keyring.updateKeys(self.packetHandler, self.mmtpServer)
+
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         global GOT_HUP
@@ -575,19 +618,23 @@ class MixminionServer(_Scheduler):
         self.scheduleRecurring(now+600, 600, "SHRED", self.cleanQueues)
         self.scheduleRecurring(now+180, 180, "WAIT",
                                lambda: waitForChildren(blocking=0))
-        if EventStats.log.getNextRotation():#XXXX!!!!
+        if EventStats.log.getNextRotation():
             self.scheduleRecurring(now+300, 300, "ES_SAVE",
-                                   EventStats.log.save)
+                                   lambda: EventStats.log.save)
             self.scheduleRecurringComplex(EventStats.log.getNextRotation(),
-                                          "ES_ROTATE",
-                                          EventStats.log.rotate,
-                                          EventStats.log.getNextRotation)
+                                        "ES_ROTATE",
+                                        lambda: EventStats.log.rotate,
+                                        lambda: EventStats.log.getNextRotation)
 
         self.scheduleRecurringComplex(self.mmtpServer.getNextTimeoutTime(now),
                                       "TIMEOUT",
                                       self.mmtpServer.tryTimeout,
                                       self.mmtpServer.getNextTimeoutTime)
 
+        self.scheduleRecurringComplex(self.keyring.getNextKeyRotation(),
+                                      self.updateKeys,
+                                      "KEY_ROTATE",
+                                      self.keyring.getKeyRotation)
 
         nextMix = self.mixPool.getNextMixTime(now)
         LOG.debug("First mix at %s", formatTime(nextMix,1))
@@ -616,9 +663,7 @@ class MixminionServer(_Scheduler):
                     return
                 elif GOT_HUP:
                     LOG.info("Caught sighup")
-                    LOG.info("Resetting logs")
-                    LOG.reset()
-                    EventStats.log.save()
+                    self.reset()
                     GOT_HUP = 0
                 # Make sure that our worker threads are still running.
                 if not (self.cleaningThread.isAlive() and
@@ -626,13 +671,21 @@ class MixminionServer(_Scheduler):
                         self.moduleManager.thread.isAlive()):
                     LOG.fatal("One of our threads has halted; shutting down.")
                     return
-                
+
                 # Calculate remaining time until the next event.
                 now = time.time()
                 timeLeft = nextEventTime - now
 
             # An event has fired.
             self.processEvents()
+
+    def doReset(self):
+        LOG.info("Resetting logs")
+        LOG.reset()
+        EventStats.log.save()
+        LOG.info("Checking for key rotation")
+        self.keyring.checkKeys()
+        self.updateKeys()
 
     def doMix(self):
         now = time.time()
@@ -788,7 +841,7 @@ def readConfigFile(configFile):
 def runServer(cmd, args):
     if cmd.endswith(" server"):
         print "Obsolete command. Use 'mixminion server-start' instead."
-    
+
     config = configFromServerArgs(cmd, args)
     try:
         # Configure the log, but delay disabling stderr until the last
@@ -834,7 +887,7 @@ def runServer(cmd, args):
         LOG.fatal_exc(info,"Exception while configuring server")
         LOG.fatal("Shutting down because of exception: %s", info[0])
         sys.exit(1)
-            
+
     LOG.info("Starting server: Mixminion %s", mixminion.__version__)
     try:
         # We keep the console log open as long as possible so we can catch
@@ -898,12 +951,6 @@ def signalServer(cmd, args):
         assert cmd.endswith("reload-server") or cmd.endswith("server-reload")
         reload = 1
 
-    #XXXX004 remove this.
-    if cmd.endswith("stop-server"):
-        print "Obsolete command. Use 'mixminion server-stop' instead."
-    elif cmd.endswith("reload-server"):
-        print "Obsolete command. Use 'mixminion server-reload' instead."
-
     if usage:
         print _SIGNAL_SERVER_USAGE % { 'cmd' : cmd }
         return
@@ -911,7 +958,10 @@ def signalServer(cmd, args):
     _signalServer(config, reload)
 
 def _signalServer(config, reload):
-    """DOCDOC"""
+    """Given a configuration file, sends a signal to the corresponding
+       server if it's running.  If 'reload', the signal is HUP.  Else,
+       the signal is TERM.
+    """
     homeDir = config['Server']['Homedir']
     pidFile = os.path.join(homeDir, "pid")
     if not os.path.exists(pidFile):

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.40 2003/04/26 14:39:58 nickm Exp $
+# $Id: Main.py,v 1.41 2003/05/17 00:08:43 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -119,7 +119,7 @@ _COMMANDS = {
     "client" :         ( 'mixminion.ClientMain', 'runClient' ),
     # XXXX Obsolete; use "queue"; remove in 0.0.5
     "pool" :           ( 'mixminion.ClientMain', 'runClient' ),
-    "queue" :          ( 'mixminion.ClientMain', 'runClient' ),    
+    "queue" :          ( 'mixminion.ClientMain', 'runClient' ),
     "import-server" :  ( 'mixminion.ClientMain', 'importServer' ),
     "list-servers" :   ( 'mixminion.ClientMain', 'listServers' ),
     "update-servers" : ( 'mixminion.ClientMain', 'updateServers' ),
@@ -132,7 +132,7 @@ _COMMANDS = {
     "inspect-queue" :   ( 'mixminion.ClientMain', 'listQueue' ),
     # XXXX Obsolete; use "inspect-queue"; remove in 0.0.5
     "inspect-pool" :   ( 'mixminion.ClientMain', 'listQueue' ),
-    "ping" :           ( 'mixminion.ClientMain', 'runPing' ),    
+    "ping" :           ( 'mixminion.ClientMain', 'runPing' ),
     # XXXX Obsolete; use "server-start"; remove in 0.0.5
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-start" :   ( 'mixminion.server.ServerMain', 'runServer' ),

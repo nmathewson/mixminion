@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.72 2003/05/05 00:41:57 nickm Exp $
+# $Id: Common.py,v 1.73 2003/05/17 00:08:42 nickm Exp $
 
 """mixminion.Common
 
@@ -8,16 +8,18 @@
 __all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
             'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
-            'createPrivateDir',
-            'encodeBase64', 'floorDiv',
-            'formatBase64', 'formatDate', 'formatFnameTime', 'formatTime',
+            'createPrivateDir', 'encodeBase64', 'floorDiv', 'formatBase64',
+            'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
-            'previousMidnight', 'readPossiblyGzippedFile', 'secureDelete',
-            'stringContains', 'succeedingMidnight', 'waitForChildren' ]
+            'previousMidnight', 'readPickled', 'readPossiblyGzippedFile',
+            'secureDelete', 'stringContains', 'succeedingMidnight',
+            'waitForChildren', 'writePickled' ]
 
 import binascii
 import bisect
 import calendar
+import cPickle
+import errno
 import fcntl
 import gzip
 import os
@@ -138,13 +140,12 @@ else:
     def formatBase64(s):
         """Convert 's' to a one-line base-64 representation."""
         return encodeBase64(s, 64, 1)
-    
+
 def encodeBase64(s, lineWidth=64, oneline=0):
     """Convert 's' to a multiline base-64 representation.  Improves upon
        base64.encodestring by having a variable line width.  Implementation
        is based upon that function.
     """
-    # XXXX004 test me
     pieces = []
     bytesPerLine = floorDiv(lineWidth, 4) * 3
     for i in xrange(0, len(s), bytesPerLine):
@@ -154,18 +155,22 @@ def encodeBase64(s, lineWidth=64, oneline=0):
         return "".join([ s.strip() for s in pieces ])
     else:
         return "".join(pieces)
-    
+
 #----------------------------------------------------------------------
 def checkPrivateFile(fn, fix=1):
     """Checks whether f is a file owned by this uid, set to mode 0600 or
        0700, and all its parents pass checkPrivateDir.  Raises MixFatalError
        if the assumtions are not met; else return None.  If 'fix' is true,
        repair permissions on the file rather than raising MixFatalError."""
-    #XXXX004 testme
     parent, _ = os.path.split(fn)
-    if not checkPrivateDir(parent):
-        return None
-    st = os.stat(fn)
+    checkPrivateDir(parent)
+    try:
+        st = os.stat(fn)
+    except OSError, e:
+        if e.errno == errno.EEXIST:
+            raise MixFatalError("Nonexistant file %s" % fn)
+        else:
+            raise MixFatalError("Could't stat file %s: %s" % (fn, e))
     if not st:
         raise MixFatalError("Nonexistant file %s" % fn)
     if not os.path.isfile(fn):
@@ -176,7 +181,7 @@ def checkPrivateFile(fn, fix=1):
     mode = st[stat.ST_MODE] & 0777
     if mode not in (0700, 0600):
         if not fix:
-            raise MixFatalError("Bad mode %o on file %s" % mode)
+            raise MixFatalError("Bad mode %o on file %s" % (mode & 0777, fn))
         newmode = {0:0600,0100:0700}[(mode & 0100)]
         LOG.warn("Repairing permissions on file %s" % fn)
         os.chmod(fn, newmode)
@@ -244,6 +249,56 @@ def checkPrivateDir(d, recurse=1):
                 LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
                          mode, d, st[stat.ST_GID])
             _WARNED_DIRECTORIES[d] = 1
+
+#----------------------------------------------------------------------
+# File helpers
+class AtomicFile:
+    """Wrapper around open/write/rename to encapsulate writing to a temporary
+       file, then moving to the final filename on close"""
+    def __init__(self, fname, mode='w'):
+        self.fname = fname
+        self.tmpname = fname + ".tmp"
+        fd = os.open(self.tmpname, os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0600)
+        self.f = os.fdopen(fd, mode)
+
+    def write(self, s):
+        self.f.write(s)
+
+    def close(self):
+        """Close the underlying file and replace the destination file."""
+        os.rename(self.tmpname, self.fname)
+        self.f.close()
+
+    def discard(self):
+        """Discard changes to the temporary file."""
+        self.f.close()
+        os.unlink(self.tmpname)
+
+def readPickled(fn):
+    """Given the name of a file containing a pickled object, return the pickled
+       object."""
+    f = open(fn, 'rb')
+    try:
+        return cPickle.load(f)
+    finally:
+        f.close()
+
+def writePickled(fn, obj):
+    """Given a filename and an object to be pickled, pickles the object into
+       a temporary file, then replaces the file with the temporary file.
+    """
+    tmpname = fn + ".tmp"
+    f, tmpname = openUnique(tmpname, 'wb')
+    try:
+        try:
+            cPickle.dump(obj, f, 1)
+        finally:
+            f.close()
+    except:
+        if os.path.exists(tmpname): os.unlink(tmpname)
+        raise
+
+    os.rename(tmpname, fn)
 
 #----------------------------------------------------------------------
 # Secure filesystem operations.
@@ -637,10 +692,10 @@ class LogStream:
             LOG.log(self.severity, "->%s: %s", self.name, line)
             del self.buf[:]
             s = s[idx+1:]
-            
+
         if s:
             self.buf.append(s)
-                            
+
     def flush(self): pass
     def close(self): pass
 
@@ -690,6 +745,64 @@ def formatFnameTime(when=None):
     if when is None:
         when = time.time()
     return time.strftime("%Y%m%d%H%M%S", time.localtime(when))
+
+#----------------------------------------------------------------------
+class Duration:
+    """A Duration is a number of time units, such as '1.5 seconds' or
+       '2 weeks'.  Durations are stored internally as a number of seconds.
+    """
+    ## Fields:
+    # seconds: the number of seconds in this duration
+    # unitName: the name of the units comprising this duration.
+    # nUnits: the number of units in this duration
+    def __init__(self, seconds, unitName=None, nUnits=None):
+        """Initialize a new Duration with a given number of seconds."""
+        self.seconds = seconds
+        if unitName:
+            self.unitName = unitName
+            self.nUnits = nUnits
+        else:
+            self.unitName = "second"
+            self.nUnits = seconds
+
+    def __str__(self):
+        s = ""
+        if self.nUnits != 1:
+            s = "s"
+        return "%s %s%s" % (self.nUnits, self.unitName, s)
+
+    def __repr__(self):
+        return "Duration(%r, %r, %r)" % (self.seconds, self.unitName,
+                                         self.nUnits)
+
+    def __float__(self):
+        """Return the number of seconds in this duration"""
+        return self.seconds
+
+    def __int__(self):
+        """Return the number of seconds in this duration"""
+        return int(self.seconds)
+
+    def getSeconds(self):
+        """Return the number of seconds in this duration"""
+        return self.seconds
+
+    def reduce(self):
+        """Change the representation of this object to its clearest form"""
+        s = self.seconds
+        for n,u in [(60*60*24*365,'year'),
+                    (60*60*24*30, 'month'),
+                    (60*60*24*7,  'week'),
+                    (60*60*24,    'day'),
+                    (60*60,       'hour'),
+                    (60,          'minute')]:
+            if s % n == 0:
+                self.nUnits = floorDiv(s,n)
+                self.unitName = u
+                return
+        self.nUnits = s
+        self.unitName = 'second'
+        return self
 
 #----------------------------------------------------------------------
 # InteralSet
