@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.16 2002/12/15 03:47:03 nickm Exp $
+# $Id: Makefile,v 1.17 2002/12/16 02:39:21 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -64,13 +64,13 @@ clean:
 
 test: do_build
 	@$(FINDPYTHON); \
-	echo $$PYTHON build/lib*/mixminion/Main.py unittests; \
-	($$PYTHON build/lib*/mixminion/Main.py unittests)
+	echo $$PYTHON -tt build/lib*/mixminion/Main.py unittests; \
+	($$PYTHON -tt build/lib*/mixminion/Main.py unittests)
 
 time: do_build
 	@$(FINDPYTHON); \
-	echo $$PYTHON build/lib*/mixminion/Main.py benchmarks; \
-	($$PYTHON build/lib*/mixminion/Main.py benchmarks)
+	echo $$PYTHON -tt build/lib*/mixminion/Main.py benchmarks; \
+	($$PYTHON -tt build/lib*/mixminion/Main.py benchmarks)
 
 #======================================================================
 # Install target (minimal.)
