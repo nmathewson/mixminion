@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.35 2003/02/17 14:40:34 nickm Exp $
+# $Id: Packet.py,v 1.36 2003/02/20 00:31:12 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -573,9 +573,14 @@ class IPV4Info:
     def __hash__(self):
         return hash(self.pack())
 
-    def __eq__(self, other):
-        return (type(self) == type(other) and self.ip == other.ip and
-                self.port == other.port and self.keyinfo == other.keyinfo)
+    def __cmp__(self, other):
+        r = cmp(type(self), type(other))
+        if r: return r
+        r = cmp(self.ip, other.ip)
+        if r: return r
+        r = cmp(self.port, other.port)
+        if r: return n
+        return cmp(self.keyinfo, other.keyinfo)
 
 def parseSMTPInfo(s):
     """Convert the encoding of an SMTP exitinfo into an SMTPInfo object."""

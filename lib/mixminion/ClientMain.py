@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.63 2003/02/19 03:40:34 nickm Exp $
+# $Id: ClientMain.py,v 1.64 2003/02/20 00:31:12 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1232,7 +1232,7 @@ class ClientPool:
             for fname in fnames:
                 if fname.startswith("pkt_"):
                     handles.append(fname[4:])
-                return handles
+            return handles
         finally:
             clientUnlock()
 
@@ -1271,6 +1271,7 @@ class ClientPool:
         timesByServer = {}
         for h in handles:
             _, routing, when = self.getPacket(h)
+            print str(routing)
             timesByServer.setdefault(routing, []).append(when)
         for s in timesByServer.keys():
             count = len(timesByServer[s])
