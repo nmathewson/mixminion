@@ -32,6 +32,8 @@ For 0.0.7:
                 D Do a setsockopt(IP_TOS, IPTOS_THROUGHPUT), unless on
                   cygwin, dgux, sni-sysv.
         - UI improvements
+                o Use feature values instead of raw configuration values in
+                  the [Testing]/Configuration entry.
                 - Allow 'mixminion ping' to take addr:port as argument.
                 - RFC822 interface and maildir-style exit module to help
                   integrators.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.45 2003/12/08 02:26:39 nickm Exp $
+# $Id: ServerConfig.py,v 1.46 2004/01/07 20:46:04 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -161,16 +161,17 @@ class ServerConfig(mixminion.Config._ConfigFile):
              ['Enabled', 'Retry', 'SMTPServer', 'ReturnAddress', 'FromTag',
               'SubjectLine', 'MaximumSize']),
             ("Delivery/SMTP-Via-Mixmaster",
-             ['Enabled', 'Retry', 'Server', 'ReturnAddress', 'FromTag',
+             ['Enabled', 'Retry', 'Server', 'FromTag',
               'SubjectLine', 'MaximumSize']),
             ("Delivery/Fragmented",
              ['Enabled', 'MaximumSize','MaximumInterval']),
             ]:
-            sec = self[section]
             for k in entries:
-                v = sec.get(k, None)
-                if v:
-                    res.append("%s/%s=%r"%(section,k,v))
+                ent = self[section].get(k,None)
+                if ent is None:
+                    continue
+                v = self.getFeature(section, k)
+                res.append("%s/%s=%r"%(section,k,v))
         return "; ".join(res)
 
     def validateRetrySchedule(self, sectionName, entryName='Retry'):
