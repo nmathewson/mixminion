@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.10 2003/05/05 00:38:46 nickm Exp $
+# $Id: HashLog.py,v 1.11 2003/05/30 13:54:45 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -23,6 +23,18 @@ __all__ = [ 'HashLog' ]
 
 # We flush the log every MAX_JOURNAL hashes.
 MAX_JOURNAL = 128
+
+#DOCDOC
+_OPEN_HASHLOGS = {}
+
+#XXXX004 locking??
+def getHashLog(filename, keyid):
+    try:
+        return _OPEN_HASHLOGS[(filename, keyid)]
+    except KeyError:
+        hl = HashLog(filename, keyid)
+        _OPEN_HASHLOGS[(filename, keyid)] = hl
+        return hl
 
 # flags to pass to os.open when opening the journal file.
 _JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)

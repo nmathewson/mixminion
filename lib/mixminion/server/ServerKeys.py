@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.34 2003/05/30 01:49:53 nickm Exp $
+# $Id: ServerKeys.py,v 1.35 2003/05/30 13:54:45 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -425,7 +425,7 @@ class ServerKeyring:
 
             for k in keys:
                 packetKeys.append(k.getPacketKey())
-                hashLogs.append(mixminion.server.HashLog.HashLog(
+                hashLogs.append(mixminion.server.HashLog.getHashLog(
                     k.getHashLogFileName(), k.getPacketKeyID()))
             packetHandler.setKeys(packetKeys, hashLogs)
 
