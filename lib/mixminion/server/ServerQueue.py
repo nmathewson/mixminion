@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.9 2003/02/20 16:57:40 nickm Exp $
+# $Id: ServerQueue.py,v 1.9.2.1 2003/04/09 22:44:33 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -451,7 +451,7 @@ class DeliveryQueue(Queue):
                 del self.pending[handle]
             except KeyError:
                 # This should never happen
-                LOG.error("Handle %s was not pending")
+                LOG.error("Handle %s was not pending", handle)
                 lastAttempt = 0
                 
             if retriable:
