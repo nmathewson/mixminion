@@ -14,7 +14,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 
 	!- Real SMTP module
 	- Interface for reply blocks
-	!. Minimal directory support
+	. Minimal directory support
 		o Make everything resistant to newline corruption
 		       o Signatures are independent of newline style
 		       o Config files are read independent of newline style.
@@ -26,16 +26,21 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Backend
 			o Integrated server list management
 			o Tests for backend
-			o CLI supprot
-			- Tests for new server lists
-			- Tests for CLI
+			. CLI support
+				!- Import support
+				!- Actually invoke 'downloadDirectory'
+			!- Tests for new server lists
+			!- Tests for CLI
 		o Server-side directory generation (not automated;
 	          still no automatic rotation.)	
 		  	o Backend
 			o CLI
 			o Tests for backend
 			o Test CLI
-	!- Path selection
+	. Path selection
+		o Implement
+		!- Test backend
+		!- Test CLI
 	. Minimal DOS prevention
 		!- SMTP-address blacklisting (for SMTP module)
 		o Prevent bogus nicknames from bombing server.
@@ -67,7 +72,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 	!- Acknowledgments
 	!- History.
 	!- Triage XXXX'S for 002.
-	- Document everything
+	. Document everything
 	- Make __version__ get set automatically, from only one place.
 	- Write a "whatsnew".
 
