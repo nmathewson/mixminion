@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.92 2004/03/07 06:33:56 nickm Exp $
+# $Id: setup.py,v 1.93 2004/03/07 21:07:42 nickm Exp $
 import sys
 
 #
@@ -513,7 +513,8 @@ EXTRA = {}
 if 'py2exe' in sys.argv:
     # Py2EXE wants numberic versions for Windows
     VERSION = "." .join(map(str,VERSION_INFO))
-    # XXXX WRONG!!!!
+    # XXXX This is only necessary because of an apparent py2exe 0.5.0 bug;
+    # XXXX I have submitted a bug report [911596] to sourceforge.
     sys.path.append("./build/lib.win32-2.3")
     EXTRA = {
         'console' : SCRIPTS,
