@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.4 2004/07/27 03:10:55 nickm Exp $
+# $Id: ThreadUtils.py,v 1.5 2004/12/12 02:48:16 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -8,7 +8,7 @@
    """
 
 __all__ = [ 'MessageQueue', 'QueueEmpty', 'ClearableQueue', 'TimeoutQueue',
-            'RWLock' ]
+            'RWLock', 'ProcessingThread', 'BackgroundingDecorator' ]
 
 import threading
 import time
@@ -247,3 +247,68 @@ class RWLock:
                 self.readOK.notifyAll()
         finally:
             self.rwOK.release()
+
+#----------------------------------------------------------------------
+# Processing threads
+#DOCDOC
+#XXXX008 add tests for these.
+
+class ProcessingThread(threading.Thread):
+    """Background thread to handle CPU-intensive functions.
+
+       Currently used to process packets in the background."""
+    # Fields:
+    #   mqueue: a ClearableQueue of callable objects.
+    class _Shutdown:
+        """Callable that raises itself when called.  Inserted into the
+           queue when it's time to shut down."""
+        def __call__(self):
+            raise self
+
+    def __init__(self):
+        """Create a new processing thread."""
+        threading.Thread.__init__(self, name="processing thread")
+        self.mqueue = ClearableQueue()
+        self.threadName = name
+
+    def shutdown(self):
+        LOG.info("Telling %s to shut down.", self.name)
+        self.mqueue.clear()
+        self.mqueue.put(ProcessingThread._Shutdown())
+
+    def addJob(self, job):
+        """Adds a job to the message queue.  A job is a callable object
+           to be invoked by the processing thread.  If the job raises
+           ProcessingThread._Shutdown, the processing thread stops running."""
+        self.mqueue.put(job)
+
+    def run(self):
+        try:
+            while 1:
+                job = self.mqueue.get()
+                job()
+        except ProcessingThread._Shutdown:
+            LOG.info("Shutting down %s",self.name)
+            return
+        except:
+            LOG.error_exc(sys.exc_info(),
+                          "Exception in %s; shutting down thread.",self.name)
+
+class BackgroundingDecorator:
+    """DOCDOC"""
+    class _AddJob:
+        def __init__(self, processingThread, fn):
+            self.thread = processingThread
+            self.fn = fn
+        def __call__(self, *args, **kwargs):
+            def callback(self=self, args=args, kwargs=kwargs):
+                self.fn(*args, **kwargs)
+            self.thread.addJob(callback)
+
+    def __init__(self, processingThread, obj):
+        self._thread = processingThread
+        self._baseObject = obj
+
+    def __getattr__(self, attr):
+        fn = getattr(self._baseObject,attr)
+        return self._AddJob(self._thread,fn)

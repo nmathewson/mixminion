@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.209 2004/12/11 18:00:41 nickm Exp $
+# $Id: test.py,v 1.210 2004/12/12 02:48:16 nickm Exp $
 
 """mixminion.tests
 
@@ -7740,7 +7740,7 @@ class PingerTests(TestCase):
         os.mkdir(d)
         loc = os.path.join(d, "db")
         t = previousMidnight(time.time())+3600
-        log = P.openPingLog(loc)
+        log = P.openPingLog(None,location=loc)
         log.startup(now=t)
         log.heartbeat(now=t+1)
         log.heartbeat(now=t+20)
@@ -7760,7 +7760,12 @@ class PingerTests(TestCase):
         log.connected("Foobar",now=t+90)
         log.gotPing("\x00Z"*10, now=t+130)
         log.gotPing("BN"*10, now=t+150)
-        log.gotPing("BL"*10, now=t+160) #Never sent.
+        suspendLog()
+        try:
+            log.gotPing("BL"*10, now=t+160) #Never sent.
+        finally:
+            s = resumeLog()
+        self.assertEndsWith(s, "Received ping with no record of its hash\n")
         log.gotPing("''"*10, now=t+161.1)
         log.rotate(now=t+160)
         log.heartbeat(t+200)
@@ -7785,7 +7790,7 @@ class PingerTests(TestCase):
         log.shutdown()
         #log.calculateDailyResults( ) #XXXX TEST
         log.close()
-        log = P.openPingLog(loc)
+        log = P.openPingLog(None,location=loc)
         t += 3600
         log.startup(now=t)
         log.calculateUptimes(t-3600, t+100, now=t+100)
@@ -7834,7 +7839,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 1:
+    if 0:
         suite.addTest(tc(PingerTests))
         return suite
     testClasses = [MiscTests,

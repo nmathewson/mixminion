@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.137 2004/12/06 20:02:23 nickm Exp $
+# $Id: ServerMain.py,v 1.138 2004/12/12 02:48:16 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -55,7 +55,8 @@ from types import *
 # We pull this from mixminion.ThreadUtils just in case somebody still has
 # a copy of the old "mixminion/server/Queue.py" (since renamed to
 # ServerQueue.py)
-from mixminion.ThreadUtils import MessageQueue, ClearableQueue, QueueEmpty
+from mixminion.ThreadUtils import MessageQueue, ClearableQueue, QueueEmpty, \
+     ProcessingThread
 
 import mixminion.ClientDirectory
 import mixminion.Config
@@ -482,45 +483,7 @@ class CleaningThread(threading.Thread):
             LOG.error_exc(sys.exc_info(),
                           "Exception while cleaning; shutting down thread.")
 
-class ProcessingThread(threading.Thread):
-    """Background thread to handle CPU-intensive functions.
 
-       Currently used to process packets in the background."""
-    # Fields:
-    #   mqueue: a ClearableQueue of callable objects.
-    class _Shutdown:
-        """Callable that raises itself when called.  Inserted into the
-           queue when it's time to shut down."""
-        def __call__(self):
-            raise self
-
-    def __init__(self):
-        """Create a new processing thread."""
-        threading.Thread.__init__(self)
-        self.mqueue = ClearableQueue()
-
-    def shutdown(self):
-        LOG.info("Telling processing thread to shut down.")
-        self.mqueue.clear()
-        self.mqueue.put(ProcessingThread._Shutdown())
-
-    def addJob(self, job):
-        """Adds a job to the message queue.  A job is a callable object
-           to be invoked by the processing thread.  If the job raises
-           ProcessingThread._Shutdown, the processing thread stops running."""
-        self.mqueue.put(job)
-
-    def run(self):
-        try:
-            while 1:
-                job = self.mqueue.get()
-                job()
-        except ProcessingThread._Shutdown:
-            LOG.info("Processing thread shutting down.")
-            return
-        except:
-            LOG.error_exc(sys.exc_info(),
-                          "Exception while processing; shutting down thread.")
 
 #----------------------------------------------------------------------
 STOPPING = 0 # Set to one if we get SIGTERM
@@ -876,8 +839,7 @@ class MixminionServer(_Scheduler):
             LOG.debug("Initializing ping log")
             pingerDir = os.path.join(config.getWorkDir(), "pinger")
             pingerLogDir = os.path.join(pingerDir, "log")
-            self.pingLog = mixminion.server.Pinger.PingStatusLog(pingerLogDir)
-            self.pingLog.startup()
+            self.pingLog = mixminion.server.Pinger.openPingLog(config)
 
             LOG.debug("Initializing ping generator")
 
