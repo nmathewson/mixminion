@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.33 2003/02/20 02:19:56 nickm Exp $
+# $Id: Modules.py,v 1.33.2.1 2003/04/30 18:44:41 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -33,7 +33,7 @@ import mixminion.server.ServerConfig
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand, \
      _parseIntervalList
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
-     isPrintingAscii
+     isPrintingAscii, waitForChildren
 from mixminion.Packet import ParseError, CompressedDataTooLong
 
 # Return values for processMessage
@@ -214,6 +214,7 @@ class DeliveryThread(threading.Thread):
                     LOG.info("Delivery thread shutting down.")
                     return
                 self.moduleManager._sendReadyMessages()
+                waitForChildren(blocking=0)
         except:
             LOG.error_exc(sys.exc_info(),
                           "Exception in delivery; shutting down thread.")
@@ -934,7 +935,7 @@ class MixmasterSMTPModule(SMTPModule):
            should be called after invocations of processMessage."""
         cmd = self.command
         LOG.debug("Flushing Mixmaster pool")
-        os.spawnl(os.P_NOWAIT, cmd, cmd, "-S")
+        os.spawnl(os.P_WAIT, cmd, cmd, "-S")
 
 class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
     """Delivery queue for _MixmasterSMTPModule.  Same as
