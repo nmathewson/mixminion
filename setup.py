@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.25 2003/01/05 13:19:53 nickm Exp $
+# $Id: setup.py,v 1.26 2003/01/06 04:59:04 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -20,7 +20,7 @@ except ImportError:
 
 import os, re, struct, shutil
 
-VERSION= '0.0.2a0'
+VERSION= '0.0.2rc1'
 
 USE_OPENSSL=1
 
@@ -39,7 +39,8 @@ MACROS=[]
 MODULES=[]
 
 #======================================================================
-# Check the version of Python in the source.
+# Check the version of Mixminion as it's set in the source, and update
+# __init__.py as needed.
 
 f = open("lib/mixminion/__init__.py", 'r')
 initFile = f.read()
