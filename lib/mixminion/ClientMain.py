@@ -863,8 +863,8 @@ class CLIArgumentParser:
         self.pathSpec = mixminion.ClientDirectory.parsePath(
             self.config, self.path, self.nHops, isReply=isReply, isSURB=isSURB,
             defaultNHops = defHops)
-        self.directory.validatePath2(self.pathSpec, self.exitAddress,
-                                     self.startAt, self.endAt)
+        self.directory.validatePath(self.pathSpec, self.exitAddress,
+                                    self.startAt, self.endAt)
 
     def generatePaths(self, n):
         return self.directory.generatePaths(n,self.pathSpec,self.exitAddress,
