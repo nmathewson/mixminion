@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.67 2003/04/07 17:50:36 nickm Exp $
+# $Id: Common.py,v 1.68 2003/04/13 15:50:54 nickm Exp $
 
 """mixminion.Common
 
@@ -854,7 +854,7 @@ def waitForChildren(onceOnly=0, blocking=1):
             # WIN32 This won't work on Windows.  What to do?
             pid, status = os.waitpid(-1, options)
         except OSError, e:
-            break
+            return
         except e:
             print e, repr(e), e.__class__
         if onceOnly:
@@ -864,7 +864,7 @@ def _sigChldHandler(signal_num, _):
     '''(Signal handler for SIGCHLD)'''
     # Because of the peculiarities of Python's signal handling logic, I
     # believe we need to re-register ourself.
-    signal.signal(signal_num, _sigChldHandler)
+    signal.signal(signal.SIGCHLD, _sigChldHandler)
 
     while 1:
         try:
