@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.28 2003/05/28 07:42:22 nickm Exp $
+# $Id: ServerKeys.py,v 1.29 2003/05/28 08:41:04 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -207,7 +207,7 @@ class ServerKeyring:
         for ks in keySets:
             status = ks.publish(DIRECTORY_UPLOAD_URL)
             if status == 'error':
-                LOG.info("Error publishing a key; giving up")
+                LOG.error("Error publishing a key; giving up")
                 return 0
             elif status == 'reject':
                 rejected += 1

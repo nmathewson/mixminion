@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.60 2003/05/28 07:36:24 nickm Exp $
+# $Id: ServerMain.py,v 1.61 2003/05/28 08:41:04 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1215,7 +1215,7 @@ def runRepublish(cmd, args):
         if not fn.startswith("key_"):
             continue
         num = fn[4:]
-        publishedFile = os.path.join(keydir, "fn", "published")
+        publishedFile = os.path.join(keydir, fn, "published")
         try:
             LOG.info("Marking key %s unpublished", num)
             if os.path.exists(publishedFile):
