@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.1 2003/01/09 06:28:58 nickm Exp $
+# $Id: ServerQueue.py,v 1.2 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -30,9 +30,9 @@ _NEW_MESSAGE_FLAGS += getattr(os, 'O_BINARY', 0)
 # trash.
 INPUT_TIMEOUT = 6000
 
-# If we've been cleaning for more than CLEAN_TIMEOUT seconds, assume the
-# old clean is dead.
-CLEAN_TIMEOUT = 120
+## # If we've been cleaning for more than CLEAN_TIMEOUT seconds, assume the
+## # old clean is dead.
+## CLEAN_TIMEOUT = 120
 
 class Queue:
     """A Queue is an unordered collection of files with secure insert, move,
@@ -47,23 +47,34 @@ class Queue:
        (Where HANDLE is a randomly chosen 12-character selection from the
        characters 'A-Za-z0-9+-'.  [Collision probability is negligable.])
 
-       XXXX Threading notes: Currently, Queue is only threadsafe when XXXX
+       Threading notes:  Although Queue itself is threadsafe, you'll want
+       to synchronize around any multistep operations that you want to
+       run atomicly.  Use Queue.lock() and Queue.unlock() for this.
+
+       In the Mixminion server, no queue currently has more than one producer
+       or more than one consumer ... so synchronization turns out to be
+       fairly easy.
        """
-       # How negligible?  A back-of-the-envelope approximation: The chance
-       # of a collision reaches .1% when you have 3e9 messages in a single
-       # queue.  If Alice somehow manages to accumulate a 96 gigabyte
-       # backlog, we'll have bigger problems than name collision... such
-       # as the fact that most Unices behave badly when confronted with
-       # 3 billion files in the same directory... or the fact that,
-       # at today's processor speeds, it will take Alice 3 or 4
-       # CPU-years to clear her backlog.
+       # How negligible are the chances of collision?  A back-of-the-envelope
+       # approximation: The chance of a collision reaches .1% when you have 3e9
+       # messages in a single queue.  If Alice somehow manages to accumulate a
+       # 96 gigabyte backlog, we'll have bigger problems than name
+       # collision... such as the fact that most Unices behave badly when
+       # confronted with 3 billion files in the same directory... or the fact
+       # that, at today's processor speeds, it will take Alice 3 or 4 CPU-years
+       # to clear her backlog.
+       #
+       # Threading: If we ever get more than one producer, we're fine.  With
+       #    more than one consumer, we'll need to modify DeliveryQueue below.
+       
 
     # Fields:   dir--the location of the queue.
     #           n_entries: the number of complete messages in the queue.
     #                 <0 if we haven't counted yet.
     #           _lock: A lock that must be held while modifying or accessing
-    #                 the queue object.  Because of our naming scheme, access
-    #                 to the filesystem itself need not be synchronized.
+    #                 the queue object.  Filesystem operations are allowed
+    #                 without holding the lock, but they must not be visible
+    #                 to users of the queue.
     def __init__(self, location, create=0, scrub=0):
         """Creates a queue object for a given directory, 'location'.  If
            'create' is true, creates the directory if necessary.  If 'scrub'
@@ -89,12 +100,20 @@ class Queue:
         # Count messages on first time through.
         self.n_entries = -1
 
+    def lock(self):
+        """Prevent access to this queue from other threads."""
+        self._lock.acquire()
+
+    def unlock(self):
+        """Release the lock on this queue."""
+        self._lock.release()
+
     def queueMessage(self, contents):
         """Creates a new message in the queue whose contents are 'contents',
            and returns a handle to that message."""
         f, handle = self.openNewMessage()
         f.write(contents)
-        self.finishMessage(f, handle)
+        self.finishMessage(f, handle) # handles locking
         return handle
 
     def queueObject(self, object):
@@ -102,7 +121,7 @@ class Queue:
            object."""
         f, handle = self.openNewMessage()
         cPickle.dump(object, f, 1)
-        self.finishMessage(f, handle)
+        self.finishMessage(f, handle) # handles locking
         return handle
 
     def count(self, recount=0):
@@ -127,10 +146,7 @@ class Queue:
 
            If there are fewer than 'count' messages in the queue, all the
            messages will be retained."""
-        self._lock.acquire()
-        handles = [ fn[4:] for fn in os.listdir(self.dir)
-                           if fn.startswith("msg_") ]
-        self._lock.release()
+        handles = self.getAllMessages() # handles locking
 
         return getCommonPRNG().shuffle(handles, count)
 
@@ -144,7 +160,7 @@ class Queue:
 
     def removeMessage(self, handle):
         """Given a handle, removes the corresponding message from the queue."""
-        self.__changeState(handle, "msg", "rmv")
+        self.__changeState(handle, "msg", "rmv") # handles locking.
 
     def removeAll(self):
         """Removes all messages from this queue."""
@@ -176,28 +192,38 @@ class Queue:
     def getMessagePath(self, handle):
         """Given a handle for an existing message, return the name of the
            file that contains that message."""
+        # We don't need to lock here: the handle is still valid, or it isn't.
         return os.path.join(self.dir, "msg_"+handle)
 
     def openMessage(self, handle):
         """Given a handle for an existing message, returns a file descriptor
            open to read that message."""
+        # We don't need to lock here; the handle is still valid, or it isn't.
         return open(os.path.join(self.dir, "msg_"+handle), 'rb')
 
     def messageContents(self, handle):
         """Given a message handle, returns the contents of the corresponding
            message."""
-        f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
-        s = f.read()
-        f.close()
-        return s
+        try:
+            self._lock.acquire()
+            f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
+            s = f.read()
+            f.close()
+            return s
+        finally:
+            self._lock.release()
 
     def getObject(self, handle):
         """Given a message handle, read and unpickle the contents of the
            corresponding message."""
-        f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
-        res = cPickle.load(f)
-        f.close()
-        return res
+        try:
+            self._lock.acquire()
+            f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
+            res = cPickle.load(f)
+            f.close()
+            return res
+        finally:
+            self._lock.release()
 
     def openNewMessage(self):
         """Returns (file, handle) tuple to create a new message.  Once
@@ -228,36 +254,41 @@ class Queue:
 
            DOCDOC secureDeleteFn
         """
-        # ???? Threading?
-        now = time.time()
-        cleanFile = os.path.join(self.dir,".cleaning")
+        # We don't need to hold the lock here; we synchronize via the
+        # filesystem.
 
-        cleaning = 1
-        while cleaning:
-            try:
-                # Try to get the .cleaning lock file.  If we can create it,
-                # we're the only cleaner around.
-                fd = os.open(cleanFile, os.O_WRONLY+os.O_CREAT+os.O_EXCL, 0600)
-                os.write(fd, str(now))
-                os.close(fd)
-                cleaning = 0
-            except OSError:
-                try:
-                    # If we can't create the file, see if it's too old.  If it
-                    # is too old, delete it and try again.  If it isn't, there
-                    # may be a live clean in progress.
-                    s = os.stat(cleanFile)
-                    if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
-                        os.unlink(cleanFile)
-                    else:
-                        return 1
-                except OSError:
-                    # If the 'stat' or 'unlink' calls above fail, then
-                    # .cleaning must not exist, or must not be readable
-                    # by us.
-                    if os.path.exists(cleanFile):
-                        # In the latter case, bail out.
-                        return 1
+# XXXX this logic never worked anyway; now we do all our cleaning in a separate
+# XXXX thread anyway.
+
+##         now = time.time()
+##         cleanFile = os.path.join(self.dir,".cleaning")
+##
+##         cleaning = 1
+##         while cleaning:
+##             try:
+##                 # Try to get the .cleaning lock file.  If we can create it,
+##                 # we're the only cleaner around.
+##                 fd = os.open(cleanFile, os.O_WRONLY+os.O_CREAT+os.O_EXCL, 0600)
+##                 os.write(fd, str(now))
+##                 os.close(fd)
+##                 cleaning = 0
+##             except OSError:
+##                 try:
+##                     # If we can't create the file, see if it's too old.  If it
+##                     # is too old, delete it and try again.  If it isn't, there
+##                     # may be a live clean in progress.
+##                     s = os.stat(cleanFile)
+##                     if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
+##                         os.unlink(cleanFile)
+##                     else:
+##                         return 1
+##                 except OSError:
+##                     # If the 'stat' or 'unlink' calls above fail, then
+##                     # .cleaning must not exist, or must not be readable
+##                     # by us.
+##                     if os.path.exists(cleanFile):
+##                         # In the latter case, bail out.
+##                         return 1
 
         rmv = []
         allowedTime = int(time.time()) - INPUT_TIMEOUT
@@ -280,8 +311,17 @@ class Queue:
            to 's2', and changes the internal count."""
         try:
             self._lock.acquire()
-            os.rename(os.path.join(self.dir, s1+"_"+handle),
-                      os.path.join(self.dir, s2+"_"+handle))
+            try:
+                os.rename(os.path.join(self.dir, s1+"_"+handle),
+                          os.path.join(self.dir, s2+"_"+handle))
+            except OSError, e:
+                contents = os.listdir(self.dir)
+                LOG.error("Error while trying to change %s from %s to %s: %s",
+                          handle, s1, s2, e)
+                LOG.error("Directory %s contains: %s", self.dir, contents)
+                self.count(1)
+                return
+                
             if self.n_entries < 0:
                 return
             if s1 == 'msg' and s2 != 'msg':
@@ -315,6 +355,8 @@ class DeliveryQueue(Queue):
        won't play nice if multiple instances are looking at the same
        directory.
     """
+    # XXXX separating addr was a mistake.
+    
     ###
     # Fields:
     #    sendable -- A list of handles for all messages

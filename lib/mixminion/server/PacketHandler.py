@@ -1,13 +1,19 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.3 2002/12/16 02:40:11 nickm Exp $
+# $Id: PacketHandler.py,v 1.4 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
+
+import base64
 
 import mixminion.Crypto as Crypto
 import mixminion.Packet as Packet
 import mixminion.Common as Common
+import mixminion.BuildMessage
 
-__all__ = [ 'PacketHandler', 'ContentError' ]
+from mixminion.BuildMessage import CompressedDataTooLong
+from mixminion.Common import MixError, isPrintingAscii
+
+__all__ = [ 'PacketHandler', 'ContentError', 'DeliveryPacket', 'RelayedPacket']
 
 class ContentError(Common.MixError):
     """Exception raised when a packed is malformatted or unacceptable."""
@@ -53,8 +59,10 @@ class PacketHandler:
         for h in self.hashlog:
             h.close()
 
-    def processMessage(self, msg):
-        """Given a 32K mixminion message, processes it completely.
+    def processMessage(self, msg):    
+        """DOCDOC
+
+           Given a 32K mixminion message, processes it completely.
 
            Returns one of:
                     None [if the mesesage should be dropped.]
@@ -145,11 +153,9 @@ class PacketHandler:
         # If we're an exit node, there's no need to process the headers
         # further.
         if rt >= Packet.MIN_EXIT_TYPE:
-            return ("EXIT",
-                    (rt, subh.getExitAddress(),
-                     keys.get(Crypto.APPLICATION_KEY_MODE),
-                     subh.getTag(),
-                     payload))
+            return DeliveryPacket(rt, subh.getExitAddress(),
+                                  keys.get(Crypto.APPLICATION_KEY_MODE),
+                                  subh.getTag(), payload)
 
         # If we're not an exit node, make sure that what we recognize our
         # routing type.
@@ -186,4 +192,111 @@ class PacketHandler:
         # Construct the message for the next hop.
         msg = Packet.Message(header1, header2, payload).pack()
 
-        return ("QUEUE", (address, msg))
+        return RelayedPacket(address, msg)
+        
+class RelayedPacket:
+    def __init__(self, address, msg):
+        assert isinstance(address, Packet.IPV4Info)
+        self.address = address
+        self.msg = msg
+
+    def isDelivery(self):
+        return 0
+
+    def getAddress(self):
+        return self.address
+
+    def getPacket(self):
+        return self.msg
+
+class DeliveryPacket:
+    def __init__(self, routingType, routingInfo, applicationKey,
+                 tag, payload):
+        self.exitType = routingType
+        self.address = routingInfo
+        self.key = applicationKey
+        self.tag = tag
+        self.payload = payload
+        self.contents = None
+        self.type = None
+
+    def isDelivery(self):
+        return 1
+
+    def getExitType(self): return self.exitType
+    def getAddress(self): return self.address
+    def getTag(self): return self.tag
+    def getApplicationKey(self): return self.key
+    def getPayload(self): return self.payload
+
+    def getContents(self):
+        if self.type is None: self.decode()
+        return self.contents
+
+    def isPlaintext(self):
+        if self.type is None: self.decode()        
+        return self.type == 'plain'
+
+    def isOvercompressed(self):
+        if self.type is None: self.decode()
+        return self.type == 'long'
+
+    def isEncrypted(self):
+        if self.type is None: self.decode()
+        return self.type == 'enc'
+
+    def isPrintingAscii(self):
+        if self.type is None: self.decode()
+        return isPrintingAscii(self.contents, allowISO=1)
+
+    def isError(self):
+        if self.type is None: self.decode()
+        return self.type == 'err'
+
+    def getFakeTag(self):
+        if self.type is None: self.decode()
+        if self.type == 'enc':
+            return self.tag
+        elif self.type == 'plain':
+            return None
+        else:
+            return self.type
+
+    def decode(self):
+        if self.payload is None:
+            return
+        message = self.payload
+        self.contents = None
+        try:
+            self.contents = mixminion.BuildMessage.decodePayload(message,
+                                                                 self.tag)
+            if self.contents is None:
+                # encrypted message
+                self.type = 'enc'
+                self.contents = message
+            else:
+                # forward message
+                self.type = 'plain'
+                # self.contents is right
+        except CompressedDataTooLong, _:
+            self.contents = (mixminion.Packet.parsePayload(message)
+                                             .getContents())
+            self.type = 'long'
+        except MixError:
+            self.contents = message
+            self.type = 'err'
+
+
+        self.payload = None
+
+    def getAsciiContents(self):
+        if self.type is None:
+            self.decode()
+
+        if self.type == 'plain' and isPrintingAscii(self.contents, allowISO=1):
+            return self.contents
+        else:
+            return base64.encodestring(self.contents)
+
+    def getAsciiTag(self):
+        return base64.encodestring(self.tag).strip()

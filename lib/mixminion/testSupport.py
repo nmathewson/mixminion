@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.12 2002/12/16 02:40:11 nickm Exp $
+# $Id: testSupport.py,v 1.13 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.testSupport
 
@@ -80,8 +80,9 @@ class DirectoryStoreModule(DeliveryModule):
         else:
             return ImmediateDeliveryQueue(self)
 
-    def processMessage(self, message, tag, exitType, exitInfo):
-        assert exitType == 0xFFFE
+    def processMessage(self, packet):
+        assert packet.getExitType() == 0xFFFE
+        exitInfo = packet.getAddress()
 
         if exitInfo == 'fail':
             return DELIVER_FAIL_RETRY
@@ -90,15 +91,15 @@ class DirectoryStoreModule(DeliveryModule):
 
         LOG.debug("Delivering test message")
 
-        m = _escapeMessageForEmail(message, tag)
+        m = _escapeMessageForEmail(packet)
         if m is None:
             # Ordinarily, we'd drop corrupt messages, but this module is
             # meant for debugging.
             m = """\
 ==========CORRUPT OR UNDECODABLE MESSAGE
 Decoding handle: %s%s==========MESSAGE ENDS""" % (
-                      base64.encodestring(tag),
-                      base64.encodestring(message))
+                      base64.encodestring(packet.getTag()),
+                      base64.encodestring(packet.getContents()))
 
         f = open(os.path.join(self.loc, str(self.next)), 'w')
         self.next += 1

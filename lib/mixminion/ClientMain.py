@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.40 2003/01/09 06:56:34 nickm Exp $
+# $Id: ClientMain.py,v 1.41 2003/01/10 20:12:04 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -94,9 +94,7 @@ class ClientKeystore:
                 try:
                     LOG.warn("Removing obsolete server directory %s", sdir)
                     os.rmdir(sdir)
-                    print >>sys.stderr, "OK"
                 except OSError, e:
-                    print >>sys.stderr, "BAD"
                     LOG.warn("Failed: %s", e)
 
     def updateDirectory(self, forceDownload=0, now=None):
@@ -1000,8 +998,7 @@ def usageAndExit(cmd, error=None):
 #       options will change between now and 1.0.0
 def runClient(cmd, args):
     if cmd.endswith(" client"):
-        print >>sys.stderr, \
-              "The 'client' command is deprecated.  Use 'send' instead."
+        print "The 'client' command is deprecated.  Use 'send' instead."
 
     options, args = getopt.getopt(args, "hvf:i:t:H:P:D:",
                                   ["help", "verbose", "config=", "input=",
@@ -1077,7 +1074,7 @@ def runClient(cmd, args):
         keystore.updateDirectory(forceDownload=download)
 
     if address is None:
-        print >>sys.stderr, "No recipients specified; exiting."
+        print "No recipients specified; exiting."
         sys.exit(0)
 
     try:
@@ -1094,7 +1091,7 @@ def runClient(cmd, args):
     # XXXX Clean up this ugly control structure.
     if inFile is None and address.getRouting()[0] == DROP_TYPE:
         payload = ""
-        print >>sys.stderr, "Sending dummy message"
+        LOG.info("Sending dummy message")
     else:
         if address.getRouting()[0] == DROP_TYPE:
             LOG.warn("Sending a payload with a dummy message makes no sense")
@@ -1104,8 +1101,7 @@ def runClient(cmd, args):
 
         if inFile == '-':
             f = sys.stdin
-            print >>sys.stderr, \
-                  "Enter your message now.  Type Ctrl-D when you are done."
+            print "Enter your message now.  Type Ctrl-D when you are done."
         else:
             f = open(inFile, 'r')
 
@@ -1113,7 +1109,7 @@ def runClient(cmd, args):
             payload = f.read()
             f.close()
         except KeyboardInterrupt:
-            print >>sys.stderr, "Interrupted.  Message not sent."
+            print "Interrupted.  Message not sent."
             sys.exit(1)
 
     client.sendForwardMessage(address, payload, path1, path2)

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.37 2003/01/09 05:50:44 nickm Exp $
+# $Id: setup.py,v 1.38 2003/01/10 20:12:04 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -193,6 +193,25 @@ if os.environ.get("PREFIX") and 'install' in sys.argv:
                                  "python%s"%sys.version[:3],
                                  "site-packages"))
 
+if 'install' in sys.argv:
+    if os.environ.get("PREFIX"):
+        sp = os.path.join(os.environ.get("PREFIX"),
+                          "lib",
+                          "python%s"%sys.version[:3],
+                          "site-packages")
+    else:
+        sp = os.path.join(sys.prefix,
+                          "lib",
+                          "python%s"%sys.version[:3],
+                          "site-packages")
+
+    fn = os.path.join(sp, "mixminion", "server", "Queue.py")
+    if os.path.exists(fn):
+        print "Removing obsolete Queue.py"
+        try:
+            os.unlink(fn)
+        except OSError, e:
+            print "Couldn't unlink obsolete Queue.py: %s"%e
 
 INCLUDE_DIRS.append("src")
 

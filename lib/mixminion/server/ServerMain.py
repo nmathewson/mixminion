@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.30 2003/01/09 18:54:01 nickm Exp $
+# $Id: ServerMain.py,v 1.31 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -20,7 +20,7 @@ import threading
 # We pull this from mixminion.Common, just in case somebody still has
 # a copy of the old "mixminion/server/Queue.py" (since renamed to
 # ServerQueue.py)
-from mixminion.Common import Queue
+from mixminion.Common import MessageQueue
 
 import mixminion.Config
 import mixminion.Crypto
@@ -37,9 +37,10 @@ from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
      secureDelete, waitForChildren
 
 class IncomingQueue(mixminion.server.ServerQueue.Queue):
-    """A DeliveryQueue to accept messages from incoming MMTP connections,
-       process them with a packet handler, and send them into a mix pool."""
-
+    """A DeliveryQueue to accept packets from incoming MMTP connections,
+       and hold them until they can be processed.  As packets arrive, and
+       are stored to disk, we notify a message queue so that another thread
+       can read them."""
     def __init__(self, location, packetHandler):
         """Create an IncomingQueue that stores its messages in <location>
            and processes them through <packetHandler>."""
@@ -47,7 +48,7 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
         self.packetHandler = packetHandler
         self.mixPool = None
         self.moduleManager = None
-        self._queue = Queue.Queue()
+        self._queue = MessageQueue()
         for h in self.getAllMessages():
             assert h is not None
             self._queue.put(h)
@@ -65,9 +66,13 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
         assert h is not None
         self._queue.put(h)
 
+    def getMessageQueue(self):
+        return self._queue
+
     def deliverMessage(self, handle):
-        "DOCDOC"
-        # DOCDOC called from within thread.
+        """Process a single message with a given handle, and insert it into
+           the Mix pool.  This function is called from within the processing
+           thread."""
         ph = self.packetHandler
         message = self.messageContents(handle)
         try:
@@ -77,20 +82,15 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
                 LOG.debug("Padding message %s dropped",
                           formatBase64(message[:8]))
                 self.removeMessage(handle)
-            elif res[0] == 'EXIT':
-                # XXXX Ugly, refactor
-                rt, ri, app_key, tag, payload = res[1]
-                res = self.moduleManager.decodeMessage(payload, tag, rt, ri)
-                LOG.debug("Processed message %s; inserting into pool",
-                          formatBase64(message[:8]))
-                self.mixPool.queueObject(('EXIT', res))
             else:
+                if res.isDelivery():
+                    res.decode()
                 LOG.debug("Processed message %s; inserting into pool",
                           formatBase64(message[:8]))
                 self.mixPool.queueObject(res)
                 self.removeMessage(handle)
         except mixminion.Crypto.CryptoError, e:
-            LOG.warn("Invalid PK or misencrypted packet header in message %s: %s",
+            LOG.warn("Invalid PK or misencrypted header in message %s: %s",
                      formatBase64(message[:8]), e)
             self.removeMessage(handle)
         except mixminion.Packet.ParseError, e:
@@ -105,17 +105,18 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
             LOG.error_exc(sys.exc_info(),
                     "Unexpected error when processing message %s (handle %s)",
                           formatBase64(message[:8]), handle)
-            # ???? Remove?  Don't remove?
+            self.removeMessage(handle) # ???? Really dump this message?
 
 class MixPool:
     """Wraps a mixminion.server.Queue.*MixQueue to send messages to an exit
-       queue and a delivery queue."""
+       queue and a delivery queue.  The files in the MixQueue are instances
+       of RelayedPacket or DeliveryPacket from PacketHandler.
+
+       All methods on this class are invoked from the main thread.
+    """
     def __init__(self, config, queueDir):
         """Create a new MixPool, based on this server's configuration and
            queue location."""
-
-        # DOCDOC lock
-        self.__lock = threading.Lock()
 
         server = config['Server']
         interval = server['MixInterval'][2]
@@ -139,16 +140,15 @@ class MixPool:
         self.moduleManager = None
 
     def lock(self):
-        self.__lock.acquire()
+        self.queue.lock()
 
     def unlock(self):
-        self.__lock.release()
+        self.queue.unlock()
 
     def queueObject(self, obj):
         """Insert an object into the queue."""
-        self.__lock.acquire()
+        obj.isDelivery() #XXXX remove this implicit typecheck.
         self.queue.queueObject(obj)
-        self.__lock.release()
 
     def count(self):
         "Return the number of messages in the queue"
@@ -171,16 +171,17 @@ class MixPool:
                   self.queue.count(), len(handles))
         
         for h in handles:
-            tp, info = self.queue.getObject(h)
-            if tp == 'EXIT':
-                (exitType, address, tag), payload = info
+            packet = self.queue.getObject(h)
+            #XXXX remove the first case
+            if type(packet) == type(()):
+                LOG.debug("  (skipping message %s in obsolete format)", h)
+            elif packet.isDelivery():
                 LOG.debug("  (sending message %s to exit modules)",
-                          formatBase64(payload[:8]))
-                self.moduleManager.queueDecodedMessage((exitType,address,tag),
-                                                       payload)
+                          formatBase64(packet.getContents()[:8]))
+                self.moduleManager.queueDecodedMessage(packet)
             else:
-                assert tp == 'QUEUE'
-                ipv4, msg = info
+                ipv4 = packet.getAddress()
+                msg = packet.getPacket()
                 LOG.debug("  (sending message %s to MMTP server)",
                           formatBase64(msg[:8]))
                 self.outgoingQueue.queueDeliveryMessage(ipv4, msg)
@@ -192,7 +193,12 @@ class MixPool:
         return now + self.queue.getInterval()
 
 class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
-    """DeliveryQueue to send messages via outgoing MMTP connections."""
+    """DeliveryQueue to send messages via outgoing MMTP connections.  All
+       methods on this class are called from the main thread.  The addresses
+       in this queue are pickled IPV4Info objects.
+
+       All methods in this class are run from the main thread.
+    """
     def __init__(self, location):
         """Create a new OutgoingQueue that stores its messages in a given
            location."""
@@ -217,7 +223,10 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
 
 class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     """Implementation of mixminion.server.MMTPServer that knows about
-       delivery queues."""
+       delivery queues.
+
+       All methods in this class are run from the main thread.
+       """
     def __init__(self, config, tls):
         mixminion.server.MMTPServer.MMTPAsyncServer.__init__(self, config, tls)
 
@@ -235,16 +244,16 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
         self.outgoingQueue.deliveryFailed(handle, retriable)
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
+    """Thread that handles file deletion."""
     #DOCDOC
     def __init__(self):
         threading.Thread.__init__(self)
-        self._queue = Queue.Queue()
-        self.setDaemon(1)
+        self.mqueue = MessageQueue()
 
     def deleteFile(self, fname):
         LOG.trace("Scheduling %s for deletion", fname)
         assert fname is not None
-        self._queue.put(fname)
+        self.mqueue.put(fname)
 
     def deleteFiles(self, fnames):
         for f in fnames:
@@ -252,12 +261,12 @@ class CleaningThread(threading.Thread):
 
     def shutdown(self):
         LOG.info("Telling cleanup thread to shut down.")
-        self._queue.put(None)
+        self.mqueue.put(None)
 
     def run(self):
         try:
             while 1:
-                fn = self._queue.get()
+                fn = self.mqueue.get()
                 if fn is None:
                     LOG.info("Cleanup thread shutting down.")
                     return
@@ -276,26 +285,25 @@ class PacketProcessingThread(threading.Thread):
         threading.Thread.__init__(self)
         # Clean up logic; maybe refactor. ????
         self.incomingQueue = incomingQueue
-        self.setDaemon(1) #????
+        self.mqueue = incomingQueue.getMessageQueue()
 
     def shutdown(self):
         LOG.info("Telling processing thread to shut down.")
-        self.incomingQueue._queue.put(None)
+        self.mqueue.put(None)
 
     def run(self):
-        while 1:
-            handle = self.incomingQueue._queue.get()
-            if handle is None:
-                LOG.info("Processing thread shutting down.")
-                return
-            self.incomingQueue.deliverMessage(handle)
-            # XXXX debugging hack
-            if self.incomingQueue._queue.qsize() == 0:
-                n = self.incomingQueue.count(1)
-                if n != 0:
-                    LOG.trace("_queue was empty, but incoming queue had %s",n)
+        try:
+            while 1:
+                handle = self.mqueue.get()
+                if handle is None:
+                    LOG.info("Processing thread shutting down.")
+                    return
+                self.incomingQueue.deliverMessage(handle)
+        except:
+            LOG.error_exc(sys.exc_info(),
+                          "Exception while processing; shutting down thread.")
 
-
+#----------------------------------------------------------------------
 STOPPING = 0
 def _sigTermHandler(signal_num, _):
     '''(Signal handler for SIGTERM)'''
@@ -432,8 +440,8 @@ class MixminionServer:
         #  'MIX', 'SHRED', and 'TIMEOUT'.  Kept in sorted order.
         scheduledEvents = []
         now = time.time()
-        #XXXX restore
-        scheduledEvents.append( (now + 120, "SHRED") )#FFFF make configurable
+
+        scheduledEvents.append( (now + 600, "SHRED") )#FFFF make configurable
         scheduledEvents.append( (self.mmtpServer.getNextTimeoutTime(now),
                                  "TIMEOUT") )
         nextMix = self.mixPool.getNextMixTime(now)
@@ -442,13 +450,6 @@ class MixminionServer:
         scheduledEvents.sort()
 
         # FFFF Support for automatic key rotation.
-
-        # ???? Our cuurent approach can make the server unresponsive when
-        # ???? mixing many messages at once: We stop answering requests, and
-        # ???? don't start again until we've delivered all the pending
-        # ???? messages!  Also, we process every packet as soon as it arrives,
-        # ???? which can also make the system pause for a few ms at a time.
-        # ????   Possible solutions:  Multiple threads or processes...?
         while 1:
             nextEventTime = scheduledEvents[0][0]
             now = time.time()
@@ -460,8 +461,16 @@ class MixminionServer:
                     LOG.info("Caught sigterm; shutting down.")
                     return
                 elif GOT_HUP:
-                    LOG.info("Ignoring sighup for now, sorry.")
+                    LOG.info("Caught sighup")
+                    LOG.info("Resetting logs")
+                    LOG.reset()
                     GOT_HUP = 0
+                # ???? This could slow us down a good bit.  Move it?
+                if not (self.cleaningThread.isAlive() and
+                        self.processingThread.isAlive() and
+                        self.moduleManager.thread.isAlive()):
+                    LOG.fatal("One of our threads has halted; shutting down.")
+                    return
                 
 ##                 # Process any new messages that have come in, placing them
 ##                 # into the mix pool.
@@ -484,8 +493,7 @@ class MixminionServer:
                        (self.mmtpServer.getNextTimeoutTime(now), "TIMEOUT"))
             elif event == 'SHRED':
                 self.cleanQueues()
-                insort(scheduledEvents,
-                       (now + 120, "SHRED")) #XXXX Restore original value
+                insort(scheduledEvents, (now + 600, "SHRED"))
             elif event == 'MIX':
                 # Before we mix, we need to log the hashes to avoid replays.
                 # FFFF We need to recover on server failure.
@@ -619,7 +627,7 @@ def readConfigFile(configFile):
             sys.exit(1)
 
     try:
-        print >>sys.stderr, "Reading configuration from %s"%configFile
+        print "Reading configuration from %s"%configFile
         return mixminion.server.ServerConfig.ServerConfig(fname=configFile)
     except (IOError, OSError), e:
         print >>sys.stderr, "Error reading configuration file %r:"%configFile
@@ -640,11 +648,12 @@ def runServer(cmd, args):
     except:
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
-        print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
+        LOG.fatal("Shutting down because of exception: %s", info[0])
+        #XXXX if sys.stderr is still real, send a message there as well.
         sys.exit(1)
 
     if config['Server'].get("Daemon",1):
-        print >>sys.stderr, "Starting server in the background"
+        print "Starting server in the background"
         try:
             daemonize()
         except:
@@ -664,7 +673,8 @@ def runServer(cmd, args):
     except:
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
-        print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
+        LOG.fatal("Shutting down because of exception: %s", info[0])
+        #XXXX if sys.stderr is still real, send a message there as well.
         sys.exit(1)            
             
     LOG.info("Starting server: Mixminion %s", mixminion.__version__)
@@ -675,7 +685,8 @@ def runServer(cmd, args):
     except:
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while running server")
-        print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
+        LOG.fatal("Shutting down because of exception: %s", info[0])
+        #XXXX if sys.stderr is still real, send a message there as well.
     LOG.info("Server shutting down")
     server.close()
     LOG.info("Server is shut down")
@@ -721,10 +732,10 @@ def runKeygen(cmd, args):
     LOG.setMinSeverity("INFO")
     mixminion.Crypto.init_crypto(config)
     keyring = mixminion.server.ServerKeys.ServerKeyring(config)
-    print >>sys.stderr, "Creating %s keys..." % keys
+    print "Creating %s keys..." % keys
     for i in xrange(keys):
         keyring.createKeys(1)
-        print >> sys.stderr, ".... (%s/%s done)" % (i+1,keys)
+        print ".... (%s/%s done)" % (i+1,keys)
 
 #----------------------------------------------------------------------
 _REMOVEKEYS_USAGE = """\

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.23 2003/01/09 18:54:01 nickm Exp $
+# $Id: Modules.py,v 1.24 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -104,9 +104,8 @@ class DeliveryModule:
            """
         return SimpleModuleDeliveryQueue(self, queueDir)
 
-    def processMessage(self, message, tag, exitType, exitInfo):
-        """Given a message with a given exitType and exitInfo, try to deliver
-           it.  'tag' is as decribed in createDeliveryQueue. Return one of:
+    def processMessage(self, packet):
+        """Given a DeliveryPacket object, try to delier it.  Return one of:
             DELIVER_OK (if the message was successfully delivered),
             DELIVER_FAIL_RETRY (if the message wasn't delivered, but might be
               deliverable later), or
@@ -125,11 +124,12 @@ class ImmediateDeliveryQueue:
     def __init__(self, module):
         self.module = module
 
-    def queueDeliveryMessage(self, (exitType, address, tag), message):
+    def queueDeliveryMessage(self, addr, packet, retry=0):
         """Instead of queueing our message, pass it directly to the underlying
            DeliveryModule."""
+        assert addr is None
         try:
-            res = self.module.processMessage(message, tag, exitType, address)
+            res = self.module.processMessage(packet)
             if res == DELIVER_OK:
                 return
             elif res == DELIVER_FAIL_RETRY:
@@ -158,10 +158,10 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
         self.module = module
 
     def _deliverMessages(self, msgList):
-        for handle, addr, message, n_retries in msgList:
+        for handle, addr, packet, n_retries in msgList:
+            assert addr is None
             try:
-                exitType, address, tag = addr
-                result = self.module.processMessage(message,tag,exitType,address)
+                result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
                     self.deliverySucceeded(handle)
                 elif result == DELIVER_FAIL_RETRY:
@@ -174,12 +174,16 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
                                    "Exception delivering message")
                 self.deliveryFailed(handle, 0)
 
+    def queueDeliveryMessage(self, addr, packet, retry=0):
+        assert addr is None
+        mixminion.server.ServerQueue.DeliveryQueue.queueDeliveryMessage(
+            self, None, packet, retry)
+
 class DeliveryThread(threading.Thread):
     def __init__(self, moduleManager):
         threading.Thread.__init__(self)
         self.moduleManager = moduleManager
         self.event = threading.Event()
-        self.setDaemon(1)
         self.__stoppinglock = threading.Lock() # UGLY. XXXX
         self.isStopping = 0
 
@@ -194,16 +198,20 @@ class DeliveryThread(threading.Thread):
         self.event.set()
 
     def run(self):
-        while 1:
-            self.event.wait()
-            self.event.clear()
-            self.__stoppinglock.acquire()
-            stop = self.isStopping
-            self.__stoppinglock.release()
-            if stop:
-                LOG.info("Delivery thread shutting down.")
-                return
-            self.moduleManager._sendReadyMessages()
+        try:
+            while 1:
+                self.event.wait()
+                self.event.clear()
+                self.__stoppinglock.acquire()
+                stop = self.isStopping
+                self.__stoppinglock.release()
+                if stop:
+                    LOG.info("Delivery thread shutting down.")
+                    return
+                self.moduleManager._sendReadyMessages()
+        except:
+            LOG.error_exc(sys.exc_info(),
+                          "Exception in delivery; shutting down thread.")
 
 class ModuleManager:
     """A ModuleManager knows about all of the server modules in the system.
@@ -367,45 +375,24 @@ class ModuleManager:
         if self.enabled.has_key(module.getName()):
             del self.enabled[module.getName()]
 
-    def queueMessage(self, message, tag, exitType, address):
-        """Queue a message for delivery."""
-        # XXXX003 remove the more complex logic here into the PacketHandler
-        # XXXX003 code.
-        # FFFF Support non-exit messages.
-        (exitType, address, tag), message = \
-                   self.decodeMessage(message, tag, exitType, address)
-        self.queueDecodedMessage((exitType, address, tag), message)
+    def queueMessage2(self, packet):
+        self.queueDecodedMessage(packet)
 
-    def queueDecodedMessage(self, (exitType, address, tag), message):
+    def queueDecodedMessage(self, packet):
         #DOCDOC
+        exitType = packet.getExitType()
+        
         mod = self.typeToModule.get(exitType, None)
         if mod is None:
             LOG.error("Unable to handle message with unknown type %s",
-                           exitType)
+                      exitType)
             return
         queue = self.queues[mod.getName()]
         LOG.debug("Delivering message %r (type %04x) via module %s",
-                       message[:8], exitType, mod.getName())
-
-        queue.queueDeliveryMessage((exitType, address, tag), message)
-
-    def decodeMessage(self, message, tag, exitType, address):
-        payload = None
-        try:
-            payload = mixminion.BuildMessage.decodePayload(message, tag)
-        except CompressedDataTooLong:
-            contents = mixminion.Packet.parsePayload(message).getContents()
-            return (exitType, address, 'long'), contents
-        except MixError:
-            return (exitType, address, 'err'), message
-
-        if payload is None:
-            # encrypted message
-            return (exitType, address, tag), message
-        else:
-            # forward message
-            return (exitType, address, None), payload
-
+                  packet.getContents()[:8], exitType, mod.getName())
+       
+        queue.queueDeliveryMessage(None, packet)
+        
     #DOCDOC
     def shutdown(self):
         if self.thread is not None:
@@ -445,7 +432,7 @@ class DropModule(DeliveryModule):
         return [ mixminion.Packet.DROP_TYPE ]
     def createDeliveryQueue(self, directory):
         return ImmediateDeliveryQueue(self)
-    def processMessage(self, message, tag, exitType, exitInfo):
+    def processMessage(self, packet):
         LOG.debug("Dropping padding message")
         return DELIVER_OK
 
@@ -687,11 +674,11 @@ class MBoxModule(DeliveryModule):
     def getExitTypes(self):
         return [ mixminion.Packet.MBOX_TYPE ]
 
-    def processMessage(self, message, tag, exitType, address):
+    def processMessage(self, packet): #message, tag, exitType, address):
         # Determine that message's address;
-        assert exitType == mixminion.Packet.MBOX_TYPE
+        assert packet.getExitType() == mixminion.Packet.MBOX_TYPE
         LOG.debug("Received MBOX message")
-        info = mixminion.Packet.parseMBOXInfo(address)
+        info = mixminion.Packet.parseMBOXInfo(packet.getAddress())
         try:
             address = self.addresses[info.user]
         except KeyError:
@@ -699,7 +686,7 @@ class MBoxModule(DeliveryModule):
             return DELIVER_FAIL_NORETRY
 
         # Escape the message if it isn't plaintext ascii
-        msg = _escapeMessageForEmail(message, tag)
+        msg = _escapeMessageForEmail(packet)
 
         # Generate the boilerplate (FFFF Make this configurable)
         fields = { 'user': address,
@@ -795,14 +782,15 @@ class DirectSMTPModule(SMTPModule):
 
         manager.enableModule(self)
 
-    def processMessage(self, message, tag, exitType, address):
-        assert exitType == mixminion.Packet.SMTP_TYPE
+    def processMessage(self, packet):
+        assert packet.getExitType() == mixminion.Packet.SMTP_TYPE
         LOG.debug("Received SMTP message")
         # parseSMTPInfo will raise a parse error if the mailbox is invalid.
         try:
-            address = mixminion.Packet.parseSMTPInfo(address).email
+            address = mixminion.Packet.parseSMTPInfo(packet.getAddress()).email
         except ParseError:
-            LOG.warn("Dropping SMTP message to invalid address %r", address)
+            LOG.warn("Dropping SMTP message to invalid address %r",
+                     packet.getAddress())
             return DELIVER_FAIL_NORETRY
 
         # Now, have we blacklisted this address?
@@ -811,7 +799,7 @@ class DirectSMTPModule(SMTPModule):
             return DELIVER_FAIL_NORETRY
 
         # Decode and escape the message, and get ready to send it.
-        msg = _escapeMessageForEmail(message, tag)
+        msg = _escapeMessageForEmail(packet)
         msg = "To: %s\n%s\n\n%s"%(address, self.header, msg)
 
         # Send the message.
@@ -873,17 +861,18 @@ class MixmasterSMTPModule(SMTPModule):
         self.tmpQueue.removeAll()
         return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
 
-    def processMessage(self, message, tag, exitType, smtpAddress):
+    def processMessage(self, packet):
         """Insert a message into the Mixmaster queue"""
-        assert exitType == mixminion.Packet.SMTP_TYPE
+        assert packet.getExitType() == mixminion.Packet.SMTP_TYPE
         # parseSMTPInfo will raise a parse error if the mailbox is invalid.
         try:
-            info = mixminion.Packet.parseSMTPInfo(smtpAddress)
+            info = mixminion.Packet.parseSMTPInfo(packet.getAddress())
         except ParseError:
-            LOG.warn("Dropping SMTP message to invalid address %r",smtpAddress)
+            LOG.warn("Dropping SMTP message to invalid address %r",
+                     packet.getAddress())
             return DELIVER_FAIL_NORETRY
 
-        msg = _escapeMessageForEmail(message, tag)
+        msg = _escapeMessageForEmail(packet)
         handle = self.tmpQueue.queueMessage(msg)
 
         cmd = self.command
@@ -936,7 +925,7 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 
 #----------------------------------------------------------------------
 
-def _escapeMessageForEmail(msg, tag):
+def _escapeMessageForEmail(packet):
     """Helper function: Given a message and tag, escape the message if
        it is not plaintext ascii, and wrap it in some standard
        boilerplate.  Add a disclaimer if the message is not ascii.
@@ -949,33 +938,34 @@ def _escapeMessageForEmail(msg, tag):
                          'long' [if the message might be a zlib bomb'].
 
        Returns None on an invalid message."""
-    m = _escapeMessage(msg, tag, text=1)
-    if m is None:
+    if packet.isError():
         return None
-    code, msg, tag = m
 
-    if code == 'ENC':
+    if packet.isEncrypted():
         junk_msg = """\
 This message is not in plaintext.  It's either 1) a reply; 2) a forward
 message encrypted to you; or 3) junk.\n\n"""
-    elif code == 'ZB':
+    elif packet.isOvercompressed():
         junk_msg = """\
 This message is compressed with zlib.  Ordinarily, I would have decompressed
 it, but it was compressed by more than a factor of 20, which makes me nervous.
 \n"""
-    elif code == 'BIN':
+    elif not packet.isPrintingAscii():
+        assert packet.isPlaintext()
         junk_msg = """\
 This message contains nonprinting characters, so I encoded it with Base64
 before sending it to you.\n\n"""
     else:
+        assert packet.isPlaintext()
         junk_msg = ""
 
-    if tag is not None:
-        tag = "Decoding handle: "+tag+"\n"
+    if packet.isEncrypted():
+        tag = "Decoding handle: %s\n"%packet.getAsciiTag()
     else:
         tag = ""
 
-    if msg and msg[-1] != '\n':
+    contents = packet.getAsciiContents()
+    if contents and contents[-1] != '\n':
         extra_newline = "\n"
     else:
         extra_newline = ""
@@ -983,42 +973,4 @@ before sending it to you.\n\n"""
     return """\
 %s======= TYPE III ANONYMOUS MESSAGE BEGINS ========
 %s%s%s======== TYPE III ANONYMOUS MESSAGE ENDS =========
-""" %(junk_msg, tag, msg, extra_newline)
-
-def _escapeMessage(message, tag, text=0):
-    """Helper: given a decoded message (and possibly its tag), determine
-       whether the message is a text plaintext message (code='TXT'), a
-       binary plaintext message (code 'BIN'), an encrypted message/reply
-       (code='ENC'), or a plaintext possible zlib bomb ('ZB').  If
-       requested, non-TXT messages are base-64 encoded.
-
-       Returns: (code, message, tag (for ENC) or None (for BIN, TXT).
-       Returns None if the message is invalid.
-
-          message -- A (possibly decoded) message
-          tag -- One of: a 20-byte decoding tag [if the message is encrypted
-                            or a reply]
-                         None [if the message is in plaintext]
-                         'err' [if the message was invalid.]
-                         'long' [if the message might be a zlib bomb'].
-          text -- flag: if true, non-TXT messages must be base64-encoded.
-    """
-    if tag == 'err':
-        return None
-    elif tag == 'long':
-        code = "ZB"
-    elif tag is not None:
-        code = "ENC"
-    else:
-        assert tag is None
-        if isPrintingAscii(message, allowISO=1):
-            code = "TXT"
-        else:
-            code = "BIN"
-
-    if text and (code != "TXT") :
-        message = base64.encodestring(message)
-    if text and tag:
-        tag = base64.encodestring(tag).strip()
-
-    return code, message, tag
+""" %(junk_msg, tag, contents, extra_newline)

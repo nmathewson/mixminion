@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.24 2003/01/09 06:50:49 nickm Exp $
+# $Id: Main.py,v 1.25 2003/01/10 20:12:05 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -153,6 +153,13 @@ def printVersion(cmd,args):
     print ("Copyright 2002-2003 Nick Mathewson.  "+
            "See LICENSE for licensing information.")
 
+def printUsage():
+    import mixminion
+    print "Mixminion version %s" % mixminion.__version__
+    print _USAGE
+    print "NOTE: This software is for testing only.  The user set is too small"
+    print "      to be anonymous, and the code is too alpha to be reliable."
+
 def main(args):
     "Use <args> to fix path, pick a command and pass it arguments."
     # Specifically, args[0] is used to fix sys.path so we can import
@@ -164,7 +171,7 @@ def main(args):
     # Check whether we have a recognized command.
     if len(args) == 1 or not _COMMANDS.has_key(args[1]):
         printVersion(args[0],args[1:])
-        print _USAGE
+        printUsage()
         sys.exit(1)
 
     # Read the module and function.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.51 2003/01/09 17:42:11 nickm Exp $
+# $Id: Common.py,v 1.52 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.Common
 
@@ -28,7 +28,9 @@ import time
 import traceback
 # Imported here so we can get it in mixminion.server without being shadowed
 # by the old Queue.py file.
-import Queue
+from Queue import Queue
+MessageQueue = Queue
+del Queue
 
 from types import StringType
 

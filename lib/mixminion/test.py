@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.70 2003/01/09 06:28:58 nickm Exp $
+# $Id: test.py,v 1.71 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.tests
 
@@ -1918,23 +1918,20 @@ class PacketHandlerTests(unittest.TestCase):
                     payload: beginning of expected final payload."""
         for sp, rt, ri in zip(sps,routingtypes,routinginfo):
             res = sp.processMessage(m)
-            self.assertEquals(len(res), 2)
+            self.assert_(isinstance(res, DeliveryPacket) or
+                         isinstance(res, RelayedPacket))
             if rt in (FWD_TYPE, SWAP_FWD_TYPE):
-                self.assertEquals(res[0], "QUEUE")
-                self.assertEquals(res[1][0].pack(), ri)
-                self.assertEquals(FWD_TYPE, rt)
-                m = res[1][1]
+                self.assert_(not res.isDelivery())
+                self.assertEquals(res.getAddress().pack(), ri)
+                m = res.getPacket()
             else:
-                self.assertEquals(res[0], "EXIT")
-                self.assertEquals(res[1][0], rt)
-                self.assertEquals(res[1][1], ri)
+                self.assert_(res.isDelivery())
+                self.assertEquals(res.getExitType(), rt)
+                self.assertEquals(res.getAddress(), ri)
                 if appkey:
-                    self.assertEquals(appkey, res[1][2])
+                    self.assertEquals(res.getApplicationKey(), appkey)
 
-                #tag = res[1][3]
-                p = res[1][4]
-                p = BuildMessage._decodeForwardPayload(p)
-                self.assert_(p.startswith(payload))
+                self.assert_(res.getContents().startswith(payload))
                 break
 
     def test_successful(self):
@@ -2014,9 +2011,9 @@ class PacketHandlerTests(unittest.TestCase):
         reply,s,tag = brbi([self.server3], SMTP_TYPE, "fred@invalid")
         m = brm("Y", [self.server2], reply)
         m2 = brm("Y", [self.server1], reply)
-        q, (a,m) = self.sp2.processMessage(m)
+        m = self.sp2.processMessage(m).getPacket()
         self.sp3.processMessage(m)
-        q, (a,m2) = self.sp1.processMessage(m2)
+        m2 = self.sp1.processMessage(m2).getPacket()
         self.failUnlessRaises(ContentError, self.sp3.processMessage, m2)
 
         # Even duplicate secrets need to go.
@@ -2026,14 +2023,14 @@ class PacketHandlerTests(unittest.TestCase):
         reply2,s,t = brbi([self.server2], MBOX_TYPE, "foo",0,prng)
         m = brm("Y", [self.server3], reply1)
         m2 = brm("Y", [self.server3], reply2)
-        q, (a,m) = self.sp3.processMessage(m)
+        m = self.sp3.processMessage(m).getPacket()
         self.sp1.processMessage(m)
-        q, (a,m2) = self.sp3.processMessage(m2)
+        m2 = self.sp3.processMessage(m2).getPacket()
         self.failUnlessRaises(ContentError, self.sp2.processMessage, m2)
 
         # Drop gets dropped.
         m = bfm("Z", DROP_TYPE, "", [self.server2], [self.server2])
-        q, (a,m) = self.sp2.processMessage(m)
+        m = self.sp2.processMessage(m).getPacket()
         res = self.sp2.processMessage(m)
         self.assertEquals(res,None)
 
@@ -2103,8 +2100,8 @@ class PacketHandlerTests(unittest.TestCase):
                 [self.server3])
         m_x = m[:-30] + " "*30
         assert len(m_x) == len(m)
-        q, (a, m_x) = self.sp1.processMessage(m_x)
-        q, (a, m_x) = self.sp2.processMessage(m_x)
+        m_x = self.sp1.processMessage(m_x).getPacket()
+        m_x = self.sp2.processMessage(m_x).getPacket()
         self.failUnlessRaises(CryptoError, self.sp3.processMessage, m_x)
 
 
@@ -3479,9 +3476,10 @@ class TestModule(mixminion.server.Modules.DeliveryModule):
             return None
     def getExitTypes(self):
         return (1234,)
-    def processMessage(self, message, tag, exitType, exitInfo):
-        self.processedMessages.append(message)
-        self.processedAll.append( (message, tag, exitType, exitInfo) )
+    def processMessage(self, packet):
+        self.processedMessages.append(packet.getContents())
+        self.processedAll.append( packet )
+        exitInfo = packet.getAddress()
         if exitInfo == 'fail?':
             return mixminion.server.Modules.DELIVER_FAIL_RETRY
         elif exitInfo == 'fail!':
@@ -3492,6 +3490,7 @@ class TestModule(mixminion.server.Modules.DeliveryModule):
 
 class ModuleManagerTests(unittest.TestCase):
     def testModuleManager(self):
+        FDP = FakeDeliveryPacket
         mod_dir = mix_mktemp()
         home_dir = mix_mktemp()
 
@@ -3529,11 +3528,12 @@ IP: 1.0.0.1
 
         # Try sending a few messages to the module.
         t = "ZZZZ"*5
-        manager.queueMessage("Hello 1", t, 1234, "fail!")
-        manager.queueMessage("Hello 2", t, 1234, "fail?")
-        manager.queueMessage("Hello 3", t, 1234, "good")
-        manager.queueMessage("Drop very much", None,
-                             mixminion.Packet.DROP_TYPE, t)
+        manager.queueMessage2(FDP('plain',1234,'fail!',"Hello 1", t))
+        manager.queueMessage2(FDP('plain',1234,'fail?',"Hello 2", t))
+        manager.queueMessage2(FDP('plain',1234,'good',"Hello 3", t))
+        manager.queueMessage2(FDP('plain',
+                                  mixminion.Packet.DROP_TYPE, "",
+                                  "Drop very much", t))
         queue = manager.queues['TestModule']
         # Did the test module's delivery queue get the messages?
         self.failUnless(isinstance(queue,
@@ -3557,54 +3557,54 @@ IP: 1.0.0.1
         self.assertEquals(4, len(exampleMod.processedMessages))
         self.assertEquals("Hello 2", exampleMod.processedMessages[-1])
 
-        # But, none of them was decodeable: all of them should have been
-        # tagged as 'err'
-        self.assertEquals('err', exampleMod.processedAll[0][1])
+        self.assert_(exampleMod.processedAll[0].isPlaintext())
 
-        # Try a real message, to make sure that we really decode stuff properly
-        msg = mixminion.BuildMessage._encodePayload(
-            "A man disguised as an ostrich, actually.",
-            0, Crypto.getCommonPRNG())
-        manager.queueMessage(msg, "A"*20, 1234, "Hello")
-        exampleMod.processedAll = []
-        manager.sendReadyMessages()
-        # The retriable message got sent again; the other one, we care about.
-        pos = None
-        for i in xrange(len(exampleMod.processedAll)):
-            if not exampleMod.processedAll[i][0].startswith('Hello'):
-                pos = i
-        self.assert_(pos is not None)
-        self.assertEquals(exampleMod.processedAll[i],
-                          ("A man disguised as an ostrich, actually.",
-                           None, 1234, "Hello" ))
+#### All these tests belong as tests of DeliveryPacket
 
-        # Now a non-decodeable message
-        manager.queueMessage("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches")
-        exampleMod.processedAll = []
-        manager.sendReadyMessages()
-        pos = None
-        for i in xrange(len(exampleMod.processedAll)):
-            if not exampleMod.processedAll[i][0].startswith('Hello'):
-                pos = i
-        self.assert_(pos is not None)
-        self.assertEquals(exampleMod.processedAll[i],
-                          ("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches"))
+##         # Try a real message, to make sure that we really decode stuff properly
+##         msg = mixminion.BuildMessage._encodePayload(
+##             "A man disguised as an ostrich, actually.",
+##             0, Crypto.getCommonPRNG())
+##         manager.queueMessage(msg, "A"*20, 1234, "Hello")
+##         exampleMod.processedAll = []
+##         manager.sendReadyMessages()
+##         # The retriable message got sent again; the other one, we care about.
+##         pos = None
+##         for i in xrange(len(exampleMod.processedAll)):
+##             if not exampleMod.processedAll[i][0].startswith('Hello'):
+##                 pos = i
+##         self.assert_(pos is not None)
+##         self.assertEquals(exampleMod.processedAll[i],
+##                           ("A man disguised as an ostrich, actually.",
+##                            None, 1234, "Hello" ))
 
-        # Now a message that compressed too much.
-        # (first, erase the pending message.)
-        manager.queues[exampleMod.getName()].removeAll()
-        manager.queues[exampleMod.getName()]._rescan()
+##         # Now a non-decodeable message
+##         manager.queueMessage("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches")
+##         exampleMod.processedAll = []
+##         manager.sendReadyMessages()
+##         pos = None
+##         for i in xrange(len(exampleMod.processedAll)):
+##             if not exampleMod.processedAll[i][0].startswith('Hello'):
+##                 pos = i
+##         self.assert_(pos is not None)
+##         self.assertEquals(exampleMod.processedAll[i],
+##                           ("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches"))
 
-        p = "For whom is the funhouse fun?"*8192
-        msg = mixminion.BuildMessage._encodePayload(
-            p, 0, Crypto.getCommonPRNG())
-        manager.queueMessage(msg, "Z"*20, 1234, "Buenas noches")
-        exampleMod.processedAll = []
-        self.assertEquals(len(exampleMod.processedAll), 0)
-        manager.sendReadyMessages()
-        self.assertEquals(len(exampleMod.processedAll), 1)
-        self.assertEquals(exampleMod.processedAll[0],
-            (BuildMessage.compressData(p), 'long', 1234, "Buenas noches"))
+##         # Now a message that compressed too much.
+##         # (first, erase the pending message.)
+##         manager.queues[exampleMod.getName()].removeAll()
+##         manager.queues[exampleMod.getName()]._rescan()
+
+##         p = "For whom is the funhouse fun?"*8192
+##         msg = mixminion.BuildMessage._encodePayload(
+##             p, 0, Crypto.getCommonPRNG())
+##         manager.queueMessage(msg, "Z"*20, 1234, "Buenas noches")
+##         exampleMod.processedAll = []
+##         self.assertEquals(len(exampleMod.processedAll), 0)
+##         manager.sendReadyMessages()
+##         self.assertEquals(len(exampleMod.processedAll), 1)
+##         self.assertEquals(exampleMod.processedAll[0],
+##             (BuildMessage.compressData(p), 'long', 1234, "Buenas noches"))
 
         # Check serverinfo generation.
         try:
@@ -3649,45 +3649,26 @@ Foo: 100
 
     def testDecoding(self):
         'test decoding and test encapsulation.'
-        em = mixminion.server.Modules._escapeMessage
         eme = mixminion.server.Modules._escapeMessageForEmail
 
         message = "Somebody set up us the module!\n\n(What you say?)\n"
         binmessage = hexread("00ADD1EDC0FFEED00DAD")*40
         tag = ".!..!....!........!."
 
-        #####
-        # Test escapeMessage
-
-        # plaintext text message, text mode.
-        self.assertEquals(em(message, None, 1), ("TXT", message, None))
-        # plaintext text message, bin mode.
-        self.assertEquals(em(message, None, 0), ("TXT", message, None))
-        # plaintext bin message, text mode.
-        self.assertEquals(em(binmessage, None, 1),
-                          ("BIN", base64.encodestring(binmessage), None))
-        # plaintext bin message, bin mode.
-        self.assertEquals(em(binmessage, None, 0), ("BIN", binmessage, None))
-
-        encoded = "baobob "*1024*4
-        # "Encoded" message, text mode
-        self.assertEquals(em(encoded, tag, 1),
-                          ("ENC", base64.encodestring(encoded),
-                           base64.encodestring(tag)[:-1]))
-        # "Encoded" message, binary mode
-        self.assertEquals(em(encoded, tag, 0),
-                          ("ENC", encoded, tag))
+        def FDPFast(type,message,tag="xyzzyxyzzzyxyzzyxyzzzy"):
+            return FakeDeliveryPacket(type,0xFFFE,"addr",message,tag)
 
         ####
         # Tests escapeMessageForEmail
-        self.assert_(stringContains(eme(message, None), message))
+        self.assert_(stringContains(eme(FDPFast('plain',message)), message))
         expect = "BEGINS ========\n"+\
                  base64.encodestring(binmessage)+"====="
-        self.assert_(stringContains(eme(binmessage, None), expect))
+        self.assert_(stringContains(eme(FDPFast('plain',binmessage)), expect))
         expect = "BEGINS ========\nDecoding handle: "+\
                  base64.encodestring(tag)+\
-                 base64.encodestring(encoded)+"====="
-        self.assert_(stringContains(eme(encoded, tag), expect))
+                 base64.encodestring(binmessage)+"====="
+        self.assert_(stringContains(eme(FDPFast('enc',binmessage,tag)),
+                                        expect))
 
 # Sample address file for testing MBOX
 MBOX_ADDRESS_SAMPLE = """\
@@ -3735,6 +3716,18 @@ deny Address  jim@sMith.com
 deny pattern    /nyet.*Nyet/
 
 """
+
+class FakeDeliveryPacket(mixminion.server.PacketHandler.DeliveryPacket):
+    "DOCDOC"
+    def __init__(self, type, exitType, exitAddress, contents, tag=None):
+        if tag is None:
+            tag = "-="*10
+        mixminion.server.PacketHandler.DeliveryPacket.__init__(self,
+                        exitType, exitAddress, None, tag, None)
+        self.type = type
+        self.payload = None
+        self.contents = contents
+        
 
 class ModuleTests(unittest.TestCase):
     def testEmailAddressSet(self):
@@ -3815,6 +3808,7 @@ class ModuleTests(unittest.TestCase):
            os.spawnl with a stub function so that we don't actually send
            anything."""
         manager = self.getManager()
+        FDP = FakeDeliveryPacket
 
         # Configure the module.
         module = mixminion.server.Modules.MixmasterSMTPModule()
@@ -3827,8 +3821,8 @@ class ModuleTests(unittest.TestCase):
         replaceFunction(os, "spawnl")
         try:
             # Send a message...
-            queue.queueDeliveryMessage((SMTP_TYPE, "foo@bar", None),
-                                       "This is the message")
+            queue.queueDeliveryMessage(None,FDP('plain', SMTP_TYPE, "foo@bar",
+                                                "This is the message"))
             queue.sendReadyMessages()
             # And make sure that Mixmaster was invoked correctly.
             calls = getReplacedFunctionCallLog()
@@ -3859,6 +3853,8 @@ class ModuleTests(unittest.TestCase):
     def testDirectSMTP(self):
         """Check out the SMTP module.  (We temporarily relace sendSMTPMessage
            with a stub function so that we don't actually send anything.)"""
+        FDP = FakeDeliveryPacket
+        
         blacklistFile = mix_mktemp()
         writeFile(blacklistFile, "Deny onehost wangafu.net\nDeny user fred\n")
 
@@ -3888,7 +3884,8 @@ SubjectLine: Arr! This be a Type III Anonymous Message
                      "Free to hide no more.")
 
             # Try queueing a valild message and sending it.
-            queueMessage((SMTP_TYPE, "users@everywhere", None), haiku)
+            queueMessage(None,
+                         FDP('plain', SMTP_TYPE, "users@everywhere", haiku))
             self.assertEquals(getReplacedFunctionCallLog(), [])
             queue.sendReadyMessages()
             # Was sendSMTPMessage invoked correctly?
@@ -3923,8 +3920,9 @@ Free to hide no more.
             # an invalid address, and one with a blocked address.
             try:
                 suspendLog()
-                queueMessage((SMTP_TYPE, "not.an.addr", None), haiku)
-                queueMessage((SMTP_TYPE, "blocked@wangafu.net", None), haiku)
+                queueMessage(None,FDP('plain',SMTP_TYPE, "not.an.addr", haiku))
+                queueMessage(None,FDP('plain',SMTP_TYPE,
+                                      "blocked@wangafu.net",haiku))
                 queue.sendReadyMessages()
             finally:
                 s = resumeLog()
@@ -3940,6 +3938,7 @@ Free to hide no more.
     def testMBOX(self):
         """Check out the MBOX module. (We temporarily relace sendSMTPMessage
            with a stub function so that we don't actually send anything.)"""
+        FDP = FakeDeliveryPacket
         # Configure the module
         manager = self.getManager()
         module = mixminion.server.Modules.MBoxModule()
@@ -3964,21 +3963,24 @@ Free to hide no more.
                  lambda *args: mixminion.server.Modules.DELIVER_OK)
         try:
             # Try queueing a message...
-            queue.queueDeliveryMessage((MBOX_TYPE, 'mixdiddy', "x"*20),
-                                       hexread("EFFACEAB1EFACADE")*20)
+            queue.queueDeliveryMessage(None,
+                               FDP('enc', MBOX_TYPE, 'mixdiddy', 
+                                   hexread("EFFACEAB1EFACADE")*20, "x"*20))
             self.assertEquals(getReplacedFunctionCallLog(), [])
             # ...and sending it.
             queue.sendReadyMessages()
             try:
                 # Also, try sending a message to an unknown address
                 suspendLog()
-                queue.queueDeliveryMessage((MBOX_TYPE, 'mixmuffin', "x"*20),
-                                           hexread("EFFACEAB1EFACADE")*20)
+                queue.queueDeliveryMessage(None,
+                        FDP('env', MBOX_TYPE, 'mixmuffin',
+                            hexread("EFFACEAB1EFACADE")*20,
+                            'x'*20))
                 queue.sendReadyMessages()
             finally:
                 m = resumeLog()
-                self.assert_(stringContains(m,"Unknown MBOX user 'mixmuffin'"))
-                self.assert_(stringContains(m,"Unable to deliver message"))
+            self.assert_(stringContains(m,"Unknown MBOX user 'mixmuffin'"))
+            self.assert_(stringContains(m,"Unable to deliver message"))
 
             # Check that sendSMTPMessage was called correctly.
             self.assertEquals(1, len(getReplacedFunctionCallLog()))
@@ -3999,6 +4001,7 @@ Free to hide no more.
     def testDirectoryDump(self):
         """Check out the DirectoryStoreModule that we use for testing on
            machines with unreliable/nonexistant SMTP."""
+        FDP = FakeDeliveryPacket
         eme = mixminion.server.Modules._escapeMessageForEmail
         dir = mix_mktemp()
         manager = self.getManager()
@@ -4010,19 +4013,20 @@ Free to hide no more.
                           {'Location': dir, 'UseQueue' : 0}}, manager)
         # Try sending a couple of messages.
         queue = manager.queues['Testing_DirectoryDump']
-        queue.queueDeliveryMessage((0xFFFE, "addr1", "t"*20),
-                                   "This is the message")
+        p1 = FDP('plain',0xFFFE, "addr1","this is the message","t"*20)
+        queue.queueDeliveryMessage(None, p1)
         self.assert_(os.path.exists(os.path.join(dir, "0")))
-        queue.queueDeliveryMessage((0xFFFE, "addr2", "x"*20),
-                                   "This is message 2")
+        p2 = FDP('plain',0xFFFE, "addr2", "This is message 2", "x"*20)
+        queue.queueDeliveryMessage(None, p2)
         self.assert_(os.path.exists(os.path.join(dir, "1")))
-        self.assertEquals(eme("This is message 2", "x"*20),
+        self.assertEquals(eme(p2),
                           readFile(os.path.join(dir, "1")))
         # test failure.
         try:
             suspendLog()
-            queue.queueDeliveryMessage((0xFFFE, "FAIL!", "y"*20),
-                               "This is message X which won't be delivered")
+            queue.queueDeliveryMessage(None,
+               FDP('plain', 0xFFFE, "FAIL!", 
+                   "This is message X which won't be delivered", "x"*20))
             self.assert_(not os.path.exists(os.path.join(dir, "2")))
         finally:
             m = resumeLog()
@@ -4030,12 +4034,13 @@ Free to hide no more.
 
         try:
             suspendLog()
-            queue.queueDeliveryMessage((0xFFFE, "fail", "z"*20),
-                               "This is message X which won't be delivered")
+            queue.queueDeliveryMessage(None,
+                FDP('plain', 0xFFFE, "fail",
+                    "This is message X which won't be delivered", "z"*20))
             self.assert_(not os.path.exists(os.path.join(dir, "2")))
         finally:
             m = resumeLog()
-            self.assert_(m.endswith("Unable to retry delivery for message\n"))
+        self.assert_(m.endswith("Unable to retry delivery for message\n"))
 
         queue.sendReadyMessages()
 
@@ -4049,14 +4054,15 @@ Free to hide no more.
         self.assertEquals(module.next, 91)
         self.assertEquals(len(os.listdir(dir)), 3)
         queue = manager.queues['Testing_DirectoryDump']
-        queue.queueDeliveryMessage((0xFFFE, "addr91", None),
-                                   "This is message 91")
-        queue.queueDeliveryMessage((0xFFFE, "addr92", None),
-                                   "This is message 92")
-        queue.queueDeliveryMessage((0xFFFE, "fail", None),
-                                   "This is message 93")
-        queue.queueDeliveryMessage((0xFFFE, "FAIL!", None),
-                                   "This is message 94")
+        queue.queueDeliveryMessage(None,
+                FDP('plain',0xFFFE, "addr91", "This is message 91"))
+        queue.queueDeliveryMessage(None,
+                FDP('plain',0xFFFE, "addr92", "This is message 92"))
+        queue.queueDeliveryMessage(None,
+                FDP('plain',0xFFFE, "fail", "This is message 93"))
+        queue.queueDeliveryMessage(None,
+                FDP('plain',0xFFFE, "FAIL!", "This is message 94"))
+
         # All 4 messages go into the queue...
         self.assertEquals(4, queue.count())
         self.assertEquals(3, len(os.listdir(dir)))

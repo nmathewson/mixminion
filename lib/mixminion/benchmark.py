@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.27 2003/01/09 06:28:58 nickm Exp $
+# $Id: benchmark.py,v 1.28 2003/01/10 20:12:05 nickm Exp $
 
 """mixminion.benchmark
 
@@ -20,7 +20,8 @@ from time import time
 
 import mixminion._minionlib as _ml
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
-     compressData, uncompressData
+     compressData, uncompressData, _encodePayload, decodePayload, \
+     CompressedDataTooLong
 from mixminion.Common import secureDelete, installSIGCHLDHandler, \
      waitForChildren, formatBase64
 from mixminion.Crypto import *
@@ -484,6 +485,31 @@ def serverProcessTiming():
     print "Server process (swap, no log)", timeit(
         lambda sp=sp, m_swap=m_swap: sp.processMessage(m_swap), 100)
 
+def encodingTiming():
+    print "#=============== END-TO-END ENCODING =================="
+    shortP = "hello world"
+    prng = AESCounterPRNG()
+    p = _encodePayload(shortP, 0, prng)
+    t = prng.getBytes(20)
+    print "Decode short payload", timeit(
+        lambda p=p,t=t: decodePayload(p, t), 1000)
+    
+    k20 = prng.getBytes(20*1024)
+    p = _encodePayload(k20, 0, prng)
+    t = prng.getBytes(20)
+    print "Decode 20K payload", timeit(
+        lambda p=p,t=t: decodePayload(p, t), 1000)
+
+    comp = "x"*(20*1024)
+    p = _encodePayload(comp, 0, prng)
+    t = prng.getBytes(20)
+    def decode(p=p,t=t):
+        try:
+            decodePayload(p,t)
+        except CompressedDataTooLong:
+            pass
+    print "Decode overcompressed payload", timeit(decode, 1000)
+       
 #----------------------------------------------------------------------
 def timeEfficiency():
     print "#================= ACTUAL v. IDEAL ====================="
@@ -673,6 +699,7 @@ def timeAll(name, args):
     buildMessageTiming()
     directoryTiming()
     fileOpsTiming()
+    encodingTiming()
     serverProcessTiming()
     hashlogTiming()
     timeEfficiency()

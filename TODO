@@ -24,20 +24,20 @@ For 0.0.3:
                 - Read Base64-encoded messages and zbomb messages.
                 - Faster (adjustable?) timeout on client connect failure.
                 - Client-side pooling.
-        - Multithreaded server for better network behavior (no 10ms
+        . Multithreaded server for better network behavior (no 10ms
           hiccups when receiving; no pauses to shred files or deliver
           messages.)
                 o Make all C functions use Py_BEGIN_ALLOW_THREADS and
                   Py_END_ALLOW_THREADS properly.
                 o Make all commonly used Python code threadsafe.
                 . Make Queues threadsafe.
-                        . Design
-                        . Implement
+                        o Design
+                        o Implement
                         o Rename Queue.py to ServerQueue.py
                                 o Do it
-                                - Come up with install code to scrub
+                                o Come up with install code to scrub
                                   old Queue.py where found.
-                        - Come up with comments to explain why the
+                        o Come up with comments to explain why the
                           whole thing is threadsafe as used, and
                           explain what "as used" means.  Add asserts
                           to check "as used".
@@ -45,20 +45,26 @@ For 0.0.3:
                 o Make shredding happen in a separate thread.
                 o Make delivery happen in a separate thread.
                 o Make packet processing happen in a separate thread. 
-                - Move message decoding into packet handler thread.
+                o Move message decoding into packet handler thread.
                 - Document
-                - Refactor until sane -- possibly along with
+                . Refactor until sane -- possibly along with
                   DeliveryQueue refactoring.
+                	o Refactor
+                        o Change tests to test new interfaces
+                        o Remove old interfaces
+                        . Re-test all modules by hand.
+                        - Unit tests for DeliveryPacket's more complex
+                          methods.
                 o Undaemonize threads; make them get shut
                   down explicitly so they can't die halfway.
-                - Test like crazy
+                . Test like crazy
         - Signals
-                . Cleaner shutdown on TERM.
+                o Cleaner shutdown on TERM.
                         o Implement
-                        - Test
+                        o Test
                 . Good reset handling for HUP.
 			o Don't die
-                        - Restart logs
+                        o Reset logs
                         - Check configuration file for changeable
                           things.  (First, decide what's changeable on
                           the fly.)
@@ -113,7 +119,8 @@ For 0.0.3:
                 - Add an extra "this is anonymous" header.
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
            CLI'S AND MULTI-SERVER SITUATIONS.
-        - 
+        - Tests for packet addressed to server with bogus IP.
+        - Tests for 
         - ????
 
 Required for "1.0":
