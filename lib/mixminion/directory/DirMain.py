@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.17 2003/10/20 19:40:32 nickm Exp $
+# $Id: DirMain.py,v 1.18 2003/11/20 04:03:47 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -134,7 +134,7 @@ def cmd_generate(args):
 
     config = d.getConfig()
 
-    badServers = config['Directory'].get('BadServer', [])
+    badServers = config['Directory'].get('BadServer', [])[:]
     badServerFiles = config['Directory'].get('BadServerFile', [])
     for fn in badServerFiles:
         if not os.path.exists(fn):
@@ -147,6 +147,9 @@ def cmd_generate(args):
                 badServers.append(ln)
         f.close()
 
+    excludeServers = config['Directory'].get("ExcludeServer",[])[:]
+    excludeServers = [ nn.strip().lower() for nn in excludeServers ]
+
     location = config['Publishing']['Location']
     print "(Bad servers==%r)"%badServers
 
@@ -157,7 +160,8 @@ def cmd_generate(args):
     serverList.generateDirectory(startAt=now, endAt=tomorrow,
                                  extraTime=twoWeeks,
                                  identityKey=key,
-                                 badServers=badServers)
+                                 badServers=badServers,
+                                 excludeServers=excludeServers)
     print "Directory generated; publishing."
 
     fname = serverList.getDirectoryFilename()

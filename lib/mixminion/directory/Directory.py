@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.14 2003/11/07 07:03:28 nickm Exp $
+# $Id: Directory.py,v 1.15 2003/11/20 04:03:47 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -164,7 +164,8 @@ class DirectoryConfig(C._ConfigFile):
         },
         'Directory' : {
            "BadServer" : ("ALLOW*", None, None),
-           "BadServerFile" : ("ALLOW*", "filename", None)
+           "BadServerFile" : ("ALLOW*", "filename", None),
+           "ExcludeServer" : ("ALLOW*", None, None),
         },
         'Publishing' : {
            "__SECTION__": ('REQUIRE', None, None),

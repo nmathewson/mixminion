@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.41 2003/10/20 19:40:32 nickm Exp $
+# $Id: ServerList.py,v 1.42 2003/11/20 04:03:47 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -242,11 +242,15 @@ class ServerList:
                           startAt, endAt, extraTime,
                           identityKey,
                           publicationTime=None,
-                          badServers=()):
+                          badServers=(),
+                          excludeServers=()):
         """Generate and sign a new directory, to be effective from <startAt>
            through <endAt>.  It includes all servers that are valid at
            any time between <startAt> and <endAt>+<extraTime>.  The directory
-           is signed with <identityKey> """
+           is signed with <identityKey>
+
+           DOCDOC badServers, excludeServers
+        """
         try:
             self._lock()
             self.clean()
@@ -255,10 +259,13 @@ class ServerList:
             if previousMidnight(startAt) >= previousMidnight(endAt):
                 raise MixError("Validity range does not contain a full day.")
 
+            excludeServers = [ nickname.lower() for nickname in excludeServers]
+
             # First, sort all servers by nickname.
             includedByNickname =  {}
             for fn, s in self.servers.items():
                 nickname = s.getNickname().lower()
+                if nickname in excludeServers: continue
                 includedByNickname.setdefault(nickname, []).append((s, fn))
 
             # Second, find all servers that are valid for part of the period,
