@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.44 2003/06/10 10:40:21 nickm Exp $
+# $Id: ServerKeys.py,v 1.45 2003/06/26 03:23:53 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -352,8 +352,9 @@ class ServerKeyring:
         self.checkKeys()
 
     def getDeadKeys(self,now=None):
-        """DOCDOC
-           doesn't checkKeys.
+        """Helper function: return a list of (informative-message, keyset
+           object) for each expired keyset in the keystore.  Does not rescan
+           the keystore or remove dead keys.
         """
         if now is None:
             now = time.time()
@@ -580,6 +581,7 @@ class ServerKeyset:
         files = [self.packetKeyFile,
                  self.mmtpKeyFile,
                  self.certFile,
+                 self.certFile+"_tmp",
                  self.descFile,
                  self.publishedFile,
                  self.hashlogFile ]

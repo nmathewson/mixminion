@@ -1348,10 +1348,6 @@ class MixminionClient:
 
         # Initialize PRNG
         self.prng = mixminion.Crypto.getCommonPRNG()
-        # XXXX005 remove.
-        if os.path.exists(os.path.join(userdir, "pool")):
-            os.rename(os.path.join(userdir, "pool"),
-                      os.path.join(userdir, "queue"))
         self.queue = ClientQueue(os.path.join(userdir, "queue"))
 
     def sendForwardMessage(self, address, payload, servers1, servers2,
@@ -1869,8 +1865,6 @@ class CLIArgumentParser:
             elif o in ('-R', '--reply-block'):
                 assert wantForwardPath
                 self.replyBlockFiles.append(v)
-            elif o == '--swap-at':
-                raise UIError("--swap-at is no longer necessary.")
             elif o in ('-H', '--hops'):
                 assert wantForwardPath or wantReplyPath
                 if self.nHops is not None:
@@ -1894,14 +1888,6 @@ class CLIArgumentParser:
                     self.lifetime = int(v)
                 except ValueError:
                     raise UsageError("%s expects an integer"%o)
-            elif o in ('--pool',):
-                LOG.warn(
-                    "The --pool option is deprecated; use --queue instead")
-                self.forceQueue = 1
-            elif o in ('--no-pool',):
-                LOG.warn(
-                 "The --no-pool option is deprecated; use --no-queue instead")
-                self.forceNoQueue = 1
             elif o in ('--queue',):
                 self.forceQueue = 1
             elif o in ('--no-queue',):
@@ -2109,14 +2095,14 @@ def sendUsageAndExit(cmd, error=None):
         print >>sys.stderr, "ERROR: %s"%error
         print >>sys.stderr, "For usage, run 'mixminion send --help'"
         sys.exit(1)
-    if cmd.endswith(" pool") or cmd.endswith(" queue"):
-        print _SEND_USAGE % { 'cmd' : cmd, 'send' : 'pool', 'Send': 'Pool',
+    if cmd.endswith(" queue"):
+        print _SEND_USAGE % { 'cmd' : cmd, 'send' : 'queue', 'Send': 'Queue',
                               'extra' : '' }
     else:
         print _SEND_USAGE % { 'cmd' : cmd, 'send' : 'send', 'Send': 'Send',
                               'extra' : """\
-  --queue                    Pool the message; don't send it.
-  --no-queue                 Do not attempt to pool the message.""" }
+  --queue                    Queue the message; don't send it.
+  --no-queue                 Do not attempt to queue the message.""" }
     sys.exit(0)
 
 def runClient(cmd, args):
@@ -2127,17 +2113,13 @@ def runClient(cmd, args):
     queueMode = 0
     if cmd.endswith(" queue"):
         queueMode = 1
-    elif cmd.endswith(" pool"):
-        LOG.warn("The 'pool' command is deprecated.  Use 'queue' instead.")
-        queueMode = 1
 
     ###
     # Parse and validate our options.
-    #XXXX005 remove obsolete swap-at option.
     options, args = getopt.getopt(args, "hvf:D:t:H:P:R:i:",
              ["help", "verbose", "config=", "download-directory=",
-              "to=", "hops=", "swap-at=", "path=", "reply-block=",
-              "input=", "pool", "no-pool", "queue", "no-queue" ])
+              "to=", "hops=", "path=", "reply-block=",
+              "input=", "queue", "no-queue" ])
 
     if not options:
         sendUsageAndExit(cmd)
@@ -2677,9 +2659,6 @@ def listQueue(cmd, args):
         e.dump()
         print _LIST_QUEUE_USAGE % { 'cmd' : cmd }
         sys.exit(1)
-
-    if cmd.endswith("pool"):
-        LOG.warn("'inspect-pool' is deprecated; use inspect-queue instead")
 
     parser.init()
     client = parser.client

@@ -54,7 +54,6 @@ For 0.0.5:
                 o Don't block while shredding messages at startup.
                 o Shutdown faster on SIGTERM.
 
-
 For 0.0.6:
         - Dummies and pinging
         - Rudimentary MIME support (content-type, content-encoding

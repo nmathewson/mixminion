@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.40 2003/06/13 01:03:46 nickm Exp $
+# $Id: MMTPServer.py,v 1.41 2003/06/26 03:23:53 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -700,6 +700,7 @@ class MMTPServerConnection(SimpleTLSConnection):
 NULL_KEYID = "\x00"*20
 
 class DeliverableMessage:
+    """Interface to be impemented by messages deliverable by MMTP """
     def __init__(self):
         pass
     def getContents(self):
@@ -710,6 +711,10 @@ class DeliverableMessage:
         raise NotImplementedError
 
 class DeliverablePacket(DeliverableMessage):
+    """Implementation of DelierableMessage.
+
+       Wraps a ServerQueue.PendingMessage object for a queue holding
+       PacketHandler.RelayPacket objects."""
     def __init__(self, pending):
         DeliverableMessage.__init__(self)
         self.pending = pending
@@ -724,12 +729,13 @@ class MMTPClientConnection(SimpleTLSConnection):
     """Asynchronious implementation of the sending ("client") side of a
        mixminion connection."""
     ## Fields:
-    # ip, port, keyID, messageList, handleList, sendCallback, failCallback,
-    # finishedCallback, certCache:
+    # ip, port, keyID, messageList, finishedCallback, certCache:
     #   As described in the docstring for __init__ below.  We remove entries
     #   from the front of messageList/handleList as we begin sending them.
-    # _curMessage, _curHandle: Correspond to the message and handle
-    #     that we are currently trying to deliver.
+    # _curMessage, _curHandle: Correspond to the message that we are
+    #     currently trying to deliver.  If _curHandle is None, _curMessage
+    #     is a control string.  If _curHandle is a DeliverableMessage,
+    #     _curMessage is the corresponding 32KB string.
     # junk: A list of 32KB padding chunks that we're going to send.  We
     #   pregenerate these to avoid timing attacks.  They correspond to
     #   the 'JUNK' entries in messageList.
@@ -752,8 +758,10 @@ class MMTPClientConnection(SimpleTLSConnection):
            port -- The port to connect to.
            keyID -- None, or the expected SHA1 hash of the server's public key
            messageList -- a list of message payloads and control strings.
-               The control string "JUNK" sends 32KB of padding; the control
-               string "RENEGOTIATE" renegotiates the connection key.
+               Message payloads must implement the DeliverableMessage
+               interface above; allowable control strings are either
+               string "JUNK", which sends 32KB of padding; or the control
+               string "RENEGOTIATE" which renegotiates the connection key.
            finishedCallback -- None, or a function to be called when this
               connection is closed.
            certCache -- an instance of PeerCertificateCache to use for
@@ -761,11 +769,9 @@ class MMTPClientConnection(SimpleTLSConnection):
         """
         # Generate junk before connecting to avoid timing attacks
         self.junk = []
-        #DOCDOC
         self.messageList = []
         self.active = 1
 
-        #DOCDOC
         self.addMessages(messageList)
 
         if certCache is None:
@@ -802,9 +808,10 @@ class MMTPClientConnection(SimpleTLSConnection):
         return self.active
 
     def addMessages(self, messages):
-        """Given a list of messages and handles, as given to
+        """Given a list of messages and control strings, as given to
            MMTPServer.__init__, cause this connection to deliver that new
-           set of messages after it's done with those it's currently sending.
+           set of messages after it's done with those it's currently
+           sending.
         """
         assert self.active
         for m in messages:
@@ -866,7 +873,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         if not self.messageList:
             self.shutdown(0)
             return
-
+        
         self._getNextMessage()
         msg = self._curMessage
         if msg == 'RENEGOTIATE':
@@ -892,7 +899,8 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.finished = self.__sentMessage
 
     def _getNextMessage(self):
-        """DOCDOC"""
+        """Helper function: pull the next _curHandle, _curMessage pair from
+           self.messageList."""
         m = self.messageList[0]
         del self.messageList[0]
         if hasattr(m, 'getContents'):
@@ -1039,7 +1047,11 @@ class MMTPAsyncServer(AsyncServer):
         self.listener.shutdown()
 
     def sendMessages(self, ip, port, keyID, deliverable):
-        """Begin sending a set of messages to a given server."""
+        """Begin sending a set of messages to a given server.
+
+           deliverable is a list of objects obeying the DeliverableMessage
+           lsit.
+        """
 
         try:
             # Is there an existing connection open to the right server?

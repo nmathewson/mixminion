@@ -1,4 +1,4 @@
-$Id: HACKING,v 1.18 2003/06/06 06:08:39 nickm Exp $
+$Id: HACKING,v 1.19 2003/06/26 03:23:53 nickm Exp $
 Hacking Mixminion
 
 Requirements:
@@ -196,6 +196,10 @@ HARD HACKING:
         Twisted beforehand could get tricky.  We'll need to either make the
         Twisted install project learn all of our Python-Python-Who's-Got-The-
         Python trickery, or add a 'download and install twisted' target.
+  Benefits:
+      - Move server HTTP activity into async loop.
+      - Freebies like windows portability, bandwidth throttling, etc.
+        (Investigate more)
   (Difficulty: moderate.  Invasiveness: moderate.)
 
 - We could really use a nymserver.

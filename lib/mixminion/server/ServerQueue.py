@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.23 2003/06/13 01:03:46 nickm Exp $
+# $Id: ServerQueue.py,v 1.24 2003/06/26 03:23:53 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -294,7 +294,9 @@ class _DeliveryState:
     #    inserted into the queue.
     # lastAttempt: The most recent time at which we attempted to
     #    deliver the message. (None means 'never').
-    # address: Pickleable object holding address information. DOCDOC
+    # address: Pickleable object holding address information.  Delivery
+    #    code uses this field to group messages by address before loading
+    #    them all from disk.
     def __init__(self, queuedTime=None, lastAttempt=None, address=None):
         """Create a new _DeliveryState for a message received at
            queuedTime (default now), whose last delivery attempt was
@@ -303,7 +305,7 @@ class _DeliveryState:
             queuedTime = time.time()
         self.queuedTime = queuedTime
         self.lastAttempt = lastAttempt
-        self.address = None
+        self.address = address
 
     def __getstate__(self):
         # For pickling.  All future versions of deliverystate will pickle
@@ -318,6 +320,7 @@ class _DeliveryState:
             self.address = state[3]
         elif state[0] == "V0":
             #XXXX006 remove this case.
+            # 0.0.4 used a format that didn't have an 'address' field.
             self.queuedTime = state[1]
             self.lastAttempt = state[2]
             self.address = None
@@ -362,7 +365,16 @@ class _DeliveryState:
         self.lastAttempt = when
 
 class PendingMessage:
-    """DOCDOC"""
+    """PendingMessage represents a message in a DeliveryQueue, for delivery
+       to a specific address.  See DeliveryQueue._deliverMessages for more
+       information about the interface."""
+    ##
+    # queue: the deliveryqueue holding this message
+    # handle: the handle for this message in the queue
+    # address: The address passed to queueDeliveryMessage for this message,
+    #     or None
+    # message: The object queued as this message, or None if the object
+    #     has not yet been loaded.
     def __init__(self, handle, queue, address, message=None):
         self.handle = handle
         self.queue = queue
@@ -376,18 +388,23 @@ class PendingMessage:
         return self.handle
 
     def succeeded(self):
+        """Mark this message as having been successfully deleted, removing
+           it from the queue."""
         self.queue.deliverySucceeded(self.handle)
         self.queue = self.message = None
 
     def failed(self, retriable=0, now=None):
+        """Mark this message as has having failed delivery, either rescheduling
+           it or removing it from the queue."""
         self.queue.deliveryFailed(self.handle, retriable, now=now)
         self.queue = self.message = None
 
     def getMessage(self):
+        """Return the underlying object stored in the delivery queue, loading
+           it from disk if necessary."""
         if self.message is None:
             self.message = self.queue.getObject(self.handle)
         return self.message
-
 
 class DeliveryQueue(Queue):
     """A DeliveryQueue implements a queue that greedily sends messages to
@@ -644,14 +661,13 @@ class DeliveryQueue(Queue):
         self._repOk()
 
     def _deliverMessages(self, msgList):
-        """Abstract method; Invoked with a list of (handle, message)
-           tuples every time we have a batch of messages to send.
+        """Abstract method; Invoked with a list of PendingMessage objects
+           every time we have a batch of messages to send.
 
-           For every handle in the list, delierySucceeded or deliveryFailed
-           should eventually be called, or the message will sit in the queue
-           indefinitely, without being retried."""
-
-        #DOCDOC
+           For every PendingMessage object on the list, the object's
+           .succeeded() or .failed() method should eventually be called, or
+           the message will sit in the queue indefinitely, without being
+           retried."""
 
         # We could implement this as a single _deliverMessage(h,addr)
         # method, but that wouldn't allow implementations to batch

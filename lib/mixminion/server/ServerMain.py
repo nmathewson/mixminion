@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.80 2003/06/13 01:03:46 nickm Exp $
+# $Id: ServerMain.py,v 1.81 2003/06/26 03:23:53 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -729,6 +729,25 @@ class MixminionServer(_Scheduler):
         finally:
             if lock: self.keyring.unlock()
 
+    def scheduleRecurringComplexBackground(self, first, name, cb):
+        """DOCDOC"""
+        #????005 Is this worth it?
+        backgroundJob = [None]
+        scheduler = [None]
+        
+        def _bg(cb=cb, self=self, scheduler=scheduler, name=name):
+            next = cb()
+            if next is not None:
+                self.scheduleOnce(next, name, scheduler[0])
+
+        def _scheduler(backgroundJob=backgroundJob, self=self):
+            self.processingThread.addJob(backgroundJob[0])
+
+        backgroundJob[0] = _bg
+        scheduler[0] = _scheduler
+
+        self.scheduleOnce(first,name,_scheduler)
+
     def generateKeys(self):
         """Callback used to schedule key-generation"""
 
@@ -791,8 +810,8 @@ class MixminionServer(_Scheduler):
 
         nextMix = self.mixPool.getNextMixTime(now)
         LOG.debug("First mix at %s", formatTime(nextMix,1))
-        self.scheduleOnce(self.mixPool.getNextMixTime(now),
-                          "MIX", self.doMix)
+        self.scheduleRecurringComplex(self.mixPool.getNextMixTime(now),
+                                      "MIX", self.doMix)
 
         LOG.info("Entering main loop: Mixminion %s", mixminion.__version__)
 
@@ -868,11 +887,10 @@ class MixminionServer(_Scheduler):
         # Send exit messages
         self.moduleManager.sendReadyMessages()
 
-        #XXXX005 use new schedulerecurringcomplex interface
         # Choose next mix interval
         nextMix = self.mixPool.getNextMixTime(now)
-        self.scheduleOnce(nextMix, "MIX", self.doMix)
         LOG.trace("Next mix at %s", formatTime(nextMix,1))
+        return nextMix
 
     def cleanQueues(self):
         """Remove all deleted messages from queues"""

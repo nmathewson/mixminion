@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.91 2003/06/25 17:03:10 arma Exp $
+# $Id: Common.py,v 1.92 2003/06/26 03:23:53 nickm Exp $
 
 """mixminion.Common
 
@@ -1319,18 +1319,24 @@ class Lockfile:
 # Threading operations
 
 class ClearableQueue(MessageQueue):
-    """DOCDOC"""
+    """Extended version of python's Queue class that supports removing
+       all the items from the queue."""
     #XXXX005 testme
     def clear(self):
+        """Remove all the items from this queue."""
+
+        # If the queue is empty, return.
         if not self.esema.acquire(0):
             return
         self.mutex.acquire()
         was_full = self._full()
         self._clear()
         assert self._empty()
+        # If the queue used to be full, it isn't anymore.
         if was_full:
             self.fsema.release()
         self.mutex.release()
 
     def _clear(self):
+        """Backend for _clear"""
         del self.queue[:]
