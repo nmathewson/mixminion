@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.65 2003/11/28 04:14:04 nickm Exp $
+# $Id: ServerInfo.py,v 1.66 2003/12/03 23:14:26 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -46,7 +46,6 @@ def displayServer(s):
        's' must be one of: None, IPV4Info, MMTPHostInfo, ServerInfo,
        string.
     """
-    #XXXX006 unit tests are needed
     if isinstance(s, types.StringType):
         return s
     elif isinstance(s, ServerInfo):
@@ -314,7 +313,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
            version 0.0.5 or earlier.)"""
         #XXXX006 remove this.  0.0.6alpha1 could crash when it got hostnames.
         #XXXX006 Sadly, some people installed it anyway.
-        if self['Server'].get("Software","").startswith("0.0.6alpha1"):
+        if self['Server'].get("Software","").endswith("0.0.6alpha1"):
             return None
         return self['Incoming/MMTP'].get("Hostname")
 
