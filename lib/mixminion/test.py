@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.204 2004/12/02 06:47:06 nickm Exp $
+# $Id: test.py,v 1.205 2004/12/02 23:39:02 nickm Exp $
 
 """mixminion.tests
 
@@ -7727,12 +7727,20 @@ class FragmentTests(TestCase):
 #----------------------------------------------------------------------
 
 class PingerTests(TestCase):
+
     def testPinglogMemory(self):
         #XXXX We need way better tests here. 'now' needs to be an arg to
         #all the new log functions.
         P = mixminion.server.Pinger
         if not P.canRunPinger():
             print "[Skipping ping tests; old python or missing pysqlite]",
+
+        l1 = [5, 9, 11, 13]
+        l2 = [6,10,10,12,15]
+        l3 = list(P._mergeIters(l1,l2))
+        l4 = l3[:]
+        l4.sort()
+        self.assertEquals(l3, l4)
 
         d = mix_mktemp()
         os.mkdir(d)
@@ -7749,9 +7757,9 @@ class PingerTests(TestCase):
         log.gotPing("BZ"*10)
         log.gotPing("BN"*10)
         log.gotPing("BL"*10) #Never sent.
-        log.shutdown()
         log.rotate()
         log.calculateUptimes(time.time()-1000, time.time())
+        log.shutdown()
         #log.calculateDailyResults( ) #XXXX TEST
         log.close()
         log = P.openPingLog(loc)
@@ -7791,7 +7799,7 @@ def testSuite():
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    if 0:
+    if 1:
         suite.addTest(tc(PingerTests))
         return suite
     testClasses = [MiscTests,

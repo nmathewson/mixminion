@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.142 2004/07/27 21:51:18 nickm Exp $
+# $Id: Common.py,v 1.143 2004/12/02 23:39:01 nickm Exp $
 
 """mixminion.Common
 
@@ -1327,7 +1327,7 @@ class IntervalSet:
         r.edges = self.edges[:]
         return r
     def __iadd__(self, other):
-        """self += b : Causes this set to contain all points in itself but not
+        """self += b : Causes this set to contain all points in itself or
            in b."""
         self.edges += other.edges
         self._cleanEdges()
@@ -1398,6 +1398,15 @@ class IntervalSet:
         r *= other
         return r
 
+    def getIntervalContaining(self, point):
+        """DOCDOC"""
+        #XXXX008 test
+        idx = bisect.bisect(self.edges, (point, '-'))
+        if idx < len(self.edges) and self.edges[idx][1] == '-':
+            return (self.edges[idx-1][0], self.edges[idx][0])
+        else:
+            return None, None
+
     def __contains__(self, other):
         """'a in self' is true when 'a' is a number contained in some interval
             in this set, or when 'a' is an IntervalSet that is a subset of
@@ -1426,6 +1435,14 @@ class IntervalSet:
         for i in xrange(0, len(self.edges), 2):
             s.append((self.edges[i][0], self.edges[i+1][0]))
         return s
+
+    def spanLength(self):
+        """DOCDOC"""
+        #XXXX008 testme
+        r = 0
+        for i in xrange(0, len(self.edges), 2):
+            r += self.edges[i+1][0] - self.edges[i][0]
+        return r
 
     def _checkRep(self):
         """Helper function: raises AssertionError if this set's data is
