@@ -204,23 +204,32 @@ To send a dummy message, specify "drop" instead of an email address, as in:
       mixminion send -t drop
       mixminion send -t drop -P '*,Foo'
       mixminion send -t drop -H 8
-      
+    
+
+If you need to use a proxy server to use the web you can specify it using the
+http_proxy environment variable.
+
+      export http_proxy=http://proxy:3128/
+      mixminion send -D yes
+
+  
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 ========================================
 
-1) Pick a directory for the server to use.
+1) Create a copy of the "etc/mixminiond.conf" file from the
+   mixminion distribution and place it where you like.  Mixminion will 
+   automatically look in ~/.mixminiond.conf, ~/etc/mixminiond.conf, and
+   /etc/mixminiond.conf.  However, you can store it anywhere.
 
-2) Create your own mixminiond.conf based on "etc/mixminiond.conf" from the
-   mixminion distribution.
+2) Edit mixminiond.conf to reflect your own system settings.
 
-   You can store it anywhere you like, but it makes sense to store it in
-   a directory called 'etc' under the server's directory.
-
-3) Edit mixminiond.conf to refer to your own setup.
-
-4) Run your server for the first time:
+3) Run your server for the first time:
 
         "mixminion server -f <path to mixminiond.conf>"
+
+    (The -f flag and path is only necessary if you placed the 
+    configuration file somehwere other than ~/.mixminiond.conf, 
+    ~/etc/mixminiond.conf, or /etc/mixminiond.conf.)
 
 5) To try out your server, clients will need a copy of your server
    descriptor, which should be stored in $SERVER_HOME/keys/key_*/ServerDesc.
@@ -233,18 +242,20 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
            "/home/mixminion/spool/keys/key_0001/ServerDesc".
 
-   And clients can then import this file by running:
+   Mixminion supports a global directory of server descriptors.  Until you
+   are listed in that directory, clients can import your ServerDesc file 
+   (if they have a copy) by hand by running:
 
            mixminion import-server <filename>
 
 6) When you're ready to advertise your server, email your server descriptor
    (PGP-signed, if possible) to <nickm@freehaven.net>.  I'll try out your
-   server for a while, then add it to the directory.
+   server for a while and then add it to the directory.
 
-   WARNING: we don't have statistics yet, so the system isn't robust in the
-   presence of unreliable servers in the directory.  Please let me know if
-   you're going to take down a server, and please don't publish a server if
-   you don't think you can keep it up for a good while.
+   WARNING: We don't have statistics yet, so the system isn't robust in 
+   the presence of unreliable servers in the directory.  Please let me 
+   know if you're going to take down a server, and please don't publish a 
+   server if you don't think you can keep it up for a good while.
 
    {This step will be more automated in later versions.}
 
