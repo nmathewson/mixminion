@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.46 2002/12/11 06:58:55 nickm Exp $
+# $Id: test.py,v 1.47 2002/12/12 19:56:46 nickm Exp $
 
 """mixminion.tests
 
@@ -13,16 +13,17 @@
 
 __pychecker__ = 'no-funcdoc maxlocals=100'
 
+import base64
+import cPickle
+import cStringIO
 import os
+import re
+import stat
 import sys
 import threading
 import time
-import re
-import base64
-import stat
 import types
-import cPickle
-import cStringIO
+from string import atoi
 
 # Not every post-2.0 version of Python has a working 'unittest' module, so
 # we include a copy with mixminion, as 'mixminion._unittest'.
@@ -35,10 +36,31 @@ import mixminion.testSupport
 from mixminion.testSupport import mix_mktemp, suspendLog, resumeLog, \
      replaceAttribute, undoReplacedAttributes, replaceFunction, \
      getReplacedFunctionCallLog, clearReplacedFunctionCallLog
-from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
-     LOG, previousMidnight, stringContains
 
+
+import mixminion.BuildMessage as BuildMessage
+import mixminion.ClientMain
+import mixminion.Config
 import mixminion.Crypto as Crypto
+import mixminion.MMTPClient
+import mixminion.Packet
+import mixminion.ServerInfo
+import mixminion._minionlib as _ml
+import mixminion.server.MMTPServer
+import mixminion.server.Modules
+import mixminion.server.ServerConfig
+import mixminion.server.ServerKeys
+import mixminion.server.ServerMain
+from mixminion.Common import *
+from mixminion.Common import Log, _FileLogHandler, _ConsoleLogHandler
+from mixminion.Config import _ConfigFile, ConfigError, _parseInt
+from mixminion.Crypto import *
+from mixminion.Packet import *
+from mixminion.server.HashLog import HashLog
+from mixminion.server.Modules import *
+from mixminion.server.PacketHandler import *
+from mixminion.server.Queue import *
+from mixminion.server.ServerKeys import generateServerDescriptorAndKeys
 
 # Set this flag to 1 in order to have all RSA keys and diffie-hellman params
 # generated independently.  Otherwise, we cache diffie-hellman parameters
@@ -64,7 +86,7 @@ def hexread(s):
 
 def findFirstDiff(s1, s2):
     """Helper function.  Returns the first index i for which s1[i] != s2[i],
-       or -1 s1 == s2."""       
+       or -1 s1 == s2."""
     if s1 == s2:
 	return -1
     last = min(len(s1), len(s2))
@@ -140,8 +162,6 @@ if not USE_SLOW_MODE:
 
 class MiscTests(unittest.TestCase):
     def testDiv(self):
-	from mixminion.Common import floorDiv, ceilDiv
-
 	self.assertEquals(floorDiv(10,1), 10)
 	self.assertEquals(floorDiv(10,2), 5)
 	self.assertEquals(floorDiv(10,3), 3)
@@ -163,7 +183,6 @@ class MiscTests(unittest.TestCase):
 	self.assertEquals(ceilDiv(-10,-3), 4)
 
     def testTimeFns(self):
-	from mixminion.Common import floorDiv, mkgmtime, previousMidnight
 	# This isn't a very good test.
 	now = int(time.time())
 	max_sec_per_day = 24*60*60+ 1
@@ -184,7 +203,6 @@ class MiscTests(unittest.TestCase):
 	    self.assertEquals(previousMidnight(pm), pm)
 
     def test_isSMTPMailbox(self):
-	from mixminion.Common import isSMTPMailbox
 	# Do we accept good addresses?
 	for addr in "Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z":
 	    self.assert_(isSMTPMailbox(addr))
@@ -197,7 +215,6 @@ class MiscTests(unittest.TestCase):
 	    self.assert_(not isSMTPMailbox(addr))
 
 #----------------------------------------------------------------------
-import mixminion._minionlib as _ml
 
 class MinionlibCryptoTests(unittest.TestCase):
     """Tests for cryptographic C extensions."""
@@ -405,7 +422,6 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.assertEquals(p.encode_key(0), p2.encode_key(0))
 
 #----------------------------------------------------------------------
-from mixminion.Crypto import *
 
 class CryptoTests(unittest.TestCase):
     """Tests for Python cryptographic library"""
@@ -622,8 +638,6 @@ class CryptoTests(unittest.TestCase):
 	    self.assertEquals(s, range(100))
 
 #----------------------------------------------------------------------
-import mixminion.Packet
-from mixminion.Packet import *
 
 class PacketTests(unittest.TestCase):
     def test_subheader(self):
@@ -651,10 +665,10 @@ class PacketTests(unittest.TestCase):
         self.failUnless(not s.isExtended())
         self.assertEquals(s.pack(), expected)
 
-        ts_eliot = "Who is the third who walks always beside you? / "+\
-                   "When I count, there are only you and I together / "+\
-                   "But when I look ahead up the white road / "+\
-                   "There is always another one walking beside you"
+        ts_eliot = ("Who is the third who walks always beside you? / "+
+		    "When I count, there are only you and I together / "+
+		    "But when I look ahead up the white road / "+
+		    "There is always another one walking beside you")
 
         s = Subheader(3,9,"abcdeabcdeabcdef",
                       "ABCDEFGHIJABCDEFGHIJ",
@@ -663,15 +677,18 @@ class PacketTests(unittest.TestCase):
         self.assertEquals(len(ts_eliot), 186)
 
         # test extended subeaders
-        expected = "\003\011abcdeabcdeabcdefABCDEFGHIJABCDEFGHIJ\000\272\001\054Who is the third who walks always beside you"
+        expected = ("\003\011abcdeabcdeabcdefABCDEFGHIJABCDEFGHIJ"+
+		    "\000\272\001\054Who is the third who walks always"+
+		    " beside you")
         self.assertEquals(len(expected), mixminion.Packet.MAX_SUBHEADER_LEN)
         self.assertEquals(s.pack(), expected)
 
         extra = s.getExtraBlocks()
         self.assertEquals(len(extra), 2)
-        self.assertEquals(extra[0], "? / When I count, there are only you "+\
-                          "and I together / But when I look ahead up the white "+\
-                          "road / There is always another one walk")
+        self.assertEquals(extra[0],
+		 ("? / When I count, there are only you "+
+		  "and I together / But when I look ahead up the white "+
+		  "road / There is always another one walk"))
         self.assertEquals(extra[1], "ing beside you"+(114*'\000'))
 
         # test parsing extended subheaders
@@ -760,7 +777,7 @@ class PacketTests(unittest.TestCase):
 
     def test_payloads(self):
 	# Checks for payload structure functions.
-	
+
 	# First, generate some plausible singleton payloads.
 	contents = ("payload"*(4*1024))[:28*1024 - 22]
 	hash = "HASH"*5
@@ -841,8 +858,6 @@ class PacketTests(unittest.TestCase):
 
 
 #----------------------------------------------------------------------
-from mixminion.server.HashLog import HashLog
-
 class HashLogTests(unittest.TestCase):
     def test_hashlog(self):
 	# Create a new,empty hashlog.
@@ -916,7 +931,7 @@ class HashLogTests(unittest.TestCase):
         h[0].close()
         h[0] = HashLog(fname, "Xyzzy")
         seen("ddddd"*4)
-	
+
 	# Make sure that hashlog still works when we sync.
 	log("Abcd"*5)
 	log("Defg"*5)
@@ -934,9 +949,6 @@ class HashLogTests(unittest.TestCase):
         h[0].close()
 
 #----------------------------------------------------------------------
-import mixminion.BuildMessage as BuildMessage
-import mixminion.server.Modules
-from mixminion.server.Modules import *
 
 # Dummy PRNG class that just returns 0-valued bytes.  We use this to make
 # generated padding predictable in our BuildMessage tests below.
@@ -976,7 +988,7 @@ class BuildMessageTests(unittest.TestCase):
 
     def test_compression(self):
 	# Make sure that our compression helper functions work properly.
-	
+
 	p = AESCounterPRNG()
 	longMsg = p.getBytes(100)*2 + str(dir(Crypto))
 
@@ -1515,15 +1527,15 @@ class BuildMessageTests(unittest.TestCase):
 	self.assertEquals(payload,
 	     BuildMessage._decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1))
 
-	# Stateful reply
-	secrets = [ "Is that you, Des","troyer?Rinehart?" ]
-	sdict = { 'tag1'*5 : secrets }
-	ks = Keyset(secrets[1])
-	m = lioness_decrypt(encoded1, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
-	ks = Keyset(secrets[0])
-	m = lioness_decrypt(m, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
-	self.assertEquals(payload, BuildMessage._decodeReplyPayload(m,secrets))
-	repl1 = m
+## 	# Stateful reply
+## 	secrets = [ "Is that you, Des","troyer?Rinehart?" ]
+## 	sdict = { 'tag1'*5 : secrets }
+## 	ks = Keyset(secrets[1])
+## 	m = lioness_decrypt(encoded1, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
+## 	ks = Keyset(secrets[0])
+## 	m = lioness_decrypt(m, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
+## 	self.assertEquals(payload, BuildMessage._decodeReplyPayload(m,secrets))
+## 	repl1 = m
 
 	# Stateless reply
 	tag = "To light my way out\xBE"
@@ -1634,7 +1646,6 @@ class BuildMessageTests(unittest.TestCase):
 
 class PacketHandlerTests(unittest.TestCase):
     def setUp(self):
-        from mixminion.server.PacketHandler import PacketHandler
         self.pk1 = getRSAKey(0,1024)
         self.pk2 = getRSAKey(1,1024)
         self.pk3 = getRSAKey(2,1024)
@@ -1738,7 +1749,6 @@ class PacketHandlerTests(unittest.TestCase):
         bfm = BuildMessage.buildForwardMessage
         brm = BuildMessage.buildReplyMessage
         brbi = BuildMessage._buildReplyBlockImpl
-        from mixminion.server.PacketHandler import ContentError
 
         # A long intermediate header needs to fail.
         server1X = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
@@ -1858,8 +1868,6 @@ class PacketHandlerTests(unittest.TestCase):
 #----------------------------------------------------------------------
 # QUEUE
 
-from mixminion.Common import waitForChildren
-from mixminion.server.Queue import *
 
 class TestDeliveryQueue(DeliveryQueue):
     def __init__(self,d):
@@ -1938,7 +1946,6 @@ class QueueTests(unittest.TestCase):
             q2h.append(nh)
 
         # Look at the messages in queue2, 15 then 30 at a time.
-        from string import atoi
         for group in queue2.pickRandom(15), queue2.pickRandom(30):
             seen = {}
             for h in group:
@@ -2005,7 +2012,7 @@ class QueueTests(unittest.TestCase):
 	d_d = mix_mktemp("qd")
 
 	queue = TestDeliveryQueue(d_d)
-	
+
 	# First, make sure the queue stores messages correctly.
 	h1 = queue.queueDeliveryMessage("Address 1", "Message 1")
 	h2 = queue.queueDeliveryMessage("Address 2", "Message 2")
@@ -2114,7 +2121,6 @@ class QueueTests(unittest.TestCase):
 # LOGGING
 class LogTests(unittest.TestCase):
     def testLogging(self):
-        from mixminion.Common import Log, _FileLogHandler, _ConsoleLogHandler
 
 	# Create a new loghandler, and try sending a few messages to it.
         log = Log("INFO")
@@ -2165,7 +2171,7 @@ class LogTests(unittest.TestCase):
 
 #----------------------------------------------------------------------
 # File paranoia
-from mixminion.Common import createPrivateDir, checkPrivateDir
+
 
 class FileParanoiaTests(unittest.TestCase):
     def testPrivateDirs(self):
@@ -2274,9 +2280,6 @@ class FileParanoiaTests(unittest.TestCase):
 #----------------------------------------------------------------------
 # MMTP
 # FFFF Write more tests
-
-import mixminion.server.MMTPServer
-import mixminion.MMTPClient
 
 # Run on a different port so we don't conflict with any actual servers
 # running on this machine.
@@ -2452,7 +2455,6 @@ class MMTPTests(unittest.TestCase):
 #----------------------------------------------------------------------
 # Config files
 
-from mixminion.Config import _ConfigFile, ConfigError, _parseInt
 
 class TestConfigFile(_ConfigFile):
     _syntax = { 'Sec1' : {'__SECTION__': ('REQUIRE', None, None),
@@ -2660,7 +2662,7 @@ IntRS=5
 	tm = C._parseTime("2001/12/25 06:15:10")
 	self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
 
-	## 
+	##
 	# Now, try the failing cases.
         def fails(fn, val, self=self):
             self.failUnlessRaises(ConfigError, fn, val)
@@ -2750,8 +2752,7 @@ Mode: relay
 Nickname: fred-the-bunny
 """
 
-import mixminion.Config
-import mixminion.ServerInfo
+
 class ServerInfoTests(unittest.TestCase):
     def testServerInfoGen(self):
 	# Try generating a serverinfo and see if its values are as expected.
@@ -2759,17 +2760,17 @@ class ServerInfoTests(unittest.TestCase):
         d = mix_mktemp()
 	try:
 	    suspendLog()
-	    conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG)
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=SERVER_CONFIG)
 	finally:
 	    resumeLog()
         if not os.path.exists(d):
             os.mkdir(d, 0700)
 
-        inf = mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
-								   identity,
-                                                                   d,
-                                                                   "key1",
-                                                                   d)
+        inf = generateServerDescriptorAndKeys(conf,
+					      identity,
+					      d,
+					      "key1",
+					      d)
         info = mixminion.ServerInfo.ServerInfo(string=inf)
         eq = self.assertEquals
         eq(info['Server']['Descriptor-Version'], "0.1")
@@ -2801,7 +2802,7 @@ class ServerInfoTests(unittest.TestCase):
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
         eq(inf, readFile(os.path.join(keydir, "ServerDesc")))
-	mixminion.ServerInfo.ServerKeyset(d, "key1", d) # Can we load?
+	mixminion.server.ServerKeys.ServerKeyset(d, "key1", d) # Can we load?
         packetKey = Crypto.pk_PEM_load(
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
@@ -2823,18 +2824,18 @@ class ServerInfoTests(unittest.TestCase):
         # Now with a shorter configuration
 	try:
 	    suspendLog()
-	    conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG_SHORT+
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=SERVER_CONFIG_SHORT+
 					   """[Incoming/MMTP]
 Enabled: yes
 IP: 192.168.0.99
 """)
 	finally:
 	    resumeLog()
-	mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
-							     identity,
-							     d,
-							     "key2",
-							     d)
+	generateServerDescriptorAndKeys(conf,
+	                                identity,
+					d,
+					"key2",
+					d)
         # Now with a bad signature
         sig2 = Crypto.pk_sign(sha1("Hello"), identity)
         sig2 = base64.encodestring(sig2).replace("\n", "")
@@ -2926,7 +2927,7 @@ IP: 1.0.0.1
 
         try:
 	    suspendLog()
-	    conf = mixminion.Config.ServerConfig(string=cfg_test)
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=cfg_test)
 	finally:
 	    resumeLog()
 	manager = conf.getModuleManager()
@@ -3007,7 +3008,7 @@ IP: 1.0.0.1
 	# Check serverinfo generation.
 	try:
 	    suspendLog()
-	    info = mixminion.ServerInfo.generateServerDescriptorAndKeys(
+	    info = generateServerDescriptorAndKeys(
 		conf, getRSAKey(0,2048), home_dir, "key11", home_dir)
 	    self.failUnless(stringContains(info,"\n[Example]\nFoo: 99\n"))
 	finally:
@@ -3023,7 +3024,7 @@ Module ExampleMod.TestModule
 
         try:
 	    suspendLog()
-	    conf = mixminion.Config.ServerConfig(string=cfg_test)
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=cfg_test)
 	finally:
 	    resumeLog()
 	manager = conf.getModuleManager()
@@ -3058,7 +3059,7 @@ Foo: 100
 
 	#####
 	# Test escapeMessage
-	
+
 	# plaintext text message, text mode.
 	self.assertEquals(em(message, None, 1), ("TXT", message, None))
 	# plaintext text message, bin mode.
@@ -3090,7 +3091,7 @@ Foo: 100
 # Sample address file for testing MBOX
 MBOX_ADDRESS_SAMPLE = """\
 # This is a sample address file
-mix-minion: mixminion@thishost 
+mix-minion: mixminion@thishost
 
 mixdaddy: mixminion@thathost
 mixdiddy=mixminion@theotherhost
@@ -3103,8 +3104,8 @@ From: returnaddress@x
 Subject: Anonymous Mixminion message
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server 'nickname' at
-<Unknown IP> has been configured to deliver messages to your address.  
-If you do not want to receive messages in the future, contact removeaddress@x 
+<Unknown IP> has been configured to deliver messages to your address.
+If you do not want to receive messages in the future, contact removeaddress@x
 and you will be removed.
 
 This message is not in plaintext.  It's either 1) a reply; 2) a forward
@@ -3129,14 +3130,14 @@ class ModuleTests(unittest.TestCase):
 	module = mixminion.server.Modules.MixmasterSMTPModule()
 	module.configure({"Delivery/SMTP-Via-Mixmaster" :
 			  {"Enabled":1, "Server": "nonesuch",
-			   "SubjectLine":'foobar', 
+			   "SubjectLine":'foobar',
 			   'MixCommand' : ('ls', ['-z'])}},
 			 manager)
 	queue = manager.queues['SMTP_MIX2']
 	replaceFunction(os, "spawnl")
 	try:
 	    # Send a message...
-	    queue.queueDeliveryMessage((SMTP_TYPE, "foo@bar", None), 
+	    queue.queueDeliveryMessage((SMTP_TYPE, "foo@bar", None),
 				       "This is the message")
 	    queue.sendReadyMessages()
 	    # And make sure that Mixmaster was invoked correctly.
@@ -3144,9 +3145,9 @@ class ModuleTests(unittest.TestCase):
 	    self.assertEquals('spawnl', calls[0][0])
 	    mixfn, mixargs = calls[0][1][2], calls[0][1][3:]
 	    self.assertEquals("ls", mixfn)
-	    self.assertEquals(mixargs[:-1], 
+	    self.assertEquals(mixargs[:-1],
 			      ('-z', '-l', 'nonesuch', '-s', 'foobar',
-			       '-t', 'foo@bar')) 
+			       '-t', 'foo@bar'))
 	    # ...and, if the temporary file it used hasn't been removed yet,
 	    # that it contains the correct data.
 	    fn = mixargs[-1]
@@ -3170,14 +3171,14 @@ class ModuleTests(unittest.TestCase):
 	   with a stub function so that we don't actually send anything."""
         # Configure the module
 	manager = self.getManager()
-	module = mixminion.server.Modules.MBoxModule()	
+	module = mixminion.server.Modules.MBoxModule()
 	addrfile = mix_mktemp()
 	writeFile(addrfile, MBOX_ADDRESS_SAMPLE)
 	module.configure({'Server':{'Nickname': "nickname"},
                           'Incoming/MMTP':{},
 			  "Delivery/MBOX" :
 			  {"Enabled": 1,
-			   "AddressFile": addrfile, 
+			   "AddressFile": addrfile,
 			   "ReturnAddress": "returnaddress@x",
 			   "RemoveContact": "removeaddress@x",
 			   "SMTPServer" : "foo.bar.baz"}}, manager)
@@ -3212,9 +3213,9 @@ class ModuleTests(unittest.TestCase):
 	    self.assertEquals(1, len(getReplacedFunctionCallLog()))
 	    fn, args, _ = getReplacedFunctionCallLog()[0]
 	    self.assertEquals('sendSMTPMessage', fn)
-	    self.assertEquals(('foo.bar.baz', 
-			       ['mixminion@theotherhost'], 
-			       'returnaddress@x'), 
+	    self.assertEquals(('foo.bar.baz',
+			       ['mixminion@theotherhost'],
+			       'returnaddress@x'),
 			      args[:3])
 	    d = findFirstDiff(MBOX_EXPECTED_MESSAGE, args[3])
 	    if d != -1:
@@ -3223,7 +3224,7 @@ class ModuleTests(unittest.TestCase):
 	finally:
 	    undoReplacedAttributes()
 	    clearReplacedFunctionCallLog()
-	    	
+
     def testDirectoryDump(self):
 	"""Check out the DirectoryStoreModule that we use for testing on
 	   machines with unreliable/nonexistant SMTP."""
@@ -3238,18 +3239,18 @@ class ModuleTests(unittest.TestCase):
 			  {'Location': dir, 'UseQueue' : 0}}, manager)
 	# Try sending a couple of messages.
 	queue = manager.queues['Testing_DirectoryDump']
-	queue.queueDeliveryMessage((0xFFFE, "addr1", "t"*20), 
+	queue.queueDeliveryMessage((0xFFFE, "addr1", "t"*20),
 				   "This is the message")
 	self.assert_(os.path.exists(os.path.join(dir, "0")))
-	queue.queueDeliveryMessage((0xFFFE, "addr2", "x"*20), 
+	queue.queueDeliveryMessage((0xFFFE, "addr2", "x"*20),
 				   "This is message 2")
 	self.assert_(os.path.exists(os.path.join(dir, "1")))
-	self.assertEquals(eme("This is message 2", "x"*20), 
+	self.assertEquals(eme("This is message 2", "x"*20),
 			  readFile(os.path.join(dir, "1")))
 	# test failure.
 	try:
 	    suspendLog()
-	    queue.queueDeliveryMessage((0xFFFE, "FAIL!", "y"*20), 
+	    queue.queueDeliveryMessage((0xFFFE, "FAIL!", "y"*20),
 			       "This is message X which won't be delivered")
 	    self.assert_(not os.path.exists(os.path.join(dir, "2")))
 	finally:
@@ -3258,7 +3259,7 @@ class ModuleTests(unittest.TestCase):
 
 	try:
 	    suspendLog()
-	    queue.queueDeliveryMessage((0xFFFE, "fail", "z"*20), 
+	    queue.queueDeliveryMessage((0xFFFE, "fail", "z"*20),
 			       "This is message X which won't be delivered")
 	    self.assert_(not os.path.exists(os.path.join(dir, "2")))
 	finally:
@@ -3267,7 +3268,7 @@ class ModuleTests(unittest.TestCase):
 
 	queue.sendReadyMessages()
 
-	# Check sane behavior on missing files, and on restart.  
+	# Check sane behavior on missing files, and on restart.
 	writeFile(os.path.join(dir, "90"), 'zed')
 	module = mixminion.testSupport.DirectoryStoreModule()
 	# This time, use a queue.
@@ -3277,13 +3278,13 @@ class ModuleTests(unittest.TestCase):
 	self.assertEquals(module.next, 91)
 	self.assertEquals(len(os.listdir(dir)), 3)
 	queue = manager.queues['Testing_DirectoryDump']
-	queue.queueDeliveryMessage((0xFFFE, "addr91", None), 
+	queue.queueDeliveryMessage((0xFFFE, "addr91", None),
 				   "This is message 91")
-	queue.queueDeliveryMessage((0xFFFE, "addr92", None), 
+	queue.queueDeliveryMessage((0xFFFE, "addr92", None),
 				   "This is message 92")
-	queue.queueDeliveryMessage((0xFFFE, "fail", None), 
+	queue.queueDeliveryMessage((0xFFFE, "fail", None),
 				   "This is message 93")
-	queue.queueDeliveryMessage((0xFFFE, "FAIL!", None), 
+	queue.queueDeliveryMessage((0xFFFE, "FAIL!", None),
 				   "This is message 94")
 	# All 4 messages go into the queue...
 	self.assertEquals(4, queue.count())
@@ -3303,7 +3304,7 @@ class ModuleTests(unittest.TestCase):
 	c = SERVER_CONFIG_SHORT+"\nHomedir: %s\n"%d
 	try:
 	    suspendLog()
-	    conf = mixminion.Config.ServerConfig(string=c)
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=c)
 	    m = conf.getModuleManager()
 	    m.configure(conf)
 	    return m
@@ -3311,9 +3312,8 @@ class ModuleTests(unittest.TestCase):
 	    resumeLog()
 
 #----------------------------------------------------------------------
-import mixminion.server.ServerMain
 
-# Sample server configuration to test ServerMain.
+# Sample server configuration to test ServerKeys
 SERVERCFG = """
 [Server]
 Homedir: %(home)s
@@ -3335,12 +3335,12 @@ def _getServerKeyring():
     cfg = SERVERCFG % { 'home' : _FAKE_HOME }
     try:
 	suspendLog()
-	conf = mixminion.Config.ServerConfig(string=cfg)
+	conf = mixminion.server.ServerConfig.ServerConfig(string=cfg)
     finally:
 	resumeLog()
-    return mixminion.server.ServerMain.ServerKeyring(conf)
+    return mixminion.server.ServerKeys.ServerKeyring(conf)
 
-class ServerMainTests(unittest.TestCase):
+class ServerKeysTests(unittest.TestCase):
     def testServerKeyring(self):
 	keyring = _getServerKeyring()
 	home = _FAKE_HOME
@@ -3396,9 +3396,9 @@ class ServerMainTests(unittest.TestCase):
         waitForChildren() # make sure keys are really gone before we remove
 
         # In case we started very close to midnight, remove keys as if it
-	# were a little in the future; otherwise, we won't remove the 
+	# were a little in the future; otherwise, we won't remove the
 	# just-expired keys.
-	keyring.removeDeadKeys(now+360) 
+	keyring.removeDeadKeys(now+360)
 	self.assertEquals(3, len(keyring.keyIntervals))
 
 	if USE_SLOW_MODE:
@@ -3444,17 +3444,17 @@ _EXAMPLE_DESCRIPTORS_INP = [
 ]
 
 def getExampleServerDescriptors():
-    """Helper function: generate a list of list of ServerInfo objects based 
+    """Helper function: generate a list of list of ServerInfo objects based
        on the values of _EXAMPLE_DESCRIPTORS_INP"""
     if _EXAMPLE_DESCRIPTORS:
  	return _EXAMPLE_DESCRIPTORS
 
-    gen = mixminion.ServerInfo.generateServerDescriptorAndKeys
+    gen = generateServerDescriptorAndKeys
     tmpkeydir = mix_mktemp()
     now = time.time()
 
     sys.stdout.flush()
-    
+
     # For each server...
     for (nickname, lifetime, ip, starting, types) in _EXAMPLE_DESCRIPTORS_INP:
 	# Generate a config file
@@ -3474,7 +3474,7 @@ def getExampleServerDescriptors():
 		raise MixFatalError("Unrecognized type: %04x"%t)
 	try:
 	    suspendLog()
-	    conf = mixminion.Config.ServerConfig(string=conf)
+	    conf = mixminion.server.ServerConfig.ServerConfig(string=conf)
 	    conf.getModuleManager().configure(conf)
 	finally:
 	    resumeLog()
@@ -3490,17 +3490,16 @@ def getExampleServerDescriptors():
 
 	    sd = os.path.join(tmpkeydir,"key_"+k,"ServerDesc")
 	    _EXAMPLE_DESCRIPTORS[nickname].append(readFile(sd))
-	    
+
 	    # (print some dots here; this step can take a while)
 	    sys.stdout.write('.')
 	    sys.stdout.flush()
     sys.stdout.flush()
     return _EXAMPLE_DESCRIPTORS
 
-import mixminion.ClientMain
-
 # variable to hold the latest instance of FakeBCC.
 BCC_INSTANCE = None
+
 
 class ClientMainTests(unittest.TestCase):
     def testTrivialKeystore(self):
@@ -3601,7 +3600,7 @@ class ClientMainTests(unittest.TestCase):
 
 	def parseFails(s, f=self.failUnlessRaises):
 	    f(ParseError, mixminion.ClientMain.parseAddress, s)
-	
+
 	# Check failing cases
 	parseFails("sxtp:foo@bar.com") # unknown module
 	parseFails("mbox") # missing mbox address
@@ -3625,7 +3624,7 @@ class ClientMainTests(unittest.TestCase):
 	usercfgstr = "[User]\nUserDir: %s\n[DirectoryServers]\n"%userdir
 	usercfg = mixminion.Config.ClientConfig(string=usercfgstr)
 	client = mixminion.ClientMain.MixminionClient(usercfg)
-	
+
 	# Make sure client sets its directories up correctly.
 	serverdir = os.path.join(userdir, 'servers')
 	self.assert_(os.path.exists(serverdir))
@@ -3642,7 +3641,7 @@ class ClientMainTests(unittest.TestCase):
 
 	##  Test generateForwardMessage.
 	# We replace 'buildForwardMessage' to make this easier to test.
-	replaceFunction(mixminion.BuildMessage, "buildForwardMessage", 
+	replaceFunction(mixminion.BuildMessage, "buildForwardMessage",
 			lambda *a:"X")
 	try:
 	    getCalls = getReplacedFunctionCallLog
@@ -3661,13 +3660,13 @@ class ClientMainTests(unittest.TestCase):
 
 	    for fn, args, kwargs in getCalls():
 		self.assertEquals(fn, "buildForwardMessage")
-		self.assertEquals(args[0:3], 
+		self.assertEquals(args[0:3],
 				  (payload, SMTP_TYPE, "joe@cledonism.net"))
 		self.assert_(len(args[3]) == len(args[4]) == 2)
 		self.assertEquals(["Lola", "Joe", "Alice", "Joe"],
 		     [x['Server']['Nickname'] for x in args[3]+args[4]])
 	    clearCalls()
-	    
+
 	    # Now try an mbox message, with an explicit last hop.
 	    payload = "Hey, Lo', where you goin' with that pun in your hand?"
 	    client.generateForwardMessage(
@@ -3678,11 +3677,11 @@ class ClientMainTests(unittest.TestCase):
 	    client.generateForwardMessage(
 		parseAddress("mbox:granola@Lola"),
 		payload,
-		path1=["Lola", "Joe"], path2=["Alice"])	    
+		path1=["Lola", "Joe"], path2=["Alice"])
 
 	    for fn, args, kwargs in getCalls():
 		self.assertEquals(fn, "buildForwardMessage")
-		self.assertEquals(args[0:3], 
+		self.assertEquals(args[0:3],
 				  (payload, MBOX_TYPE, "granola"))
 		self.assert_(len(args[3]) == len(args[4]) == 2)
 		self.assertEquals(["Lola", "Joe", "Alice", "Lola"],
@@ -3694,27 +3693,27 @@ class ClientMainTests(unittest.TestCase):
 
 	### Now try some failing cases for generateForwardMessage:
 	# Empty path...
-	self.assertRaises(MixError, 
-			  client.generateForwardMessage, 
+	self.assertRaises(MixError,
+			  client.generateForwardMessage,
 			  parseAddress("0xFFFF:zed"),
 			  "Z", [], ["Alice"])
 	# Nonexistant servers...
-	self.assertRaises(MixError, 
+	self.assertRaises(MixError,
 			  client.generateForwardMessage,
 			  parseAddress("0xFFFF:zed"),
 			  "Z", ["Marvin"], ["Fred"])
 	# Lola doesn't support SMTP...
-	self.assertRaises(MixError, 
+	self.assertRaises(MixError,
 			  client.generateForwardMessage,
 			  parseAddress("smtp:joe@cledonism.net"),
 			  "Z", ["Joe"], ["Lola"])
 	# Joe doesn't support MBOX...
-	self.assertRaises(MixError, 
+	self.assertRaises(MixError,
 			  client.generateForwardMessage,
 			  parseAddress("mbox:wahoo"),
 			  "Z", ["Lola"], ["Joe"])
-	
-	
+
+
 	# Temporarily replace BlockingClientConnection so we can try the client
 	# without hitting the network.
 	class FakeBCC:
@@ -3787,7 +3786,7 @@ def testSuite():
     suite.addTest(tc(ModuleTests))
 
     suite.addTest(tc(ClientMainTests))
-    suite.addTest(tc(ServerMainTests))
+    suite.addTest(tc(ServerKeysTests))
 
     # These tests are slowest, so we do them last.
     suite.addTest(tc(ModuleManagerTests))

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.26 2002/12/11 05:53:33 nickm Exp $
+# $Id: Crypto.py,v 1.27 2002/12/12 19:56:46 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -8,26 +8,24 @@
    the functions in mixminion.Crypto, and not call _minionlib's crypto
    functionality themselves."""
 
-import os
-import sys
-import stat
 import copy_reg
+import os
+import stat
+import sys
 from types import StringType
 
 import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, LOG
 
-__all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
-            'strxor', 'lioness_encrypt', 'lioness_decrypt',
-            'bear_encrypt', 'bear_decrypt', 'trng',
-            'pk_encrypt', 'pk_decrypt', 'pk_sign', 'pk_check_signature',
-	    'pk_generate', 'openssl_seed',
-            'pk_get_modulus', 'pk_from_modulus',
-            'pk_encode_private_key', 'pk_decode_private_key',
-            'Keyset', 'AESCounterPRNG', 'HEADER_SECRET_MODE',
-            'PRNG_MODE', 'RANDOM_JUNK_MODE', 'HEADER_ENCRYPT_MODE',
-            'APPLICATION_KEY_MODE', 'PAYLOAD_ENCRYPT_MODE',
-            'HIDE_HEADER_MODE' ]
+__all__ = [ 'AESCounterPRNG', 'CryptoError', 'Keyset', 'bear_decrypt',
+            'bear_encrypt', 'ctr_crypt', 'init_crypto', 'lioness_decrypt',
+            'lioness_encrypt', 'openssl_seed', 'pk_check_signature',
+            'pk_decode_private_key', 'pk_decrypt', 'pk_encode_private_key',
+            'pk_encrypt', 'pk_from_modulus', 'pk_generate', 'pk_get_modulus',
+            'pk_sign', 'prng', 'sha1', 'strxor', 'trng',
+	    'AES_KEY_LEN', 'DIGEST_LEN', 'HEADER_SECRET_MODE', 'PRNG_MODE',
+            'RANDOM_JUNK_MODE', 'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
+            'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
 
 # Expose _minionlib.CryptoError as Crypto.CryptoError
 CryptoError = _ml.CryptoError
@@ -50,7 +48,7 @@ def init_crypto(config=None):
     except:
         raise MixFatalError("Error initializing entropy source")
     openssl_seed(40)
-    
+
 def sha1(s):
     """Return the SHA1 hash of a string"""
     return _ml.sha1(s)
@@ -96,11 +94,11 @@ def lioness_encrypt(s,(key1,key2,key3,key4)):
     # may look slow, but it contributes only .7% to the total time for
     # LIONESS.
     right = _ml.aes_ctr128_crypt(
- 	_ml.aes_key(_ml.sha1("".join((key1,left,key1)))[:AES_KEY_LEN]), 
- 	right, 0) 
+ 	_ml.aes_key(_ml.sha1("".join((key1,left,key1)))[:AES_KEY_LEN]),
+ 	right, 0)
     left = _ml.strxor(left,  _ml.sha1("".join((key2,right,key2))))
     right = _ml.aes_ctr128_crypt(
-	_ml.aes_key(_ml.sha1("".join((key3,left,key3)))[:AES_KEY_LEN]), 
+	_ml.aes_key(_ml.sha1("".join((key3,left,key3)))[:AES_KEY_LEN]),
  	right, 0)
     left = _ml.strxor(left,  _ml.sha1("".join((key4,right,key4))))
 
@@ -109,7 +107,7 @@ def lioness_encrypt(s,(key1,key2,key3,key4)):
     #   left = strxor(left, sha1("".join((key2,right,key2))))
     #   right = ctr_crypt(right, "".join((key3,left,key3))[:AES_KEY_LEN])
     #   left = strxor(left, sha1("".join((key4,right,key4))))
-    # but that would be slower by about 10%.  (Since LIONESS is in the 
+    # but that would be slower by about 10%.  (Since LIONESS is in the
     # critical path, we care.)
 
     return left + right
@@ -219,7 +217,7 @@ def pk_decrypt(data,key):
 
 def pk_check_signature(data, key):
     """If data holds the RSA signature of some OAEP-padded data, check the
-       signature using public key 'key', and return the orignal data.  
+       signature using public key 'key', and return the orignal data.
        Throw CryptoError on failure. """
     bytes = key.get_modulus_bytes()
     # private key decrypt
@@ -276,7 +274,7 @@ def pk_PEM_load(filename, password=None):
         rsa = _ml.rsa_PEM_read_key(f, 0)
     f.close()
     return rsa
-    
+
 def _pickle_rsa(rsa):
     return _ml.rsa_make_public_key, rsa.get_public_key()
 
@@ -345,7 +343,7 @@ def _check_oaep_padding(data, p, bytes):
     # This test (though required in the OAEP spec) is extraneous here.
     #if len(data) < 2*DIGEST_LEN+1:
     #    raise CryptoError("Decoding error")
-    
+
     if data[0]!= '\x00':
         raise CryptoError("Decoding error")
     maskedSeed, maskedDB = data[1:DIGEST_LEN+1], data[DIGEST_LEN+1:]
@@ -430,7 +428,7 @@ class Keyset:
         key2 = _ml.strxor(key1, z19+"\x01")
         key3 = _ml.strxor(key1, z19+"\x02")
         key4 = _ml.strxor(key1, z19+"\x03")
-        
+
         return (key1, key2, key3, key4)
 
     def getBearKeys(self,mode):
@@ -441,13 +439,13 @@ class Keyset:
 
 def lioness_keys_from_payload(payload):
     '''Given a payload, returns the LIONESS keys to encrypt the off-header
-       at the swap point.''' 
+       at the swap point.'''
     digest = sha1(payload)
     return Keyset(digest).getLionessKeys(HIDE_HEADER_MODE)
 
 def lioness_keys_from_header(header2):
     '''Given the off-header, returns the LIONESS keys to encrypt the payload
-       at the swap point.''' 
+       at the swap point.'''
     digest = sha1(header2)
     return Keyset(digest).getLionessKeys(HIDE_PAYLOAD_MODE)
 
@@ -524,9 +522,9 @@ class RNG:
 	while 1:
 	    # Get a random positive int between 0 and 0x7fffffff.
 	    b = self.getBytes(4)
-	    o = (((((((_ord(b[0])&0x7f)<<8) + 
- 		       _ord(b[1]))<<8) + 
-	 	       _ord(b[2]))<<8) + 
+	    o = (((((((_ord(b[0])&0x7f)<<8) +
+ 		       _ord(b[1]))<<8) +
+	 	       _ord(b[2]))<<8) +
 	               _ord(b[3]))
 	    # Retry if we got a value that would fall in an incomplete
 	    # run of 'max' elements.
@@ -537,7 +535,7 @@ class RNG:
 	"""Return a floating-point number between 0 and 1."""
 	b = self.getBytes(4)
 	_ord = ord
-	o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) + 
+	o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) +
 	      _ord(b[2]))<<8) + _ord(b[3])
 	#return o / float(0x7fffffff)
 	return o / 2147483647.0
@@ -560,7 +558,7 @@ class AESCounterPRNG(RNG):
         if seed is None:
             seed = trng(AES_KEY_LEN)
         self.key = aes_key(seed)
-        
+
     def _prng(self, n):
         """Implementation: uses the AES counter stream to generate entropy."""
         c = self.counter
@@ -598,7 +596,7 @@ PLATFORM_TRNG_DEFAULTS = {
 _TRNG_FILENAME = None
 def configure_trng(config):
     """Initialize the true entropy source from a given Config object.  If
-       none is provided, tries some sane defaults.""" 
+       none is provided, tries some sane defaults."""
     global _TRNG_FILENAME
     if config is not None:
         requestedFile = config['Host'].get('EntropySource', None)
@@ -614,7 +612,7 @@ def configure_trng(config):
     # device.
     randFile = None
     for file in files:
-	if file is None: 
+	if file is None:
 	    continue
 
 	verbose = 1#(file == requestedFile)
@@ -640,7 +638,7 @@ def configure_trng(config):
     else:
 	LOG.info("Setting entropy source to %r", randFile)
         _TRNG_FILENAME = randFile
-    
+
 class _TrueRNG(RNG):
     '''Random number generator that yields pieces of entropy from
        our true rng.'''

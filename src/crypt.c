@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.13 2002/10/16 23:12:13 nickm Exp $ */
+/* $Id: crypt.c,v 1.14 2002/12/12 19:56:47 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -18,19 +18,19 @@
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)
 #define KEY_IS_PRIVATE(rsa) ((rsa)->p)
 
-char mm_CryptoError__doc__[] = 
+char mm_CryptoError__doc__[] =
   "mixminion._minionlib.SSLError\n\n"
   "Exception raised for error in crypto library.\n";
 
 PyObject *mm_CryptoError = NULL;
 
 /* Helper function: raise an error with appropriate text from the
- * underlying OpenSSL exception.  
+ * underlying OpenSSL exception.
  *
  * Requires that mm_*Error are initialized and ERR_load_*_strings
  * have been called.
  */
-void 
+void
 mm_SSL_ERR(int crypto)
 {
 	int err = ERR_get_error();
@@ -43,12 +43,12 @@ mm_SSL_ERR(int crypto)
 		PyErr_SetString(exception, "Internal error");
 }
 
-const char mm_sha1__doc__[] = 
+const char mm_sha1__doc__[] =
   "sha1(s) -> str\n\n"
   "Computes the SHA-1 hash of a string.\n";
 
 PyObject*
-mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = { "string", NULL};
 	unsigned char *cp = NULL;
@@ -58,17 +58,17 @@ mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "s#:sha1", kwlist,
 					 &cp, &len))
-		return NULL;	
+		return NULL;
 	if (!(output = PyString_FromStringAndSize(NULL, SHA_DIGEST_LENGTH))) {
 		PyErr_NoMemory();
 		return NULL;
 	}
-	
+
 	SHA1_Init(&ctx);
-	SHA1_Update(&ctx,cp,len); 
+	SHA1_Update(&ctx,cp,len);
 	SHA1_Final(PyString_AS_STRING(output),&ctx);
 	memset(&ctx,0,sizeof(ctx));
-	
+
 	return output;
 }
 
@@ -100,16 +100,16 @@ aes_arg_convert(PyObject *obj, void *adr)
 #define WRAP_AES(aes) (PyCObject_FromVoidPtrAndDesc( (void*) (aes),\
 		       (void*) aes_descriptor, aes_destruct))
 
-const char mm_aes_key__doc__[] = 
+const char mm_aes_key__doc__[] =
     "aes_key(str) -> key\n\n"
     "Converts a 16-byte string to an AES key for use with aes_ctr128_crypt.\n"
     "\n(The performance advantage to doing so is only significant for small\n"
-    "(<1K) blocks.)\n";  
+    "(<1K) blocks.)\n";
 
 PyObject*
 mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
-	static char *kwlist[] = { "key", NULL }; 
+	static char *kwlist[] = { "key", NULL };
 	char *key;
 	int keylen;
 	AES_KEY *aes_key = NULL;
@@ -122,16 +122,16 @@ mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
 		TYPE_ERR("aes_key() requires a 128-bit (16 byte) string");
 		return NULL;
 	}
-	
+
 	if (!(aes_key = malloc(sizeof(AES_KEY)))) {
-		PyErr_NoMemory(); goto err; 
+		PyErr_NoMemory(); goto err;
 	}
 	if (AES_set_encrypt_key(key, keylen*8, aes_key)) {
 		mm_SSL_ERR(1);
 		goto err;
 	}
-	if (!(result = WRAP_AES(aes_key))) { 
-		PyErr_NoMemory(); goto err; 
+	if (!(result = WRAP_AES(aes_key))) {
+		PyErr_NoMemory(); goto err;
 	}
 	return result;
 
@@ -144,7 +144,7 @@ mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
 }
 
 
-const char mm_aes_ctr128_crypt__doc__[] = 
+const char mm_aes_ctr128_crypt__doc__[] =
   "aes_ctr128_crypt(key, string, idx=0, prng=0) -> str\n\n"
   "Encrypts a string in counter mode.  If idx is nonzero, the counter begins\n"
   "at idx.  If prng is nonzero, ignores string and just produces a stream of\n"
@@ -156,7 +156,7 @@ const char mm_aes_ctr128_crypt__doc__[] =
   "with the plaintext.\n";
 
 PyObject*
-mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = { "key", "string", "idx", "prng", NULL };
 	unsigned char *input;
@@ -166,30 +166,30 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	PyObject *output;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 "O&s#|li:aes_ctr128_crypt", kwlist,
-					 aes_arg_convert, &aes_key, 
+					 aes_arg_convert, &aes_key,
 					 &input, &inputlen,
 					 &idx, &prng))
 		return NULL;
-	
+
 	if (idx < 0) idx = 0;
 	if (prng < 0) prng = 0;
 
-	if (prng) { 
+	if (prng) {
 		inputlen = prng;
 		if (!(input = malloc(prng))) { PyErr_NoMemory(); return NULL; }
 		memset(input, 0, inputlen);
-	} 
-	
+	}
+
 	if (!(output = PyString_FromStringAndSize(NULL, inputlen))) {
-		PyErr_NoMemory(); 
+		PyErr_NoMemory();
 		if (prng) free(input);
 		return NULL;
 	}
 
 	mm_aes_counter128(input, PyString_AS_STRING(output), inputlen,
-			  aes_key, idx); 
+			  aes_key, idx);
 
 	if (prng) free(input);
 	return output;
@@ -217,10 +217,10 @@ mm_strxor(PyObject *self, PyObject *args, PyObject *kwdict)
 		TYPE_ERR("Mismatch between argument lengths");
 		return NULL;
 	}
-	
-	if (!(output = PyString_FromStringAndSize(NULL,s1len))) { 
-		PyErr_NoMemory(); 
-		return NULL; 
+
+	if (!(output = PyString_FromStringAndSize(NULL,s1len))) {
+		PyErr_NoMemory();
+		return NULL;
 	}
 
 	outp = PyString_AS_STRING(output);
@@ -238,17 +238,17 @@ const char mm_openssl_seed__doc__[]=
   "OAEP padding.\n";
 
 PyObject *
-mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = { "seed", NULL };
 	unsigned char *seed;
 	int seedlen;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "s#:openssl_seed", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "s#:openssl_seed",
 					 kwlist,
 					 &seed, &seedlen))
 		return NULL;
-	
+
 	RAND_seed(seed, seedlen);
 	Py_INCREF(Py_None);
 	return Py_None;
@@ -265,7 +265,7 @@ mm_RSA_dealloc(mm_RSA *self)
 static PyObject *
 mm_RSA_new(RSA *rsa) {
 	mm_RSA *self;
-	
+
 	assert(rsa);
 	if (!(self=PyObject_NEW(mm_RSA, &mm_RSA_Type)))
 		return NULL;
@@ -280,7 +280,7 @@ const char mm_RSA_crypt__doc__[]=
   "operation; else, performs a private-key operation.";
 
 PyObject *
-mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = { "string", "public", "encrypt", NULL };
 
@@ -293,7 +293,7 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 	PyObject *output;
 	assert(mm_RSA_Check(self));
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 "s#ii:crypt", kwlist,
 					 &string, &stringlen, &pub, &encrypt))
 		return NULL;
@@ -309,10 +309,10 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 	out = PyString_AS_STRING(output);
 	if (encrypt) {
 		if (pub)
-			i = RSA_public_encrypt(stringlen, string, out, rsa, 
+			i = RSA_public_encrypt(stringlen, string, out, rsa,
 					       RSA_NO_PADDING);
-		else 
-			i = RSA_private_encrypt(stringlen, string, out, rsa, 
+		else
+			i = RSA_private_encrypt(stringlen, string, out, rsa,
 						RSA_NO_PADDING);
 	} else {
 		if (pub)
@@ -328,7 +328,7 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 		mm_SSL_ERR(1);
 		return NULL;
 	}
-	if(_PyString_Resize(&output, i)) return NULL; 
+	if(_PyString_Resize(&output, i)) return NULL;
 
 	return output;
 }
@@ -339,13 +339,13 @@ const char mm_rsa_generate__doc__[]=
   "Remember to seed the OpenSSL rng before calling this method.\n";
 
 PyObject *
-mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = {"bits", "e", NULL};
 	int bits, e;
 	RSA *rsa;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "ii:rsa_generate", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "ii:rsa_generate",
 					 kwlist,
 					 &bits, &e))
 		return NULL;
@@ -353,7 +353,7 @@ mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict)
 	if ((bits < 64) || (bits > 16384)) {
 		PyErr_SetString(mm_CryptoError, "Invalid length for RSA key");
 		return NULL;
-	} 
+	}
 	if (e < 2) {
 		PyErr_SetString(mm_CryptoError, "Invalid RSA exponent");
 		return NULL;
@@ -364,7 +364,7 @@ mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict)
 		mm_SSL_ERR(1);
 		return NULL;
 	}
-	
+
 	return mm_RSA_new(rsa);
 }
 
@@ -372,12 +372,12 @@ const char mm_RSA_encode_key__doc__[]=
   "rsa.encode_key(public) -> str\n\n"
   "Computes the DER encoding of a given key.  If 'public' is true, encodes\n"
   "only the public-key portions of rsa.\n";
- 
+
 PyObject *
-mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = { "public", NULL };
-	
+
 	RSA *rsa;
 	int public;
 
@@ -386,26 +386,26 @@ mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	unsigned char *out, *outp;
 
 	assert(mm_RSA_Check(self));
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 "i:rsa_encode_key", kwlist, &public))
 		return NULL;
 	rsa = ((mm_RSA*)self)->rsa;
-	
+
 	if (!public && !KEY_IS_PRIVATE(rsa)) {
 		TYPE_ERR("Can\'t use public key for private-key operation");
 		return NULL;
 	}
 
-	len = public ? i2d_RSAPublicKey(rsa,NULL) : 
+	len = public ? i2d_RSAPublicKey(rsa,NULL) :
 		i2d_RSAPrivateKey(rsa,NULL);
 	if (len < 0) {
 		mm_SSL_ERR(1);
 		return NULL;
 	}
 	out = outp = malloc(len+1);
-	if (public) 
+	if (public)
 		len = i2d_RSAPublicKey(rsa, &outp);
-	else 
+	else
 		len = i2d_RSAPrivateKey(rsa, &outp);
 	if (len < 0) {
 		free(out);
@@ -428,20 +428,20 @@ const char mm_rsa_decode_key__doc__[]=
   "public key only.  Otherwise, expects a private key.\n";
 
 PyObject *
-mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = { "key", "public", NULL };
-	
+
 	const unsigned char *string;
 	int stringlen, public;
 
 	RSA *rsa;
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 "s#i:rsa_decode_key", kwlist,
 					 &string, &stringlen, &public))
 		return NULL;
 
-	rsa = public ? d2i_RSAPublicKey(NULL, &string, stringlen) : 
+	rsa = public ? d2i_RSAPublicKey(NULL, &string, stringlen) :
 		d2i_RSAPrivateKey(NULL, &string, stringlen);
 	if (!rsa) {
 		mm_SSL_ERR(1);
@@ -452,7 +452,7 @@ mm_rsa_decode_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
 const char mm_RSA_PEM_write_key__doc__[]=
   "rsa.PEM_write_key(file, public, [password])\n\n"
-  "Writes an RSA key to a file in PEM format with PKCS#8 encryption.\n" 
+  "Writes an RSA key to a file in PEM format with PKCS#8 encryption.\n"
   "If public is true, writes only the public key, and ignores the password.\n"
   "Otherwise, writes the full private key, optionally encrypted by a\n"
   "password.\n";
@@ -468,7 +468,7 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
 	RSA *rsa = NULL;
 	EVP_PKEY *pkey = NULL;
 	FILE *file;
-	
+
 	assert(mm_RSA_Check(self));
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict, "O!i|s#:PEM_write_key",
 					 kwlist, &PyFile_Type, &pyfile,
@@ -476,7 +476,7 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
 					 &password, &passwordlen))
 		return NULL;
 	if (!(file = PyFile_AsFile(pyfile))) {
-		TYPE_ERR("Invalid file object"); 
+		TYPE_ERR("Invalid file object");
 		return NULL;
 	}
 
@@ -501,7 +501,7 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
 				goto error;
 		} else {
 			if (!PEM_write_PKCS8PrivateKey(file, pkey,
-						       NULL, 
+						       NULL,
 						       NULL, 0,
 						       NULL, NULL))
 				goto error;
@@ -522,7 +522,7 @@ mm_RSA_PEM_write_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
 const char mm_rsa_PEM_read_key__doc__[]=
   "rsa_PEM_read_key(file, public, [password]) -> rsa\n\n"
-  "Writes an RSA key to a file in PEM format with PKCS#8 encryption.\n" 
+  "Writes an RSA key to a file in PEM format with PKCS#8 encryption.\n"
   "If public is true, reads only the public key, and ignores the password.\n"
   "Otherwise, writes the full private key, optionally encrypted by a\n"
   "password.\n";
@@ -537,7 +537,7 @@ mm_rsa_PEM_read_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
 	RSA *rsa;
 	FILE *file;
-	
+
 	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 "O!i|s#:rsa_PEM_read_key",
 					 kwlist, &PyFile_Type, &pyfile,
@@ -545,7 +545,7 @@ mm_rsa_PEM_read_key(PyObject *self, PyObject *args, PyObject *kwdict)
 					 &password, &passwordlen))
 		return NULL;
 	if (!(file = PyFile_AsFile(pyfile))) {
-		TYPE_ERR("Invalid file object"); 
+		TYPE_ERR("Invalid file object");
 		return NULL;
 	}
 	if (!passwordlen)
@@ -570,10 +570,10 @@ mm_rsa_PEM_read_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
 
 /**
- * Converts a BIGNUM into a newly allocated PyLongObject.  
+ * Converts a BIGNUM into a newly allocated PyLongObject.
  **/
 static PyObject*
-bn2pylong(const BIGNUM *bn) 
+bn2pylong(const BIGNUM *bn)
 {
 	PyObject *output;
 
@@ -585,7 +585,7 @@ bn2pylong(const BIGNUM *bn)
 	 * an implementation.
 	 **/
 	char *hex = BN_bn2hex(bn);
-	output = PyLong_FromString(hex, NULL, 16); 
+	output = PyLong_FromString(hex, NULL, 16);
 	OPENSSL_free(hex);
 	return output; /* pass along errors */
 }
@@ -601,13 +601,13 @@ pylong2bn(PyObject *pylong)
 	BIGNUM *result = NULL;
 	int r;
 	assert(PyLong_Check(pylong));
-	assert(pylong && pylong->ob_type 
+	assert(pylong && pylong->ob_type
 	       && pylong->ob_type->tp_as_number
 	       && pylong->ob_type->tp_as_number->nb_hex);
-	
+
 	if (!(str = pylong->ob_type->tp_as_number->nb_hex(pylong)))
 		return NULL;
-	
+
 	buf = PyString_AsString(str);
 	if (!buf || buf[0]!='0' || buf[1]!='x') {
 		Py_DECREF(str); return NULL;
@@ -624,27 +624,27 @@ const char mm_RSA_get_public_key__doc__[]=
    "rsa.get_public_key() -> (n,e)\n";
 
 PyObject *
-mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = {  NULL };
-	
+
 	RSA *rsa;
 	PyObject *n, *e;
 	PyObject *output;
 
 	assert(mm_RSA_Check(self));
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 ":rsa_get_public_key", kwlist))
 		return NULL;
-	
+
 	rsa = ((mm_RSA*)self)->rsa;
 	if (!rsa->n) { TYPE_ERR("Key has no modulus"); return NULL;}
 	if (!rsa->e) { TYPE_ERR("Key has no e"); return NULL; }
-	if (!(n = bn2pylong(rsa->n))) { 
-		PyErr_NoMemory(); return NULL; 
+	if (!(n = bn2pylong(rsa->n))) {
+		PyErr_NoMemory(); return NULL;
 	}
-	if (!(e = bn2pylong(rsa->e))) { 
-		PyErr_NoMemory(); Py_DECREF(n); return NULL; 
+	if (!(e = bn2pylong(rsa->e))) {
+		PyErr_NoMemory(); Py_DECREF(n); return NULL;
 	}
 	output = Py_BuildValue("OO", n, e);
 	Py_DECREF(n);
@@ -657,28 +657,28 @@ const char mm_rsa_make_public_key__doc__[]=
    "n and e must both be long integers.  Ints won't work.\n";
 
 PyObject *
-mm_rsa_make_public_key(PyObject *self, PyObject *args, PyObject *kwdict) 
+mm_rsa_make_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 {
 	static char *kwlist[] = { "n","e", NULL };
-	
+
 	RSA *rsa;
 	PyObject *n, *e;
 	PyObject *output;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwdict, 
+	if (!PyArg_ParseTupleAndKeywords(args, kwdict,
 					 "O!O!:rsa_make_public_key", kwlist,
 					 &PyLong_Type, &n, &PyLong_Type, &e))
 		return NULL;
-	
+
 	rsa = RSA_new();
 	if (!(rsa = RSA_new())) { PyErr_NoMemory(); return NULL; }
 	if (!(rsa->n = pylong2bn(n))) { RSA_free(rsa); return NULL; }
-	if (!(rsa->e = pylong2bn(e))) { 
-		RSA_free(rsa); BN_free(rsa->n); return NULL; 
+	if (!(rsa->e = pylong2bn(e))) {
+		RSA_free(rsa); BN_free(rsa->n); return NULL;
 	}
 
 	output = mm_RSA_new(rsa);
-	
+
 	return output;
 }
 
@@ -687,7 +687,7 @@ const char mm_RSA_get_modulus_bytes__doc__[]=
    "Returns the number of *bytes* (not bits) in an RSA modulus.\n";
 
 static PyObject *
-mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwargs) 
+mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	static char *kwlist[] = { NULL };
 	RSA *rsa;
@@ -697,7 +697,7 @@ mm_RSA_get_modulus_bytes(PyObject *self, PyObject *args, PyObject *kwargs)
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
 					 ":get_modulus_bytes", kwlist))
 		return NULL;
-	
+
 	return PyInt_FromLong(BN_num_bytes(rsa->n));
 }
 
@@ -709,16 +709,16 @@ static PyMethodDef mm_RSA_methods[] = {
 	METHOD(mm_RSA, PEM_write_key),
 	{ NULL, NULL }
 };
- 
+
 static PyObject*
-mm_RSA_getattr(PyObject *self, char *name) 
+mm_RSA_getattr(PyObject *self, char *name)
 {
 	return Py_FindMethod(mm_RSA_methods, self, name);
 }
 
-static const char mm_RSA_Type__doc__[] = 
+static const char mm_RSA_Type__doc__[] =
   "An RSA key.  May be public or private.";
- 
+
 PyTypeObject mm_RSA_Type = {
 	PyObject_HEAD_INIT(&PyType_Type)
 	0,                                  /*ob_size*/
@@ -752,12 +752,12 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
 	int keylen, r;
 
 	PyObject *output;
-	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
 					 "s#s#i:add_oaep_padding", kwlist,
 			      &input,&inputlen,&param,&paramlen,&keylen))
 		return NULL;
-	
+
 	/* Strictly speaking, this is redundant.  Nevertheless, I suspect
 	   the openssl implementation of fragility, so better safe than sorry.
 	  */
@@ -765,20 +765,20 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
 		PyErr_SetString(mm_CryptoError, "String too long to pad.");
 		return NULL;
 	}
-	
-	if (!(output = PyString_FromStringAndSize(NULL,keylen))) { 
-		PyErr_NoMemory(); return NULL; 
+
+	if (!(output = PyString_FromStringAndSize(NULL,keylen))) {
+		PyErr_NoMemory(); return NULL;
 	}
-	
+
 	r = RSA_padding_add_PKCS1_OAEP(PyString_AS_STRING(output), keylen,
 				       input, inputlen,
 				       param, paramlen);
 	if (r <= 0) {
-		mm_SSL_ERR(1); 
+		mm_SSL_ERR(1);
 		Py_DECREF(output);
 		return NULL;
 	}
-	
+
 	return output;
 }
 
@@ -789,7 +789,7 @@ const char mm_check_oaep_padding__doc__[]=
    "If the padding is in tact, the original string is returned.\n";
 
 PyObject *
-mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs) 
+mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	static char *kwlist[] = { "s", "param", "keylen", NULL };
 
@@ -798,8 +798,8 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
 	int keylen, r;
 
 	PyObject *output;
-	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
 					 "s#s#i:check_oaep_padding", kwlist,
 				  &input,&inputlen,&param,&paramlen,&keylen))
 		return NULL;
@@ -809,11 +809,11 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
 		PyErr_SetString(mm_CryptoError, "Bad padding");
 		return NULL;
 	}
-	
-	if (!(output = PyString_FromStringAndSize(NULL,keylen))) { 
-		PyErr_NoMemory(); return NULL; 
+
+	if (!(output = PyString_FromStringAndSize(NULL,keylen))) {
+		PyErr_NoMemory(); return NULL;
 	}
-	
+
 	r = RSA_padding_check_PKCS1_OAEP(PyString_AS_STRING(output), keylen,
 					 input+1, inputlen-1, keylen,
 					 param, paramlen);
@@ -828,7 +828,7 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static void
-gen_dh_callback(int p, int n, void *arg) 
+gen_dh_callback(int p, int n, void *arg)
 {
 	if (p == 0) fputs(".", stderr);
 	if (p == 1) fputs("+", stderr);
@@ -836,7 +836,7 @@ gen_dh_callback(int p, int n, void *arg)
 	if (p == 3) fputs("\n", stderr);
 }
 
-const char mm_generate_dh_parameters__doc__[] = 
+const char mm_generate_dh_parameters__doc__[] =
    "generate_dh_parameters(filename, [verbose, [bits]])\n\n"
    "Generate a DH parameter file named <filename>. The parameters will be of\n"
    "size <bits>, which defaults to 512.  If <verbose>, a pattern of dots\n"
@@ -849,20 +849,20 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 	static char *kwlist[] = { "filename", "verbose", "bits", NULL };
 	char *filename;
 	int bits=512, verbose=0;
-	
+
 	BIO *out = NULL;
 	DH *dh = NULL;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, 
-					 "s|ii:generate_dh_parameters", 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+					 "s|ii:generate_dh_parameters",
 					 kwlist,
 					 &filename, &verbose, &bits))
 		return NULL;
-	
+
 	if (!(out = BIO_new_file(filename, "w")))
 		goto error;
-	if (!(dh = DH_generate_parameters(bits, 2, 
-					  verbose?gen_dh_callback:NULL, 
+	if (!(dh = DH_generate_parameters(bits, 2,
+					  verbose?gen_dh_callback:NULL,
 					  NULL)))
 		goto error;
 	if (!PEM_write_bio_DHparams(out, dh))
@@ -881,7 +881,7 @@ mm_generate_dh_parameters(PyObject *self, PyObject *args, PyObject *kwargs)
 	return NULL;
 }
 
-const char mm_generate_cert__doc__[] = 
+const char mm_generate_cert__doc__[] =
   "generate_cert(filename, rsa, cn, start_time, end_time)\n\n"
   "Generate a self-signed X509 certificate suitable for use by a Mixminion\n"
   "server.  The certificate will be stored to <filename>, and use the\n"
@@ -892,7 +892,7 @@ const char mm_generate_cert__doc__[] =
 PyObject *
 mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-	static char *kwlist[] = { "filename", "rsa", "cn", 
+	static char *kwlist[] = { "filename", "rsa", "cn",
 				  "start_time", "end_time", NULL };
 	char *filename, *cn;
 	PyObject *_rsa;
@@ -901,10 +901,10 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 	 * Python wants time to be a double. OpenSSL wants time_t.
 	 * Ordinarily, I'd worry about resolution and bounds, but if time_t
 	 * doesn't fit in a double, Python's time.time() function is already
-	 * doomed.  
+	 * doomed.
 	 */
 	double start_time, end_time;
-	
+
 	RSA *rsa = NULL;
 	EVP_PKEY *pkey = NULL;
 	BIO *out = NULL;
@@ -913,10 +913,10 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 	int nid;
 	PyObject *retval;
 	time_t time;
-	
+
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO!sdd:generate_cert",
 					 kwlist, &filename,
-					 &mm_RSA_Type, &_rsa, &cn, 
+					 &mm_RSA_Type, &_rsa, &cn,
 					 &start_time, &end_time))
 		return NULL;
 
@@ -936,12 +936,12 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 		goto error;
 	if (!(name = X509_NAME_new()))
 		goto error;
-	
+
 #define SET_PART(part, val)                                     \
 	if ((nid = OBJ_txt2nid(part)) == NID_undef) goto error; \
         if (!X509_NAME_add_entry_by_NID(name, nid, MBSTRING_ASC,\
                                         val, -1, -1, 0)) goto error;
-       
+
 	SET_PART("countryName", "US");
 	SET_PART("organizationName", "Mixminion network");
 	SET_PART("commonName", cn);
@@ -950,7 +950,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 		goto error;
 
 	time = (time_t) start_time;
-	if (!X509_time_adj(X509_get_notBefore(x509),0,&time)) 
+	if (!X509_time_adj(X509_get_notBefore(x509),0,&time))
 		goto error;
 	time = (time_t) end_time;
 	if (!X509_time_adj(X509_get_notAfter(x509),0,&time))

@@ -1,24 +1,28 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.31 2002/12/11 05:53:33 nickm Exp $
+# $Id: Common.py,v 1.32 2002/12/12 19:56:46 nickm Exp $
 
 """mixminion.Common
 
    Common functionality and utility code for Mixminion"""
 
-__all__ = [ 'MixError', 'MixFatalError', 'onReset', 'onTerminate',
-            'installSignalHandlers', 'secureDelete', 'secureRename',
-            'ceilDiv', 'floorDiv', 'LOG', 'stringContains',
-	    'formatDate', 'formatTime', 'isSMTPMailbox']
+__all__ = [ 'LOG', 'MixError', 'MixFatalError', 'MixProtocolError', 'ceilDiv',
+	    'checkPrivateDir', 'createPrivateDir', 'floorDiv', 'formatBase64',
+	    'formatDate', 'formatTime', 'installSignalHandlers',
+	    'isSMTPMailbox', 'mkgmtime', 'onReset', 'onTerminate',
+	    'previousMidnight', 'secureDelete', 'stringContains',
+	    'waitForChildren' ]
 
+import base64
+import calendar
 import os
+import re
 import signal
+import stat
+import statvfs
 import sys
 import time
-import stat
-import re
-import statvfs
 import traceback
-import calendar
+
 from types import StringType
 
 class MixError(Exception):
@@ -90,6 +94,10 @@ def stripSpace(s, space=" \t\v\n"):
     """Remove all whitespace from s."""
     return s.translate(_ALLCHARS, space)
 
+def formatBase64(s):
+    """Convert 's' to a one-line base-64 representation."""
+    return base64.encodestring(s).replace("\n", "")
+
 #----------------------------------------------------------------------
 def createPrivateDir(d, nocreate=0):
     """Create a directory, and all parent directories, checking permissions
@@ -107,7 +115,7 @@ def createPrivateDir(d, nocreate=0):
 def checkPrivateDir(d, recurse=1):
     """Return true iff d is a directory owned by this uid, set to mode
        0700. All of d's parents must not be writable or owned by anybody but
-       this uid and uid 0.  If any of these conditions are unmet, raise 
+       this uid and uid 0.  If any of these conditions are unmet, raise
        MixFatalErrror.  Otherwise, return None."""
     me = os.getuid()
 
@@ -138,7 +146,7 @@ def checkPrivateDir(d, recurse=1):
 	mode = st[stat.ST_MODE]
 	owner = st[stat.ST_UID]
 	if owner not in (0, me):
-	    raise MixFatalError("Bad owner (uid=%s) on directory %s" 
+	    raise MixFatalError("Bad owner (uid=%s) on directory %s"
 				% (owner, d))
 	if (mode & 02) and not (mode & stat.S_ISVTX):
 	    raise MixFatalError("Bad mode (%o) on directory %s" %(mode, d))
@@ -152,12 +160,12 @@ def checkPrivateDir(d, recurse=1):
 # Secure filesystem operations.
 
 # A 'shred' command to overwrite and unlink files.  It should accept an
-# arbitrary number of arguments.  (If "---", we haven't configured the 
+# arbitrary number of arguments.  (If "---", we haven't configured the
 # shred command.  If None, we're using our internal implementation.)
 _SHRED_CMD = "---"
 # Tuple of options to be passed to the 'shred' command
 _SHRED_OPTS = None
-    
+
 def configureShredCommand(conf):
     """Initialize the secure delete command from a given Config object.
        If no object is provided, try some sane defaults."""
@@ -173,7 +181,7 @@ def configureShredCommand(conf):
         if os.path.exists("/usr/bin/shred"):
             cmd, opts = "/usr/bin/shred", ["-uz", "-n0"]
         else:
-            LOG.warn("Files will not be securely deleted.")
+	    # Use built-in _overwriteFile
             cmd, opts = None, None
 
     _SHRED_CMD, _SHRED_OPTS = cmd, opts
@@ -235,14 +243,14 @@ def secureDelete(fnames, blocking=0):
        XXXX operation has the regrettable property that two shred commands
        XXXX running in the same directory can sometimes get into a race.
        XXXX The source to shred.c seems to imply that this is harmless, but
-       XXXX let's try to avoid that, to be on the safe side. 
+       XXXX let's try to avoid that, to be on the safe side.
     """
     if _SHRED_CMD == "---":
         configureShredCommand(None)
 
     if fnames == []:
         return
-    
+
     if isinstance(fnames, StringType):
         fnames = [fnames]
 
@@ -251,7 +259,7 @@ def secureDelete(fnames, blocking=0):
 	    _overwriteFile(f)
             os.unlink(f)
         return None
-	
+
     if blocking:
         mode = os.P_WAIT
     else:
@@ -288,7 +296,7 @@ class _FileLogHandler:
 	   to implement log rotation."""
         if self.file is not None:
             self.file.close()
-	try: 
+	try:
 	    parent = os.path.split(self.fname)[0]
 	    if not os.path.exists(parent):
 		createPrivateDir(parent)
@@ -304,13 +312,13 @@ class _FileLogHandler:
 	if self.file is None:
 	    return
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
-        
-class _ConsoleLogHandler: 
+
+class _ConsoleLogHandler:
     """Helper class for logging: directs all log messages to a stderr-like
        file object"""
     def __init__(self, file):
 	"Create a new _ConsoleLogHandler attached to a given file."""
-        self.file = file 
+        self.file = file
     def reset(self): pass
     def close(self): pass
     def write(self, severity, message):
@@ -337,7 +345,7 @@ class Log:
 	         and messages through the system.  This is a security risk.
               INFO: non-critical events.
 	      WARN: recoverable errors
-	      ERROR: nonrecoverable errors that affect only a single 
+	      ERROR: nonrecoverable errors that affect only a single
                  message or a connection.
 	      FATAL: nonrecoverable errors that affect the entire system.
 
@@ -374,20 +382,20 @@ class Log:
 		    self.error(str(e))
             if logfile and not config['Server'].get('EchoMessages',0):
 		del self.handlers[0]
-            
+
     def setMinSeverity(self, minSeverity):
-	"""Sets the minimum severity of messages to be logged.  
+	"""Sets the minimum severity of messages to be logged.
 	      minSeverity -- the string representation of a severity level."""
         self.severity = _SEVERITIES.get(minSeverity, 1)
 
     def getMinSeverity(self):
-	"""Return a string representation of this log's minimum severity 
+	"""Return a string representation of this log's minimum severity
 	   level."""
         for k,v in _SEVERITIES.items():
             if v == self.severity:
                 return k
 	return "INFO"
-        
+
     def addHandler(self, handler):
 	"""Add a LogHandler object to the list of objects that receive
 	   messages from this log."""
@@ -408,7 +416,7 @@ class Log:
 	"""Close all logs"""
         for h in self.handlers:
             h.close()
-        
+
     def log(self, severity, message, *args):
 	"""Send a message of a given severity to the log.  If additional
 	   arguments are provided, write 'message % args'. """
@@ -426,10 +434,10 @@ class Log:
 	else:
 	    m = message % args
 
-        # Enable this block to debug message formats.    
+        # Enable this block to debug message formats.
         if _SEVERITIES.get(severity, 100) < self.severity:
             return
-            
+
         for h in self.handlers:
             h.write(severity, m)
 
@@ -452,11 +460,11 @@ class Log:
 	"Write a fatal (unrecoverable system error) message to the log"
         self.log("FATAL", message, *args)
     def log_exc(self, severity, (exclass, ex, tb), message=None, *args):
-	"""Write an exception and stack trace to the log.  If message and 
+	"""Write an exception and stack trace to the log.  If message and
 	   args are provided, use them as an explanitory message; otherwise,
 	   introduce the message as "Unexpected exception".
 
-	   This should usually be called as 
+	   This should usually be called as
 	       LOG.log_exc('ERROR', sys.exc_info(), message, args...)
 	   """
 	if message is not None:
@@ -466,7 +474,7 @@ class Log:
 	    self.log(severity, "Unexpected exception in %s", filename)
 	else:
 	    self.log(severity, "Unexpected exception")
-	
+
 	formatted = traceback.format_exception(exclass, ex, tb)
 	formatted[1:] = [ "  %s" % line for line in formatted[1:] ]
 	indented = "".join(formatted)
@@ -491,7 +499,7 @@ LOG = Log('WARN')
 def mkgmtime(yyyy,MM,dd,hh,mm,ss):
     """Analogously to time.mktime, return a number of seconds since the
        epoch when GMT is yyyy/MM/dd hh:mm:ss"""
-    
+
     # we set the DST flag to zero so that subtracting time.timezone always
     # gives us gmt.
     return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))
@@ -525,7 +533,7 @@ def formatDate(when):
 # (This is more strict than RFC822, actually.  RFC822 allows tricky stuff to
 #  quote special characters, and I don't trust every MTA or delivery command
 #  to support addresses like <bob@bob."; rm -rf /; echo".com>)
- 
+
 # An 'Atom' is a non-escape, non-null, non-space, non-punctuation character.
 _ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
 # The 'Local part' (and, for us, the domain portion too) is a sequence of
@@ -539,7 +547,7 @@ def isSMTPMailbox(s):
     """Return true iff s is a valid SMTP address"""
     m = RFC822_RE.match(s)
     return m is not None
-     
+
 #----------------------------------------------------------------------
 # Signal handling
 
@@ -560,7 +568,7 @@ def onTerminate(fn):
     terminateHooks.append(fn)
 
 def waitForChildren():
-    """Wait until all subprocesses have finished.  Useful for testing.""" 
+    """Wait until all subprocesses have finished.  Useful for testing."""
     while 1:
         try:
             # FFFF This won't work on Windows.  What to do?
@@ -575,7 +583,7 @@ def _sigChldHandler(signal_num, _):
     # Because of the peculiarities of Python's signal handling logic, I
     # believe we need to re-register ourself.
     signal.signal(signal_num, _sigChldHandler)
-    
+
     while 1:
         try:
             # This waitpid call won't work on Windows.  What to do?
@@ -584,7 +592,7 @@ def _sigChldHandler(signal_num, _):
                 break
         except OSError:
             break
-    
+
     #outcome, core, sig = status & 0xff00, status & 0x0080, status & 0x7f
     # FFFF Log if outcome wasn't as expected.
 
@@ -598,7 +606,7 @@ def _sigHandler(signal_num, _):
     else:
         for hook in resetHooks:
             hook()
-            
+
 def installSignalHandlers(child=1,hup=1,term=1):
     '''Register signal handlers for this process.  If 'child', registers
        a handler for SIGCHLD.  If 'hup', registers a handler for SIGHUP.

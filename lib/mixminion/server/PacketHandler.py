@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
+# $Id: PacketHandler.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -35,7 +35,7 @@ class PacketHandler:
             # Check whether we have a key or a sequence of keys.
             _ = privatekey[0]
             assert len(hashlog) == len(privatekey)
-            
+
             self.privatekey = privatekey
             self.hashlog = hashlog
         except TypeError:
@@ -124,7 +124,7 @@ class PacketHandler:
         # If the subheader says that we have extra blocks of routing info,
         # decrypt and parse them now.
         if subh.isExtended():
-            nExtra = subh.getNExtraBlocks() 
+            nExtra = subh.getNExtraBlocks()
             if (rt < Packet.MIN_EXIT_TYPE) or (nExtra > 15):
                 # None of the native methods allow multiple blocks; no
                 # size can be longer than the number of bytes in the rest
@@ -168,7 +168,7 @@ class PacketHandler:
         header2 = Crypto.lioness_decrypt(msg.header2,
                            keys.getLionessKeys(Crypto.HEADER_ENCRYPT_MODE))
 
-        # If we're the swap node, (1) decrypt the payload with a hash of 
+        # If we're the swap node, (1) decrypt the payload with a hash of
 	# header2... (2) decrypt header2 with a hash of the payload...
 	# (3) and swap the headers.
         if rt == Packet.SWAP_FWD_TYPE:

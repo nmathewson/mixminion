@@ -16,28 +16,12 @@ FOR 0.0.1: (The first alpha)
          work.  There need not be an interface for replies.  Key rotation
          need not be automated.]
 
-	o Server
-		o Unit tests for modulemanger built-in decoding and delivery.
 	. Build
 		- Marginal 'make install'
 		- Marginal 'make dist'
 	. Integration testing
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
-	. Refactor
-		o Move exit types and addresses into Packet.py
-		o Disable 'non-state-carrying' reply blocks.  Rename 'stateful'
-		  (non-state-carrying) and 'stateless' (state-carrying) to
-		  something less contradictory
-		o Fix all {XXXX/FFFF/????}001 
-		. Separate package for server code.
-			o Create new package.
-			o Move hashlog, mmtpserver, queue, modules,
-			  packetHandler, and servermain into new package.
-			- Split Config, ServerInfo.
-	. Final license
-	        o Apply LGPL
-		- Mark all files with note?
 	- Documentation
 		- Contributor's guide
 		- Basic HOWTO

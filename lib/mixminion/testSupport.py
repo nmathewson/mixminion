@@ -1,24 +1,25 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.10 2002/12/11 06:58:55 nickm Exp $
+# $Id: testSupport.py,v 1.11 2002/12/12 19:56:46 nickm Exp $
 
 """mixminion.testSupport
 
    Shared support code for unit tests, benchmark tests, and integration tests.
    """
 
-import os
-import sys
-import stat
 import base64
 import cStringIO
+import os
+import stat
+import sys
 
 import mixminion.Crypto
 import mixminion.Common
 from mixminion.Common import waitForChildren, createPrivateDir, LOG
 from mixminion.Config import _parseBoolean, ConfigError
-from mixminion.server.Modules import DeliveryModule, ImmediateDeliveryQueue, \
-     SimpleModuleDeliveryQueue, DELIVER_OK, DELIVER_FAIL_RETRY, \
-     DELIVER_FAIL_NORETRY, _escapeMessageForEmail
+
+from mixminion.server.Modules import DELIVER_FAIL_NORETRY, DELIVER_FAIL_RETRY,\
+     DELIVER_OK, DeliveryModule, ImmediateDeliveryQueue, \
+     SimpleModuleDeliveryQueue, _escapeMessageForEmail
 
 #----------------------------------------------------------------------
 # DirectoryStoreModule
@@ -43,24 +44,24 @@ class DirectoryStoreModule(DeliveryModule):
 	return { 'Testing/DirectoryDump':
 		 { 'Location' : ('REQUIRE', None, None),
 		   'UseQueue': ('REQUIRE', _parseBoolean, None) } }
-    
+
     def validateConfig(self, sections, entries, lines, contents):
 	# loc = sections['Testing/DirectoryDump'].get('Location')
-	pass 
-    
+	pass
+
     def configure(self, config, manager):
 	self.loc = config['Testing/DirectoryDump'].get('Location')
 	if not self.loc:
 	    return
 	self.useQueue = config['Testing/DirectoryDump']['UseQueue']
 	manager.enableModule(self)
-	
+
 	if not os.path.exists(self.loc):
 	    createPrivateDir(self.loc)
 
 	max = -1
 	for f in os.listdir(self.loc):
-	    if int(f) > max: 
+	    if int(f) > max:
 		max = int(f)
 	self.next = max+1
 
@@ -69,16 +70,16 @@ class DirectoryStoreModule(DeliveryModule):
 
     def getName(self):
 	return "Testing_DirectoryDump"
-    
+
     def getExitTypes(self):
 	return [ 0xFFFE ]
-    
+
     def createDeliveryQueue(self, queueDir):
 	if self.useQueue:
 	    return SimpleModuleDeliveryQueue(self, queueDir)
 	else:
 	    return ImmediateDeliveryQueue(self)
-	
+
     def processMessage(self, message, tag, exitType, exitInfo):
 	assert exitType == 0xFFFE
 
@@ -111,7 +112,7 @@ Decoding handle: %s%s==========MESSAGE ENDS""" % (
 
 # Constant flag: are we paranoid about permissions and uid on our tmpdir?
 _MM_TESTING_TEMPDIR_PARANOIA = 1
-# Name of our temporary directory: all temporary files go under this 
+# Name of our temporary directory: all temporary files go under this
 # directory.  If None, it hasn't been created yet.  If it exists,
 # it must be owned by us, mode 700, and have no parents that an adversary
 # (other than root) could write to.
@@ -180,10 +181,10 @@ def mix_mktemp(extra=""):
 		    print "Directory %s has fishy permissions %o" %(parent,m)
 		    sys.exit(1)
 		if st[stat.ST_UID] not in (0, os.getuid()):
-		    print "Directory %s has bad owner %s" % (parent, 
+		    print "Directory %s has bad owner %s" % (parent,
 							     st[stat.ST_UID])
 		    sys.exit(1)
-		    
+
 	_MM_TESTING_TEMPDIR = temp
 	if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:
 	    import atexit
@@ -386,6 +387,6 @@ qDVW03gO4AvOD9Ix5gdebdq8le0xfMUzDvAIG1ypM+oMdZ122bI/rsOpLkZ4EtmixFxJbpk="""
 ]
 
 TEST_KEYS_2048 = [
-    mixminion.Crypto.pk_decode_private_key(base64.decodestring(s)) 
+    mixminion.Crypto.pk_decode_private_key(base64.decodestring(s))
     for s in TEST_KEYS_2048 ]
 del s

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.25 2002/12/11 06:58:55 nickm Exp $
+# $Id: Config.py,v 1.26 2002/12/12 19:56:46 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -43,21 +43,20 @@
    [Section2]
    Key4: Value4
 
-   The restricted format is used for server descriptors.   
+   The restricted format is used for server descriptors.
    """
 
-__all__ = [ 'getConfig', 'loadConfig' ]
+__all__ = [ 'ConfigError', 'ClientConfig' ]
 
+import binascii
 import os
 import re
-import binascii
 import socket # for inet_aton and error
 from cStringIO import StringIO
 
 import mixminion.Common
-from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace
-import mixminion.Packet
 import mixminion.Crypto
+from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -65,7 +64,7 @@ class ConfigError(MixError):
 
 #----------------------------------------------------------------------
 # Validation functions.  These are used to convert values as they appear
-# in configuration files and server descriptors into corresponding Python 
+# in configuration files and server descriptors into corresponding Python
 # objects, and validate their formats
 
 def _parseBoolean(boolean):
@@ -269,7 +268,7 @@ def _parseDate(s,_timeMode=0):
 	yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
     else:
 	yyyy, MM, dd = map(int, m.groups())
-	hh, mm, ss = 0, 0, 0	
+	hh, mm, ss = 0, 0, 0
 
     if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
 	    (1970 <= yyyy)  and (0 <= hh < 24) and
@@ -348,7 +347,7 @@ def _readConfigFile(contents, restrict=0):
 
     # Make sure all characters in the file are ASCII.
     if not isPrintingAscii(contents):
-	raise ConfigError("Invalid characters in file: %r", badchars)
+	raise ConfigError("Invalid characters in file")
 
     #FFFF We should really use xreadlines or something if we have a file.
     fileLines = contents.split("\n")
@@ -415,7 +414,7 @@ class _ConfigFile:
     #  _sections: A map from secname->key->value.
     #  _sectionEntries: A  map from secname->[ (key, value) ] inorder.
     #  _sectionNames: An inorder list of secnames.
-    #  _callbacks: A map from section name to a callback function that should 
+    #  _callbacks: A map from section name to a callback function that should
     #      be invoked with (section,sectionEntries) after each section is
     #      read.  This shouldn't be used for validation; it's for code that
     #      needs to change the semantics of the parser.
@@ -583,10 +582,10 @@ class _ConfigFile:
             elif not self_sections.has_key(secName):
                 self_sections[secName] = {}
                 self_sectionEntries[secName] = []
-                
+
         if not self.assumeValid:
             # Call our validation hook.
-            self.validate(self_sections, self_sectionEntries, 
+            self.validate(self_sections, self_sectionEntries,
                           sectionEntryLines, fileContents)
 
         self._sections = self_sections
@@ -663,113 +662,6 @@ class ClientConfig(_ConfigFile):
 	if p < 4:
 	    LOG.warn("Your default path length is frighteningly low."
 			  "  I'll trust that you know what you're doing.")
-
-SERVER_SYNTAX =  {
-        'Host' : ClientConfig._syntax['Host'],
-        'Server' : { '__SECTION__' : ('REQUIRE', None, None),
-                     'Homedir' : ('ALLOW', None, "/var/spool/minion"),
-                     'LogFile' : ('ALLOW', None, None),
-                     'LogLevel' : ('ALLOW', _parseSeverity, "WARN"),
-                     'EchoMessages' : ('ALLOW', _parseBoolean, "no"),
-                     'EncryptIdentityKey' : ('REQUIRE', _parseBoolean, "yes"),
-		     'IdentityKeyBits': ('ALLOW', _parseInt, "2048"),
-                     'PublicKeyLifetime' : ('ALLOW', _parseInterval,
-                                            "30 days"),
-                     'PublicKeySloppiness': ('ALLOW', _parseInterval,
-                                             "5 minutes"),
-                     'EncryptPrivateKey' : ('REQUIRE', _parseBoolean, "no"),
-                     'Mode' : ('REQUIRE', _parseServerMode, "local"),
-                     'Nickname': ('ALLOW', None, None),
-                     'Contact-Email': ('ALLOW', None, None),
-                     'Comments': ('ALLOW', None, None),
-                     'ModulePath': ('ALLOW', None, None),
-                     'Module': ('ALLOW*', None, None),
-                     },
-        'DirectoryServers' : { 'ServerURL' : ('ALLOW*', None, None),
-                               'Publish' : ('ALLOW', _parseBoolean, "no"),
-                               'MaxSkew' : ('ALLOW', _parseInterval,
-                                            "10 minutes",) },
-	# FFFF Generic multi-port listen/publish options.
-        'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-			    'IP' : ('ALLOW', _parseIP, "0.0.0.0"),
-                            'Port' : ('ALLOW', _parseInt, "48099"),
-                            'Allow' : ('ALLOW*', _parseAddressSet_allow, None),
-                            'Deny' : ('ALLOW*', _parseAddressSet_deny, None) },
-        'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-                            'Allow' : ('ALLOW*', _parseAddressSet_allow, None),
-                            'Deny' : ('ALLOW*', _parseAddressSet_deny, None) },
-	# FFFF Missing: Queue-Size / Queue config options
-	# FFFF         timeout options
-	# FFFF         listen timeout??
-	# FFFF         Retry options
-	# FFFF         pool options
-        }
-
-class ServerConfig(_ConfigFile):
-    ##
-    # Fields: 
-    #   moduleManager
-    #
-    _restrictFormat = 0
-    def __init__(self, fname=None, string=None, moduleManager=None):
-	# We use a copy of SERVER_SYNTAX, because the ModuleManager will
-	# mess it up.
-        self._syntax = SERVER_SYNTAX.copy()
-
-        import mixminion.server.Modules
-	if moduleManager is None:
-	    self.moduleManager = mixminion.server.Modules.ModuleManager()
-	else:
-	    self.moduleManager = moduleManager
-        self._addCallback("Server", self.__loadModules)    
-
-        _ConfigFile.__init__(self, fname, string)
-
-    def validate(self, sections, entries, lines, contents):
-	log = LOG
-	_validateHostSection(sections.get('Host', {}))
-	# Server section
-	server = sections['Server']
-	bits = server['IdentityKeyBits']
-	if not (2048 <= bits <= 4096):
-	    raise ConfigError("IdentityKeyBits must be between 2048 and 4096")
-	if server['EncryptIdentityKey']:
-	    log.warn("Identity key encryption not yet implemented")
-	if server['EncryptPrivateKey']:
-	    log.warn("Encrypted private keys not yet implemented")
-	if server['PublicKeyLifetime'][2] < 24*60*60:
-	    raise ConfigError("PublicKeyLifetime must be at least 1 day.")
-	if server['PublicKeySloppiness'][2] > 20*60:
-	    raise ConfigError("PublicKeySloppiness must be <= 20 minutes.")
-	if [e for e in entries['Server'] if e[0]=='Mode']:
-	    log.warn("Mode specification is not yet supported.")
-
-	if not sections['Incoming/MMTP'].get('Enabled'):
-	    log.warn("Disabling incoming MMTP is not yet supported.")
-	if [e for e in entries['Incoming/MMTP'] if e[0] in ('Allow', 'Deny')]:
-	    log.warn("Allow/deny are not yet supported")
-
-	if not sections['Outgoing/MMTP'].get('Enabled'):
-	    log.warn("Disabling incoming MMTP is not yet supported.")
-	if [e for e in entries['Outgoing/MMTP'] if e[0] in ('Allow', 'Deny')]:
-	    log.warn("Allow/deny are not yet supported")
-
-        self.moduleManager.validate(sections, entries, lines, contents)
-
-    def __loadModules(self, section, sectionEntries):
-	"""Callback from the [Server] section of a config file.  Parses
-	   the module options, and adds new sections to the syntax 
-	   accordingly."""
-        self.moduleManager.setPath(section.get('ModulePath', None))
-        for mod in section.get('Module', []):
-	    LOG.info("Loading module %s", mod)
-            self.moduleManager.loadExtModule(mod)
-
-        self._syntax.update(self.moduleManager.getConfigSyntax())
-    
-    def getModuleManager(self):
-	"Return the module manager initialized by this server."
-	return self.moduleManager
 
 def _validateHostSection(sec):
     """Helper function: Makes sure that the shared [Host] section is correct;

@@ -1,9 +1,9 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.12 2002/12/09 04:47:40 nickm Exp $
+# $Id: MMTPClient.py,v 1.13 2002/12/12 19:56:46 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
-   side of the Mixminion Transfer protocol.  You can use this client to 
+   side of the Mixminion Transfer protocol.  You can use this client to
    upload messages to any conforming Mixminion server.
 
    (We don't use this module for tranferring packets between servers;
@@ -14,6 +14,8 @@
 
    FFFF: As yet unsupported are: Session resumption and key renegotiation.
    FFFF: Also unsupported: timeouts."""
+
+__all__ = [ "BlockingClientConnection", "sendMessages" ]
 
 import socket
 import mixminion._minionlib as _ml
@@ -26,14 +28,14 @@ class BlockingClientConnection:
     """
     ## Fields:
     # targetIP -- the dotted-quad, IPv4 address of our server.
-    # targetPort -- the port on the server 
+    # targetPort -- the port on the server
     # targetKeyID -- sha1 hash of the ASN1 encoding of the public key we
     #   expect the server to use.
     # context: a TLSContext object; used to create connections.
     # sock: a TCP socket, open to the server.
     # tls: a TLS socket, wrapping sock.
     def __init__(self, targetIP, targetPort, targetKeyID):
-        """Open a new connection.""" 
+        """Open a new connection."""
         self.targetIP = targetIP
         self.targetPort = targetPort
         self.targetKeyID = targetKeyID
@@ -46,7 +48,7 @@ class BlockingClientConnection:
 	# Connect to the server
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setblocking(1)
-	LOG.debug("Connecting to %s:%s", self.targetIP, self.targetPort) 
+	LOG.debug("Connecting to %s:%s", self.targetIP, self.targetPort)
 
 	# Do the TLS handshaking
         self.sock.connect((self.targetIP,self.targetPort))
@@ -63,7 +65,7 @@ class BlockingClientConnection:
         if self.targetKeyID is not None and (keyID != self.targetKeyID):
             raise MixProtocolError("Bad Key ID: Expected %r but got %r" % (
                 self.targetKeyID, keyID))
-        
+
         ####
         # Protocol negotiation
         # For now, we only support 1.0, but we call it 0.1 so we can
@@ -75,7 +77,7 @@ class BlockingClientConnection:
         if inp != "MMTP 0.1\r\n":
             raise MixProtocolError("Protocol negotiation failed")
 	LOG.debug("MMTP protocol negotated: version 0.1")
-        
+
     def sendPacket(self, packet):
         """Send a single packet to a server."""
         assert len(packet) == 1<<15
@@ -86,7 +88,7 @@ class BlockingClientConnection:
         self.tls.write(packet)
         self.tls.write(sha1(packet+"SEND"))
 	LOG.debug("Packet sent; waiting for ACK")
-        
+
 	# And we expect, "RECEIVED\r\n", and sha1(packet|"RECEIVED")
         inp = self.tls.read(len("RECEIVED\r\n")+20)
         if inp != "RECEIVED\r\n"+sha1(packet+"RECEIVED"):

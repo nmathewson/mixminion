@@ -1,9 +1,9 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
+# $Id: Queue.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
 
 """mixminion.server.Queue
 
-   Facility for fairly secure, directory-based, unordered queues. 
+   Facility for fairly secure, directory-based, unordered queues.
    """
 
 import os
@@ -14,7 +14,7 @@ import cPickle
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir
-from mixminion.Crypto import AESCounterPRNG
+from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ 'Queue', 'DeliveryQueue', 'TimedMixQueue', 'CottrellMixQueue',
 	    'BinomialCottrellMixQueue' ]
@@ -68,7 +68,7 @@ class Queue:
 
         secureDelete([]) # Make sure secureDelete is configured. HACK!
 
-        self.rng = AESCounterPRNG()
+        self.rng = getCommonPRNG()
         self.dir = location
 
         if not os.path.isabs(location):
@@ -228,7 +228,7 @@ class Queue:
 		    else:
 			return 1
 		except OSError:
-		    # If the 'stat' or 'unlink' calls above fail, then 
+		    # If the 'stat' or 'unlink' calls above fail, then
 		    # .cleaning must not exist, or must not be readable
 		    # by us.
 		    if os.path.exists(cleanFile):
@@ -319,7 +319,7 @@ class DeliveryQueue(Queue):
 	"""Returns a (n_retries, addr, msg) payload for a given
 	   message handle."""
         return self.getObject(handle)
-	
+
     def sendReadyMessages(self):
 	"""Sends all messages which are not already being sent."""
 
@@ -429,7 +429,7 @@ class CottrellMixQueue(TimedMixQueue):
 	# says that Cottrell says is the real thing.
 
 	TimedMixQueue.__init__(self, location, interval)
-	self.minPool = minPool	
+	self.minPool = minPool
 	self.minSend = minSend
 	self.sendRate = sendRate
 
@@ -462,9 +462,9 @@ class BinomialCottrellMixQueue(CottrellMixQueue):
 				    if self.rng.getFloat() < msgProbability ])
 
 def _secureDelete_bg(files, cleanFile):
-    """Helper method: delete files in another thread, removing 'cleanFile' 
+    """Helper method: delete files in another thread, removing 'cleanFile'
        once we're done."""
-      
+
     pid = os.fork()
     if pid != 0:
         return pid

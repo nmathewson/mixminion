@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
+# $Id: Modules.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -20,14 +20,13 @@ import smtplib
 import socket
 import base64
 
+import mixminion.BuildMessage
 import mixminion.Config
 import mixminion.Packet
-import mixminion.BuildMessage
+import mixminion.server.Queue
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
      isPrintingAscii
-
-import mixminion.server.Queue
 
 # Return values for processMessage
 DELIVER_OK = 1
@@ -117,7 +116,7 @@ class ImmediateDeliveryQueue:
 
     def queueDeliveryMessage(self, (exitType, address, tag), message):
 	"""Instead of queueing our message, pass it directly to the underlying
-	   DeliveryModule."""	
+	   DeliveryModule."""
 	try:
 	    res = self.module.processMessage(message, tag, exitType, address)
 	    if res == DELIVER_OK:
@@ -137,14 +136,14 @@ class ImmediateDeliveryQueue:
 class SimpleModuleDeliveryQueue(mixminion.server.Queue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
-    ## Fields: 
+    ## Fields:
     # module: the underlying module.
     def __init__(self, module, directory):
 	mixminion.server.Queue.DeliveryQueue.__init__(self, directory)
 	self.module = module
 
     def _deliverMessages(self, msgList):
-	for handle, addr, message, n_retries in msgList:	
+	for handle, addr, message, n_retries in msgList:
 	    try:
 		exitType, address, tag = addr
 		result = self.module.processMessage(message,tag,exitType,address)
@@ -258,7 +257,7 @@ class ModuleManager:
 	    self.registerModule(pyClass())
 	except Exception, e:
 	    raise MixError("Error initializing module %s" %className)
-	
+
     def validate(self, sections, entries, lines, contents):
 	# (As in ServerConfig)
         for m in self.modules:
@@ -293,7 +292,7 @@ class ModuleManager:
 	"""Remove trash messages from all internal queues."""
 	for queue in self.queues.values():
 	    queue.cleanQueue()
-	
+
     def disableModule(self, module):
 	"""Unmaps all the types for a module object."""
         LOG.info("Disabling module %s", module.getName())
@@ -363,7 +362,7 @@ class MBoxModule(DeliveryModule):
           addr: smtpaddr
           addr: smtpaddr
            ...
-       
+
        When we receive a message send to 'addr', we deliver it to smtpaddr.
        """
     ##
@@ -405,7 +404,7 @@ class MBoxModule(DeliveryModule):
 	    if not isSMTPMailbox(sec[field]):
 		LOG.warn("Value of %s (%s) doesn't look like an email address",
 			 field, sec[field])
-	    
+
 
     def configure(self, config, moduleManager):
 	if not config['Delivery/MBOX'].get("Enabled", 0):
@@ -491,8 +490,8 @@ From: %(return)s
 Subject: Anonymous Mixminion message
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server '%(nickname)s' at
-%(addr)s has been configured to deliver messages to your address.  
-If you do not want to receive messages in the future, contact %(contact)s 
+%(addr)s has been configured to deliver messages to your address.
+If you do not want to receive messages in the future, contact %(contact)s
 and you will be removed.
 
 %(msg)s""" % fields
@@ -502,7 +501,7 @@ and you will be removed.
 
 #----------------------------------------------------------------------
 class SMTPModule(DeliveryModule):
-    """Placeholder for real exit node implementation. 
+    """Placeholder for real exit node implementation.
        For now, use MixmasterSMTPModule"""
     def __init__(self):
         DeliveryModule.__init__(self)
@@ -519,7 +518,7 @@ class MixmasterSMTPModule(SMTPModule):
        test mixminion by usingg Mixmaster nodes as exits."""
     # FFFF Mixmaster has tons of options.  Maybe we should use 'em...
     # FFFF ... or maybe we should deliberately ignore them, since
-    # FFFF this is only a temporary workaround until enough people 
+    # FFFF this is only a temporary workaround until enough people
     # FFFF are running SMTP exit nodes
     ## Fields:
     # server: The path (usually a single server) to use for outgoing messages.
@@ -529,7 +528,7 @@ class MixmasterSMTPModule(SMTPModule):
     # options: Options to pass to the Mixmaster binary when queueing messages
     # tmpQueue: An auxiliary Queue used to hold files so we can pass them to
     #    Mixmaster.  (This should go away; we should use stdin instead.)
-    
+
     def __init__(self):
         SMTPModule.__init__(self)
 
@@ -542,7 +541,7 @@ class MixmasterSMTPModule(SMTPModule):
                                     'Type-III Anonymous Message'),
                    }
                  }
-                   
+
     def validateConfig(self, sections, entries, lines, contents):
 	# Currently, we accept any configuration options that the config allows
         pass
@@ -560,8 +559,8 @@ class MixmasterSMTPModule(SMTPModule):
 					"-s", self.subject)
         manager.enableModule(self)
 
-    def getName(self): 
-        return "SMTP_MIX2" 
+    def getName(self):
+        return "SMTP_MIX2"
 
     def createDeliveryQueue(self, queueDir):
 	# We create a temporary queue so we can hold files there for a little
@@ -586,7 +585,7 @@ class MixmasterSMTPModule(SMTPModule):
         LOG.debug("Queued Mixmaster message: exit code %s", code)
         self.tmpQueue.removeMessage(handle)
         return DELIVER_OK
-                         
+
     def flushMixmasterPool(self):
 	"""Send all pending messages from the Mixmaster queue.  This
 	   should be called after invocations of processMessage."""
@@ -601,7 +600,7 @@ class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
     def _deliverMessages(self, msgList):
         SimpleModuleDeliveryQueue._deliverMessages(self, msgList)
         self.module.flushMixmasterPool()
-        
+
 #----------------------------------------------------------------------
 
 def sendSMTPMessage(server, toList, fromAddr, message):
@@ -664,7 +663,7 @@ def _escapeMessage(message, tag, text=0):
        whether the message is a text plaintext message (code='TXT'), a
        binary plaintext message (code 'BIN'), or an encrypted message/reply
        (code='ENC').  If requested, non-TXT messages are base-64 encoded.
- 
+
        Returns: (code, message, tag (for ENC) or None (for BIN, TXT).
        Returns None if the message is invalid.
 

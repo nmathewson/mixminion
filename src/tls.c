@@ -1,26 +1,26 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.9 2002/12/02 03:18:23 nickm Exp $ */
+/* $Id: tls.c,v 1.10 2002/12/12 19:56:47 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
 #include <openssl/tls1.h>
 
-char mm_TLSError__doc__[] = 
+char mm_TLSError__doc__[] =
   "mixminion._minionlib.TLSError\n\n"
   "Exception raised for error in underlying TLS/SSL library.\n";
 PyObject *mm_TLSError = NULL;
 
-char mm_TLSWantRead__doc__[] = 
+char mm_TLSWantRead__doc__[] =
   "mixminion._minionlib.TLSWantRead\n\n"
 "Exception raised when a non-blocking TLS operation would block on reading.\n";
 PyObject *mm_TLSWantRead = NULL;
 
-char mm_TLSWantWrite__doc__[] = 
+char mm_TLSWantWrite__doc__[] =
   "mixminion._minionlib.TLSWantWrite\n\n"
 "Exception raised when a non-blocking TLS operation would block on writing.\n";
 PyObject *mm_TLSWantWrite = NULL;
 
-char mm_TLSClosed__doc__[] = 
+char mm_TLSClosed__doc__[] =
   "mixminion._minionlib.TLSClosed\n\n"
 "Exception raised when a connection is unexpectedly closed.\n";
 PyObject *mm_TLSClosed = NULL;
@@ -35,15 +35,15 @@ PyObject *mm_TLSClosed = NULL;
                            TYPE_ERR("No arguments expected"); \
                            return NULL; \
                        }
- 
+
 /* Return values for tls_error */
 #define NO_ERROR 0
 #define ERROR 1
 #define ZERO_RETURN -1
-/* 
+/*
  * Checks for an outstanding error on a given SSL object that has just
  * returned the value 'r'.  Returns NO_ERROR, ERROR, or ZERO_RETURN.
- * On ERROR, a Python error is set.  
+ * On ERROR, a Python error is set.
  *
  * On SSL_ERROR_ZERO_RETURN, a Python error is set if !(flags &
  * IGNORE_ZERO_RETURN).  On SSL_ERROR_SYSCALL, an error condition is
@@ -51,7 +51,7 @@ PyObject *mm_TLSClosed = NULL;
  */
 #define IGNORE_ZERO_RETURN 1
 #define IGNORE_SYSCALL 2
-static int 
+static int
 tls_error(SSL *ssl, int r, int flags)
 {
 	int err = SSL_get_error(ssl,r);
@@ -96,7 +96,7 @@ typedef struct mm_TLSSock {
 
 #define mm_TLSSock_Check(v) ((v)->ob_type == &mm_TLSSock_Type)
 
-const char mm_TLSContext_new__doc__[] = 
+const char mm_TLSContext_new__doc__[] =
    "TLSContext([certfile, [rsa, [dhfile] ] ] )\n\n"
    "Allocates a new TLSContext object.  The files, if provided, are used\n"
    "contain the PEM-encoded X509 public keys, private key, and DH\n"
@@ -106,7 +106,7 @@ const char mm_TLSContext_new__doc__[] =
    "LIMITATION: We don\'t expose any more features than Mixminion needs.\n";
 
 PyObject*
-mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs) 
+mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	static char *kwlist[] = { "certfile", "pkfile", "dhfile", NULL };
 	char *certfile = NULL, *dhfile=NULL;
@@ -119,28 +119,28 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 	BIO *bio;
 	RSA *_rsa = NULL;
 	EVP_PKEY *pkey = NULL;
-	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sO!s:TLSContext_new", 
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sO!s:TLSContext_new",
 					 kwlist,
-					 &certfile, 
+					 &certfile,
 					 &mm_RSA_Type, &rsa,
 					 &dhfile))
 		return NULL;
 
 	method = TLSv1_method();
-	
+
 	if (!(ctx = SSL_CTX_new(method))) {
 		mm_SSL_ERR(0); return NULL;
 	}
 	if (!SSL_CTX_set_cipher_list(ctx, TLS1_TXT_DHE_RSA_WITH_AES_128_SHA)){
 		SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 	}
-	if (certfile && 
+	if (certfile &&
 	    !SSL_CTX_use_certificate_file(ctx,certfile,SSL_FILETYPE_PEM)) {
 		SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 	}
 	if (rsa) {
-		if (!(_rsa = RSAPrivateKey_dup(rsa->rsa)) || 
+		if (!(_rsa = RSAPrivateKey_dup(rsa->rsa)) ||
 		    !(pkey = EVP_PKEY_new()) ||
 		    !EVP_PKEY_assign_RSA(pkey, _rsa)) {
 			if (!pkey && _rsa) RSA_free(_rsa);
@@ -152,38 +152,38 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 			SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 		}
 		EVP_PKEY_free(pkey);
-	} 
+	}
 
 	if (dhfile) {
 		if ( !(bio = BIO_new_file(dhfile, "r"))) {
 			SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 		}
 		dh=PEM_read_bio_DHparams(bio,NULL,NULL,NULL);
-		BIO_free(bio); 
+		BIO_free(bio);
 		if (!dh) {
-			SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL; 
+			SSL_CTX_free(ctx); mm_SSL_ERR(0); return NULL;
 		}
-		SSL_CTX_set_tmp_dh(ctx,dh); 
+		SSL_CTX_set_tmp_dh(ctx,dh);
 		DH_free(dh);
 	}
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
-	
+
 	result = PyObject_New(mm_TLSContext, &mm_TLSContext_Type);
 	if (!result) {
-		SSL_CTX_free(ctx); return NULL; 
+		SSL_CTX_free(ctx); return NULL;
 	}
 	result->ctx = ctx;
 	return (PyObject*)result;
 }
 
-static void 
+static void
 mm_TLSContext_dealloc(mm_TLSContext *self)
 {
 	SSL_CTX_free(self->ctx);
 	PyObject_DEL(self);
 }
 
-static char mm_TLSContext_sock__doc__[] = 
+static char mm_TLSContext_sock__doc__[] =
    "context.sock(socket, [serverMode])\n\n"
    "Creates a new TLS socket to send and receive from a given underlying\n"
    "socket.\n\n"
@@ -201,8 +201,8 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 	BIO *bio;
 	SSL *ssl;
 	mm_TLSSock *ret;
-	
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:sock", 
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:sock",
 					 kwlist, &sockObj, &serverMode))
 		return NULL;
 	assert(mm_TLSContext_Check(self));
@@ -218,7 +218,7 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 		mm_SSL_ERR(0); return NULL;
 	}
 
-	if (serverMode && !SSL_set_cipher_list(ssl, 
+	if (serverMode && !SSL_set_cipher_list(ssl,
 		    TLS1_TXT_DHE_RSA_WITH_AES_128_SHA ":"
 		    SSL3_TXT_RSA_DES_192_CBC3_SHA)) {
 		mm_SSL_ERR(0); SSL_free(ssl); return NULL;
@@ -228,7 +228,7 @@ mm_TLSContext_sock(PyObject *self, PyObject *args, PyObject *kwargs)
 		SSL_free(ssl); mm_SSL_ERR(0); return NULL;
 	}
 	SSL_set_bio(ssl,bio,bio);
-	
+
 	if (!(ret = PyObject_New(mm_TLSSock, &mm_TLSSock_Type))) {
 		SSL_free(ssl); PyErr_NoMemory(); SSL_free(ssl); return NULL;
 	}
@@ -245,9 +245,9 @@ static PyMethodDef mm_TLSContext_methods[] = {
 	METHOD(mm_TLSContext, sock),
 	{ NULL, NULL }
 };
- 
+
 static PyObject*
-mm_TLSContext_getattr(PyObject *self, char *name) 
+mm_TLSContext_getattr(PyObject *self, char *name)
 {
 	return Py_FindMethod(mm_TLSContext_methods, self, name);
 }
@@ -275,7 +275,7 @@ PyTypeObject mm_TLSContext_Type = {
 	(char*)mm_TLSContext_Type__doc__
 };
 
-static void 
+static void
 mm_TLSSock_dealloc(mm_TLSSock *self)
 {
 	Py_DECREF(self->context);
@@ -284,7 +284,7 @@ mm_TLSSock_dealloc(mm_TLSSock *self)
 	PyObject_DEL(self);
 }
 
-static char mm_TLSSock_accept__doc__[] = 
+static char mm_TLSSock_accept__doc__[] =
   "tlssock.accept()\n\n"
   "Perform initial server-side TLS handshaking.\n"
   "Returns None if finished.  May raise TLSWantRead or TLSWantWrite.\n";
@@ -297,18 +297,18 @@ mm_TLSSock_accept(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
-	
+
 	ssl = ((mm_TLSSock*)self)->ssl;
 	Py_BEGIN_ALLOW_THREADS
 	r = SSL_accept(ssl);
 	Py_END_ALLOW_THREADS
-	
+
 	if (tls_error(ssl, r, 0))
 		return NULL;
-	
+
 	Py_INCREF(Py_None);
 	return Py_None;
-} 
+}
 
 static char mm_TLSSock_connect__doc__[] =
   "tlssock.connect()\n\n"
@@ -319,11 +319,11 @@ static PyObject*
 mm_TLSSock_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	SSL *ssl;
-	int r, err; 
+	int r, err;
 
 	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
-	
+
 	ssl = ((mm_TLSSock*)self)->ssl;
 
 	Py_BEGIN_ALLOW_THREADS
@@ -335,9 +335,9 @@ mm_TLSSock_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	Py_INCREF(Py_None);
 	return Py_None;
-} 
+}
 
-static char mm_TLSSock_pending__doc__[] = 
+static char mm_TLSSock_pending__doc__[] =
    "tlssock.pending()\n\n"
    "Returns true iff there is data waiting to be read from this socket.";
 
@@ -348,13 +348,13 @@ mm_TLSSock_pending(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
-	
-	ssl = ((mm_TLSSock*)self)->ssl;
-	
-	return PyInt_FromLong(SSL_pending(ssl));
-} 
 
-static char mm_TLSSock_read__doc__[] = 
+	ssl = ((mm_TLSSock*)self)->ssl;
+
+	return PyInt_FromLong(SSL_pending(ssl));
+}
+
+static char mm_TLSSock_read__doc__[] =
    "tlssock.read(size)\n\n"
    "Tries to read [up to] size bytes from this socket.\n"
   "Returns a string if the read was successful.  Returns 0 if the connection\n"
@@ -374,13 +374,13 @@ mm_TLSSock_read(PyObject *self, PyObject *args, PyObject *kwargs)
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i:read", kwlist,
 					 &n))
 		return NULL;
-	
+
 	ssl = ((mm_TLSSock*)self)->ssl;
-	
+
 	if (!(res = PyString_FromStringAndSize(NULL, n))) {
-		PyErr_NoMemory(); return NULL; 
+		PyErr_NoMemory(); return NULL;
 	}
-	
+
 	Py_BEGIN_ALLOW_THREADS
 	r = SSL_read(ssl, PyString_AS_STRING(res), n);
 	Py_END_ALLOW_THREADS
@@ -395,19 +395,19 @@ mm_TLSSock_read(PyObject *self, PyObject *args, PyObject *kwargs)
 	    case NO_ERROR:
 		    Py_INCREF(Py_None);
 		    return Py_None;
-	    case ZERO_RETURN:	    
+	    case ZERO_RETURN:
 		    return PyInt_FromLong(0);
 	    case ERROR:
 	    default:
 		    return NULL;
 	}
-} 
+}
 
-static char mm_TLSSock_write__doc__[] = 
+static char mm_TLSSock_write__doc__[] =
    "tlssock.write(string)\n\n"
    "Try to write to a TLS socket.\n"
    "If the write was successful, returns the number of bytes written. If the\n"
-   "connection is being shutdown, returns 0. Raises TLSWantRead or\n" 
+   "connection is being shutdown, returns 0. Raises TLSWantRead or\n"
    "TLSWantWrite if the underlying nonblocking socket would block on one of\n"
    "these operations.\n";
 
@@ -424,15 +424,15 @@ mm_TLSSock_write(PyObject *self, PyObject *args, PyObject *kwargs)
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#:write", kwlist,
 					  &string, &stringlen))
 		return NULL;
-	
+
 	ssl = ((mm_TLSSock*)self)->ssl;
-	
+
 	Py_BEGIN_ALLOW_THREADS
 	r = SSL_write(ssl, string, stringlen);
 	Py_END_ALLOW_THREADS
-	
+
 	switch(tls_error(ssl, r, IGNORE_ZERO_RETURN)) {
-	    case NO_ERROR:	    
+	    case NO_ERROR:
 		    return PyInt_FromLong(r);
 	    case ZERO_RETURN:
 		    return PyInt_FromLong(0);
@@ -443,7 +443,7 @@ mm_TLSSock_write(PyObject *self, PyObject *args, PyObject *kwargs)
 	}
 }
 
-static char mm_TLSSock_shutdown__doc__[] = 
+static char mm_TLSSock_shutdown__doc__[] =
   "tlssock.shutdown()\n\n"
   "Initiates a shutdown.\n"
   "If 0 is returned, the shutdown is not complete.  If 1 is returned, the\n"
@@ -457,7 +457,7 @@ mm_TLSSock_shutdown(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
-	
+
 	ssl = ((mm_TLSSock*)self)->ssl;
 
 	Py_BEGIN_ALLOW_THREADS
@@ -470,9 +470,9 @@ mm_TLSSock_shutdown(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	Py_INCREF(Py_None);
 	return Py_None;
-} 
+}
 
-static char mm_TLSSock_fileno__doc__[] = 
+static char mm_TLSSock_fileno__doc__[] =
     "tlssock.fileno()\n\n"
     "Returns the integer filehandle underlying this TLS socket.\n";
 
@@ -482,11 +482,11 @@ mm_TLSSock_fileno(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
-	
+
 	return PyInt_FromLong(((mm_TLSSock*)self)->sock);
 }
 
-static char mm_TLSSock_get_peer_cert_pk__doc__[] = 
+static char mm_TLSSock_get_peer_cert_pk__doc__[] =
     "tlssock.get_peer_cert_pk()\n\n"
     "Returns the public key of the certificate used by the server on the\n"
     "other side of this connection.  Returns None if no such cert exists\n";
@@ -502,17 +502,17 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 
 	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
-	
+
 	ssl = ((mm_TLSSock*)self)->ssl;
 	if (!(cert = SSL_get_peer_certificate(ssl))) {
 		mm_SSL_ERR(0); return NULL;
 	}
 	pkey = X509_get_pubkey(cert);
 	if (!(rsa = EVP_PKEY_get1_RSA(pkey))) {
-		EVP_PKEY_free(pkey); mm_SSL_ERR(0); return NULL; 
+		EVP_PKEY_free(pkey); mm_SSL_ERR(0); return NULL;
 	}
 	EVP_PKEY_free(pkey);
-	
+
 	if (!(result = PyObject_New(mm_RSA, &mm_RSA_Type))) {
 		RSA_free(rsa); PyErr_NoMemory(); return NULL;
 	}
@@ -532,9 +532,9 @@ static PyMethodDef mm_TLSSock_methods[] = {
 	METHOD(mm_TLSSock, fileno),
 	{ NULL, NULL }
 };
- 
+
 static PyObject*
-mm_TLSSock_getattr(PyObject *self, char *name) 
+mm_TLSSock_getattr(PyObject *self, char *name)
 {
 	return Py_FindMethod(mm_TLSSock_methods, self, name);
 }

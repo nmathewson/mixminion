@@ -1,5 +1,5 @@
 /* Copyright 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.7 2002/08/19 20:27:02 nickm Exp $ */
+/* $Id: main.c,v 1.8 2002/12/12 19:56:47 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -49,7 +49,7 @@ static struct PyMethodDef _mixcryptlib_functions[] = {
 
    returns 1 on failure; 0 on success */
 static int
-exc(PyObject *module_dict, PyObject **exception, char *longName, 
+exc(PyObject *module_dict, PyObject **exception, char *longName,
     char *itemString, char *doc)
 {
 	PyObject *s, *exc_d;
@@ -95,19 +95,19 @@ init_minionlib(void)
 
 	OpenSSL_add_all_algorithms();
 
-	if (exc(d, &mm_CryptoError, "mixminion._minionlib.CryptoError", 
+	if (exc(d, &mm_CryptoError, "mixminion._minionlib.CryptoError",
 		"CryptoError", mm_CryptoError__doc__))
 		return;
-	if (exc(d, &mm_TLSError, "mixminion._minionlib.TLSError", 
+	if (exc(d, &mm_TLSError, "mixminion._minionlib.TLSError",
 		"TLSError", mm_TLSError__doc__))
 		return;
-	if (exc(d, &mm_TLSWantRead, "mixminion._minionlib.TLSWantRead", 
+	if (exc(d, &mm_TLSWantRead, "mixminion._minionlib.TLSWantRead",
 		"TLSWantRead", mm_TLSWantRead__doc__))
 		return;
-	if (exc(d, &mm_TLSWantWrite, "mixminion._minionlib.TLSWantWrite", 
+	if (exc(d, &mm_TLSWantWrite, "mixminion._minionlib.TLSWantWrite",
 		"TLSWantWrite", mm_TLSWantWrite__doc__))
 		return;
-	if (exc(d, &mm_TLSClosed, "mixminion._minionlib.TLSClosed", 
+	if (exc(d, &mm_TLSClosed, "mixminion._minionlib.TLSClosed",
 		"TLSClosed", mm_TLSClosed__doc__))
 		return;
 
@@ -116,12 +116,12 @@ init_minionlib(void)
 		return;
 
 	Py_INCREF(&mm_TLSContext_Type);
-	if (PyDict_SetItemString(d, "TLSContext", 
+	if (PyDict_SetItemString(d, "TLSContext",
 				 (PyObject*)&mm_TLSContext_Type) < 0)
 		return;
 
 	Py_INCREF(&mm_TLSSock_Type);
-	if (PyDict_SetItemString(d, "TLSSock", 
+	if (PyDict_SetItemString(d, "TLSSock",
 				 (PyObject*)&mm_TLSSock_Type) < 0)
 		return;
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.12 2002/12/11 06:58:55 nickm Exp $
+# $Id: Main.py,v 1.13 2002/12/12 19:56:46 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -26,9 +26,9 @@ if not hasattr(sys,'version_info') or sys.version_info[0] < 2:
         "       You seem to be running version %s.\n")%_ver)
     sys.exit(1)
 
+import getopt
 import os
 import stat
-import getopt
 import types
 
 def filesAreSame(f1, f2):
@@ -45,7 +45,7 @@ def filesAreSame(f1, f2):
 
 def correctPath(myself):
     "Given a command (sys.argv[0]), fix sys.path so 'import mixminion' works"
-    # (If the admin uses distutils to install Mixminion, the code will 
+    # (If the admin uses distutils to install Mixminion, the code will
     # wind up somewhere appropriate on pythonpath.  This isn't good enough,
     # however: we want to run even when sysadmins don't understand distutils.)
 
@@ -82,7 +82,7 @@ def correctPath(myself):
 	    continue
 	if os.path.normpath(pathEntry) == parentdir:
 	    foundEntry = 1; break
-		
+
 	ent = os.path.join(pathEntry, 'mixminion', 'Main.py')
 	if os.path.exists(ent) and filesAreSame(pathEntry, myself):
 	    foundEntry = 1; break
@@ -108,7 +108,7 @@ def correctPath(myself):
 #  'Main.py <cmd> arg1 arg2 arg3' will result in a call to <function_name>
 #   in <module_name>.  The function should take two arguments: a string to
 #   be used as command name in error messages, and a list of [arg1,arg2,arg3].'
-#   
+#
 #   By convention, all commands must print a usage message and exit when
 #   invoked with a single argument, "--help"
 _COMMANDS = {
@@ -134,7 +134,7 @@ def main(args):
     # Specifically, args[0] is used to fix sys.path so we can import
     # mixminion.*; args[1] is used to select a command name from _COMMANDS,
     # and args[2:] are passed to the command we select.
-    
+
     correctPath(args[0])
 
     # Check whether we have a recognized command.

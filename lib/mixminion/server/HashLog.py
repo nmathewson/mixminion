@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
+# $Id: HashLog.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
 
 """mixminion.HashLog
 
@@ -78,7 +78,7 @@ class HashLog:
 		self.journal[j[i:i+DIGEST_LEN]] = 1
 	    f.close()
 
-	self.journalFile = os.open(self.journalFileName, 
+	self.journalFile = os.open(self.journalFileName,
 		    _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
 
     def seenHash(self, hash):
@@ -113,5 +113,5 @@ class HashLog:
         self.sync()
         self.log.close()
 	os.close(self.journalFile)
-	
+
 

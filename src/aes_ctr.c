@@ -1,8 +1,8 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.7 2002/11/22 21:06:11 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.8 2002/12/12 19:56:47 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
- * unsuitable because 
+ * unsuitable because
  *          a) It wants to compute E(x << 64) for E(0),E(1),...
  *          b) It can't begin in the middle of a stream.  (It can resume,
  *             but that's not the same.)
@@ -29,18 +29,18 @@ typedef unsigned char u8;
 
 #ifdef MM_B_ENDIAN
 #define GET_U32(ptr) (*(u32*)(ptr))
-#define SET_U32(ptr,i) (*(u32*)(ptr)) = i 
+#define SET_U32(ptr,i) (*(u32*)(ptr)) = i
 #define INCR_U32(ptr, i) i = ++(*(u32*)(ptr))
 #endif
 
 /* An earlier version used bswap_32 where available to try to get the
-   supposed benefits of inline assembly.  Bizarrely, on my Athlon, 
+   supposed benefits of inline assembly.  Bizarrely, on my Athlon,
    bswap_32 is actually slower.  On the other hand,
    the code in glib/gtypes.h _is_ faster; but shaves only 1%
    off encryption.  We seem to be near the point of diminishing
    returns here. */
 
-#ifndef GET_U32 
+#ifndef GET_U32
 #define GET_U32_cp(ptr) (  (u32)ptr[0] ^         \
                          (((u32)ptr[1]) << 8) ^  \
                          (((u32)ptr[2]) << 16) ^ \
@@ -48,7 +48,7 @@ typedef unsigned char u8;
 #define SET_U32_cp(ptr, i) { ptr[0] = (i)     & 0xff; \
                              ptr[1] = (i>>8)  & 0xff; \
                              ptr[2] = (i>>16) & 0xff; \
-                             ptr[3] = (i>>24) & 0xff; } 
+                             ptr[3] = (i>>24) & 0xff; }
 #define GET_U32(ptr)   GET_U32_cp(((u8*)(ptr)))
 #define SET_U32(ptr,i) SET_U32_cp(((u8*)(ptr)), i)
 #define INCR_U32(ptr, i) { i = GET_U32(ptr)+1; SET_U32(ptr,i); }
@@ -73,7 +73,7 @@ mm_incr(u32 const* ctr32)
 
 void
 mm_aes_counter128(const char *in, char *out, unsigned int len, AES_KEY *key,
-                  unsigned long count) 
+                  unsigned long count)
 {
 	unsigned char counter[16];
 	unsigned char tmp[16];
@@ -90,7 +90,7 @@ mm_aes_counter128(const char *in, char *out, unsigned int len, AES_KEY *key,
 		AES_encrypt(counter, tmp, key);
 		do {
 			*(out++) = *(in++) ^ tmp[count];
-			if (--len == 0) return; 
+			if (--len == 0) return;
 		} while (++count != 16);
 		mm_incr(CTR32);
 		count = 0;

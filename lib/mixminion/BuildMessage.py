@@ -1,16 +1,16 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.21 2002/12/11 05:53:32 nickm Exp $
+# $Id: BuildMessage.py,v 1.22 2002/12/12 19:56:46 nickm Exp $
 
 """mixminion.BuildMessage
 
-   Code to construct messages and reply blocks, and to decode received 
+   Code to construct messages and reply blocks, and to decode received
    message payloads."""
 
 import zlib
 import operator
+import mixminion.Crypto as Crypto
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG
-import mixminion.Crypto as Crypto
 
 __all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
            'buildReplyBlock', 'decodePayload' ]
@@ -29,7 +29,8 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 
         Neither path1 nor path2 may be empty.
     """
-    if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
+    if paddingPRNG is None: 
+	paddingPRNG = Crypto.getCommonPRNG()
     assert path1 and path2
 
     LOG.debug("Encoding forward message for %s-byte payload",len(payload))
@@ -40,7 +41,7 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 
     # Compress, pad, and checksum the payload.
     payload = _encodePayload(payload, 0, paddingPRNG)
-    
+
     # Choose a random decoding tag.
     tag = _getRandomTag(paddingPRNG)
     exitInfo = tag + exitInfo
@@ -60,7 +61,8 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
 	    paddingPRNG: random number generator used to generate padding.
 	          If None, a new PRNG is initialized.
     """
-    if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
+    if paddingPRNG is None: 
+	paddingPRNG = Crypto.getCommonPRNG()
     if secretRNG is None: secretRNG = paddingPRNG
 
     LOG.debug("Encoding encrypted forward message for %s-byte payload",
@@ -86,7 +88,7 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     lionessPart = payload[rsaDataLen:]
 
     # RSA encryption: To avoid leaking information about our RSA modulus,
-    # we keep trying to encrypt until the MSBit of our encrypted value is 
+    # we keep trying to encrypt until the MSBit of our encrypted value is
     # zero.
     while 1:
 	encrypted = Crypto.pk_encrypt(rsaPart, key)
@@ -111,7 +113,8 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     """Build a message using a reply block.  'path1' is a sequence of
        ServerInfo for the nodes on the first leg of the path.
     """
-    if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
+    if paddingPRNG is None:
+	paddingPRNG = Crypto.getCommonPRNG()
 
     LOG.debug("Encoding reply message for %s-byte payload",
 		   len(payload))
@@ -130,7 +133,7 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     return _buildMessage(payload, None, None,
                          path1=path1, path2=replyBlock)
 
-def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0, 
+def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
 			 secretPRNG=None, tag=None):
     """Helper function: makes a reply block, given a tag and a PRNG to
        generate secrets. Returns a 3-tuple containing (1) a
@@ -149,11 +152,11 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
                  is generated.
        """
     if secretPRNG is None:
-        secretPRNG = Crypto.AESCounterPRNG()
+        secretPRNG = Crypto.getCommonPRNG()
 
     LOG.debug("Building reply block for path %s",
 		   [s.getNickname() for s in path])
-    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)    
+    LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
 
     # The message is encrypted first by the end-to-end key, then by
     # each of the path keys in order. We need to reverse these steps, so we
@@ -168,7 +171,7 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
 	tag = _getRandomTag(secretPRNG)
 
     header = _buildHeader(path, headerSecrets, exitType, tag+exitInfo,
-                          paddingPRNG=Crypto.AESCounterPRNG())
+                          paddingPRNG=Crypto.getCommonPRNG())
 
     return ReplyBlock(header, expiryTime,
                       SWAP_FWD_TYPE,
@@ -181,7 +184,7 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
        reply-message recipient to remember a list of secrets.
        Instead, all secrets are generated from an AES counter-mode
        stream, and the seed for the stream is stored in the 'tag'
-       field of the final block's routing info.   (See the spec for more 
+       field of the final block's routing info.   (See the spec for more
        info).
 
                path: a list of ServerInfo objects
@@ -190,17 +193,18 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
 
        NOTE: We used to allow another kind of 'non-state-carrying' reply
        block that stored its secrets on disk, and used an arbitrary tag to
-       determine 
+       determine
        """
-    if secretRNG is None: secretRNG = Crypto.AESCounterPRNG()
+    if secretRNG is None: 
+	secretRNG = Crypto.getCommonPRNG()
 
     # We need to pick the seed to generate our keys.  To make the decoding
     # step a little faster, we find a seed such that H(seed|userKey|"Validate")
     # ends with 0.  This way, we can detect whether we really have a reply
     # message with 99.6% probability.  (Otherwise, we'd need to repeatedly
-    # lioness-decrypt the payload in order to see whether the message was 
+    # lioness-decrypt the payload in order to see whether the message was
     # a reply.)
-    
+
     # XXXX D'oh!  This enables an offline password guessing attack for
     # XXXX anybody who sees multiple tags.  We need to make sure that userKey
     # XXXX is stored on disk, and isn't a password.  This needs more thought.
@@ -211,22 +215,22 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
 
     prng = Crypto.AESCounterPRNG(Crypto.sha1(seed+userKey+"Generate")[:16])
 
-    return _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime, prng, 
+    return _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime, prng,
 				seed)[0]
 
 #----------------------------------------------------------------------
 # MESSAGE DECODING
 
-def decodePayload(payload, tag, key=None, 
+def decodePayload(payload, tag, key=None,
 		  #storedKeys=None, # 'Stateful' reply blocks are disabled.
 		  userKey=None):
     """Given a 28K payload and a 20-byte decoding tag, attempt to decode and
-       decompress the original message.  
+       decompress the original message.
 
            key: an RSA key to decode encrypted forward messages, or None
 	   userKey: our encryption key for reply blocks, or None.
-         
-       If we can successfully decrypt the payload, we return it.  If we 
+
+       If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,
        we return None.  If the payload is corrupt, we raise MixError.
     """
@@ -299,7 +303,7 @@ def _decodeEncryptedForwardPayload(payload, tag, key):
     k = Crypto.Keyset(rsaPart[:SECRET_LEN]).getLionessKeys(
 	Crypto.END_TO_END_ENCRYPT_MODE)
     rest = rsaPart[SECRET_LEN:] + Crypto.lioness_decrypt(rest, k)
-    
+
     # ... and then, check the checksum and continue.
     return _decodePayloadImpl(rest)
 
@@ -308,7 +312,7 @@ def _decodeReplyPayload(payload, secrets, check=0):
          master secrets. If 'check' is true, then 'secerets' may be overlong.
          Return values are the same as decodePayload.
       [secrets must be in _reverse_ order]
-    """ 
+    """
     # Reverse the 'decrypt' operations of the reply mixes, and the initial
     # 'decrypt' of the originating user...
     for sec in secrets:
@@ -342,7 +346,7 @@ def _buildMessage(payload, exitType, exitInfo,
               include the 20-byte decoding tag.)
        path1: a sequence of ServerInfo objects, one for each node on
           the first leg of the path.
-       path2: 
+       path2:
         EITHER
              a sequence of ServerInfo objects, one for each node
              on the second leg of the path.
@@ -373,7 +377,7 @@ def _buildMessage(payload, exitType, exitInfo,
 
     # Set up the random number generators.
     if paddingPRNG is None:
-        paddingPRNG = Crypto.AESCounterPRNG()
+	paddingPRNG = Crypto.getCommonPRNG()
     if paranoia:
         nHops = len(path1)
         if path2: nHops += len(path2)
@@ -413,7 +417,7 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
            secrets: A list of 16-byte strings to use as master-secrets for
                each of the subheaders.
            exitType: The routing type for the last node in the header
-           exitInfo: The routing info for the last node in the header. 
+           exitInfo: The routing info for the last node in the header.
                (Must include 20-byte decoding tag.)
            paddingPRNG: A pseudo-random number generator to generate padding
     """
@@ -566,7 +570,7 @@ def _getRandomTag(rng):
     return chr(b) + rng.getBytes(TAG_LEN-1)
 
 def _decodePayloadImpl(payload):
-    """Helper: try to decode an encoded payload: checks only encoding, 
+    """Helper: try to decode an encoded payload: checks only encoding,
        not encryption."""
     # Is the hash ok?
     if not _checkPayload(payload):

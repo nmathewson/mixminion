@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.12 2002/12/11 06:58:55 nickm Exp $
+# $Id: setup.py,v 1.13 2002/12/12 19:56:45 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -27,7 +27,7 @@ USE_OPENSSL=1
 if USE_OPENSSL:
     # For now, we assume that openssl-0.9.7 hasn't been released.  When this
     # changes, we can fix this rigamarole.
-    openssl_inc = os.environ.get("MM_OPENSSL_INCLUDE", 
+    openssl_inc = os.environ.get("MM_OPENSSL_INCLUDE",
  				 "./contrib/openssl/include")
     INCLUDE_DIRS=[openssl_inc]
     STATIC_LIBS=['./contrib/openssl/libssl.a', './contrib/openssl/libcrypto.a']
@@ -49,7 +49,7 @@ except:
 # Detect endian-ness
 
 #XXXX This breaks cross-compilation, but might be good enough for now.
-num = struct.pack("@I", 0x01020304) 
+num = struct.pack("@I", 0x01020304)
 big_endian = (num== "\x01\x02\x03\x04")
 little_endian = (num=="\x04\x03\x02\x01")
 other_endian = not (big_endian or little_endian)

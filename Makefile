@@ -1,9 +1,9 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.14 2002/12/07 03:53:25 nickm Exp $
+# $Id: Makefile,v 1.15 2002/12/12 19:56:45 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
-# the shell variable '$PYTHON' to a working python2 interpreter.  
+# the shell variable '$PYTHON' to a working python2 interpreter.
 #
 # (This is nontrivial because not all python2 installers install a command
 # called 'python2'.)
@@ -78,7 +78,7 @@ pychecker: do_build
 	( export PYTHONPATH=.; cd build/lib*; pychecker -F ../../pycheckrc ./mixminion/*.py )
 
 lines:
-	wc -l src/*.[ch] lib/*/*.py
+	wc -l src/*.[ch] lib/*/*.py lib/*/*/*.py
 
 xxxx:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
@@ -88,8 +88,12 @@ xxxx001:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
 	   | xargs -0 grep 'XXXX001\|FFFF001\|DOCDOC\|????001'
 
+longlines:
+	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
+	   | xargs -0 grep '^.{80,}'
+
 #
-# Targets to make openssl get built properly.  
+# Targets to make openssl get built properly.
 #
 OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7-beta4.tar.gz
 OPENSSL_FILE = openssl-0.9.7-beta4.tar.gz

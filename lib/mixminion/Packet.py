@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.20 2002/12/11 05:53:33 nickm Exp $
+# $Id: Packet.py,v 1.21 2002/12/12 19:56:46 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -208,7 +208,7 @@ class Subheader:
 	assert self.routingtype >= MIN_EXIT_TYPE
 	assert len(self.routinginfo) >= TAG_LEN
 	return self.routinginfo[TAG_LEN:]
-    
+
     def getTag(self):
 	"""Return the part of the routingInfo that contains the decoding
 	   tag. (Requires that routingType is an exit type.)"""
@@ -291,7 +291,7 @@ FRAGMENT_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
 ENC_FWD_OVERHEAD = OAEP_OVERHEAD - TAG_LEN + SECRET_LEN
 
 def parsePayload(payload):
-    """Convert a decoded mixminion payload into a SingletonPayload or a 
+    """Convert a decoded mixminion payload into a SingletonPayload or a
        FragmentPayload object.  Raise ParseError on failure or data
        corruption."""
     if len(payload) not in (PAYLOAD_LEN, PAYLOAD_LEN-ENC_FWD_OVERHEAD):
@@ -338,7 +338,7 @@ class SingletonPayload(_Payload):
 	return 1
 
     def getContents(self):
-	"""Returns the non-padding portion of this payload's data""" 
+	"""Returns the non-padding portion of this payload's data"""
 	return self.data[:self.size]
 
     def pack(self):

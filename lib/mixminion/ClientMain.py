@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.14 2002/12/11 06:58:55 nickm Exp $
+# $Id: ClientMain.py,v 1.15 2002/12/12 19:56:46 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -25,26 +25,26 @@
 #      - Per-system directory location is a neat idea, but individual users
 #        must check signature.  That's a way better idea for later.
 
-import os
 import getopt
+import os
 import sys
 import time
 import types
 
-from mixminion.Common import LOG, floorDiv, createPrivateDir, MixError, \
-     MixFatalError, isSMTPMailbox
-import mixminion.Crypto
 import mixminion.BuildMessage
+import mixminion.Crypto
 import mixminion.MMTPClient
-from mixminion.ServerInfo import ServerInfo
+from mixminion.Common import LOG, floorDiv, MixError, MixFatalError, \
+     createPrivateDir, isSMTPMailbox
 from mixminion.Config import ClientConfig, ConfigError
+from mixminion.ServerInfo import ServerInfo
 from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo, \
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 class TrivialKeystore:
     """This is a temporary keystore implementation until we get a working
        directory server implementation.
-       
+
        The idea couldn't be simpler: we just keep a directory of files, each
        containing a single server descriptor.  We cache nothing; we validate
        everything; we have no automatic path generation.  Servers can be
@@ -57,11 +57,11 @@ class TrivialKeystore:
     ## Fields:
     # directory: path to the directory we scan for server descriptors.
     # byNickname: a map from nickname to valid ServerInfo object.
-    # byFilename: a map from filename within self.directory to valid 
+    # byFilename: a map from filename within self.directory to valid
     #     ServerInfo object.
     def __init__(self, directory, now=None):
 	"""Create a new TrivialKeystore to access the descriptors stored in
-	   directory.  Selects descriptors that are valid at the time 'now', 
+	   directory.  Selects descriptors that are valid at the time 'now',
 	   or at the current time if 'now' is None."""
 	self.directory = directory
 	createPrivateDir(directory)
@@ -135,7 +135,7 @@ class TrivialKeystore:
 			       (name, e))
 	    except ConfigError, e:
 		raise MixError("Couldn't parse descriptor %s: %s" %
-			       (name, e))	    
+			       (name, e))
 	else:
 	    return None
 
@@ -157,7 +157,7 @@ class TrivialKeystore:
 
     def getRandomServers(self, prng, n):
 	"""Returns a list of n different servers, in random order, according
-	   to prng.  Raises MixError if not enough exist.  
+	   to prng.  Raises MixError if not enough exist.
 
 	   (This isn't actually used.)"""
 	vals = self.byNickname.values()
@@ -218,7 +218,7 @@ class MixminionClient:
 	    os.path.join(userdir,"servers"))
 
 	# Initialize PRNG
-	self.prng = mixminion.Crypto.AESCounterPRNG()
+	self.prng = mixminion.Crypto.getCommonPRNG()
 
     def sendForwardMessage(self, address, payload, path1, path2):
 	"""Generate and send a forward message.
@@ -233,14 +233,14 @@ class MixminionClient:
 	self.sendMessages([message], firstHop)
 
     def generateForwardMessage(self, address, payload, path1, path2):
-	"""Generate a forward message, but do not send it.  Returns 
+	"""Generate a forward message, but do not send it.  Returns
 	   a tuple of (the message body, a ServerInfo for the first hop.)
 
 	    address -- the results of a parseAddress call
 	    payload -- the contents of the message to send
 	    path1,path2 -- lists of servers or server names for the first and
 	       second legs of the path, respectively.  These are processed
-	       as described in TrivialKeystore.getServerInfo"""	
+	       as described in TrivialKeystore.getServerInfo"""
         if not path1:
 	    raise MixError("No servers in first leg of path")
 	if not path2:
@@ -265,7 +265,7 @@ class MixminionClient:
 	else:
 	    servers2.append(self.keystore.getServerInfo(lastHop))
 	msg = mixminion.BuildMessage.buildForwardMessage(
-	    payload, routingType, routingInfo, servers1, servers2, 
+	    payload, routingType, routingInfo, servers1, servers2,
 	    self.prng)
 	return msg, servers1[0]
 
@@ -291,7 +291,7 @@ def parseAddress(s):
            OR smtp:<email address>
 	   OR <email address> (smtp is implicit)
 	   OR drop
-	   OR 0x<routing type>:<routing info> 
+	   OR 0x<routing type>:<routing info>
     """
     # ???? Should this should get refactored into clientmodules, or someplace?
     if s.lower() == 'drop':

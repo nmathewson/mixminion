@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.17 2002/12/11 06:58:55 nickm Exp $
+# $Id: benchmark.py,v 1.18 2002/12/12 19:56:46 nickm Exp $
 
 """mixminion.benchmark
 
@@ -10,12 +10,26 @@
    >>> mixminion.benchmark.timeAll()
 
    """
-
-from time import time
-from mixminion.testSupport import mix_mktemp
-
 __pychecker__ = 'no-funcdoc no-reimport'
 __all__ = [ 'timeAll', 'testLeaks1', 'testLeaks2' ]
+
+
+import os
+import stat
+from time import time
+
+import mixminion._minionlib as _ml
+from mixminion.BuildMessage import _buildHeader, buildForwardMessage
+from mixminion.Common import secureDelete, installSignalHandlers, \
+     waitForChildren
+from mixminion.Crypto import *
+from mixminion.Crypto import OAEP_PARAMETER
+from mixminion.Crypto import _add_oaep_padding, _check_oaep_padding
+from mixminion.Packet import SMTP_TYPE
+from mixminion.server.HashLog import HashLog
+from mixminion.server.PacketHandler import PacketHandler
+from mixminion.test import FakeServerInfo
+from mixminion.testSupport import mix_mktemp
 
 # If PRECISION_FACTOR is >1, we time everything for PRECISION_FACTOR times
 # more iterations than ususal.
@@ -74,10 +88,6 @@ def spacestr(n):
         return "%d GB" % (n >> 30)
 
 #----------------------------------------------------------------------
-import mixminion._minionlib as _ml
-from Crypto import *
-from Crypto import _add_oaep_padding, _check_oaep_padding
-from Crypto import OAEP_PARAMETER
 
 short = "Hello, Dali!"
 s20b = "ABCDEFGHIJKLMNOPQRST"
@@ -163,7 +173,7 @@ def cryptoTiming():
 	  timeit((lambda c=c,L=L1000: c.shuffle(L)), 30)
     print "aesprng.shuffle (10/1000)", \
 	  timeit((lambda c=c,L=L1000: c.shuffle(L,10)), 1000)
-    
+
     lkey = Keyset("keymaterial foo bar baz").getLionessKeys("T")
     print "lioness E (1K)", timeit((
         lambda lkey=lkey: lioness_encrypt(s1K, lkey)), 1000)
@@ -269,8 +279,6 @@ def cryptoTiming():
     print "Timing overhead: %s...%s" % (timestr(min(o)),timestr(max(o)))
 
 #----------------------------------------------------------------------
-import os
-import stat
 
 def hashlogTiming():
     print "#==================== HASH LOGS ======================="
@@ -286,11 +294,10 @@ def hashlogTiming():
                     pass
 
 def _hashlogTiming(fname, load):
-    from mixminion.server.HashLog import HashLog
 
     # Try more realistic access patterns.
     prng = AESCounterPRNG("a"*16)
-    
+
     print "Testing hash log (%s entries)"%load
     if load > 20000:
 	print "This may take a few minutes..."
@@ -335,8 +342,6 @@ def _hashlogTiming(fname, load):
     print "File size (%s entries)"%load, spacestr(size)
 
 #----------------------------------------------------------------------
-from mixminion.BuildMessage import _buildHeader, buildForwardMessage
-from mixminion.test import FakeServerInfo
 
 def buildMessageTiming():
 
@@ -345,7 +350,7 @@ def buildMessageTiming():
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
     serverinfo = [FakeServerInfo("127.0.0.1", 48099, pk,"x"*20)
                   ] * 16
-    
+
     def bh(np,it, serverinfo=serverinfo):
         ctr = AESCounterPRNG()
 
@@ -381,9 +386,6 @@ class DummyLog:
     def seenHash(self,h): return 0
     def logHash(self,h): pass
 
-from mixminion.server.PacketHandler import PacketHandler
-from mixminion.Packet import SMTP_TYPE
-
 def serverProcessTiming():
     print "#================= SERVER PROCESS ====================="
 
@@ -411,7 +413,7 @@ def timeEfficiency():
     # its efficiency.  If function X is pretty efficient, there's not much
     # reason to try to optimise its implementation; instead, we need to attack
     # the functions it uses.
-    
+
     ##### LIONESS
 
     shakey = "z"*20
@@ -498,9 +500,6 @@ def timeEfficiency():
 
 #----------------------------------------------------------------------
 
-from mixminion.Common import secureDelete, installSignalHandlers, \
-     waitForChildren
-
 def fileOpsTiming():
     print "#================= File ops ====================="
     installSignalHandlers(child=1,hup=0,term=0)
@@ -520,7 +519,7 @@ def fileOpsTiming():
 
     waitForChildren()
     t = time()-t1
-    print "               (sync)", timestr(t) 
+    print "               (sync)", timestr(t)
 
     lst = [ os.path.join(dname,str(i)) for i in range(100,200) ]
     t1 = time()
@@ -531,9 +530,9 @@ def fileOpsTiming():
 
     waitForChildren()
     t = time()-t1
-    print "          (sync)", timestr(t/100) 
+    print "          (sync)", timestr(t/100)
 
-        
+
 #----------------------------------------------------------------------
 def testLeaks1():
     print "Trying to leak (sha1,aes,xor,seed,oaep)"
