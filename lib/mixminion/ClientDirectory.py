@@ -286,8 +286,8 @@ class ClientDirectory:
             if s.getNickname() == nickname:
                 if not mixminion.Crypto.pk_same_public_key(identity,
                                                            s.getIdentity()):
-                    raise MixError("Identity key changed for server %s in %s",
-                                   nickname, filename)
+                    raise MixError("Identity key changed for server %s in %s"%(
+                                   nickname, filename))
 
         # Have we already imported this server?
         if self.digestMap.get(info.getDigest(), "X").startswith("I:"):
