@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.64 2003/02/17 16:14:36 nickm Exp $
+# $Id: Common.py,v 1.65 2003/02/20 01:54:44 nickm Exp $
 
 """mixminion.Common
 
@@ -14,6 +14,7 @@ __all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
             'previousMidnight', 'readPossiblyGzippedFile', 'secureDelete',
             'stringContains', 'succeedingMidnight', 'waitForChildren' ]
 
+import base64
 import binascii
 import bisect
 import calendar
@@ -120,11 +121,17 @@ def stripSpace(s, space=" \t\v\n"):
     """Remove all whitespace from s."""
     return s.translate(_ALLCHARS, space)
 
-def formatBase64(s):
-    """Convert 's' to a one-line base-64 representation."""
-    return binascii.b2a_base64(s).strip()
-
-def encodeBase64(s, lineWidth=64):
+if sys.version_info[0:3] >= (2,1,0):
+    def formatBase64(s):
+        """Convert 's' to a one-line base-64 representation."""
+        return binascii.b2a_base64(s).strip()
+else:
+    # Python 2.0 didin't allow a binascii to return more than one line.
+    def formatBase64(s):
+        """Convert 's' to a one-line base-64 representation."""
+        return encodeBase64(s, 64, 1)
+    
+def encodeBase64(s, lineWidth=64, oneline=0):
     """Convert 's' to a multiline base-64 representation.  Improves upon
        base64.encodestring by having a variable line width.  Implementation
        is based upon that function.
@@ -135,7 +142,10 @@ def encodeBase64(s, lineWidth=64):
     for i in xrange(0, len(s), bytesPerLine):
         chunk = s[i:i+bytesPerLine]
         pieces.append(binascii.b2a_base64(chunk))
-    return "".join(pieces)
+    if oneline:
+        return "".join([ s.strip() for s in pieces ])
+    else:
+        return "".join(pieces)
     
 #----------------------------------------------------------------------
 def createPrivateDir(d, nocreate=0):
