@@ -66,9 +66,9 @@ For 0.0.7:
                 . Fragment-pool logic for client
                         o Implement
                         - Test
-        - Pending bugs from email
-                - Better response to failed bind(2)
-                - Don't make errors kill 'mixminion shell'.
+        o Pending bugs from email
+                o Better response to failed bind(2)
+                o Don't make errors kill 'mixminion shell'.
         - Windows stuff
                 - Must include openssl libs with python-needed installer
                 - Use new version of py2exe

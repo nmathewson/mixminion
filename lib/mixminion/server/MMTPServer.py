@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.80 2004/02/16 22:50:38 nickm Exp $
+# $Id: MMTPServer.py,v 1.81 2004/03/01 07:18:02 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -32,7 +32,7 @@ import mixminion.ServerInfo
 import mixminion.TLSConnection
 import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
-     LOG, stringContains, floorDiv
+     LOG, stringContains, floorDiv, UIError
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Packet import PACKET_LEN, DIGEST_LEN, IPV4Info, MMTPHostInfo
 from mixminion.MMTPClient import PeerCertificateCache, MMTPClientConnection
@@ -304,9 +304,15 @@ class ListenConnection(Connection):
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             self.sock.bind((self.ip, self.port))
-        except socket.error, e:
-            raise MixFatalError("Error while trying to bind to %s:%s: %s"%(
-                self.ip, self.port, e))
+        except socket.error, (err,msg):
+            extra = ""
+            code = errno.errorcode.get(err)
+            if code in ["EADDRNOTAVAIL", "WSAEADDRNOTAVAIL"]:
+                extra = " (Is that really your IP address?)"
+            elif code == "EACCES":
+                extra = " (Remember, only root can bind low ports)"
+            raise UIError("Error while trying to bind to %s:%s: %s%s"%(
+                self.ip, self.port, msg, extra))
         self.sock.listen(backlog)
         self.connectionFactory = connectionFactory
         self.isOpen = 1
