@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.19 2004/05/14 23:43:04 nickm Exp $
+# $Id: Filestore.py,v 1.20 2004/05/17 05:19:07 nickm Exp $
 
 """mixminion.Filestore
 
@@ -871,6 +871,12 @@ class WritethroughDict:
 
     def keys(self):
         return self.cache.keys()
+
+    def values(self):
+        return self.cache.values()
+
+    def items(self):
+        return self.cache.items()
 
     def load(self):
         keys = self.db.keys()

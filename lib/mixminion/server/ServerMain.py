@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.126 2004/05/14 23:41:17 nickm Exp $
+# $Id: ServerMain.py,v 1.127 2004/05/17 05:19:09 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -307,7 +307,7 @@ class MixPool:
            mix."""
         return now + self.queue.getInterval()
 
-class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
+class OutgoingQueue(mixminion.server.ServerQueue.PerAddressDeliveryQueue):
     """DeliveryQueue to send packets via outgoing MMTP connections.  All
        methods on this class are called from the main thread.  The underlying
        objects in this queue are instances of RelayedPacket.

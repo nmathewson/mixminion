@@ -17,7 +17,17 @@ For 0.0.8:
           no matter how hard OpenSSL makes it.
         . Dummies and pinging
                 o Refactor ClientDirectory to be more modular
-                - Retrying needs to be per-destination, not per-packet.
+                o Retrying needs to be per-destination, not per-packet.
+                        o Implement per-destination queue
+                        o Tests for per-destination queue
+                        o Make MMTP delivery use per-destination queue.
+                        o Test upgrade path.
+                - Implement pinging
+                        - Generate pings
+                        - Log pings, failed connects, successful connects
+                        - Grovel over ping logs as needed
+                        - Generate statistics from logs; remember stats
+                          across invocations.
         - Distributed directories
         . Bugs
                 o Make tests pass with bizarre umasks.  (Try 0077, 0000,
