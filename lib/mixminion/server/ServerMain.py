@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.86 2003/07/15 15:30:56 nickm Exp $
+# $Id: ServerMain.py,v 1.87 2003/07/24 17:37:16 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -52,6 +52,7 @@ from mixminion.Common import MessageQueue, ClearableQueue, QueueEmpty
 
 import mixminion.Config
 import mixminion.Crypto
+import mixminion.Filestore
 import mixminion.server.MMTPServer
 import mixminion.server.Modules
 import mixminion.server.PacketHandler
@@ -118,7 +119,7 @@ is too old to recognize."""
 
     return 1
 
-class IncomingQueue(mixminion.server.ServerQueue.Queue):
+class IncomingQueue(mixminion.Filestore.StringStore):
     """A Queue to accept packets from incoming MMTP connections,
        and hold them until they can be processed.  As packets arrive, and
        are stored to disk, we notify a message queue so that another thread
@@ -130,7 +131,7 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
     def __init__(self, location, packetHandler):
         """Create an IncomingQueue that stores its messages in <location>
            and processes them through <packetHandler>."""
-        mixminion.server.ServerQueue.Queue.__init__(self, location, create=1)
+        mixminion.Filestore.StringStore.__init__(self, location, create=1)
         self.packetHandler = packetHandler
         self.mixPool = None
 

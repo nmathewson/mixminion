@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.48 2003/07/13 03:45:35 nickm Exp $
+# $Id: Modules.py,v 1.49 2003/07/24 17:37:16 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -27,6 +27,7 @@ else:
 
 import mixminion.BuildMessage
 import mixminion.Config
+import mixminion.Filestore
 import mixminion.Packet
 import mixminion.server.ServerQueue
 import mixminion.server.ServerConfig
@@ -949,7 +950,7 @@ class MixmasterSMTPModule(SMTPModule):
     def createDeliveryQueue(self, queueDir):
         # We create a temporary queue so we can hold files there for a little
         # while before passing their names to mixmaster.
-        self.tmpQueue = mixminion.server.ServerQueue.Queue(queueDir+"_tmp", 1, 1)
+        self.tmpQueue = mixminion.Filestore.StringStore(queueDir+"_tmp", 1, 1)
         self.tmpQueue.removeAll()
         return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
 

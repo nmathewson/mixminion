@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.49 2003/07/14 15:38:50 nickm Exp $
+# $Id: Crypto.py,v 1.50 2003/07/24 17:37:16 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -479,6 +479,9 @@ assert sys.maxint >= 0x7fffffff
 # Magic number used for normal distribution
 NV_MAGICCONST = 4 * math.exp(-0.5)/math.sqrt(2.0)
 
+# Flag: is the filesystem case-insensitive?
+FS_IS_CASEI = sys.platform in ('cygwin', 'win32')
+
 class RNG:
     '''Base implementation class for random number generators.  Works
        by requesting a bunch of bytes via self._prng, and doling them
@@ -601,6 +604,8 @@ class RNG:
         while 1:
             bytes = self.getBytes(6)
             base = binascii.b2a_base64(bytes).strip().replace("/","-")
+            if FS_IS_CASEI:
+                base = base.lower()
             fname = os.path.join(dir, "%s%s"%(prefix,base))
             try:
                 fd = os.open(fname, flags, 0600)

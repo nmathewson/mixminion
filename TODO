@@ -8,7 +8,6 @@ SPEC    - Spec not finalized
         D Deferred
         X Abandoned
 
-
 For a list of good beginner projects, check out HACKING.
 
 NEEDS TO BE WRITTEN:
@@ -43,15 +42,17 @@ For 0.0.5:
                         o Real RNG via CryptGenRandom() 
                 o Twisted port decision
                 o Website work
+        o Refactor filestore logic out of ServerQueue
+                o Refactor
+                o Refactor deliveryqueue from is-a to has-a.
+                o Refactor clientqueue
+                o Rephrase tests to use new names.
+                o Remove old 'Queue' class.
+                o Tests for metadata methods
         . Initial support for email headers (client side)
                 o Implement
                 - Give error messages on bad headers
                 - Test
-        . Refactor filestore logic out of ServerQueue
-                o Refactor
-                - Rephrase tests to use new names.
-                - Refactor deliveryqueue from is-a to has-a.
-                - Refactor clientqueue
         . Support for large messages and K-of-N
                 o fec backend code
                 o Tests and timing for fec backend

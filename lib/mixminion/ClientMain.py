@@ -28,6 +28,7 @@ from types import ListType
 
 import mixminion.BuildMessage
 import mixminion.Crypto
+import mixminion.Filestore
 import mixminion.MMTPClient
 
 from mixminion.Common import AtomicFile, IntervalSet, LOG, floorDiv, \
@@ -1293,27 +1294,33 @@ class ClientQueue:
     # XXXX change this to be OO; add nicknames.
 
     # XXXX write unit tests
+    #
+    # DOCDOC fields have changed.
 
     def __init__(self, directory, prng=None):
         """Create a new ClientQueue object, storing packets in 'directory'
            and generating random filenames using 'prng'."""
         self.dir = directory
         createPrivateDir(directory)
-        if prng is not None:
-            self.prng = prng
-        else:
-            self.prng = mixminion.Crypto.getCommonPRNG()
+        # We used to name entries "pkt_X"; this has changed.
+        #
+        for fn in os.listdir(directory):
+            if fn.startswith("pkt_"):
+                handle = fn[4:]
+                fname_old = os.path.join(directory, fn)
+                fname_new = os.path.join(directory, "msg_"+handle)
+                os.rename(fname_old, fname_new)
+        
+        self.store = mixminion.Filestore.ObjectStore(
+            directory, create=1, scrub=1)
 
     def queuePacket(self, message, routing):
         """Insert the 32K packet 'message' (to be delivered to 'routing')
            into the queue.  Return the handle of the newly inserted packet."""
         clientLock()
         try:
-            f, handle = self.prng.openNewFile(self.dir, "pkt_", 1)
-            cPickle.dump(("PACKET-0", message, routing,
-                          previousMidnight(time.time())), f, 1)
-            f.close()
-            return handle
+            fmt = ("PACKET-0", message, routing, previousMidnight(time.time()))
+            return self.store.queueObject(fmt)
         finally:
             clientUnlock()
 
@@ -1322,12 +1329,7 @@ class ClientQueue:
            queue."""
         clientLock()
         try:
-            fnames = os.listdir(self.dir)
-            handles = []
-            for fname in fnames:
-                if fname.startswith("pkt_"):
-                    handles.append(fname[4:])
-            return handles
+            return self.store.getAllMessages()
         finally:
             clientUnlock()
 
@@ -1335,8 +1337,11 @@ class ClientQueue:
         """Given a handle, return a 3-tuple of the corresponding
            32K packet, IPV4Info, and time of first queueing.  (The time
            is rounded down to the closest midnight GMT.)"""
-        fname = os.path.join(self.dir, "pkt_"+handle)
-        magic, message, routing, when = readPickled(fname)
+        obj = self.store.getObject(handle)
+        try:
+            magic, message, routing, when = obj
+        except (ValueError, TypeError):
+            magic = None
         if magic != "PACKET-0":
             LOG.error("Unrecognized packet format for %s",handle)
             return None
@@ -1345,13 +1350,12 @@ class ClientQueue:
     def packetExists(self, handle):
         """Return true iff the queue contains a packet with the handle
            'handle'."""
-        fname = os.path.join(self.dir, "pkt_"+handle)
-        return os.path.exists(fname)
+        return self.store.messageExists(handle)
 
     def removePacket(self, handle):
         """Remove the packet named with the handle 'handle'."""
-        fname = os.path.join(self.dir, "pkt_"+handle)
-        secureDelete(fname, blocking=1)
+        self.store.removeMessage(handle)
+        self.store.cleanQueue()
 
     def inspectQueue(self, now=None):
         """Print a message describing how many messages in the queue are headed
@@ -1388,11 +1392,128 @@ class ClientQueue:
                 remove.append(h)
         LOG.info("Removing %s old messages from queue", len(remove))
         for h in remove:
-            self.removePacket(h)
+            self.store.removeMessage(h)
+        self.store.cleanQueue()
+
+## class ClientQueue:
+##     """A ClientQueue holds packets that have been scheduled for delivery
+##        but not yet delivered.  As a matter of policy, we queue messages if
+##        the user tells us to, or if deliver has failed and the user didn't
+##        tell us not to."""
+##     ## Fields:
+##     # dir -- a directory to store packets in.
+##     # prng -- an instance of mixminion.Crypto.RNG.
+##     ## Format:
+##     # The directory holds files with names of the form pkt_<handle>.
+##     # Each file holds pickled tuple containing:
+##     #           ("PACKET-0",
+##     #             a 32K string (the packet),
+##     #             an instance of IPV4Info (the first hop),
+##     #             the latest midnight preceding the time when this
+##     #                 packet was inserted into the queue
+##     #           )
+##     # XXXX change this to be OO; add nicknames.
+
+##     # XXXX write unit tests
+
+##     def __init__(self, directory, prng=None):
+##         """Create a new ClientQueue object, storing packets in 'directory'
+##            and generating random filenames using 'prng'."""
+##         self.dir = directory
+##         createPrivateDir(directory)
+##         if prng is not None:
+##             self.prng = prng
+##         else:
+##             self.prng = mixminion.Crypto.getCommonPRNG()
+
+##     def queuePacket(self, message, routing):
+##         """Insert the 32K packet 'message' (to be delivered to 'routing')
+##            into the queue.  Return the handle of the newly inserted packet."""
+##         clientLock()
+##         try:
+##             f, handle = self.prng.openNewFile(self.dir, "pkt_", 1)
+##             cPickle.dump(("PACKET-0", message, routing,
+##                           previousMidnight(time.time())), f, 1)
+##             f.close()
+##             return handle
+##         finally:
+##             clientUnlock()
+
+##     def getHandles(self):
+##         """Return a list of the handles of all messages currently in the
+##            queue."""
+##         clientLock()
+##         try:
+##             fnames = os.listdir(self.dir)
+##             handles = []
+##             for fname in fnames:
+##                 if fname.startswith("pkt_"):
+##                     handles.append(fname[4:])
+##             return handles
+##         finally:
+##             clientUnlock()
+
+##     def getPacket(self, handle):
+##         """Given a handle, return a 3-tuple of the corresponding
+##            32K packet, IPV4Info, and time of first queueing.  (The time
+##            is rounded down to the closest midnight GMT.)"""
+##         fname = os.path.join(self.dir, "pkt_"+handle)
+##         magic, message, routing, when = readPickled(fname)
+##         if magic != "PACKET-0":
+##             LOG.error("Unrecognized packet format for %s",handle)
+##             return None
+##         return message, routing, when
+
+##     def packetExists(self, handle):
+##         """Return true iff the queue contains a packet with the handle
+##            'handle'."""
+##         fname = os.path.join(self.dir, "pkt_"+handle)
+##         return os.path.exists(fname)
+
+##     def removePacket(self, handle):
+##         """Remove the packet named with the handle 'handle'."""
+##         fname = os.path.join(self.dir, "pkt_"+handle)
+##         secureDelete(fname, blocking=1)
+
+##     def inspectQueue(self, now=None):
+##         """Print a message describing how many messages in the queue are headed
+##            to which addresses."""
+##         if now is None:
+##             now = time.time()
+##         handles = self.getHandles()
+##         if not handles:
+##             print "[Queue is empty.]"
+##             return
+##         timesByServer = {}
+##         for h in handles:
+##             _, routing, when = self.getPacket(h)
+##             timesByServer.setdefault(routing, []).append(when)
+##         for s in timesByServer.keys():
+##             count = len(timesByServer[s])
+##             oldest = min(timesByServer[s])
+##             days = floorDiv(now - oldest, 24*60*60)
+##             if days < 1:
+##                 days = "<1"
+##             print "%2d messages for server at %s:%s (oldest is %s days old)"%(
+##                 count, s.ip, s.port, days)
+
+##     def cleanQueue(self, maxAge, now=None):
+##         """Remove all messages older than maxAge seconds from this
+##            queue."""
+##         if now is None:
+##             now = time.time()
+##         cutoff = now - maxAge
+##         remove = []
+##         for h in self.getHandles():
+##             when = self.getPacket(h)[2]
+##             if when < cutoff:
+##                 remove.append(h)
+##         LOG.info("Removing %s old messages from queue", len(remove))
+##         for h in remove:
+##             self.removePacket(h)
 
 class MixminionClient:
-    """Access point for client functionality.  Currently, this is limited
-       to generating and sending forward messages"""
+    """Access point for client functionality."""
     ## Fields:
     # config: The ClientConfig object with the current configuration
     # prng: A pseudo-random number generator for padding and path selection
