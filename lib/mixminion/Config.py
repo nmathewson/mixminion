@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.83 2004/03/23 00:24:31 nickm Exp $
+# $Id: Config.py,v 1.84 2004/03/23 03:03:36 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -992,6 +992,9 @@ class ClientConfig(_ConfigFile):
                        'BlockServers' : ('ALLOW*', 'list', ""),
                        'BlockEntries' : ('ALLOW*', 'list', ""),
                        'BlockExits' : ('ALLOW*', 'list', ""),
+                       #XXXX008; remove these; they've been disabled since 007
+                       'PathLength' : ('ALLOW', None, None),
+                       'SURBPathLength' : ('ALLOW', None, None),
                        },
         'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", None),
                       'Timeout' : ('ALLOW', "interval", None) }
@@ -1025,6 +1028,15 @@ class ClientConfig(_ConfigFile):
             LOG.warn("Very short network timeout")
         elif int(t) > 120:
             LOG.warn("Very long network timeout")
+
+        #XXXX008 safe to remove; has warned since 007rc2
+        security = self.get('Security', {})
+        for deprecatedKey, altKey in [('PathLength', 'ForwardPath'),
+                                      ('SURBPathLength', 'SURBPath')]:
+            if security.get(deprecatedKey,None) is not None:
+                v = security[deprecatedKey]
+                LOG.warn("The %s option in your .mixminionrc is no longer supported; use '%s: *%s' instead",
+                         deprecatedKey, altKey, v)
 
     def getTimeout(self):
         """Return the network timeout in this configuration."""

@@ -785,7 +785,7 @@ class CLIArgumentParser:
     def __init__(self, opts,
                  wantConfig=0, wantClientDirectory=0, wantClient=0, wantLog=0,
                  wantDownload=0, wantForwardPath=0, wantReplyPath=0,
-                 minHops=0, ignoreOptions=[]):
+                 ignoreOptions=[]):
         """Parse the command line options 'opts' as returned by getopt.getopt.
 
            wantConfig -- If true, accept options pertaining to the config file,
@@ -802,7 +802,6 @@ class CLIArgumentParser:
               path (for forward or reply messages), and enable self.parsePath.
            wantReplyPath -- If true, accept options to specify a path for
               a reply block, and enable self.parsePath.
-           minHops -- Smallest allowable value for -H option.
         """
         self.config = None
         self.directory = None
@@ -830,7 +829,6 @@ class CLIArgumentParser:
         self.password_fileno = None
 
         self.path = None
-        self.nHops = None
         self.exitAddress = None
         self.lifetime = None
         self.replyBlockSources = []
@@ -880,15 +878,8 @@ class CLIArgumentParser:
                 except ValueError:
                     raise UIError("%s expects an integer"%o)
             elif o in ('-H', '--hops'):
-                assert wantForwardPath or wantReplyPath
-                if self.nHops is not None:
-                    raise UIError("Multiple %s arguments specified"%o)
-                try:
-                    self.nHops = int(v)
-                    if minHops and self.nHops < minHops:
-                        raise UIError("Must have at least %s hops" % minHops)
-                except ValueError:
-                    raise UIError("%s expects an integer"%o)
+                raise UIError("The %s flag is deprecated; use -P '*%s' instead"
+                              %(o,v))
             elif o in ('-P', '--path'):
                 assert wantForwardPath or wantReplyPath
                 if self.path is not None:
@@ -911,11 +902,6 @@ class CLIArgumentParser:
                 self.forceQueue = 1
             elif o in ('--no-queue',):
                 self.forceNoQueue = 1
-
-        if self.nHops and not self.path:
-            self.path = '*%d'% self.nHops
-        elif self.nHops:
-            raise UIError("You cannot specify both a path (-P/--path) and a number of hops (-H/--hops)")
 
         if self.quiet and self.verbose:
             raise UsageError("I can't be quiet and verbose at the same time.")
@@ -1377,7 +1363,7 @@ Options:
                              Force the client to download/not to download a
                                fresh directory.
 
-  -R, --recommended          Only display recommended servers.
+  -r, --recommended          Only display recommended servers.
   -T, --with-time            Display validity intervals for server descriptors.
   --no-collapse              Don't combine descriptors with adjacent times.
   -s <str>,--separator=<str> Separate features with <str> instead of tab.
@@ -1397,7 +1383,7 @@ EXAMPLES:
 def listServers(cmd, args):
     """[Entry point] Print info about servers in the directory, or on
        the command line."""
-    options, args = getopt.getopt(args, "hf:D:vQF:JTRs:cC",
+    options, args = getopt.getopt(args, "hf:D:vQF:JTrRs:cC",
                                   ['help', 'config=', "download-directory=",
                                    'verbose', 'quiet', 'feature=', 'justify',
                                    'with-time', "no-collapse", "recommended",
@@ -1426,7 +1412,11 @@ def listServers(cmd, args):
             showTime = 1
         elif opt == ('--no-collapse'):
             showTime = 2
-        elif opt in ('-R', '--recommended'):
+        elif opt in ('-r', '--recommended'):
+            goodOnly = 1
+        elif opt == '-R':
+            #XXXX009 remove; deprecated since 0.0.7
+            LOG.warn("The -R option is deprecated. Please say -r instead.")
             goodOnly = 1
         elif opt in ('-s', '--separator'):
             separator = val

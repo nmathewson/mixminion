@@ -86,6 +86,7 @@ For 0.0.7rc2:
         o Don't report empty directories as having a "blank line 1."
         o Rename ConnectionTimeout to Timeout in client MMTP.
         o Make everything that takes -i default to read-from-stdin.
+        o Disable -H/--hops; give good errors on PathLength, SURBPathLength
 
 Deferred from 0.0.7:
         - Specification
