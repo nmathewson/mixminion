@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.17 2004/12/13 00:56:48 nickm Exp $
+# $Id: Pinger.py,v 1.18 2004/12/13 07:02:30 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -700,7 +700,7 @@ class PingLog:
         print >>f, "\n# Map from server to list of (period-start, period-end, fractional uptime"
         print >>f, "SERVER_UPTIMES = {"
         cur.execute("SELECT start,end,name,uptime FROM uptimes "
-                    "WHERE start >= %s AND end <= %s"
+                    "WHERE start >= %s AND start <= %s"
                     "ORDER BY name, start", (since, now))
         lastServer = "---"
         for s,e,n,u in cur:
@@ -719,7 +719,7 @@ class PingLog:
         print >>f, "SERVER_DAILY_PING_STATUS = {"
         cur.execute("SELECT servername,startAt,endAt,nSent,nReceived,"
                     "  latency,reliability FROM echolotOneHopResults "
-                    "WHERE startat >= %s AND endat <= %s"
+                    "WHERE startat >= %s AND startat <= %s"
                     "ORDER BY servername, startat", (since, now))
         lastServer = "---"
         for n,s,e,nS,nR,lat,r in cur:
