@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.30 2003/05/28 06:37:37 nickm Exp $
+# $Id: MMTPServer.py,v 1.31 2003/05/30 04:58:42 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -447,7 +447,8 @@ class SimpleTLSConnection(Connection):
             if self.__state is self.__connectFn:
                 warn("Couldn't connect to server %s", self.address)
             else:
-                warn("Unexpectedly closed connection to %s", self.address)
+                warn("Unexpectedly closed connection to %s; state is %s",
+                     self.address, self.__state)
             self.handleFail(retriable=1)
             self.__sock.close()
             self.__server.unregister(self)
@@ -456,9 +457,11 @@ class SimpleTLSConnection(Connection):
                 warn("Unexpected error: %s. Closing connection to %s.",
                      e, self.address)
                 self.shutdown(err=1, retriable=1)
+                self.__handleAll() # Try another round of the loop.
             else:
                 warn("Error while shutting down: closing connection to %s",
                      self.address)
+                self.__sock.close()
                 self.__server.unregister(self)
                 self.handleFail(1)
         else:
@@ -481,6 +484,10 @@ class SimpleTLSConnection(Connection):
         """Begin a shutdown on this connection"""
         if err:
             self.handleFail(retriable)
+            #self.__sock.close()
+            #self.__state = None
+            #return
+            
         self.__state = self.__shutdownFn
 
     def fileno(self):
@@ -872,6 +879,7 @@ class MMTPClientConnection(SimpleTLSConnection):
                     continue
                 self.failCallback(msg,handle,retriable)
         self._messageList = self.handleList = []
+        self._curMessage = self._curHandle = None
 
         if self.finishedCallback is not None:
             self.finishedCallback()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.16 2003/05/28 06:37:44 nickm Exp $
+# $Id: ServerQueue.py,v 1.17 2003/05/30 04:58:42 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -522,7 +522,9 @@ class DeliveryQueue(Queue):
             knownHandles = self.pending.keys() + self.sendable
             allHandles.sort()
             knownHandles.sort()
-            assert allHandles == knownHandles
+            if allHandles != knownHandles:
+                LOG.error("_repOK: %s != %s", allHandles, knownHandles)
+                assert allHandles == knownHandles
             dsHandles = self.deliveryState.keys()
             naHandles = self.nextAttempt.keys()
             dsHandles.sort()
@@ -703,7 +705,7 @@ class DeliveryQueue(Queue):
                 # This should never happen
                 LOG.error_exc(sys.exc_info(),
                               "Handle %s was not pending", handle)
-                lastAttempt = 0
+                return
 
             if retriable:
                 # If we can retry the message, update the deliveryState
