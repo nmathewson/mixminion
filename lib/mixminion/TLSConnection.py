@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.5 2004/01/12 00:49:00 nickm Exp $
+# $Id: TLSConnection.py,v 1.6 2004/01/22 05:42:07 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -384,11 +384,16 @@ class TLSConnection:
                 self.__readBlockedOnWrite = 1
                 return
 
-    def process(self, r, w):
+    def process(self, r, w, x):
         """Given that we've received read/write events as indicated in r/w,
            advance the state of the connection as much as possible.  Return
            is as in 'getStatus'."""
-        if not (r or w):
+        if x and (self.sock is not None):
+            LOG.warn("Received exception on connection to %s; closing.",
+                     self.address)
+            self.__close()
+            return 0,0,0
+        elif not (r or w):
             return self.wantRead, self.wantWrite, (self.sock is not None)
         try:
             self.lastActivity = time.time()

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.71 2004/01/12 00:49:00 nickm Exp $
+# $Id: MMTPServer.py,v 1.72 2004/01/22 05:42:07 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -146,7 +146,9 @@ class PollAsyncServer(SelectAsyncServer):
                            (1,2): select.POLLIN+select.POLLOUT+select.POLLERR }
     def process(self,timeout):
         try:
-            events = self.poll.poll(timeout)
+            # (watch out: poll takes a timeout in msec, but select takes a 
+            #  timeout in sec.)
+            events = self.poll.poll(timeout*1000)
         except select.error, e:
             if e[0] == errno.EINTR:
                 return
@@ -154,7 +156,8 @@ class PollAsyncServer(SelectAsyncServer):
                 raise e
         for fd, mask in events:
             c = self.connections[fd]
-            wr,ww,isopen = c.process(mask&select.POLLIN, mask&select.POLLOUT)
+            wr,ww,isopen = c.process(mask&select.POLLIN, mask&select.POLLOUT,
+                                     mask&(select.POLLERR|select.POLLHUP))
             if not isopen:
                 self.poll.unregister(fd)
                 del self.connections[fd]
@@ -180,7 +183,7 @@ else:
 
 class Connection:
     "A connection is an abstract superclass for asynchronous channels"
-    def process(self, r, w):
+    def process(self, r, w, x):
         """Invoked when there is data to read or write.  Must return a 3-tuple
            of (wantRead, wantWrite, isOpen)."""
         return 0,0,0
@@ -225,7 +228,8 @@ class ListenConnection(Connection):
         LOG.info("Listening at %s on port %s (fd %s)",
                  ip, port, self.sock.fileno())
 
-    def process(self, r, w):
+    def process(self, r, w, x):
+        #XXXX007 do something with x
         con, addr = self.sock.accept()
         LOG.debug("Accepted connection from %s (fd %s)", addr, con.fileno())
         self.connectionFactory(con)
@@ -255,8 +259,11 @@ class MMTPServerConnection(mixminion.TLSConnection.TLSConnection):
     MESSAGE_LEN = 6 + (1<<15) + 20
     PROTOCOL_VERSIONS = ['0.3']
     def __init__(self, sock, tls, consumer, rejectPackets=0):
+        addr,port=sock.getpeername()
+        serverName = "%s:%s (fd %s)"%(addr,port,sock.fileno())
+
         mixminion.TLSConnection.TLSConnection.__init__(
-            self, tls, sock, "%s:%s"%sock.getpeername())
+            self, tls, sock, serverName)
         EventStats.log.receivedConnection()
         self.packetConsumer = consumer
         self.junkCallback = lambda : None

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.49 2004/01/12 00:49:00 nickm Exp $
+# $Id: MMTPClient.py,v 1.50 2004/01/22 05:42:07 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -98,6 +98,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         self.targetAddr = targetAddr
         self.targetPort = targetPort
         sock = socket.socket(targetFamily, socket.SOCK_STREAM)
+        serverName += " (fd %s)"%sock.fileno()
         sock.setblocking(0)
         try:
             sock.connect((targetAddr, targetPort))
@@ -108,7 +109,8 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
                 raise e
 
         tls = context.sock(sock)
-        mixminion.TLSConnection.TLSConnection.__init__(self, tls, sock, serverName)
+        mixminion.TLSConnection.TLSConnection.__init__(self, tls, sock, 
+                                                       serverName)
 
         if targetKeyID != '\x00' * 20:
             self.targetKeyID = targetKeyID
@@ -446,7 +448,7 @@ def sendPackets(routing, packetList, timeout=300, callback=None):
 
         rfds,wfds,xfds=select.select(rfds,wfds,xfds,3)
         now = time.time()
-        wr,ww,isopen=con.process(fd in rfds, fd in wfds)
+        wr,ww,isopen=con.process(fd in rfds, fd in wfds, 0)
         if isopen:
             if con.tryTimeout(now-timeout):
                 isopen = 0
