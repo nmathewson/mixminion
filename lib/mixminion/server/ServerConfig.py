@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.28 2003/05/29 05:46:35 nickm Exp $
+# $Id: ServerConfig.py,v 1.29 2003/05/30 09:01:41 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -276,7 +276,7 @@ SERVER_SYNTAX =  {
 			 },
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', C._parseBoolean, "no"),
                             'Retry' : ('ALLOW', C._parseIntervalList,
-                                    ".5 hour for 1 day, 7 hours for 5 days"),
+                                   "every hour for 1 day, 7 hours for 5 days"),
                           'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
                           'Deny' : ('ALLOW*', C._parseAddressSet_deny, None) },
         # FFFF Missing: Queue-Size / Queue config options
