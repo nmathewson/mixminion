@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.44 2003/12/03 23:18:53 nickm Exp $
+# $Id: ServerConfig.py,v 1.45 2003/12/08 02:26:39 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -204,6 +204,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
         if v is None:
             v = self["Server"]["Homedir"]
         if v is None:
+            LOG.warn("Defaulting base directory to /var/spool/minion; this will change.")
             v = "/var/spool/minion"
         return v
 
@@ -307,10 +308,7 @@ SERVER_SYNTAX =  {
         'Host' : mixminion.Config.ClientConfig._syntax['Host'],
         'Server' : { '__SECTION__' : ('REQUIRE', None, None),
                      'BaseDir' : ("ALLOW", "filename", None),
-                     'Homedir' :
-                         ('ALLOW', "filename", "/var/spool/minion"),
-                     # DOCDOC all these file options need documentation in
-                     # DOCDOC the example mixminiond.conf.
+                     'Homedir' : ('ALLOW', "filename", None),
                      'LogFile' : ('ALLOW', "filename", None),
                      'StatsFile' : ('ALLOW', "filename", None),
                      'KeyDir' : ('ALLOW', "filename", None),
