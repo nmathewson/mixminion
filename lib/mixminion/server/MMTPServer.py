@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.61 2003/12/08 04:55:43 nickm Exp $
+# $Id: MMTPServer.py,v 1.62 2003/12/08 06:36:49 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -1211,7 +1211,7 @@ class MMTPAsyncServer(AsyncServer):
 
            It is safe to call this function from any thread.
            """
-        self.msgQueue.put((family,addr,port,keyID,deliverable))
+        self.msgQueue.put((family,addr,port,keyID,deliverable,serverName))
 
     def _sendQueuedPackets(self):
         """Helper function: Find all DNS lookup results and packets in
@@ -1225,7 +1225,7 @@ class MMTPAsyncServer(AsyncServer):
                                                 self.msgQueue.get(block=0)
             except QueueEmpty:
                 return
-            self._sendPackets(family,addr,port,keyID,deliverable)
+            self._sendPackets(family,addr,port,keyID,deliverable,serverName)
 
     def _sendPackets(self, family, ip, port, keyID, deliverable, serverName):
         """Begin sending a set of packets to a given server.
