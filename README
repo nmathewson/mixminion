@@ -204,18 +204,21 @@ To send a dummy message, specify "drop" instead of an email address, as in:
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 ========================================
 
-1) Create your own mixminiond.conf based on "etc/mixminiond.conf" from the
+1) Pick a directory for the server to use.
+
+2) Create your own mixminiond.conf based on "etc/mixminiond.conf" from the
    mixminion distribution.
 
-2) Edit mixminiond.conf to refer to your own setup.
+   You can store it anywhere you like, but it makes sense to store it in
+   a directory called 'etc' under the server's directory.
 
-3) Run your server for the first time:
+3) Edit mixminiond.conf to refer to your own setup.
+
+4) Run your server for the first time:
 
         "mixminion server -f <path to mixminiond.conf>"
 
-   {If you put mixminiond.conf in /etc, you don't need to specify the path.}
-
-4) To try out your server, clients will need a copy of your server
+5) To try out your server, clients will need a copy of your server
    descriptor, which should be stored in $SERVER_HOME/keys/key_*/ServerDesc.
 
    For example, if your mixminiond.conf contains the following line:
@@ -230,7 +233,7 @@ VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 
            mixminion import-server <filename>
 
-5) When you're ready to advertise your server, email your server descriptor
+6) When you're ready to advertise your server, email your server descriptor
    (PGP-signed, if possible) to <nickm@freehaven.net>.  I'll try out your
    server for a while, then add it to the directory.
 
