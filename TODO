@@ -200,6 +200,7 @@ For 0.0.5:
 
 For 0.0.6:
         - Dummies and pinging
+        - Rudimentary MIME support (content-type, content-encoding only.)
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
 [Release criteria: Workable replacement for type II.  At least as
@@ -229,6 +230,7 @@ not yet ready to replace type I.]
                           Needs to be bandwidth-limited.
         - End-to-end issues
                 - K-of-N fragmentation and reassembly
+                - MIME
         - Configurability
                 - Better, documented support for http proxies for
                   downloading directories.
