@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.9 2003/02/20 16:57:40 nickm Exp $
+# $Id: ServerQueue.py,v 1.10 2003/03/26 16:32:02 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -565,14 +565,22 @@ class CottrellMixQueue(TimedMixQueue):
         else:
             return []
 
-class BinomialCottrellMixQueue(CottrellMixQueue):
-    """Same algorithm as CottrellMixQueue, but instead of sending N messages
-       from the pool of size P, sends each message with probability N/P."""
+class _BinomialMixin:
+    """Mixin class.  Given a MixQueue that defines a _getBatchSize function,
+       replaces the getBatch function with one that -- instead of sending N
+       messages from a pool of size P, sends each message with probability
+       N/P."""
     def getBatch(self):
         n = self._getBatchSize()
-        if n == 0:
+        count = self.count()
+        if n == 0 or count == 0:
             return []
-        msgProbability = n / float(self.count())
+        msgProbability = n / float(count)
         rng = getCommonPRNG()
         return rng.shuffle([ h for h in self.getAllMessages()
                              if rng.getFloat() < msgProbability ])
+
+class BinomialCottrellMixQueue(_BinomialMixin,CottrellMixQueue):
+    """Same algorithm as CottrellMixQueue, but instead of sending N messages
+       from the pool of size P, sends each message with probability N/P."""
+    
