@@ -1001,15 +1001,13 @@ class ClientDirectory:
         self._lock.read_in()
         try:
             if client:
-                if not self.clientVersions:
-                    return
-                allowed = self.clientVersions.split()
+                allowed = self.clientVersions
             else:
-                if not self.serverVersions:
-                    return
-                allowed = self.serverVersions.split()
+                allowed = self.serverVersions
         finally:
             self._lock.read_out()
+
+        if not allowed: return
 
         current = mixminion.__version__
         if current in allowed:
