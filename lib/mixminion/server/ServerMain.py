@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.57 2003/05/27 17:24:49 nickm Exp $
+# $Id: ServerMain.py,v 1.58 2003/05/28 04:53:34 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -7,6 +7,8 @@
 
    See the "MixminionServer" class for more information about how it
    all works. """
+
+#XXXX make usage messages have the same format.
 
 ## Directory layout:
 #    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
@@ -30,7 +32,7 @@
 #                     key_0002/...
 #                conf/miniond.conf [configuration file]
 #                stats [DOCDOC]
-#                
+#                version [DOCDOC]
 
 # FFFF Support to put keys/queues in separate directories.
 
@@ -63,7 +65,44 @@ import mixminion.server.EventStats as EventStats
 from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
      UIError, ceilDiv, createPrivateDir, formatBase64, formatTime, \
-     installSIGCHLDHandler, Lockfile, secureDelete, waitForChildren
+     installSIGCHLDHandler, Lockfile, readFile, secureDelete, waitForChildren,\
+     writeFile
+
+#DOCDOC
+# For backward-incompatible changes only.
+SERVER_HOMEDIR_VERSION = "1001"
+
+def getHomedirVersion(config):
+    homeDir = config['Server']['Homedir']
+    versionFile = os.path.join(homeDir, "version")
+    if not os.path.exists(homeDir):
+        return None
+    elif not os.path.exists(versionFile):
+        dirVersion = "1000"
+    else:
+        dirVersion = readFile(f).strip()
+
+    return dirVersion
+
+def checkHomedirVersion(config):
+    dirVersion = getDirVersion(config)
+
+    if dirVersion is None:
+        return None
+    elif dirVersion != SERVER_HOMEDIR_VERSION:
+        if float(dirVersion) < float(SERVER_HOMEDIR_VERSION):
+            print >>sys.stderr, """\
+This server's files are stored in an older format, and are not compatible
+with this version of the mixminion server.  To upgrade, run:
+     'mixminion server-upgrade'."""
+            sys.exit(0)
+        else:
+            print >>sys.stderr, """\
+This server's file are stored in format which this version of mixminion
+is too old to recognize."""
+            sys.exit(0)
+
+    return 1
 
 class IncomingQueue(mixminion.server.ServerQueue.Queue):
     """A Queue to accept packets from incoming MMTP connections,
@@ -548,7 +587,13 @@ class MixminionServer(_Scheduler):
 
         self.config = config
         homeDir = config['Server']['Homedir']
+
+        exists = checkHomedirVersion(config)
+
         createPrivateDir(homeDir)
+        if not exists:
+            writeFile(os.path.join(homeDir, "version"),
+                      SERVER_HOMEDIR_VERSION, 0644)
 
         # Lock file.
         self.lockFile = Lockfile(os.path.join(homeDir, "lock"))
@@ -867,15 +912,23 @@ def usageAndExit(cmd):
     print _SERVER_USAGE %cmd
     sys.exit(0)
 
-def configFromServerArgs(cmd, args):
+def configFromServerArgs(cmd, args, usage=None):
     #XXXX
     options, args = getopt.getopt(args, "hf:", ["help", "config="])
     if args:
-        usageAndExit(cmd)
+        if usage:
+            print usage
+            sys.exit(0)
+        else:
+            usageAndExit(cmd)
     configFile = None
     for o,v in options:
         if o in ('-h', '--help'):
-            usageAndExit(cmd)
+            if usage:
+                print usage
+                sys.exit(0)
+            else:
+                usageAndExit(cmd)
         if o in ('-f', '--config'):
             configFile = v
 
@@ -905,7 +958,7 @@ def readConfigFile(configFile):
         print >>sys.stderr, "Error in configuration file %r"%configFile
         print >>sys.stderr, str(e)
         sys.exit(1)
-    return None #suppress pychecker warning
+    return None #never reached; here to suppress pychecker warning
 
 #----------------------------------------------------------------------
 def runServer(cmd, args):
@@ -978,6 +1031,94 @@ def runServer(cmd, args):
     sys.exit(0)
 
 #----------------------------------------------------------------------
+_UPGRADE_USAGE = """\
+Usage: mixminion server-upgrade [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than
+                                /etc/mixminiond.conf
+""".strip()
+
+def runUpgrade(cmd, args):
+    """Remove all keys server descriptors for old versions of this
+       server.  If any are found, nuke the keysets, """
+
+    config = configFromServerArgs(cmd, args, usage=_UPGRADE_USAGE)    
+    assert config
+
+    mixminion.Common.configureShredCommand(config)
+    mixminion.Crypto.init_crypto(config)
+
+    curVersion = getHomedirVersion(config)
+    if curVersion is None:
+        print "Server homedir doesn't exist."
+        return
+    elif curVersion == SERVER_HOMEDIR_VERSION:
+        print "Server is current; No need to upgrade."
+        return
+    elif float(curVersion) > float(SERVER_HOMEDIR_VERSION):
+        print "Server homedir uses unrecognized version; I can't downgrade."
+        return
+
+    assert curVersion == "1000"
+
+    homeDir = config['Server']['Homedir']
+    keyDir = os.path.join(homeDir, 'keys')
+    hashDir = os.path.join(hashDir, 'hashlogs')
+    keysets = []
+    if not os.path.exists(keyDir):
+        print >>sys.stderr, "No server keys to upgrade."
+    else:
+        for fn in os.listdir(keyDir):
+            if fn.startswith("key_"):
+                name = fn[4:]
+                keysets.append(mixminion.server.ServerKeys.ServerKeyset(
+                    keyDir, name, hashDir))
+
+    errors = 0
+    remove = 0
+    keep = 0
+    for keyset in keysets:
+        try:
+            keyset.load()
+            keep += 1
+        except ConfigError, e:
+            errors += 1
+            if e.startswith("Unrecognized descriptor version: 0.1"):
+                print "Removing old keyset %s"%keyset.keyname
+                keyset.delete()
+            else:
+                print "Unrecognized error from keyset %s: %s" % (
+                    keyset.keyname, str(e))
+                
+
+
+    # Now we need to clean out all the old queues -- the messages in them
+    # are incompatible.
+    queueDirs = [ os.path.join(homeDir, 'work', 'queues', 'incoming'),
+                  os.path.join(homeDir, 'work', 'queues', 'mix'),
+                  os.path.join(homeDir, 'work', 'queues', 'outgoing') ]
+    deliver = os.path.join(homeDir, 'work', 'queues', 'deliver')
+    if os.path.exists(deliver):
+        for fn in os.listdir(deliver):
+            if os.path.isdir(os.path.join(deliver,fn)):
+                queueDirs.append(os.path.join(deliver,fn))
+
+    print "Dropping obsolete messages from queues (no upgrade; sorry!)"
+
+    for qd in queueDirs:
+        if not os.path.exists(qd): continue
+        files = os.listdir(qd)
+        print "   (Deleting %s files from %s)" %(len(files,qd))
+        secureDelete([os.path.join(qd,f) for f in files])
+
+    print "Homedir is upgraded"
+
+    writeFile(os.path.join(homeDir, 'version'),
+              SERVER_HOMEDIR_VERSION, 0644)
+
+
+#----------------------------------------------------------------------
 _PRINT_STATS_USAGE = """\
 Usage: mixminion server-stats [options]
 Options:
@@ -987,7 +1128,8 @@ Options:
 
 def printServerStats(cmd, args):
     #XXXX
-    config = configFromServerArgs(cmd, args)
+    config = configFromServerArgs(cmd, args, _PRINT_STATS_USAGE)
+    checkHomedirVersion(config)
     _signalServer(config, 1)
     EventStats.configureLog(config)
     EventStats.log.dump(sys.stdout)
@@ -1001,20 +1143,11 @@ Options:
 """.strip()
 
 def signalServer(cmd, args):
-    options, args = getopt.getopt(args, "hf:", ["help", "config="])
-    usage = 0
-    # XXXX Refactor this and configFromServerArgs to raise UsageError
-    if args:
-        usage = 1
-    configFile = None
-    for o,v in options:
-        if o in ('-h', '--help'):
-            usageAndExit(cmd)
-        elif o in ('-f', '--config'):
-            configFile = v
-
+    config = configFromServerArgs(cmd, args, usage=_SIGNAL_SERVER_USAGE)
     LOG.setMinSeverity("ERROR")
-    config = readConfigFile(configFile)
+
+    checkHomedirVersion(config)
+    
     if cmd.endswith("stop-server") or cmd.endswith("server-stop"):
         reload = 0
     else:
@@ -1069,26 +1202,9 @@ Options:
 """.strip()
 
 def runRepublish(cmd, args):
-    options, args = getopt.getopt(args, "hf:",
-                                  ["help", "config=",])
-    
-    
-    # FFFF password-encrypted keys
-    # FFFF Ability to fill gaps
-    # FFFF Ability to generate keys with particular start/end intervals
-    keys=1
-    usage=0
-    configFile = None
-    for opt,val in options:
-        if opt in ('-h', '--help'):
-            usage=1
-        elif opt in ('-f', '--config'):
-            configFile = val
-    if usage:
-        print _REPUBLISH_USAGE
-        sys.exit(1)
+    config = configFromServerArgs(cmd, args, usage=_REPUBLISH_USAGE)
 
-    config = readConfigFile(configFile)
+    checkHomedirVersion(config)    
 
     LOG.setMinSeverity("INFO")
     mixminion.Crypto.init_crypto(config)

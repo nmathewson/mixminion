@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.78 2003/05/26 20:04:16 nickm Exp $
+# $Id: Common.py,v 1.79 2003/05/28 04:53:34 nickm Exp $
 
 """mixminion.Common
 
@@ -7,15 +7,14 @@
 
 __all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
-            'armorText',
-            'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
+            'armorText', 'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
             'createPrivateDir', 'encodeBase64', 'floorDiv', 'formatBase64',
             'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
-            'previousMidnight', 'readPickled', 'readPossiblyGzippedFile',
-            'secureDelete', 'stringContains', 'succeedingMidnight',
-            'unarmorText',
-            'waitForChildren', 'writePickled' ]
+            'previousMidnight', 'readFile', 'readPickled',
+            'readPossiblyGzippedFile', 'secureDelete', 'stringContains',
+            'succeedingMidnight', 'unarmorText', 'waitForChildren',
+            'writeFile', 'writePickled' ]
 
 import binascii
 import bisect
@@ -394,6 +393,28 @@ class AtomicFile:
     def __del__(self):
         if self.f:
             LOG.error("Atomic file not closed/discarded: %s",self.tmpname)
+
+def readFile(fn, binary=0):
+    """DOCDOC"""
+    f = open(fn, ['r', 'rb'][binary])
+    try:
+        return f.read()
+    finally:
+        f.close()
+
+def writeFile(fn, contents, mode=0600, binary=0):
+    tmpname = fn+".tmp"
+    f, tmpname = openUnique(tmpname, ['w','wb'][binary], mode)
+    try:
+        try:
+            f.write(contents)
+        finally:
+            f.close()
+    except:
+        if os.path.exists(tmpname): os.unlink(tmpname)
+        raise
+
+    os.rename(tmpname, fn)
 
 def readPickled(fn):
     """Given the name of a file containing a pickled object, return the pickled

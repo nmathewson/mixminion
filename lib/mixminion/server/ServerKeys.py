@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.24 2003/05/27 17:24:49 nickm Exp $
+# $Id: ServerKeys.py,v 1.25 2003/05/28 04:53:34 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -59,9 +59,6 @@ class ServerKeyring:
        hash logs for a mixminion server.
 
        DOCDOC
-
-       FFFF We need a way to generate keys as needed, not just a month's
-       FFFF worth of keys up front.
        """
     ## Fields:
     # homeDir: server home directory
@@ -349,14 +346,7 @@ class ServerKeyring:
             name = keyset.keyname
             LOG.info("Removing%s key %s (valid from %s through %s)",
                      expiryStr, name, formatDate(va), formatDate(vu-3600))
-            dirname = os.path.join(self.keyDir, "key_"+name)
-            files = [ os.path.join(dirname,f)
-                      for f in os.listdir(dirname) ]
-            hashFiles = [ os.path.join(self.hashDir, "hash_"+name) ,
-                          os.path.join(self.hashDir, "hash_"+name+"_jrnl") ]
-            files += [ f for f in hashFiles if os.path.exists(f) ]
-            secureDelete(files, blocking=1)
-            os.rmdir(dirname)
+            keyset.delete()
 
         self.checkKeys()
 
@@ -499,7 +489,7 @@ class ServerKeyset:
     # descFile: filename of this keyset's server descriptor.
     #
     # packetKey, mmtpKey: This server's actual short-term keys.
-    # DOCDOC serverinfo, validAfter, validUntil,published(File)?
+    # DOCDOC serverinfo, validAfter, validUntil,published(File)?, keydir
     def __init__(self, keyroot, keyname, hashroot):
         """Load a set of keys named "keyname" on a server where all keys
            are stored under the directory "keyroot" and hashlogs are stored
@@ -508,7 +498,7 @@ class ServerKeyset:
         self.keyname = keyname
         self.hashroot= hashroot
 
-        keydir  = os.path.join(keyroot, "key_"+keyname)
+        self.keydir = keydir = os.path.join(keyroot, "key_"+keyname)
         self.hashlogFile = os.path.join(hashroot, "hash_"+keyname)
         self.packetKeyFile = os.path.join(keydir, "mix.key")
         self.mmtpKeyFile = os.path.join(keydir, "mmtp.key")
@@ -521,6 +511,25 @@ class ServerKeyset:
         self.published = os.path.exists(self.publishedFile)
         if not os.path.exists(keydir):
             createPrivateDir(keydir)
+
+    def delete(self):
+        """DOCDOC"""
+        files = [self.packetKeyFile,
+                 self.mmtpKeyFile,
+                 self.certFile,
+                 self.descFile,
+                 self.publishedFile]
+        files = [f for f in files if os.path.exists(f)]
+        hashdir, name = os.path.split(self.hashlogFile)
+        if os.path.exists(hashdir):
+            start1 = name+"."
+            start2 = name+"_"
+            for fn in os.listdir(hashdir):
+                if fn.startswith(start1) or fn.startswith(start2):
+                    files.append(os.path.join(hashdir, fn))
+
+        secureDelete(files, blocking=1)
+        os.rmdir(self.keydir)
 
     def load(self, password=None):
         """Read the short-term keys from disk.  Must be called before

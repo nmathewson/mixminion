@@ -154,12 +154,12 @@ For 0.0.4:
                           needed.
         o Make "=== BEGIN" stuff comply with openpgp rfc: why rock
           the boat?
+        o Add an 'upgrade to new server format' command.
 4       - Finish all documentation, resolve all XXXX004s
 3       - Try out all functionality by hand
 
 Deferred from 0.0.4:
-        . UI
-                . Good user error reporting strategy; use UIError uniformly.
+        . Good user error reporting strategy; use UIError uniformly.
         - Separate error/other log files. ????
         - Notice when out of disk space, die more cleanly
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
@@ -205,8 +205,6 @@ Required for "1.0":
                   we can be more easily embedded.
         - Key rotation and expiry
                 - Document "DELKEYS"
-                - Automatic keygen as needed
-                - Automatic key rotation
                 - Password-protected private identity keys
                 - Password-protected private link/packet keys
         - Security
@@ -221,7 +219,7 @@ Required for "1.0":
                         - Full config validation
                         - Full boilerplate text
                 - Use ESMTP as available
-                - Move boilerplate into outside files.  Add a generic
+                - Move boilerplate into outside files.  Add some generic
                   'Boilerplate' functionality.
                 - Tell ModuleManager about async code (as soon as needed)
                 - Real SMTP module
@@ -302,7 +300,7 @@ Required for "1.0":
                         - Process mgt code may need to change.
                         - Some kind of substitute for /dev/urandom.
                         - Resolve as-yet-unsuspected platform dependencies
-                - An init.d script.
+                . An init.d script.
         - Testing
                 - Test on other (non-redhat, non-linux) systems
                 - Tests for nickname casei.
@@ -315,13 +313,7 @@ Required for "1.0":
                         - For client
                         - For server
         - Directories
-                - Publishing to directory servers
-                        - Support
-                        - Automation
-                - Downloading from directory servers
-                        - Support
-                        - Automation
-                - Autonomous directory server
+                . Autonomous directory server
                 - Configurable dirserver fingerprints and URLs.
                 - Support for full-blown multiple-server agreement mechanism
                 - Consider linewrap protection on server descriptors,
@@ -348,6 +340,7 @@ Unspecified:
         - IPv6 support.
         - Support for multiple directory servers
         - Notice active attacks and block IPs dynamically.
+        - Port to Twisted, if reasonable (see HACKING)
 
 WHEN WE GET THE CHANCE:
         [This stuff could be for any version 1.0 or later; it's not a
