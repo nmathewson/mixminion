@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.37 2003/09/04 16:08:13 nickm Exp $
+# $Id: MMTPClient.py,v 1.37.2.1 2003/10/19 03:36:49 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -67,7 +67,8 @@ class BlockingClientConnection:
            errors."""
         try:
             self._connect(connectTimeout)
-        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
+        except (socket.error, _ml.TLSError, _ml.TLSClosed,
+                _ml.TLSWantRead, _ml.TLSWantWrite), e:
             self._raise(e, "connecting")
 
     def _raise(self, err, action):
@@ -80,6 +81,10 @@ class BlockingClientConnection:
             tp = "TLS"
         elif isinstance(err, _ml.TLSClosed):
             tp = "TLSClosed"
+        elif isinstance(err, _ml.TLSWantRead):
+            tp = "Unexpected TLSWantRead"
+        elif isinstance(err, _ml.TLSWantWrite):
+            tp = "Unexpected TLSWantWrite"
         else:
             tp = str(type(err))
         e = MixProtocolError("%s error while %s to %s:%s: %s" %(
@@ -201,7 +206,8 @@ class BlockingClientConnection:
                 LOG.warn("Received bad ACK from server")
                 raise MixProtocolError("Bad ACK received")
             LOG.debug("ACK received; packet successfully delivered")
-        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
+        except (socket.error, _ml.TLSError, _ml.TLSClosed, _ml.TLSWantRead,
+                _ml.TLSWantWrite, _ml.TLSClosed), e:
             self._raise(e, "sending packet")
 
     def shutdown(self):
@@ -213,7 +219,8 @@ class BlockingClientConnection:
                 self.tls.shutdown()
             if self.sock is not None:
                 self.sock.close()
-        except (socket.error, _ml.TLSError, _ml.TLSClosed), e:
+        except (socket.error, _ml.TLSError, _ml.TLSClosed, _ml.TLSWantRead,
+                _ml.TLSWantWrite, _ml.TLSClosed), e:
             self._raise(e, "closing connection")
         LOG.debug("Connection closed")
 
