@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.32 2003/02/14 17:22:21 nickm Exp $
+# $Id: Main.py,v 1.33 2003/02/14 17:40:39 arma Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -62,7 +62,7 @@ def correctPath(myself):
     while os.path.islink(myself):
         myself = os.readlink(myself)
 
-    # Now, the module ought to be living in x/y/z/mixminon/Foo.py.
+    # Now, the module ought to be living in x/y/z/mixminion/Foo.py.
     # The "x/y/z" is the part we're interested in.
     mydir = os.path.split(myself)[0]
     parentdir, miniondir = os.path.split(mydir)
@@ -153,9 +153,9 @@ _USAGE = (
   "       generate-surb  [Generate a single-use reply block]\n"+
   "       inspect-surbs  [Describe a single-use reply block]\n"+
   "                               (For Servers)\n"+
-  "       server         [Begin running a Mixminon server]\n"+
-  "       stop-server    [Halt a running Mixminon server]\n"+
-  "       reload-server  [Make running Mixminon server reload its config]\n"+
+  "       server         [Begin running a Mixminion server]\n"+
+  "       stop-server    [Halt a running Mixminion server]\n"+
+  "       reload-server  [Make running Mixminion server reload its config]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
   "       server-DELKEYS [Remove generated keys for a Mixminion server]\n"+
   "                             (For Developers)\n"+
