@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.109 2003/08/31 19:29:29 nickm Exp $
+# $Id: Common.py,v 1.110 2003/09/03 15:49:25 nickm Exp $
 
 """mixminion.Common
 
@@ -10,7 +10,7 @@ __all__ = [ 'IntervalSet', 'Lockfile', 'LockfileLocked', 'LOG', 'LogStream',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
             'armorText', 'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
             'createPrivateDir', 'disp64', 
-            'encodeBase64', 'floorDiv', 'formatBase64',
+            'encodeBase64', 'englishSequence', 'floorDiv', 'formatBase64',
             'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
             'previousMidnight', 'readFile', 'readPickled',
@@ -189,7 +189,7 @@ def disp64(s,n=-1):
         s = s[:-1]
     return s
 
-def englishSequence(lst, empty="none"):
+def englishSequence(lst, empty="none", compound="and"):
     """Given a sequence of items, return the sequence formatted
        according to ordinary English conventions of punctuation.
 
@@ -202,17 +202,19 @@ def englishSequence(lst, empty="none"):
 
     punc = ", "
     for item in lst:
-        if "," in item or stringContains(item, " and "):
+        if ("," in item or 
+            stringContains(item, " and ") or 
+            stringContains(item, " or ")):
             punc = "; "
             break
 
     if len(lst) == 2:
         if punc == ", ":
-            return "%s and %s" % tuple(lst)
+            return "%s %s %s" % (lst[0], compound, lst[1])
         else:
-            return "%s; and %s" % tuple(lst)
+            return "%s; %s %s" % (lst[0], compound, lst[1])
     else:
-        return "%s%sand %s" % (punc.join(lst[0:-1]), punc, lst[-1])
+        return "%s%s%s %s" % (punc.join(lst[0:-1]), punc, compound, lst[-1])
 
 #----------------------------------------------------------------------
 # Functions to generate and parse OpenPGP-style ASCII armor
