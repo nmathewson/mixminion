@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.32 2002/10/21 02:31:34 nickm Exp $
+# $Id: test.py,v 1.33 2002/10/21 02:52:03 nickm Exp $
 
 """mixminion.tests
 
@@ -1045,7 +1045,7 @@ class BuildMessageTests(unittest.TestCase):
 	tag = "dref"*5
         longStr2 = longStr * 2
 
-        def getLongRoutingInfo(longStr2=longStr2):
+        def getLongRoutingInfo(longStr2=longStr2,tag=tag):
             return MBOXInfo(longStr2,tag)
 
         server4 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
@@ -2957,6 +2957,7 @@ class ServerMainTests(unittest.TestCase):
 	keyring.createKeys(1, mixminion.Common.previousMidnight(
 	    start - 10*24*60*60 +60))
 	self.assertEquals(4, len(keyring.keyIntervals))
+        waitForChildren() # make sure keys are really gone before we remove
 	keyring.removeDeadKeys()
 	self.assertEquals(3, len(keyring.keyIntervals))
 	
