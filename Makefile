@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.51 2003/07/10 23:11:30 nickm Exp $
+# $Id: Makefile,v 1.52 2003/10/02 21:46:49 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -76,6 +76,11 @@ time:
 	@$(FINDPYTHON); \
 	echo $$PYTHON setup.py run --subcommand=benchmarks; \
 	$$PYTHON -tt setup.py run --subcommand=benchmarks
+
+testvectors:
+	@$(FINDPYTHON); \
+	echo $$PYTHON setup.py run --subcommand=testvectors; \
+	$$PYTHON -tt setup.py run --subcommand=testvectors
 
 #======================================================================
 # Install target (minimal.)
@@ -166,8 +171,8 @@ signdist: sdist
 #======================================================================
 # OpenSSL-related targets
 
-OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7b.tar.gz
-OPENSSL_FILE = openssl-0.9.7b.tar.gz
+OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7c.tar.gz
+OPENSSL_FILE = openssl-0.9.7c.tar.gz
 OPENSSL_SRC = ./contrib/openssl
 
 download-openssl:
