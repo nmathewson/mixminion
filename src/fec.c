@@ -1,6 +1,6 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.5 2003/07/08 19:13:50 nickm Exp $ */ 
+/* $Id: fec.c,v 1.6 2003/07/10 18:39:16 nickm Exp $ */ 
 
 #include <Python.h>
 #include "_minionlib.h"
@@ -120,7 +120,7 @@ static gf inverse[GF_SIZE+1];	/* inverse of field elem.		*/
  * modnn(x) computes x % GF_SIZE, where GF_SIZE is 2**GF_BITS - 1,
  * without a slow divide.
  */
-static inline gf
+static INLINE gf
 modnn(int x)
 {
     while (x >= GF_SIZE) {
@@ -163,7 +163,7 @@ init_mul_table()
 	    gf_mul_table[0][j] = gf_mul_table[j][0] = 0;
 }
 #else	/* GF_BITS > 8 */
-static inline gf
+static INLINE gf
 gf_mul(x,y)
 {
     if ( (x) == 0 || (y)==0 ) return 0;
@@ -561,7 +561,7 @@ init_fec()
 #define FEC_MAGIC	0xFECC0DEC
 
 struct fec_parms {
-    u_long magic ;
+    unsigned long magic ;
     int k, n ;		/* parameters of the code */
     gf *enc_matrix ;
 } ;
@@ -786,7 +786,7 @@ char mm_FECError__doc__[] =
 PyObject *mm_FECError = NULL;
 
 typedef struct mm_FEC {
-	PyObject_HEAD;
+	PyObject_HEAD
 	struct fec_parms *fec;
 } mm_FEC;	
 extern PyTypeObject mm_FEC_Type;

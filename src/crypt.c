@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.24 2003/06/05 18:41:41 nickm Exp $ */
+/* $Id: crypt.c,v 1.25 2003/07/10 18:39:16 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -23,7 +23,7 @@
 #include <pem.h>
 #include <evp.h>
 #endif
-#include <_minionlib.h>
+#include "_minionlib.h"
 #include <assert.h>
 
 #define TYPE_ERR(s) PyErr_SetString(PyExc_TypeError, s)

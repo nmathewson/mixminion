@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.15 2003/07/07 23:46:51 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.16 2003/07/10 18:39:15 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -17,6 +17,12 @@ the README file for further instructions."
 #else
 #include <aes.h>
 #include <rsa.h>
+#endif
+
+#ifdef _MSC_VER
+#define INLINE __inline
+#else
+#define INLINE inline
 #endif
 
 /* We provide our own implementation of counter mode; see aes_ctr.c

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.13 2003/02/13 10:56:40 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.14 2003/07/10 18:39:16 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because
@@ -13,6 +13,8 @@
  * Disclosure: I have seen and played with the OpenSSL implementation for
  *   a while before I decided to abandon it.
  */
+
+#include "_minionlib.h"
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/aes.h>
@@ -48,16 +50,16 @@ typedef unsigned char u8;
                          (((u32)ptr[2]) << 8) ^  \
                          (((u32)ptr[1]) << 16) ^ \
                          (((u32)ptr[0]) << 24))
-#define SET_U32_cp(ptr, i) { ptr[3] = (i)     & 0xff; \
-                             ptr[2] = (i>>8)  & 0xff; \
-                             ptr[1] = (i>>16) & 0xff; \
-                             ptr[0] = (i>>24) & 0xff; }
+#define SET_U32_cp(ptr, i) { ptr[3] = (u8)((i)     & 0xff); \
+                             ptr[2] = (u8)((i>>8)  & 0xff); \
+                             ptr[1] = (u8)((i>>16) & 0xff); \
+                             ptr[0] = (u8)((i>>24) & 0xff); }
 #define GET_U32(ptr)   GET_U32_cp(((u8*)(ptr)))
 #define SET_U32(ptr,i) SET_U32_cp(((u8*)(ptr)), i)
 #define INCR_U32(ptr, i) { i = GET_U32(ptr)+1; SET_U32(ptr,i); }
 #endif
 
-static inline void
+static INLINE void
 mm_incr(u32 const* ctr32)
 {
         u32 i;

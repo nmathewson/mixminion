@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.15 2003/07/07 23:46:51 nickm Exp $ */
+/* $Id: main.c,v 1.16 2003/07/10 18:39:16 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -7,7 +7,7 @@
   "http://www.python.org/doc/current/ext/ext.html".
 */
 
-#include <_minionlib.h>
+#include "_minionlib.h"
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/ssl.h>
