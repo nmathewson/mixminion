@@ -117,8 +117,8 @@ For 0.0.4:
                 . Ability to notice discrepancies between SD and
                   server configuration.
                         o Implement
-                        - Test backend
-                        - Integrate with frontend
+.5                      - Test backend
+.5                      - Integrate with frontend
                 . Online key rotation
                         o Function to determine time for next rotation event.
                         o Ability to add PK to packethandler
@@ -141,21 +141,13 @@ For 0.0.4:
                         . Code to remember whether descriptors are published,
                           and republish as needed
                                 o Implement
+.5                              - Add 'publish' option
 1                               - Add explicit 'republish' command.
 1                               - Tests
-                        - Trivial pinger: make a list of servers,
-                          check which are up, send 1-hop dummies, see
-                          which come back.
-.5                              - Get server list
-3                               - Do pinging, remember results
-2                               - Send messages with client
-1                               - Receive messages from an mbox? a directory?
-2                               - Recognize messages that come back
-2                               - Decide whom to include; make dirgen
-                                  include them
-3                               - Tests
                         o Design directory liveness format.  Maybe include
-                          all servers and "live" list for now?
+                          all servers in "live" list for now?
+1                       - Add code to make directory list some servers
+                          as 'ungood'
 0.5                     - Code to automatically regenerate directories as
                           needed.
         o Make "=== BEGIN" stuff comply with openpgp rfc: why rock
@@ -187,6 +179,17 @@ Deferred from 0.0.4:
         - Key mgt
                 - Consider linewrap protection on server descriptors,
                   if demand warrants.  (None yet.)
+                - Trivial pinger: make a list of servers,
+                  check which are up, send 1-hop dummies, see
+                  which come back.
+.5                      - Get server list
+3                       - Do pinging, remember results
+2                       - Send messages with client
+1                       - Receive messages from an mbox? a directory?
+2                       - Recognize messages that come back
+2                       - Decide whom to include; make dirgen
+                          include them
+3                       - Tests
 
 Required for "1.0":
          [These features must be in place before we can take the system out
