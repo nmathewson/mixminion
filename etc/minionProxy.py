@@ -68,11 +68,19 @@ if __name__ == '__main__':
         if opt in ('-H', '--host'):
             imap_address = arg
         elif opt in ('-I', '--imapport'):
-            imap_port = int(arg)
+            try:
+                imap_port = int(arg)
+            except ValueError:
+                print 'POP3 port is not a number'
+                pass
         elif opt in ('-L', '--localhost'):
             local_host = arg
         elif opt in ('-S', '--smtlport'):
-            imap_port = int(arg)
+            try:
+                imap_port = int(arg)
+            except:
+                print 'SMTP port is not a number'
+                pass
         elif opt in ('-h', '--help'):
             print __doc__
             sys.exit(0)
@@ -89,4 +97,5 @@ if __name__ == '__main__':
     try:
         asyncore.loop()
     except KeyboardInterupt:
+        print 'Bye...'
         pass
