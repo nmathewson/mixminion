@@ -465,7 +465,7 @@ class MixminionClient:
             messagesByServer = {}
             for h in handles:
                 try:
-                    routing = self.queue.getRoutingt(h)
+                    routing = self.queue.getRouting(h)
                 except mixminion.Filestore.CorruptedFile: 
                     continue
                 message = MessageProxy(h,self.queue)

@@ -368,7 +368,7 @@ class ClientQueue:
     def getRouting(self, handle):
         """DOCDOC"""
         self.loadMetadata()
-        return self.getMetadata(handle)[1]
+        return self.store.getMetadata(handle)[1]
 
     def getPacket(self, handle):
         """Given a handle, return a 3-tuple of the corresponding
