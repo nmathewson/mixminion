@@ -24,10 +24,11 @@ FOR 0.0.1: (The first alpha)
 		o Make at least one delivery happen
 			o BUG: Make sure hashlogs get written
 			o BUG: "Unable to handle message with unknown type...
-		- Use real cottrell mixing again.
-		- Need 'nuke keys' cli.
+		o Use real cottrell mixing again.
+		- More explicit overview of queues
+		- Need 'nuke keys' CLI.
 		- Unit tests for various queues.
-		*- Better debugging logs
+		o Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
 	. CLI for server
@@ -40,20 +41,21 @@ FOR 0.0.1: (The first alpha)
 	*- CLI client
 		- Send a message
 		- Generate a message
-		- Design directory layout
+		- Linkage from command line to helper class
+		o Design directory layout
 		o Storage for serverinfo
 			o Make serverinfo pickleable
 				o Make RSA pickleable
-			- Test
+			o Test
 		- Test CLI client
-	- Config
+	o Config
 		o Infer nickname
 		o Stub validation function for client
 		o Stub validation function for server
 		o Warn about unimplemented allow/deny
 		o Warn about all unimplemented features
 		o Make all config files reject bogus characters.
-		- Example config
+		o Example config
 	. Build
 		o Ability to pull ssl.
 		o Ability to build ssl.
@@ -69,20 +71,28 @@ FOR 0.0.1: (The first alpha)
 	. MBox module
 		o Implement
 		- Test
-	. E2E functionality
+SPEC	o E2E functionality
 		o Build singleton messages of all kinds, with compression
 		o Decode singleton messages of all kinds
 		o Generic decoder
-		. ModuleManager changes
-		. Testing
+		o ModuleManager changes
+		o Testing
 			o Test end-to-end build/decode
 			o Test compression
 			o Test helpers for failing cases
 			o Test exact output formats on build*Message
-			- Test failing cases for decode*Payload
-			. Test decode*Payload on canned input
+			o Test failing cases for decode*Payload
+			o Test decode*Payload on canned input
+			o Test ModuleManager changes
 	o Rename versions to 0.1.
-	- Change output of dates to avoid potential GMT confusion.
+	- Rename semantics:
+	        - Rename 'tag' -> 'decoding handle'.  Make it a separate
+		  field rather than a prefix of 'exitInfo'
+		- Disable 'non-state-carrying' reply blocks.  Rename 'statful'
+		  (non-state-carrying) and 'stateless' (state-carrying) to
+		  something less contradictory
+	o Change output of dates to avoid potential GMT confusion.
+	o Change spec to reflect new date format
 	o Marginally clean shutdown for server
 	- Versioning :)
 	- Final license
@@ -123,10 +133,16 @@ Required for "1.0":
 		- Support for forking delivery
 		- SMTP module
 		- Incoming email gateway
+		- Refactor module manager to do decoding _before_ passing
+		  payloads to the individual module implementations.
+	- End-to-end issues
+	        - K-of-N fragmentation and reassembly
+		- Cap output size to prevent zlib bombing
 	- Configurablity
 	  	- Support for one-side-only MMTP configurations.
 		- Make Mix algorithm configurable
-		- Infer server IP
+		. Infer server IP
+		- Freak out properly on missing/unpublishable IP.
 		- Make listening configurable for multiple ports/ips, not
 		  all of which need be published.  Perhaps allow different
 		  rules for each listener.
@@ -142,6 +158,14 @@ Required for "1.0":
 		- Generate a reply block
 		- Read message from reply block
 		- Path selection
+			- Understand differing server features
+			- Watch out for servers that are really the
+			  same server
+		- Reply to reply block
+		- Examine reply block
+		- Send message to user with known key
+		- Send message to user with known server
+		- Real PKI
 	- MMTP / async
 		- Make listen options configurable (backlog, IP)
 		- Code to send junk
@@ -217,3 +241,10 @@ NEEDS TO BE BENCHMARKED
 - PEM for leaks
 - gen_dh for leaks
 - gen_cert for leaks
+
+-----------
+(for emacs)
+  Local Variables:
+  mode:text
+  End:
+
