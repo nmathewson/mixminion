@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.127 2004/05/17 05:19:09 nickm Exp $
+# $Id: ServerMain.py,v 1.128 2004/05/17 21:07:12 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -723,8 +723,7 @@ class MixminionServer(_Scheduler):
         self.keyring.updateKeys(self.packetHandler, self.mmtpServer,
                                 self.descriptorFile)
         LOG.debug("Initializing directory client")
-        self.dirClient = mixminion.ClientDirectory.ClientDirectory(
-            os.path.join(config.getWorkDir(),"dir"))
+        self.dirClient = mixminion.ClientDirectory.ClientDirectory(config)
         try:
             self.dirClient.updateDirectory()
         except UIError, e:
