@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.17 2002/09/10 14:45:30 nickm Exp $
+# $Id: MMTPServer.py,v 1.18 2002/12/02 03:21:12 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -29,7 +29,7 @@ import time
 from types import StringType
 
 import mixminion._minionlib as _ml
-from mixminion.Common import MixError, MixFatalError, getLog
+from mixminion.Common import MixError, MixFatalError, getLog, stringContains
 from mixminion.Crypto import sha1
 from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN
 
@@ -63,8 +63,10 @@ class AsyncServer:
            If we receive an unblocked signal, return immediately.
            """
 
-##        trace("%s readers, %s writers" % (len(self.readers),
-##                                          len(self.writers)))
+##         trace("%s readers (%s), %s writers (%s)" % (len(self.readers),
+## 						    readers,
+## 						    len(self.writers),
+## 						    writers))
         
         readfds = self.readers.keys()
         writefds = self.writers.keys()
@@ -77,15 +79,25 @@ class AsyncServer:
                 raise e
 
         for fd in readfds:
-            trace("Got a read on "+str(fd))
+            trace("Select got a read on "+str(fd))
             self.readers[fd].handleRead()
         for fd in writefds:
-            trace("Got a write on"+str(fd))
+            trace("Select got a write on"+str(fd))
             self.writers[fd].handleWrite()
         for fd in exfds:
-            trace("Got an exception on"+str(fd))
+            trace("Select got an exception on"+str(fd))
             if self.readers.has_key(fd): del self.readers[fd]
             if self.writers.has_key(fd): del self.writers[fd]
+
+    def hasReader(self, reader):
+	"""Return true iff 'reader' is a reader on this server."""
+	fd = reader.fileno()
+	return self.readers.get(fd, None) is reader
+
+    def hasWriter(self, writer):
+	"""Return true iff 'writer' is a writer on this server."""
+	fd = writer.fileno()
+	return self.writers.get(fd, None) is writer
 
     def registerReader(self, reader):
         """Register a connection as a reader.  The connection's 'handleRead'
@@ -271,15 +283,27 @@ class SimpleTLSConnection(Connection):
 
     def __shutdownFn(self):
         """Hook to implement shutdown."""
-        r = self.__con.shutdown() #may throw want*
-        if r == 1:
-            trace("Got a 1 on shutdown")
-            self.__server.unregister(self)
-            self.__state = None
-            self.__sock.close()
-            self.shutdownFinished()
-        else:
-            trace("Got a 0 on shutdown")
+
+	# This is a bit subtle.  The underlying 'shutdown' method
+	# needs to be retried till the other guy sends an 'ack'
+	# back... but we don't want to keep retrying indefinitely, or
+	# else we can deadlock on a connection from ourself to
+	# ourself.
+	if self.__con.shutdown() == 1: #may throw want*
+	    trace("Got a 1 on shutdown")
+	    self.__server.unregister(self)
+	    self.__state = None
+	    self.__sock.close()
+	    self.shutdownFinished()
+	    return
+
+	# If we don't get any response on shutdown, stop blocking; the other
+	# side may be hostile, confused, or deadlocking.
+	trace("Got a 0 on shutdown")
+	# ???? Is 'wantread' always correct?
+	# ???? Rather than waiting for a read, should we use a timer or 
+	# ????    something?
+	raise _ml.TLSWantRead()
 
     def __readFn(self):
         """Hook to implement read"""
@@ -305,7 +329,8 @@ class SimpleTLSConnection(Connection):
             self.shutdown(err=1, retriable=0)
             return
          
-        if self.__terminator and self.__inbuf[0].find(self.__terminator) > -1:
+        if self.__terminator and stringContains(self.__inbuf[0], 
+						self.__terminator):
             trace("read found terminator")
             self.__server.unregister(self)
             self.finished()
@@ -346,7 +371,7 @@ class SimpleTLSConnection(Connection):
             # We have a while loop here so that, upon entering a new
             # state, we immediately see if we can go anywhere with it
             # without blocking.
-            while self.__state is not None:
+	    while self.__state is not None:
                 self.__state()
         except _ml.TLSWantWrite:
             self.__server.registerWriter(self)
@@ -649,7 +674,7 @@ class MMTPServer(AsyncServer):
 
     def sendMessages(self, ip, port, keyID, messages, handles):
 	"""Send a set of messages to a given server."""
-	#XXXX for debugging
+	# ???? Can we remove these asserts yet?
 	for m,h in zip(messages, handles):
 	    assert len(m) == MESSAGE_LEN
 	    assert len(h) < 32
