@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.67 2004/03/08 06:01:02 nickm Exp $
+# $Id: Makefile,v 1.68 2004/03/19 06:18:46 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -203,15 +203,14 @@ bdist_py2exe:
 	mv dist Mixminion-$$VERSION; \
 	zip -9 Mixminion-$$VERSION.win32.zip Mixminion-$$VERSION/* \
            Mixminion-$$VERSION/lib/*
-	
 
 #======================================================================
 # OpenSSL-related targets
 
-OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7c.tar.gz
-OPENSSL_FILE = openssl-0.9.7c.tar.gz
+OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7d.tar.gz
+OPENSSL_FILE = openssl-0.9.7d.tar.gz
 OPENSSL_SRC = ./contrib/openssl
-OPENSSL_SHA = 80cbd896850455d09544cc05e01b147b3e85399e
+OPENSSL_SHA = 697d7f3b7ab3bf980373f7f41899362a0b507c2f
 # I have verified that the above digest matches the tarball signed by the
 # openssl maintainer.  If you are paranoid, you should doublecheck. -Nick.
 
