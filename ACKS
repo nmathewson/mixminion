@@ -8,6 +8,7 @@ Roger Dingledine
 Lucky Green
 Peter Palfrader
 Robyn Wagner
+Brian Warner
 Bryce "Zooko" Wilcox-O'Hearn
 
    Special thanks go to Christopher Porter, whose donation of
@@ -17,4 +18,4 @@ Bryce "Zooko" Wilcox-O'Hearn
    for their work on the Type III remailer design.
 
                                               -- Nick
-$Id: ACKS,v 1.4 2003/07/14 22:16:00 nickm Exp $
+$Id: ACKS,v 1.5 2004/01/15 21:03:50 nickm Exp $
