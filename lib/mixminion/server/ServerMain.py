@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.28 2003/01/09 06:53:22 nickm Exp $
+# $Id: ServerMain.py,v 1.29 2003/01/09 17:44:00 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -43,7 +43,7 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
     def __init__(self, location, packetHandler):
         """Create an IncomingQueue that stores its messages in <location>
            and processes them through <packetHandler>."""
-        mixminion.server.ServerQueue.Queue.__init__(self, location)
+        mixminion.server.ServerQueue.Queue.__init__(self, location, create=1)
         self.packetHandler = packetHandler
         self.mixPool = None
         self._queue = Queue.Queue()
@@ -81,13 +81,16 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
                 self.mixPool.queueObject(res)
                 self.removeMessage(handle)
         except mixminion.Crypto.CryptoError, e:
-            LOG.warn("Invalid PK or misencrypted packet header: %s", e)
+            LOG.warn("Invalid PK or misencrypted packet header in message %s: %s",
+                     formatBase64(message[:8]), e)
             self.removeMessage(handle)
         except mixminion.Packet.ParseError, e:
-            LOG.warn("Malformed message dropped: %s", e)
+            LOG.warn("Malformed message %s dropped: %s",
+                     formatBase64(message[:8]), e)
             self.removeMessage(handle)
         except mixminion.server.PacketHandler.ContentError, e:
-            LOG.warn("Discarding bad packet: %s", e)
+            LOG.warn("Discarding bad packet %s: %s",
+                     formatBase64(message[:8]), e)
             self.removeMessage(handle)
         except:
             LOG.error_exc(sys.exc_info(),
@@ -276,6 +279,11 @@ class PacketProcessingThread(threading.Thread):
                 LOG.info("Processing thread shutting down.")
                 return
             self.incomingQueue.deliverMessage(handle)
+            # XXXX debugging hack
+            if self.incomingQueue._queue.qsize() == 0:
+                n = self.incomingQueue.count(1)
+                if n != 0:
+                    LOG.trace("_queue was empty, but incoming queue had %s",n)
 
 
 STOPPING = 0
@@ -648,7 +656,7 @@ def runServer(cmd, args):
         print >>sys.stderr, "Shutting down because of exception: %s"%info[1]
         sys.exit(1)            
             
-    LOG.info("Starting server")
+    LOG.info("Starting server: Mixminion %s", mixminion.__version__)
     try:
         server.run()
     except KeyboardInterrupt:
