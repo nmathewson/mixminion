@@ -1,0 +1,54 @@
+#!/bin/sh -e
+
+# checking debian-mixminion account
+
+uid=`getent passwd debian-mixminion | cut -d ":" -f 3`
+home=`getent passwd debian-mixminion | cut -d ":" -f 6`
+
+# if there is the uid the account is there and we can do
+# the sanit(ar)y checks otherwise we can safely create it.
+
+if [ "$uid" ]; then
+    # guess??? the checks!!!
+    if [ $uid -ge 100 ] && [ $uid -le 999 ]; then
+    	echo "debian-mixminion uid check: ok"
+    else
+    	echo "ERROR: debian-mixminion account has a non-system uid!"
+	echo "Please check /usr/share/doc/mixminion/README.Debian on how to"
+	echo "correct this problem"
+	exit 1
+    fi
+    if [ "$home" = "/var/lib/mixminion" ]; then
+        echo "debian-mixminion homedir check: ok"
+    else
+	echo "ERROR: debian-mixminion account has an invalid home directory!"
+	echo "Please check /usr/share/doc/mixminion/README.Debian on how to"
+	echo "correct this problem"
+	exit 1
+    fi
+else
+    # what this might mean?? oh creating a system l^Huser!
+    adduser --quiet \
+            --system \
+            --disabled-password \
+            --home /var/lib/mixminion \
+	    --no-create-home \
+	    --shell /bin/bash \
+	    --group \
+    debian-mixminion
+fi
+
+# ch{owning,moding} things around
+# We will do nothing across upgrades.
+
+if [ "$2" = "" ]; then
+    for i in lib log run spool; do
+	chown -R debian-mixminion:debian-mixminion /var/$i/mixminion
+	chmod -R 700 /var/$i/mixminion
+	find /var/$i/mixminion -type f -exec chmod 600 '{}' ';'
+    done
+fi
+
+#DEBHELPER#
+
+exit 0

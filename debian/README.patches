@@ -1,0 +1,6 @@
+000 -     stolen from HEAD
+100 - 199 patches that upstream accepted
+200 - 399 patches that should go upstream
+400 - 499 patches that upstream rejected, but that we want anyway
+500 - 899 debian specific patches
+900 - 999 security patches

@@ -1,0 +1,5 @@
+etc/mixminion
+var/run/mixminion
+var/lib/mixminion
+var/log/mixminion
+var/spool/mixminion

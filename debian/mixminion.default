@@ -1,0 +1,11 @@
+# Defaults for mixminion initscript
+# sourced by /etc/init.d/mixminion
+# installed at /etc/default/mixminion by the maintainer scripts
+
+#
+# This is a POSIX shell fragment
+#
+
+# Whether or not to run a Type III node.
+# Configure /etc/mixminion/mixminiond.conf before setting this to yes.
+RUN_DAEMON="no"

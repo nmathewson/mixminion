@@ -1,0 +1,52 @@
+#! /bin/sh
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/bin/mixminion
+NAME=mixminion
+DESC="mixminion daemon"
+
+test -x $DAEMON || exit 0
+
+# Include mixminion defaults if available
+if [ -f /etc/default/mixminion ] ; then
+	. /etc/default/mixminion
+fi
+
+set -e
+
+case "$1" in
+  start)
+	if [ "$RUN_DAEMON" != "yes" ]; then
+		echo "Not starting $DESC (Disabled in /etc/default/mixminion)."
+	else
+		echo -n "Starting $DESC: "
+		start-stop-daemon --start --quiet --oknodo \
+			--chuid debian-mixminion:debian-mixminion \
+			--pidfile /var/run/$NAME/mixminion.pid \
+			--exec /usr/bin/python2.3 -- /usr/bin/mixminion server-start --daemon --quiet
+		echo "$NAME."
+	fi
+	;;
+  stop)
+	echo -n "Stopping $DESC: "
+	start-stop-daemon --stop --quiet --oknodo --pidfile /var/run/$NAME/mixminion.pid \
+		--exec /usr/bin/python2.3 -- /usr/bin/mixminion
+	echo "$NAME."
+	;;
+  reload|force-reload)
+	echo "Reloading $DESC configuration."
+	start-stop-daemon --stop --signal 1 --oknodo --quiet --pidfile /var/run/$NAME/mixminion.pid \
+		--exec /usr/bin/python2.3 -- /usr/bin/mixminion
+	;;
+  restart)
+	$0 stop
+	sleep 1
+	$0 start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart|reload|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

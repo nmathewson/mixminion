@@ -1,0 +1,18 @@
+Legend:
+	- Not done
+	* Top priority
+	. Partially done
+	o Done
+	D Deferred
+	X Abandoned
+
+For the first upload:
+	- setup logrotate to cleanup var/log/mixminion/
+	- lintian thinks /usr/lib/python2.3/site-packages/mixminion/Main.py is
+	  a scrypt and should be +x.  Lintian also complains about the weird
+	  shebang (unusual-interpreter).
+	  Either define overrides or remove the shebang
+	- we need a mixminion(1) manpage
+	- run server-upgrade on upgrade?
+
+	upstream issues:

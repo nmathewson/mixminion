@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+if [ "$1" = "purge" ]; then
+    # logs has to be removed according to policy.
+    # not sure about spool/lib stuff
+    rm -rf /var/log/mixminion/
+    rm -rf /var/lib/mixminion/
+    rm -rf /var/spool/mixminion/
+fi
+
+#DEBHELPER#
+
+exit 0

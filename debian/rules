@@ -1,0 +1,94 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+#export DH_VERBOSE=1
+export DH_COMPAT=4
+export PYTHON=python2.3
+export PACKAGE=mixminion
+
+include /usr/share/dpatch/dpatch.make
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	OPTIMIZE=0
+else
+	OPTIMIZE=1
+endif
+
+ifneq (,$(findstring notest,$(DEB_BUILD_OPTIONS)))
+	RUNUNITTESTS=0
+else
+	RUNUNITTESTS=1
+endif
+
+build: build-stamp
+build-stamp: patch-stamp
+	dh_testdir
+	#$(MAKE)
+	$(PYTHON) -tt setup.py build
+
+	@echo
+	@echo Running unit tests.
+	@echo
+	@if [ $(RUNUNITTESTS) -gt 0 ]; then \
+		$(PYTHON) -tt setup.py run --subcommand=unittests; \
+	else \
+		echo "Skipping."; \
+	fi
+	@echo
+
+	touch build-stamp
+
+clean: unpatch
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp
+	-$(MAKE) clean
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+
+	#$(MAKE) install PREFIX=$(CURDIR)/debian/mixminion/usr
+	$(PYTHON) setup.py install --optimize=$(OPTIMIZE) --force --root=$(CURDIR)/debian/mixminion
+	install -m 644 etc/mixminiond.conf $(CURDIR)/debian/mixminion/etc/mixminion
+	install -m 644 etc/blacklist.conf $(CURDIR)/debian/mixminion/etc/mixminion
+
+
+# Build architecture-independent files here.
+binary-indep: build install
+# We have nothing to do by default.
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs HISTORY
+	dh_installdocs
+#	dh_installexamples
+#	dh_install
+#	dh_installmenu
+#	dh_installdebconf
+#	dh_installlogrotate
+#	dh_installemacsen
+#	dh_installpam
+#	dh_installmime
+	dh_installinit
+#	dh_installcron
+#	dh_installinfo
+#	dh_installman
+	dh_link
+	dh_strip
+	dh_compress
+	dh_fixperms
+	dh_python -V 2.3
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install
