@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.55 2004/04/26 16:55:46 nickm Exp $
+# $Id: ServerConfig.py,v 1.56 2004/05/02 18:45:16 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -240,6 +240,9 @@ class ServerConfig(mixminion.Config._ConfigFile):
     def isServerConfig(self):
         """DOCDOC"""
         return 1
+    def getDirectoryRoot(self):
+        """DOCDOC"""
+        return os.path.join(self.getWorkDir(),"dir")
 
 def _validateRetrySchedule(mixInterval, schedule, sectionName):
     """Backend for ServerConfig.validateRetrySchedule -- separated for testing.

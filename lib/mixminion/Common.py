@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.137 2004/03/23 05:15:16 nickm Exp $
+# $Id: Common.py,v 1.138 2004/05/02 18:45:15 nickm Exp $
 
 """mixminion.Common
 
@@ -1481,6 +1481,7 @@ class Lockfile:
         self.filename = filename
         self.count = 0
         self.fd = None
+        self.rlock = threading.Lock() #DOCDOC
 
     def getContents(self):
         """Return the contents of the lock file."""
@@ -1496,22 +1497,26 @@ class Lockfile:
            defaults to blocking=1.  This should change. XXXX008
         """
 
-        if self.count > 0:
-            self.count += 1
-            return
-
-        assert self.fd is None
-        self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, mode)
+        self.rlock.acquire()
         try:
-            self._lock(self.fd, blocking)
-            self.count += 1
-            os.write(self.fd, contents)
-            if hasattr(os, "fsync"):
-                os.fsync(self.fd)
-        except:
-            os.close(self.fd)
-            self.fd = None
-            raise
+            if self.count > 0:
+                self.count += 1
+                return
+
+            assert self.fd is None
+            self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, mode)
+            try:
+                self._lock(self.fd, blocking)
+                self.count += 1
+                os.write(self.fd, contents)
+                if hasattr(os, "fsync"):
+                    os.fsync(self.fd)
+            except:
+                os.close(self.fd)
+                self.fd = None
+                raise
+        finally:
+            self.rlock.release()
 
     def replaceContents(self, contents):
         """Replace the current contents of the lockfile with 'contents',
@@ -1529,24 +1534,28 @@ class Lockfile:
 
     def release(self):
         """Release the lock."""
-        assert self.fd is not None
-        self.count -= 1
-        if self.count > 0:
-            return
+        self.rlock.acquire()
         try:
-            os.unlink(self.filename)
-        except OSError:
-            pass
-        try:
-            self._unlock(self.fd)
-        except OSError:
-            pass
-        try:
-            os.close(self.fd)
-        except OSError:
-            pass
+            assert self.fd is not None
+            self.count -= 1
+            if self.count > 0:
+                return
+            try:
+                os.unlink(self.filename)
+            except OSError:
+                pass
+            try:
+                self._unlock(self.fd)
+            except OSError:
+                pass
+            try:
+                os.close(self.fd)
+            except OSError:
+                pass
 
-        self.fd = None
+            self.fd = None
+        finally:
+            self.rlock.release()
 
     def _lock(self, fd, blocking):
         """Compatibility wrapper to implement file locking for posix and win32

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.2 2004/03/06 00:04:38 nickm Exp $
+# $Id: ThreadUtils.py,v 1.3 2004/05/02 18:45:15 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -92,6 +92,16 @@ else:
             raise AssertionError # unreached, appease pychecker
 
 #----------------------------------------------------------------------
+class DummyLock:
+    """DOCDOC"""
+    def __init__(self):
+        pass
+    def acquire(self):
+        pass
+    def release(self):
+        pass
+
+#----------------------------------------------------------------------
 # RW locks
 #
 # Adapted from the msrw class in the sync.py module in the Python
@@ -117,7 +127,8 @@ class RWLock:
         self.rwOK = threading.Lock()
         self.nr = 0  # number readers actively reading (not just waiting)
         self.nw = 0  # number writers either waiting to write or writing
-        self.writing = 0  # 1 iff some thread is writing
+        self.writer = 0  # thread_ident iff some thread is writing
+        self.write_depth = 0 # for recursive write_in invocation.
         # map from each current reader's thread_ident to recursion depth.
         self.readers = {}
 
@@ -131,14 +142,15 @@ class RWLock:
         self.rwOK.acquire()
         try:
             ident = _get_ident()
+            if self.writer == ident:
+                raise ValueError("Tried to acquire read lock while holding write lock.")
+
             try:
                 self.readers[ident] += 1
                 self.nr += 1
                 return
             except KeyError:
                 pass
-            #if self.readers.has_key(ident):
-            #    raise ValueError("RWLock.read_in called recursively.")
 
             while self.nw:
                 self.readOK.wait()
@@ -152,9 +164,10 @@ class RWLock:
            activate the writers (if any)."""
         self.rwOK.acquire()
         try:
+            ident = _get_ident()
+
             if self.nr <= 0:
                 raise ValueError, '.read_out() invoked without an active reader'
-            ident = _get_ident()
             try:
                 n = self.readers[ident]
             except KeyError:
@@ -165,10 +178,6 @@ class RWLock:
                 self.readers[ident] = n-1
                 self.nr -= 1
                 return
-            #try:
-            #    del self.readers[_get_ident()]
-            #except KeyError:
-            #    raise ValueError("read_out called without matching read_in.")
 
             self.nr = self.nr - 1
             if self.nr == 0:
@@ -182,12 +191,17 @@ class RWLock:
         """
         self.rwOK.acquire()
         try:
-            if self.readers.has_key(_get_ident()):
+            ident = _get_ident()
+            if self.readers.has_key(ident):
                 raise ValueError("write_in called while acting as reader")
+            if self.writer == ident:
+                self.write_depth += 1
+                return
             self.nw = self.nw + 1
-            while self.writing or self.nr:
+            while self.writer or self.nr:
                 self.writeOK.wait()
-            self.writing = 1
+            self.writer = ident
+            self.write_depth = 1
         finally:
             self.rwOK.release()
 
@@ -195,10 +209,16 @@ class RWLock:
         """Release the lock for writing."""
         self.rwOK.acquire()
         try:
-            if not self.writing:
+            ident = _get_ident()
+            if not self.writer:
                 raise ValueError, \
                       '.write_out() invoked without an active writer'
-            self.writing = 0
+            if self.writer != ident:
+                raise ValueError("write_out() called by non-writer")
+            self.write_depth -= 1
+            if self.write_depth > 0:
+                return
+            self.writer = 0
             self.nw = self.nw - 1
             if self.nw:
                 self.writeOK.notify()
@@ -211,9 +231,13 @@ class RWLock:
         """Simultaneously release the lock as a writer, and become a reader."""
         self.rwOK.acquire()
         try:
-            if not self.writing:
+            if not self.writer:
                 raise ValueError, \
                       '.write_to_read() invoked without an active writer'
+            if self.writer != ident:
+                raise ValueError("write_out() called by non-writer")
+            assert self.write_depth == 1
+            self.write_depth -= 1
             self.writing = 0
             self.nw = self.nw - 1
             self.nr = self.nr + 1

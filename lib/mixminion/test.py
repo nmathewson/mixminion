@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.194 2004/04/19 03:47:16 nickm Exp $
+# $Id: test.py,v 1.195 2004/05/02 18:45:16 nickm Exp $
 
 """mixminion.tests
 
@@ -4272,7 +4272,7 @@ IntRS=5
             self.assert_(os.path.exists(c[0]) and c[0].endswith("/rm"))
             self.assertEquals(c[1], [])
             self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
-            self.failUnless(C._parseCommand("python")[0] is not None)
+            self.failUnless(C._parseCommand(sys.executable)[0] is not None)
 
         # Base64
         self.assertEquals(C._parseBase64(" YW\nJj"), "abc")
@@ -6570,9 +6570,11 @@ class ClientDirectoryTests(TestCase):
         eq = self.assertEquals
         neq = self.assertNotEquals
         ServerInfo = mixminion.ServerInfo.ServerInfo
-
         dirname = mix_mktemp()
-        ks = mixminion.ClientDirectory.ClientDirectory(dirname)
+        config = mixminion.Config.ClientConfig(
+            string="[User]\nUserDir: %s\n"%dirname)
+
+        ks = mixminion.ClientDirectory.ClientDirectory(config)
 
         ## Write the descriptors to disk.
         impdirname = self.writeDescriptorsToDisk()
@@ -6602,7 +6604,7 @@ class ClientDirectoryTests(TestCase):
             self.assertRaises(MixError, ks.getServerInfo, "Joe", startAt=now,
                               endAt=now+6*oneDay, strict=1)
             if i in (0,1,2):
-                ks = mixminion.ClientDirectory.ClientDirectory(dirname)
+                ks = mixminion.ClientDirectory.ClientDirectory(config)
             if i == 1:
                 ks.rescan()
             if i == 2:
@@ -6642,7 +6644,7 @@ class ClientDirectoryTests(TestCase):
         mixminion.ClientDirectory.MIXMINION_DIRECTORY_FINGERPRINT = fingerprint
 
         # Reload the directory.
-        ks.updateDirectory(now=now)
+        ks.update(now=now,force=1)
 
         for i in 0,1,2,3:
             self.assertSameSD(ks.getServerInfo("Alice"), edesc["Alice"][0])
@@ -6651,20 +6653,20 @@ class ClientDirectoryTests(TestCase):
                               edesc["Bob"][4])
 
             if i in (0,1,2):
-                ks = mixminion.ClientDirectory.ClientDirectory(dirname)
+                ks = mixminion.ClientDirectory.ClientDirectory(config)
             if i == 1:
                 ks.rescan()
             if i == 2:
                 ks.rescan(force=1)
 
-        replaceFunction(ks, 'downloadDirectory')
+        replaceFunction(ks.store.bases[0], 'downloadDirectory')
 
         # Now make sure that update is properly zealous.
-        ks.updateDirectory(now=now)
+        ks.update(now=now)
         self.assertEquals([], getReplacedFunctionCallLog())
-        ks.updateDirectory(now=now, forceDownload=1)
+        ks.update(now=now, force=1)
         self.assertEquals(1, len(getReplacedFunctionCallLog()))
-        ks.updateDirectory(now=now+oneDay+60)
+        ks.update(now=now+oneDay+60)
         self.assertEquals(2, len(getReplacedFunctionCallLog()))
         undoReplacedAttributes()
         clearReplacedFunctionCallLog()
@@ -6676,7 +6678,7 @@ class ClientDirectoryTests(TestCase):
              ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
               "Bob3", "Bob4", "Lisa1", "Lisa2") ], identity)
         mixminion.ClientDirectory.MIXMINION_DIRECTORY_URL = fileURL(fname)
-        ks.updateDirectory(forceDownload=1)
+        ks.update(force=1)
         # Previous entries.
         self.assertSameSD(ks.getServerInfo("Alice"), edesc["Alice"][0])
         self.assertSameSD(ks.getServerInfo("Bob"), edesc["Bob"][3])
@@ -6742,9 +6744,11 @@ class ClientDirectoryTests(TestCase):
             neq(p[1].getNickname(), "Joe")
 
             # 2a.1. (Blocking some servers)
-            ks.configure({"Security" : { "BlockServers" : [["Joe"]],
-                                         "BlockEntries" : [["Alice"]],
-                                         "BlockExits" : [["Bob"]] } })
+            configBlock = mixminion.Config.ClientConfig(string=(
+                "[User]\nUserDir: %s\n[Security]\nBlockServers: Joe\n"
+                "BlockEntries: Alice\nBlockExits: Bob\n" % dirname))
+            ks.configure(configBlock)
+
             for _ in xrange(100):
                 p = ks.getPath([None]*4)
                 eq(4, len(p))
@@ -6753,9 +6757,13 @@ class ClientDirectoryTests(TestCase):
                 self.assertNotEquals("Bob", p[3])
                 self.assertNotIn("Joe", p)
 
-            ks.configure({})
+            ks.configure(config)
             # 2b. With 3 <= servers < length
-            ks2 = mixminion.ClientDirectory.ClientDirectory(mix_mktemp())
+            dirname2 = mix_mktemp()
+            config2 = mixminion.Config.ClientConfig(
+                string="[User]\nUserDir: %s\n"%dirname2)
+
+            ks2 = mixminion.ClientDirectory.ClientDirectory(config2)
             ks2.importFromFile(os.path.join(impdirname, "Joe0"))
             ks2.importFromFile(os.path.join(impdirname, "Alice0"))
             ks2.importFromFile(os.path.join(impdirname, "Lisa1"))
@@ -6970,7 +6978,7 @@ class ClientDirectoryTests(TestCase):
 
         ## Now try clean()
         ks.clean() # Should do nothing.
-        ks = mixminion.ClientDirectory.ClientDirectory(dirname)
+        ks = mixminion.ClientDirectory.ClientDirectory(config)
         ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
         raises(MixError, ks.getServerInfo, "Lola", strict=1)
         ks.getServerInfo
@@ -6979,7 +6987,10 @@ class ClientDirectoryTests(TestCase):
         from mixminion.ClientDirectory import compressFeatureMap
         from mixminion.ClientDirectory import formatFeatureMap
         d = self.writeDescriptorsToDisk()
-        direc = mixminion.ClientDirectory.ClientDirectory(mix_mktemp())
+        dirname = mix_mktemp()
+        config = mixminion.Config.ClientConfig(
+            string="[User]\nUserDir: %s\n"%dirname)
+        direc = mixminion.ClientDirectory.ClientDirectory(config)
         self.loadDirectory(direc, d)
         edesc = getExampleServerDescriptors()
 
@@ -7075,7 +7086,7 @@ class ClientDirectoryTests(TestCase):
               "Bob3", "Bob4", "Lisa1", "Lisa2") ], identity)
         mixminion.ClientDirectory.MIXMINION_DIRECTORY_URL = fileURL(fname)
         mixminion.ClientDirectory.MIXMINION_DIRECTORY_FINGERPRINT = fingerprint
-        direc.updateDirectory(now=now)
+        direc.update(now=now)
 
     def assertSameSD(self, s1, s2):
         self.assert_(self.isSameServerDesc(s1,s2))
@@ -7184,8 +7195,7 @@ class ClientMainTests(TestCase):
         client = mixminion.ClientMain.MixminionClient(usercfg)
 
         # Create a directory...
-        dirname = mix_mktemp()
-        directory = mixminion.ClientDirectory.ClientDirectory(dirname)
+        directory = mixminion.ClientDirectory.ClientDirectory(usercfg)
 
         edesc = getExampleServerDescriptors()
         fname = mix_mktemp()
@@ -7515,7 +7525,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(ClientMainTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

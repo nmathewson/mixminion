@@ -958,18 +958,15 @@ class CLIArgumentParser:
             assert _CLIENT_LOCKFILE
             LOG.debug("Configuring server list")
             self.directory = mixminion.ClientDirectory.ClientDirectory(
-                userdir, ClientDiskLock())
-            self.directory.configure(self.config)
+                config=self.config, diskLock=ClientDiskLock())
             self.directory._installAsKeyIDResolver()
 
         if self.wantDownload:
             assert self.wantClientDirectory
-            timeout = int(self.config['DirectoryServers']['DirectoryTimeout'])
             if self.download != 0:
                 clientLock()
                 try:
-                    self.directory.updateDirectory(forceDownload=self.download,
-                                                   timeout=timeout)
+                    self.directory.update(force=self.download)
                 finally:
                     clientUnlock()
 
@@ -1539,7 +1536,7 @@ def updateServers(cmd, args):
     timeout = int(config['DirectoryServers']['DirectoryTimeout'])
     clientLock()
     try:
-        directory.updateDirectory(forceDownload=1, timeout=timeout)
+        directory.update(force=1)
     finally:
         clientUnlock()
     print "Directory updated"

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.38 2004/03/06 00:04:38 nickm Exp $
+# $Id: ServerQueue.py,v 1.39 2004/05/02 18:45:16 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -85,6 +85,7 @@ class _DeliveryState:
             self.lastAttempt = state[2]
             self.address = state[3]
         else:
+            #XXXX008 This is way too extreme.
             raise MixFatalError("Unrecognized delivery state")
 
         self.pending = None

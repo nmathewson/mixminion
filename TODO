@@ -15,7 +15,9 @@ NEEDS TO BE WRITTEN:
 For 0.0.8:
         o Better error messages on expired / not-yet-ready certificates,
           no matter how hard OpenSSL makes it.
-        - Dummies and pinging
+        . Dummies and pinging
+                o Refactor ClientDirectory to be more modular
+                - Retrying needs to be per-destination, not per-packet.
         - Distributed directories
         - Bugs
                 - Make build process mention where to download openssl if
@@ -24,6 +26,22 @@ For 0.0.8:
                   thread module.
                 - Have -P *5 -t mbox:foo@server always always mean
                   -P *5,server -t mbox:foo
+                - time.gmtime is *not* a precise inverse of calendar.timegm,
+                  since the latter doesn't know about leapseconds.  Fix this;
+                  it can confuse the unit tests and maybe worse.  We can
+                  catch it by looking at time.gmtime(78969600) and seeing
+                  whether we get (1972,7,3,0,0,0) or one second before.
+                - Make tests pass with bizarre umasks.  (Try 0077, 0000,
+                  etc.)
+                - Drop support for pre-0.0.6 servers; Don't generate IPV4Info
+                  any more.
+        - Documentation
+                - Make README and Makefile be clearer about how to proceed
+                  when no openssl is found, and about option for local
+                  install.
+                - Make README note that on some NetBSD systems, it's
+                  necessary to add -I/usr/pkg/include.  (Also tweak setup.py
+                  to make CFLAGS more editable.)
 
 Reach goals for 0.0.8:
         - Specification

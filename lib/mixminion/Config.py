@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.85 2004/04/26 16:55:45 nickm Exp $
+# $Id: Config.py,v 1.86 2004/05/02 18:45:15 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -1055,6 +1055,14 @@ class ClientConfig(_ConfigFile):
     def isServerConfig(self):
         """DOCDOC"""
         return 0
+
+    def getUserDirectory(self):
+        """DOCDOC"""
+        return os.path.expanduser(self["User"].get("UserDir",DEFAULT_USER_DIR))
+
+    def getDirectoryRoot(self):
+        """DOCDOC"""
+        return self.getUserDirectory()
 
 def _validateHostSection(sec):
     """Helper function: Makes sure that the shared [Host] section is correct;
