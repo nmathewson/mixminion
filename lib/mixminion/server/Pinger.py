@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.2 2004/07/27 23:12:16 nickm Exp $
+# $Id: Pinger.py,v 1.3 2004/07/27 23:33:18 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -32,9 +32,9 @@ import mixminion.ServerInfo
 import mixminion.server.PacketHandler
 import mixminion.server.MMTPServer
 
-from mixminion.Common import ceilDiv, createPrivateDir, formatBase64, \
-     formatFnameDate, formatTime, LOG, parseFnameDate, previousMidnight, \
-     secureDelete
+from mixminion.Common import MixError, ceilDiv, createPrivateDir, \
+     floorDiv, formatBase64, formatFnameDate, formatTime, LOG, parseFnameDate,\
+     previousMidnight, readPickled, secureDelete, writePickled
 
 KEEP_HISTORY_DAYS = 15
 USE_HISTORY_DAYS = 12
@@ -70,11 +70,10 @@ class PingLog:
                 self._rotateHook()
             self.fname = os.path.join(self.location, "events-"+date)
             self.file = open(self.fname, 'a')
-            self.rotated()
         finally:
             self.lock.release()
 
-    def _rotateHook(self):
+    def _rotateHook(self,fname=None):
         pass
 
     def close(self):
@@ -92,7 +91,7 @@ class PingLog:
         try:
             date = parseFnameDate(fn[7:15])
         except ValueError:
-            return Nne,None
+            return None,None
         tp = fn[15:]
         if tp == "":
             return date,"log"
@@ -115,14 +114,14 @@ class PingLog:
             filenames = os.listdir(self.location)
             filenames.sort() # consider files in order of time.
             for fn in os.listdir(self.location):
-                date,type = self._parseFname(fn)
+                date,tp = self._parseFname(fn)
                 if not date:
                     LOG.warn("Unrecognized events file %s",fn)
                     continue
                 elif date < cutoff:
                     LOG.debug("Removing expired events file %s", fn)
                     bad.append(os.path.join(self.location, fn))
-                elif type == "pend":
+                elif tp == "pend":
                     if self.lastPending:
                         LOG.debug("Removing old pending-pings file %s",
                                   lastPending)
@@ -250,16 +249,16 @@ class PingStatusLog(PingLog):
     def _loadPingStatusImpl(self, binFname, pendFname, logFname):
         # lock is held if any refs to objects are held.
         if binFname:
-            results = readPickled(os.path.join(location,binFname),gzipped=1)
+            results = readPickled(os.path.join(self.location,binFname),gzipped=1)
             if results._version != PeriodResults.MAGIC:
                 return 1
-            pending = readPickled(os.path.join(location,pendFname),gzipped=1)
+            pending = readPickled(os.path.join(self.location,pendFname),gzipped=1)
             results.pendingPings=pending
             ps = PingStatus(results)
         else:
             ps = PingStatus()
-        if logFname and os.path.exists(os.path.join(location,logFname)):
-            f = open(os.path.join(location,logFname), 'r')
+        if logFname and os.path.exists(os.path.join(self.location,logFname)):
+            f = open(os.path.join(self.location,logFname), 'r')
             ps.addFile(f)
             f.close()
         self.pingStatus = ps
@@ -268,7 +267,7 @@ class PingStatusLog(PingLog):
     def _loadPingStatus(self):
         # lock is held if any refs to objects are held.
         dateSet = {}
-        for fn in os.listDir(self.location):
+        for fn in os.listdir(self.location):
             date, tp = self._parseFname(fn)
             dateSet.setdefault(date,{})[tp]=fn
         dates = dateSet.keys()
@@ -325,13 +324,13 @@ class PingStatusLog(PingLog):
         self.rotate()
         cutoff = previousMidnight(now)-KEEP_HISTORY_DAYS*ONE_DAY
         stats = []
-        for fn in os.listDir(self.location):
-            date, type = self._parseFname(fn)
-            if type != 'stat': continue
+        for fn in os.listdir(self.location):
+            date, tp = self._parseFname(fn)
+            if tp != 'stat': continue
             if date < cutoff: continue
             if fn == self.fname: continue
             stats.append((date,
-                       readPickle(os.path.join(self.location,fn),gzipped=1)))
+                       readPickled(os.path.join(self.location,fn),gzipped=1)))
         stats.sort()
         stats = [ pr for _,pr in stats ]
         self.lock.acquire()
@@ -371,7 +370,6 @@ def iteratePingLog(file, func):
     else:
         readLines = file.readlines
 
-    events = []
     for line in readLines():
         if line.startswith("#"):
             return
@@ -393,7 +391,8 @@ def readPingLog(file):
 
 class PeriodResults:
     MAGIC = "PeriodResults-0.0"
-    def __init__(self, start, end, liveness, serverUptime, serverStatus,
+    def __init__(self, start, end, liveness, serverUptime,
+                 serverDowntime, serverStatus,
                  pings, pendingPings):
         self.start = start
         self.end = end
@@ -452,8 +451,9 @@ class PingStatus:
         self.serverUptime = {}
         self.serverDowntime = {}
         self.serverStatus = c(self.serverStatus)
-        self.pings = self.pings
+        self.pings = {}
         self.pendingPings = c(self.pendingPings)
+        return pr
 
     def expirePings(self, cutoff):
         for h,(sent,path) in self.pendingPings.items():
@@ -487,7 +487,7 @@ class PingStatus:
                         self.serverDowntime[event[1]] += tm-tLast
                     except KeyError:
                         self.serverDowntime[event[1]] = tm-tLast
-                    serverStatus[event[1]] = ('U', tm)
+                    self.serverStatus[event[1]] = ('U', tm)
         elif eType == 'CONNECT_FAILED':
             try:
                 s, tLast = self.serverStatus[event[1]]
@@ -499,7 +499,7 @@ class PingStatus:
                         self.serverDowntime[event[1]] += tm-tLast
                     except KeyError:
                         self.serverDowntime[event[1]] = tm-tLast
-                    serverStatus[event[1]] = ('U', tm)
+                    self.serverStatus[event[1]] = ('U', tm)
         elif eType == 'SHUTDOWN':
             self.diedAt(tm)
         elif eType == 'STARTUP':
@@ -569,7 +569,7 @@ def calculatePingResults(periods, endAt):
     pingsByDay = [ {} for _ in xrange(USE_HISTORY_DAYS+1) ]
     allPaths = {}
     for p in periods:
-        for paths,timings in p.pings.items():
+        for path,timings in p.pings.items():
             allPaths[path]=1
             for send,recv in timings:
                 day = floorDiv(send-startAt, ONE_DAY)
@@ -593,8 +593,7 @@ def calculatePingResults(periods, endAt):
         summary.nSent[path]=0
         summary.nRcvd[path]=0
     for idx in xrange(KEEP_HISTORY_DAYS+1):
-        pbd = pingsByDay[idx]
-        for path, pings in pdb.keys():
+        for path, pings in pingsByDay[idx].keys():
             nRcvd = 0
             nLost = 0
             totalDelay = 0.0
@@ -615,16 +614,15 @@ def calculatePingResults(periods, endAt):
             summary.nRcvd[path] += nRcvd
 
     totalWeight = {}
-    totalWeightedDelay = {}
+    totalWeightReceived = {}
     for path in allPaths.keys():
         delays[path].sort()
         totalWeight[path] = 0
         totalWeightReceived[path] = 0
 
-    for idx in xrange(HISTORY_DAYS+1):
-        pbd = pingsByDay[idx]
-        weightAge = WEIGHT_AGE[-idx]
-        for path, pings in pdb.keys():
+    for idx in xrange(USE_HISTORY_DAYS+1):
+        weightAge = WEIGHT_AGE[idx]
+        for path, pings in pingsByDay[-idx].keys():
             if not delays[path]:
                 continue
             d = delays[path]
@@ -730,7 +728,7 @@ class _PingScheduler:
         raise NotImplemented()
     def _schedulePing(self,path,now=None):
         if now is None: now = time.time()
-        periodStart = _getPeriodStart(now)
+        periodStart = self._getPeriodStart(now)
         interval = self._getPingInterval(path)
         t = periodStart + self._getPerturbation(path, periodStart, interval)
         t += interval * ceilDiv(now-t, interval)
@@ -743,7 +741,7 @@ class _PingScheduler:
                   ",".join(path), formatTime(t,1))
         return t
     def _getPerturbation(self, path, periodStart, interval):
-        sha = mixminion.Crypto.sha1(",".join(path) + "@@" + str(day))
+        sha = mixminion.Crypto.sha1(",".join(path) + "@@" + str(interval))
         sec = abs(struct.unpack("I", sha[:4])[0]) % interval
         return sec
 
