@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.31 2003/01/06 11:43:58 nickm Exp $
+# $Id: Makefile,v 1.32 2003/01/06 12:42:39 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -93,6 +93,25 @@ install: do_build
 	  $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1;\
 	  echo "MIXMINION SAYS: Ignore that warning about sys.path--It's taken care of.";\
 	fi
+
+update:
+	@$(FINDPYTHON);                                                      \
+	PYVER=`$$PYTHON -c 'import sys; print sys.version[:3]'`;             \
+	if [ 'x' = "x$(PREFIX)" ] ; then                                     \
+	  PFX=`$$PYTHON -c 'import sys; print sys.prefix'`;                  \
+	  LIB=$$PFX/lib/python$$PYVER/site-packages/mixminion;               \
+	else                                                                 \
+	  LIB=$(PREFIX)/lib/python$$PYVER/site-packages/mixminion;           \
+	fi;                                                                  \
+	if [ ! -d $$LIB ] ; then                                             \
+	  echo "Didn't find an existing installation in $$LIB; bailing.";    \
+	elif [ ! -w $$LIB ] ; then                                           \
+	  echo "You don't seem to have write access to $$LIB; bailing.";     \
+	else                                                                 \
+	  $(MAKE) install;                                                   \
+	fi
+
+upgrade: update
 
 #======================================================================
 #  Uninstall target (phony.)
