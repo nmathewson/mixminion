@@ -1,6 +1,6 @@
-$Id: README,v 1.57 2003/09/02 20:05:48 nickm Exp $
+$Id: README,v 1.58 2003/09/03 16:43:09 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.5, release candidate 1.
+This is Mixminion version 0.0.5, release candidate 2.
 
 CONTENTS:
         I.    Overview
@@ -38,7 +38,15 @@ to trace your message through the system.
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
 
-NEW IN VERSION 0.0.5rc1: <INCOMPLETE>
+NEW IN VERSION 0.0.5rc2:
+   - Fix for a bug that would crash exit servers trying to upgrade from
+     certain older versions.
+
+   - Improved error messages for several cases.
+
+   - Add a draft man page (credit goes to George Danezis).
+
+NEW IN VERSION 0.0.5rc1:
    - Support for email headers.  'Subject', 'In-Reply-To', and 'References'
      are fully supported.  'From' support is limited, as documented in
      'E2E-spec.txt'.
@@ -113,9 +121,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5rc1.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5rc2.tar.gz>
 
-  % cd Mixminion-0.0.5rc1
+  % cd Mixminion-0.0.5rc2
   % make download-openssl
   % make build-openssl
   % make
