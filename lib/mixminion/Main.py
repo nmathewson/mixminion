@@ -75,6 +75,7 @@ def correctPath(myself):
 _COMMANDS = {
     "unittests" : ( 'mixminion.test', 'testAll' ),
     "benchmarks" : ( 'mixminion.benchmark', 'timeAll' ),
+    "client" : ( 'mixminion.ClientMain', 'runClient' ),
     "server" : ( 'mixminion.ServerMain', 'runServer' ),
     "server-keygen" : ( 'mixminion.ServerMain', 'runKeygen')
 }

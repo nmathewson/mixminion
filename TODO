@@ -16,19 +16,20 @@ FOR 0.0.1: (The first alpha)
          work.  There need not be an interface for replies.  Key rotation
          need not be automated.]
 
-	. MBox module
-		o Implement
-		- Test
 	. Server
 		o Startup, config
 		o Hardwired code to drop undeliverable messages
 		o Document ServerMain
 		o Unit test for keyset 
+		- Make at least one delivery happen
+			- BUG: Make sure hashlogs get written
+			- BUG: "Unable to handle message with unknown type 65534
+			- BUG: Changing port should make keyid die.
+		- Need 'nuke keys' cli.
 		- Unit tests for various queues.
 		*- Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
-	- Better log messages at all points throughout system.
 	. CLI for server
 		o Common CLI code.	
 		o Run server
@@ -43,22 +44,27 @@ FOR 0.0.1: (The first alpha)
 		- Test CLI client
 	- Config
 		o Infer nickname
-		- Stub validation function for client
-		- Stub validation function for server		
+		o Stub validation function for client
+		o Stub validation function for server
+		o Warn about unimplemented allow/deny
+		o Warn about all unimplemented features
 		- Example config
-		- Warn about unimplemented allow/deny
-		- Warn about all unimplemented features
 	. Build
 		. Ability to pull ssl.
 		o Ability to build ssl.
 		- Marginal 'make install'
 	- Integration testing
+		- Better log messages at all points throughout system.
 		. Fake delivery module for MBOX-less testing of core
 			*- Tests for fake delivery module
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
+	. MBox module
+		o Implement
+		- Test
 	- Rename versions to 0.1.
-	- Marginally clean shutdown for server
+	- Change output of dates to avoid potential GMT confusion.
+	o Marginally clean shutdown for server
 	- Versioning :)
 	- Final license
 	- Documentation
@@ -66,7 +72,7 @@ FOR 0.0.1: (The first alpha)
 		- Basic HOWTO
 		- Difference between XXXX FFFF ????
 		- Overall design
-
+	- Separate package for server code.
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out

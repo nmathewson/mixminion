@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.7 2002/08/29 03:30:21 nickm Exp $
+# $Id: ServerMain.py,v 1.8 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -175,7 +175,7 @@ class ServerKeyring:
 
 	    nextStart = startAt + self.config['Server']['PublicKeyLifetime'][2]
 
-	    getLog().info("Generating key %s to run from %s through %s", 
+	    getLog().info("Generating key %s to run from %s through %s (GMT)", 
 			  keyname, _date(startAt), _date(nextStart-3600))
  	    generateServerDescriptorAndKeys(config=self.config,
 					    identityKey=self.getIdentityKey(),
@@ -209,7 +209,6 @@ class ServerKeyring:
 	    self.liveKey = None
 	    self.nextKeyRotation = 0
 	    return None
-
 
 	w = when
 	if when is None: 
@@ -260,8 +259,11 @@ class ServerKeyring:
     def getPacketHandler(self):
 	"""Create and return a PacketHandler from the currently live key."""
         keys = self.getServerKeyset()
-        return mixminion.PacketHandler.PacketHandler(keys.getPacketKey(),
-                                                     keys.getHashLogFileName())
+	packetKey = keys.getPacketKey()
+	hashlog = mixminion.HashLog.HashLog(keys.getHashLogFileName(),
+						 keys.getMMTPKeyID())
+        return mixminion.PacketHandler.PacketHandler(packetKey,
+						     hashlog)
 
 class IncomingQueue(mixminion.Queue.DeliveryQueue):
     """A DeliveryQueue to accept messages from incoming MMTP connections,
@@ -280,14 +282,14 @@ class IncomingQueue(mixminion.Queue.DeliveryQueue):
 
     def queueMessage(self, msg):
 	"""Add a message for delivery"""
-	mixminion.DeliveryQueue.queueMessage(None, msg)
+	mixminion.Queue.DeliveryQueue.queueMessage(self, None, msg)
     
     def deliverMessages(self, msgList):
 	"Implementation of abstract method from DeliveryQueue."
 	ph = self.packetHandler
 	for handle, _, message, n_retries in msgList:
 	    try:
-		res = ph.packetHandler(message)
+		res = ph.processMessage(message)
 		if res is None:
 		    # Drop padding before it gets to the mix.
 		    getLog().info("Padding message dropped")
@@ -315,7 +317,7 @@ class MixPool:
 
     def queueObject(self, obj):
 	"""Insert an object into the queue."""
-	self.queue.queueObject(ob)
+	self.queue.queueObject(obj)
 
     def connectQueues(self, outgoing, manager):
 	"""Sets the queue for outgoing mixminion packets, and the
@@ -327,15 +329,17 @@ class MixPool:
 	"""Get a batch of messages, and queue them for delivery as 
 	   appropriate."""
 	handles = self.queue.getBatch()
+	getLog().trace("Mixing %s messages", len(handles))
 	for h in handles:
 	    tp, info = self.queue.getObject(h)
 	    if tp == 'EXIT':
 		rt, ri, app_key, payload = info
-		self.moduleManager.queueMessage((rt, ri), payload)
+		self.moduleManager.queueMessage(payload, rt, ri)
 	    else:
 		assert tp == 'QUEUE'
 		ipv4, msg = info
 		self.outgoingQueue.queueMessage(ipv4, msg)
+	    self.queue.removeMessage(h)
 
 class OutgoingQueue(mixminion.Queue.DeliveryQueue):
     """DeliveryQueue to send messages via outgoing MMTP connections."""
@@ -357,9 +361,9 @@ class OutgoingQueue(mixminion.Queue.DeliveryQueue):
 	for handle, addr, message, n_retries in msgList:
 	    msgs.setdefault(addr, []).append( (handle, message) )
 	for addr, messages in msgs.items():
-	    messages, handles = zip(*messages)
+	    handles, messages = zip(*messages)
 	    self.server.sendMessages(addr.ip, addr.port, addr.keyinfo,
-				     messages, handles)
+				     list(messages), list(handles))
 
 class _MMTPServer(mixminion.MMTPServer.MMTPServer):
     """Implementation of mixminion.MMTPServer that knows about
@@ -462,7 +466,7 @@ def configFromServerArgs(cmd, args):
     options, args = getopt.getopt(args, "hf:", ["help", "config="])
     if args:
 	usageAndExit(cmd)
-    configFile = "/etc/miniond.conf"
+    configFile = "/etc/mixminiond.conf"
     for o,v in options:
 	if o in ('-h', '--help'):
 	    usageAndExit()
@@ -507,6 +511,7 @@ def runServer(cmd, args):
 	getLog().fatal_exc(sys.exc_info(),"Exception while running server")
     getLog().info("Server shutting down")
     
+    
     sys.exit(0)
 
 #----------------------------------------------------------------------
@@ -539,5 +544,4 @@ def runKeygen(cmd, args):
     for i in xrange(keys):
 	keyring.createKeys(1)
 	print >> sys.stderr, ".... (%s/%s done)" % (i+1,keys)
-    
     

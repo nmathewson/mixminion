@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.13 2002/08/29 03:30:21 nickm Exp $
+# $Id: Config.py,v 1.14 2002/08/31 04:12:36 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -51,7 +51,6 @@ __all__ = [ 'getConfig', 'loadConfig' ]
 import os
 import re
 import binascii
-import time
 import socket # for inet_aton and error
 from cStringIO import StringIO
 
@@ -624,15 +623,13 @@ class ClientConfig(_ConfigFile):
         'User' : { 'UserDir' : ('ALLOW', None, "~/.mixminion" ) },
         'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
                        'SURBAddress' : ('ALLOW', None, None),
-                       'SURBPathLength' : ('ALLOW', None, "8") },
+                       'SURBPathLength' : ('ALLOW', _parseInt, "8") },
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
-        #XXXX Write this
-        pass
-
+	_validateHostSection(sections.get('Host', {}))
 
 SERVER_SYNTAX =  {
         'Host' : ClientConfig._syntax['Host'],
@@ -695,7 +692,34 @@ class ServerConfig(_ConfigFile):
         _ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
-        #XXXX write this.
+	log = getLog()
+	_validateHostSection(sections.get('Host', {}))
+	# Server section
+	server = sections['Server']
+	bits = server['IdentityKeyBits']
+	if not (2048 <= bits <= 4096):
+	    raise ConfigError("IdentityKeyBits must be between 2048 and 4096")
+	if server['EncryptIdentityKey']:
+	    log.warn("Identity key encryption not yet implemented")
+	if server['EncryptPrivateKey']:
+	    log.warn("Encrypted private keys not yet implemented")
+	if server['PublicKeyLifetime'][2] < 24*60*60:
+	    raise ConfigError("PublicKeyLifetime must be at least 1 day.")
+	if server['PublicKeySloppiness'][2] > 20*60:
+	    raise ConfigError("PublicKeySloppiness must be <= 20 minutes.")
+	if [e for e in entries['Server'] if e[0]=='Mode']:
+	    log.warn("Mode specification is not yet supported.")
+
+	if not sections['Incoming/MMTP'].get('Enabled'):
+	    log.warn("Disabling incoming MMTP is not yet supported.")
+	if [e for e in entries['Incoming/MMTP'] if e[0] in ('Allow', 'Deny')]:
+	    log.warn("Allow/deny are not yet supported")
+
+	if not sections['Outgoing/MMTP'].get('Enabled'):
+	    log.warn("Disabling incoming MMTP is not yet supported.")
+	if [e for e in entries['Outgoing/MMTP'] if e[0] in ('Allow', 'Deny')]:
+	    log.warn("Allow/deny are not yet supported")
+
         self.moduleManager.validate(sections, entries, lines, contents)
 
     def __loadModules(self, section, sectionEntries):
@@ -712,3 +736,8 @@ class ServerConfig(_ConfigFile):
     def getModuleManager(self):
 	"Return the module manager initialized by this server."
 	return self.moduleManager
+
+def _validateHostSection(sec):
+    #XXXX
+    pass
+

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.19 2002/08/29 03:30:21 nickm Exp $
+# $Id: Common.py,v 1.20 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.Common
 
@@ -208,6 +208,9 @@ class _FileLogHandler:
         if self.file is not None:
             self.file.close()
 	try: 
+	    parent = os.path.split(self.fname)[0]
+	    if not os.path.exists(parent):
+		createPrivateDir(parent)
 	    self.file = open(self.fname, 'a')
 	except OSError, e:
 	    self.file = None

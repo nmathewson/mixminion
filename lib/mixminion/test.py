@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.25 2002/08/29 03:30:21 nickm Exp $
+# $Id: test.py,v 1.26 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.tests
 
@@ -2135,7 +2135,11 @@ class ServerInfoTests(unittest.TestCase):
     def testServerInfoGen(self):
 	identity = _getIdentityKey()
         d = mix_mktemp()
-        conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG)
+	try:
+	    suspendLog()
+	    conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG)
+	finally:
+	    resumeLog()
         if not os.path.exists(d):
             os.mkdir(d, 0700)
 
@@ -2195,7 +2199,11 @@ class ServerInfoTests(unittest.TestCase):
                                                   identityPK))
 
         # Now with a shorter configuration
-        conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG_SHORT)
+	try:
+	    suspendLog()
+	    conf = mixminion.Config.ServerConfig(string=SERVER_CONFIG_SHORT)
+	finally:
+	    resumeLog()
 	mixminion.ServerInfo.generateServerDescriptorAndKeys(conf,
 							     identity,
 							     d,
@@ -2285,7 +2293,11 @@ Module ExampleMod.TestModule
 Foo: 99
 """ % (home_dir, mod_dir)
 
-        conf = mixminion.Config.ServerConfig(string=cfg_test)	
+        try:
+	    suspendLog()
+	    conf = mixminion.Config.ServerConfig(string=cfg_test)	
+	finally:
+	    resumeLog()
 	manager = conf.getModuleManager()
 	exampleMod = None
 	for m in manager.modules:
@@ -2295,7 +2307,11 @@ Foo: 99
 	manager.configure(conf)
 
 	self.assertEquals(99, exampleMod.foo)
-        conf = mixminion.Config.ServerConfig(string=cfg_test)	
+	try:
+	    suspendLog()
+	    conf = mixminion.Config.ServerConfig(string=cfg_test)	
+	finally:
+	    resumeLog()
 	manager = conf.getModuleManager()
 	exampleMod = None
 	for m in manager.modules:
@@ -2348,7 +2364,11 @@ ModulePath = %s
 Module ExampleMod.TestModule
 """ % (home_dir, mod_dir)
 
-        conf = mixminion.Config.ServerConfig(string=cfg_test)	
+        try:
+	    suspendLog()
+	    conf = mixminion.Config.ServerConfig(string=cfg_test)
+	finally:
+	    resumeLog()
 	manager = conf.getModuleManager()
 	exampleMod = None
 	for m in manager.modules:
@@ -2390,7 +2410,11 @@ def _getKeyring():
     if _FAKE_HOME is None:
 	_FAKE_HOME = mix_mktemp()	
     cfg = SERVERCFG % { 'home' : _FAKE_HOME }
-    conf = mixminion.Config.ServerConfig(string=cfg)
+    try:
+	suspendLog()
+	conf = mixminion.Config.ServerConfig(string=cfg)
+    finally:
+	resumeLog()
     return mixminion.ServerMain.ServerKeyring(conf)
 
 _IDENTITY_KEY = None

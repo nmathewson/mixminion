@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.6 2002/08/19 20:27:02 nickm Exp $
+# $Id: PacketHandler.py,v 1.7 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -38,6 +38,7 @@ class PacketHandler:
             self.privatekey = privatekey
             self.hashlog = hashlog
         except:
+	    # XXXX Don't do except:; name an exception.
             self.privatekey = (privatekey, )
             self.hashlog = (hashlog, )
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.10 2002/08/29 03:30:21 nickm Exp $
+# $Id: Modules.py,v 1.11 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.Modules
 
@@ -108,7 +108,7 @@ class ImmediateDeliveryQueue:
 
     def queueMessage(self, (exitType, exitInfo), message):
 	try:
-	    res = self.module.processMessage(exitType, exitInfo, message)
+	    res = self.module.processMessage(message, exitType, exitInfo)
 	    if res == DELIVER_OK:
 		return
 	    elif res == DELIVER_FAIL_RETRY:

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.3 2002/08/29 03:30:21 nickm Exp $
+# $Id: testSupport.py,v 1.4 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.testSupport
 
@@ -42,7 +42,7 @@ class DirectoryStoreModule(DeliveryModule):
 	if not self.loc:
 	    return
 	self.useQueue = config['Testing/DirectoryDump']['UseQueue']
-	#manager.registerModule(self)
+	manager.enableModule(self)
 	
 	if not os.path.exists(self.loc):
 	    createPrivateDir(self.loc)
@@ -75,7 +75,7 @@ class DirectoryStoreModule(DeliveryModule):
 	elif exitInfo == 'FAIL!':
 	    return DELIVER_FAIL_NORETRY
 
-	f = open(os.path.join(self.loc, self.next), 'w')
+	f = open(os.path.join(self.loc, str(self.next)), 'w')
 	self.next += 1
 	f.write(exitInfo)
 	f.write("\n")

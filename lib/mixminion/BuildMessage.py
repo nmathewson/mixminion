@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.11 2002/08/06 16:09:21 nickm Exp $
+# $Id: BuildMessage.py,v 1.12 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -21,6 +21,9 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2):
             exitInfo: The routing info for the final node
             path1: Sequence of ServerInfo objects for the first leg of the path
             path2: Sequence of ServerInfo objects for the 2nd leg of the path
+
+        Note: If either path is empty, the message is vulnerable to tagging 
+         attacks! (FFFF we should check this.)
     """
     return _buildMessage(payload, exitType, exitInfo, path1, path2)
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.15 2002/08/29 03:30:21 nickm Exp $
+# $Id: MMTPServer.py,v 1.16 2002/08/31 04:12:36 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -63,8 +63,8 @@ class AsyncServer:
            If we receive an unblocked signal, return immediately.
            """
 
-        trace("%s readers, %s writers" % (len(self.readers),
-                                          len(self.writers)))
+##        trace("%s readers, %s writers" % (len(self.readers),
+##                                          len(self.writers)))
         
         readfds = self.readers.keys()
         writefds = self.writers.keys()
@@ -570,7 +570,8 @@ class MMTPClientConnection(SimpleTLSConnection):
         msg = self.messageList[0]
         self.expectedDigest = sha1(msg+"RECEIVED")
         msg = SEND_CONTROL+msg+sha1(msg+"SEND")
-
+	assert len(msg) == SEND_RECORD_LEN
+	
         self.beginWrite(msg)
         self.finished = self.__sentMessage
 
@@ -641,14 +642,21 @@ class MMTPServer(AsyncServer):
         sock.setblocking(0)
         con = MMTPServerConnection(sock, tls, self.onMessageReceived)
         con.register(self)
+	return con
     
     def stopListening(self):
 	self.listener.shutdown()
 
     def sendMessages(self, ip, port, keyID, messages, handles):
 	"""Send a set of messages to a given server."""
-        con = MMTPClientConnection(ip, port, keyID, messages, handles,
-                                   self.onMessageSent)
+	#XXXX for debugging
+	for m,h in zip(messages, handles):
+	    assert len(m) == MESSAGE_LEN
+	    assert len(h) < 32
+	    
+        con = MMTPClientConnection(self.context,
+				   ip, port, keyID, messages, handles,
+                                   self.onMessageSent, self.onMessageUndeliverable)
         con.register(self)
 
     def onMessageReceived(self, msg):

@@ -1,12 +1,13 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.9 2002/07/09 04:07:14 nickm Exp $
+# $Id: HashLog.py,v 1.10 2002/08/31 04:12:36 nickm Exp $
 
 """mixminion.HashLog
 
    Persistant memory for the hashed secrets we've seen."""
 
+import os
 import anydbm, dumbdbm
-from mixminion.Common import MixFatalError, getLog
+from mixminion.Common import MixFatalError, getLog, createPrivateDir
 
 __all__ = [ 'HashLog' ]
 
@@ -37,6 +38,9 @@ class HashLog:
     def __init__(self, filename, keyid):
         """Create a new HashLog to store data in 'filename' for the key
            'keyid'."""
+        parent = os.path.split(filename)[0]
+	createPrivateDir(parent)
+	print filename
         self.log = anydbm.open(filename, 'c')
         if isinstance(self.log, dumbdbm._Database):
             getLog().warn("Warning: logging packet digests to a flat file.")
