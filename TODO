@@ -12,12 +12,17 @@ For a list of good beginner projects, check out HACKING.
 
 NEEDS TO BE WRITTEN:
 
-Deferred from 0.0.7:
+For 0.0.8:
+        - Better error messages on expired / not-yet-ready certificates,
+          no matter how hard OpenSSL makes it.
+        - Dummies and pinging
+        - Distributed directories
+
+Reach goals for 0.0.8:
         - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
-        - Dummies and pinging [Rationale: no time]
-        - Make 'SIGHUP' reload, (and 'SIGUSR' dump). [Rationale: no time]
+        - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
                 - SIGHUP should reconfigure everything:
                         - Logs
                         - EventStats
@@ -31,14 +36,7 @@ Deferred from 0.0.7:
                 - SIGHUP should check whether serverinfo should be
                   regenerated.
                 - Add SIGUSR1 to do rotate-and-dump only.
-        - MMTP [Rationale: more design needed]
-                - Retrying should be per-destination, not per-packet.
-                  Otherwise, we can leak which packets were first attempted
-                  when.
-                - Limit number of packets sent over single client
-                  connection.
-        - UI [Rationale: don't build stuff for integrators till after
-              codecon, when I'll talk with 2 potential integrators.]
+        - Integrator help
                 - RFC822 interface to help integrators.
                 - "-o" option for queue
                 - "-i" option for flush.
@@ -47,14 +45,14 @@ Deferred from 0.0.7:
                         - Text/binary modes
                         - With/without decoding handle
                         - Attach to any type.
-
-For 0.0.8:
-        - For petmail:
-                - Working,well-designed --status-fd option
-        - For mnet:
-                - Implement trivial client side of client API
-                - Specify pluggable modules better.
-                - Consider server APIs
+                - For petmail:
+                        - Working,well-designed --status-fd option
+                - For mnet:
+                        - Implement trivial client side of client API
+                        - Specify pluggable modules better.
+                        - Consider server APIs
+                - Use a 'sendmail'-like program instead of a SMTP server,
+                  optionally.
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   [Release criteria: Workable replacement for type II.  At least as
@@ -70,8 +68,6 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
                 - Support NEWS
-                - Use a 'sendmail'-like program instead of a SMTP server,
-                  optionally.
         - End-to-end issues
                 - Minimal MIME support: allow headers; don't attempt to
                   enforce a single-best format.
@@ -167,7 +163,12 @@ Other features for "1.0" (no research required):
           into RAM at once.
                 - Fragment and unfragment large messages on disk.
         - MMTP / async
-               - Tests for all cases:
+                - Retrying should be per-destination, not per-packet.
+                  Otherwise, we can leak which packets were first attempted
+                  when.
+                - Limit number of packets sent over single client
+                  connection.
+                - Tests for all cases:
                         - Packet to server with bogus IP
                         - Junk
                         - Retry on bogus close.

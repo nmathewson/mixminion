@@ -1,14 +1,14 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.98 2004/04/04 17:58:28 nickm Exp $
+# $Id: setup.py,v 1.99 2004/04/04 18:44:07 nickm Exp $
 import sys
 
 #
 #   Current Mixminion version
 #
-VERSION = '0.0.7'
+VERSION = '0.0.8alpha1'
 # System: 0==alpha, 50==beta, 98=pre, 99==release candidate, 100==release
-VERSION_INFO = (0,0,7,100,-1)
+VERSION_INFO = (0,0,8,0,1)
 
 # Check the version.  We need to make sure version_info exists before we
 # compare to it: it was only added as of Python version 1.6.
@@ -526,10 +526,10 @@ if 'py2exe' in sys.argv:
         }
 elif sys.platform != 'win32':
     EXTRA = {
-        'data_files' : [("man/man1", ["etc/mixminion.1"]),
-                        ("man/man5", ["etc/mixminionrc.5",
+        'data_files' : [("share/man/man1", ["etc/mixminion.1"]),
+                        ("share/man/man5", ["etc/mixminionrc.5",
                                       "etc/mixminiond.conf.5"]),
-                        ("man/man8", ["etc/mixminiond.8"])]
+                        ("share/man/man8", ["etc/mixminiond.8"])]
         }
 else:
     EXTRA = {}
