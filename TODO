@@ -54,8 +54,8 @@ TCP latency, and me.)
                         o Add 'features' to Config.
                         o Add featureMap manipulation functionality to 
                           ClientDirectory.
-                        . Formatting for featuremap
-                        - CLI for new listservers
+                        o Formatting for featuremap
+                        o CLI for new listservers
                         - Replace old listservers
                         - Unit tests for features
                         - Unit tests for featureMaps
@@ -87,7 +87,9 @@ TCP latency, and me.)
                 - Installer
                 - Instructions
                 - Py2EXE support
-        - Fix misc annoyances
+        . Fix misc annoyances
+                o Don't generate dead keys when restarting the server
+                  after the last keys have long expired.
                 - Make sure we clean out Filestores used by clients.
                 - Don't remove currently-undeliverable messages from client
                   queue when flushing.

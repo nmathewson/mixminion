@@ -341,7 +341,6 @@ class ClientDirectory:
         return n
 
     def __rebuildTables(self):
-
         """Helper method.  Reconstruct byNickname, byKeyID,
            allServers, and byCapability from the internal start of
            this object.  """
@@ -371,36 +370,7 @@ class ClientDirectory:
                 continue
             self.byNickname.setdefault(nn, []).append((info, where))
 
-    def listServers(self):
-        """Returns a linewise listing of the current servers and their caps.
-            This will go away or get refactored in future versions once we
-            have client-level modules.
-        """
-        lines = []
-        nicknames = self.byNickname.keys()
-        nicknames.sort()
-        if not nicknames:
-            return [ "No servers known" ]
-        longestnamelen = max(map(len, nicknames))
-        fmtlen = min(longestnamelen, 20)
-        nnFormat = "%"+str(fmtlen)+"s:%s"
-        for n in nicknames:
-            nnreal = self.byNickname[n][0][0].getNickname()
-            isGood = self.goodServerNicknames.get(n, 0)
-            if isGood:
-                status = ""
-            else:
-                status = " (not recommended)"
-            lines.append(nnFormat%(nnreal,status))
-            for info, where in self.byNickname[n]:
-                caps = info.getCaps()
-                va = formatDate(info['Server']['Valid-After'])
-                vu = formatDate(info['Server']['Valid-Until'])
-                line = "      [%s to %s] %s"%(va,vu," ".join(caps))
-                lines.append(line)
-        return lines
-
-    def listServers2(self, features, at=None, goodOnly=0):
+    def getFeatureMap(self, features, at=None, goodOnly=0):
         """DOCDOC
            Returns a dict from nickname to (va,vu) to feature to value."""
         result = {}
@@ -853,25 +823,31 @@ def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" "):
     nicknames.sort()
     lines = []
     if not nicknames: return lines
+    maxnicklen = max([len(nn) for nn in nicknames])
+    nnformat = "%-"+str(maxnicklen)+"s"
     for _, nickname in nicknames:
         d = featureMap[nickname]
         if not d: continue
         items = d.items()
         items.sort()
         if cascade: lines.append("%s:"%nickname)
+        justified_nickname = nnformat%nickname
         for (va,vu),fmap in items:
             ftime = "%s to %s"%(formatDate(va),formatDate(vu))
-            if cascade and showTime:
-                lines.append("  %s:"%ftime)
-            if cascade:
+            if cascade==1:
+                lines.append("  [%s] %s"%(ftime,
+                        sep.join([fmap[f] for f in features])))
+            elif cascade==2:
+                if showTime:
+                    lines.append("  [%s]"%ftime)    
                 for f in features:
                     v = fmap[f]
                     lines.append("    %s:%s"%(f,v))
             elif showTime:
-                lines.append("%s:%s:%s" %(nickname,ftime,
+                lines.append("%s:%s:%s" %(justified_nickname,ftime,
                    sep.join([fmap[f] for f in features])))
             else:
-                lines.append("%s:%s" %(nickname,
+                lines.append("%s:%s" %(justified_nickname,
                    sep.join([fmap[f] for f in features])))
     return lines
 

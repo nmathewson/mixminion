@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.62 2003/11/07 07:03:28 nickm Exp $
+# $Id: Config.py,v 1.63 2003/11/07 09:07:54 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -893,7 +893,7 @@ class _ConfigFile:
         """DOCDOC"""
         assert sec not in ("+","-")
         parseType = self._syntax[sec].get(name)[1]
-        _, unparseFn = self.CODING_FNS[parseType]
+        _, unparseFn = self.CODING_FNS.get(parseType, (None,str))
         try:
             v = self[sec][name]
         except KeyError:

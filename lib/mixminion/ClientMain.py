@@ -1180,6 +1180,8 @@ Options:
                              Force the client to download/not to download a
                                fresh directory.
 
+   DOCDOC Somebody needs to explain this. :)
+                               
 EXAMPLES:
   List all currently known servers.
       %(cmd)s
@@ -1187,9 +1189,11 @@ EXAMPLES:
 
 def listServers(cmd, args):
     """[Entry point] Print info about """
-    options, args = getopt.getopt(args, "hf:D:v",
+    options, args = getopt.getopt(args, "hf:D:vF:c:TVs:",
                                   ['help', 'config=', "download-directory=",
-                                   'verbose'])
+                                   'verbose', 'feature=', 'cascade=',
+                                   'with-time', "no-collapse", "valid",
+                                   "separator="])
     try:
         parser = CLIArgumentParser(options, wantConfig=1,
                                    wantClientDirectory=1,
@@ -1198,18 +1202,73 @@ def listServers(cmd, args):
         e.dump()
         print _LIST_SERVERS_USAGE % {'cmd' : cmd}
         sys.exit(1)
+    features = []
+    cascade = 0
+    showTime = 0
+    validOnly = 0
+    separator = "\t"
+    for opt,val in options:
+        if opt in ('-F', '--feature'):
+            features.append(val)
+        elif opt in ('-c', '--cascade'):
+            try:
+                cascade = int(val)
+            except ValueError:
+                raise UIError("%s requires an integer"%opt)
+            if not (0 <= cascade <= 2):
+                raise UIError("Cascade level must be between 0 and 2")
+        elif opt == ('-T'):
+            showTime += 1
+        elif opt == ('--with-time'):
+            showTime = 1
+        elif opt == ('--no-collapse'):
+            showTime = 2
+        elif opt in ('-V', '--valid'):
+            validOnly = 1
+        elif sep in ('-s', '--separator'):
+            separator = val
+
+    if not features:
+        if validOnly:
+            features = [ 'caps' ]
+        else:
+            features = [ 'caps', 'status' ]
 
     parser.init()
     directory = parser.directory
 
-    #for line in directory.listServers():
-    #    print line
-    features = ["caps", "status", "secure-configuration"]
-    fm = directory.listServers2(features)
-    #fm = mixminion.ClientDirectory.compressServerList(fm)
+    # Look up features in directory.
+    featureMap = directory.getFeatureMap(features,goodOnly=validOnly)
+
+    # If any servers are listed on the command line, restrict to those
+    # servers.
+    if args:
+        lcargs = [ arg.lower() for arg in args ]
+        lcfound = {}
+        restrictedMap = {}
+        for nn,v in featureMap.items():
+            if nn.lower() in lcargs:
+                restrictedMap[nn] = v
+                lcfound[nn.lower()] = 1
+        for arg in args:
+            if not lcfound.has_key(arg.lower()):
+                if validOnly:
+                    raise UIError("No recommended descriptors found for %s"%
+                                  arg)
+                else:
+                    raise UIError("No descriptors found for %s"%arg)
+        featureMap = restrictedMap
+
+    # Collapse consecutive server descriptors with matching features.
+    if showTime < 2:
+        featureMap = mixminion.ClientDirectory.compressServerList(
+            featureMap, ignoreGaps=(not showTime), terse=(not showTime))
+
+    # Now display the result.
     for line in mixminion.ClientDirectory.formatFeatureMap(
-        features,fm,1,cascade=1):
+        features,featureMap,showTime,cascade,separator):
         print line
+        
 
 _UPDATE_SERVERS_USAGE = """\
 Usage: %(cmd)s [options]
