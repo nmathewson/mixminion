@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.10 2003/01/14 05:09:38 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.11 2003/01/17 05:57:57 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because
@@ -48,6 +48,7 @@ typedef unsigned char u8;
  * Mixminion 0.0.1 through 0.0.2.2 shipped with this junk, so if we
  * change it, we'll make packets nobody can read.  With 0.0.3, we'll
  * bump the packet version and do the right thing.
+ * XXXX003
  */ 
 #ifndef GET_U32
 #define GET_U32_cp(ptr) (  (u32)ptr[0] ^         \
