@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.92 2003/02/17 14:40:34 nickm Exp $
+# $Id: test.py,v 1.93 2003/02/20 06:33:02 nickm Exp $
 
 """mixminion.tests
 
@@ -197,7 +197,7 @@ class MiscTests(unittest.TestCase):
                       ((0,5,22,50,6),    "0.5.22beta6", '>'),
                       ((0,5,22,99,6),    "0.5.22rc6",   '>'),
                       ((0,5,22,99,6),    "0.5.22rc6",   '='),
-                      ((0,0,3,100,9),    "0.0.3p9",     '<'),
+                      ((0,0,3,100,9),    "0.0.3.9",     '<'),
                       ((0,0,3,66,9),     "0.0.3(66)9",  '<'),
                       ((0,0,3,66,-1),    "0.0.3(66)",   '<'),
                       ((0,0,3,66,0),     "0.0.3(66)0",  '>'),
@@ -4101,7 +4101,7 @@ mixdiddy=mixminion@theotherhost
 MBOX_EXPECTED_MESSAGE = """\
 To: mixminion@theotherhost
 From: returnaddress@x
-Subject: Anonymous Mixminion message
+Subject: Type III anonymous message
 X-Anonymous: yes
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server 'nickname' at

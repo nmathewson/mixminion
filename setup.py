@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.49 2003/02/20 01:55:13 nickm Exp $
+# $Id: setup.py,v 1.50 2003/02/20 06:33:03 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -22,9 +22,9 @@ import os, re, shutil, string, struct
 
 os.umask(022)
 
-VERSION = '0.0.3rc2'
+VERSION = '0.0.3'
 # System: 0==alpha, 50==beta, 99==release candidate, 100==release
-VERSION_INFO = (0,0,3,99,2)
+VERSION_INFO = (0,0,3,100,-1)
 
 # Function to pull openssl version number out of an opensslv.h file.  This
 # isn't a real C preprocessor, but it seems to work well enough.
@@ -74,19 +74,18 @@ I need OpenSSL 0.9.7 or greater, and I couldn't find it anywhere that
 I looked.  If you installed it somewhere unusual, try setting the
 variable OPENSSL_PREFIX as in:
 
-      make build OPENSSL_PREFIX=/opt/openssl-0.9.7
+      make OPENSSL_PREFIX=/opt/openssl-0.9.7
 
 If you have a nonstandard OpenSSL 0.9.7 installation, you may need to
 give compiler flags directly, as in:
 
-      make build \\
-           OPENSSL_CFLAGS='-I ~/openssl-include' \\
+      make OPENSSL_CFLAGS='-I ~/openssl-include' \\
            OPENSSL_LDFLAGS='-L ~/openssl-libs -lssl097 -lcrypto097'
 
 If your C compiler knows where to find OpenSSL 0.9.7, and I should
 just trust it, use the SKIP_OPENSSL_SEARCH option, as in:
 
-      make build SKIP_OPENSSL_SEARCH="y"
+      make SKIP_OPENSSL_SEARCH="y"
 
 Finally, if you don't have OpenSSL 0.9.7 and you don't want to install
 it, you can grab and build a local copy for Mixminion only by running:
