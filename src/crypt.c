@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.16 2002/12/16 15:18:33 nickm Exp $ */
+/* $Id: crypt.c,v 1.17 2002/12/29 20:30:41 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -634,7 +634,7 @@ mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
 
         assert(mm_RSA_Check(self));
         if (!PyArg_ParseTupleAndKeywords(args, kwdict,
-                                         ":rsa_get_public_key", kwlist))
+                                         ":get_public_key", kwlist))
                 return NULL;
 
         rsa = ((mm_RSA*)self)->rsa;
@@ -650,6 +650,30 @@ mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
         Py_DECREF(n);
         Py_DECREF(e);
         return output;
+}
+
+const char mm_RSA_get_exponent__doc__[]=
+   "rsa.get_exponent() -> e\n";
+
+PyObject *
+mm_RSA_get_exponent(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+        static char *kwlist[] = {  NULL };
+
+        RSA *rsa;
+        PyObject *e;
+
+        assert(mm_RSA_Check(self));
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict,
+                                         ":get_exponent", kwlist))
+                return NULL;
+
+        rsa = ((mm_RSA*)self)->rsa;
+        if (!rsa->e) { TYPE_ERR("Key has no e"); return NULL; }
+        if (!(e = bn2pylong(rsa->e))) {
+                PyErr_NoMemory(); return NULL;
+        }
+        return e;
 }
 
 const char mm_rsa_make_public_key__doc__[]=
@@ -706,6 +730,7 @@ static PyMethodDef mm_RSA_methods[] = {
         METHOD(mm_RSA, encode_key),
         METHOD(mm_RSA, get_modulus_bytes),
         METHOD(mm_RSA, get_public_key),
+        METHOD(mm_RSA, get_exponent),
         METHOD(mm_RSA, PEM_write_key),
         { NULL, NULL }
 };
