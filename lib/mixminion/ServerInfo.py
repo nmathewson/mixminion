@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.39 2003/02/20 16:57:39 nickm Exp $
+# $Id: ServerInfo.py,v 1.40 2003/04/18 17:41:38 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -58,8 +58,11 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Contact": ("ALLOW", None, None),
                      "Comments": ("ALLOW", None, None),
                      "Packet-Key": ("REQUIRE", C._parsePublicKey, None),
+                     "Contact-Fingerptint": ("ALLOW", None, None),
+                     # XXXX010 change these next few to "REQUIRE".
                      "Packet-Formats": ("ALLOW", None, None),
                      "Software": ("ALLOW", None, None),
+                     "Secure-Configuration": ("ALLOW", C._parseBoolean, None),
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),

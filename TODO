@@ -49,15 +49,16 @@ For 0.0.4:
                         o Specify behavior
                         o Document in --help and README
                 - Increase key length to 2048 bits
-                        - Specify
-                        - Come up with an upgrade path?
+                        o Specify
+                        o Come up with an upgrade path? 
+                          (Result: drop backward compatibility.)
                         - Implement
         - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.
         - Add new fields to ServerInfo:
-                - Stub Secure-Configuration support
-                - Stub Contact-Fingerprint support
+                . Stub Secure-Configuration support
+                . Stub Contact-Fingerprint support
         . MMTP
                 o self->self packets shouldn't hit the network.
                         - Implement
@@ -65,13 +66,25 @@ For 0.0.4:
                 o Don't have multiple connections to same server.
                 o KEYID should be hash of signing key==hash of
                   identity key.  (Spec may be incorrect.)
-                - Make MMTP bursty
                 - Add support for "REJECTED" reply.
         - Key management:
                 . Ability to generate new serverdesc with old keys.
+                        o Implement
+                        - Test backend
+                        - CLI
                 . Ability to notice discrepancies between SD and
                   server configuration.
+                        o Implement
+                        - Test backend
+                        - Integrate with frontend
                 - Online key rotation
+                        - Function to determine time for next rotation event.
+                        - Ability to add PK to packethandler
+                        - Ability to remove PK from packethandler.
+                        - Ability to delete PK.
+                        - Trigger all of the above as timed events occur.
+                - Consider linewrap protection on server descriptors,
+                  if demand warrants.  (None yet.)
 
 Deferred from 0.0.4:
         . UI
@@ -81,6 +94,8 @@ Deferred from 0.0.4:
            CLI'S AND MULTI-SERVER SITUATIONS.
         - Tests for packet addressed to server with bogus IP.
         - Finish port to Cygwin
+        - MMTP
+                - Make MMTP bursty
         - Configurability
                 - Put pid and lock and key and queues in different
                   places; coalesce pid and lock.

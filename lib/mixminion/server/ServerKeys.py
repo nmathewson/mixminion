@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.16 2003/04/13 15:54:42 nickm Exp $
+# $Id: ServerKeys.py,v 1.17 2003/04/18 17:41:38 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -18,6 +18,7 @@ import time
 
 import mixminion._minionlib
 import mixminion.Crypto
+import mixminion.Packet
 import mixminion.server.HashLog
 import mixminion.server.PacketHandler
 import mixminion.server.MMTPServer
@@ -387,50 +388,80 @@ class ServerKeyset:
     def getServerDescriptor(self):
         return ServerInfo(fname=self.descFile)
 
+class _WarnWrapper:
+    def __init__(self, silence):
+        self.silence = silence
+        self.called = 0
+    def __call__(self, *args):
+        self.called += 1
+        if not self.silence:
+            LOG.warn(*args)
+
 def checkDescriptorConsistency(info, config, log=1):
-    """DOCDOC"""
-    ok = 1
+    """DOCDOC
+
+    Return true iff info may have come from 'config'.  If log is true,
+    warn as well.  Does not check keys.
+    """
+    
     if log:
-        warn = LOG.warn
+        warn = _WarnWrapper(0)
     else:
-        def warn(*_): pass
+        warn = _WarnWrapper(1)
 
     config_s = config['Server']
     info_s = info['Server']
     if config_s['Nickname'] and (info_s['Nickname'] != config_s['Nickname']):
         warn("Mismatched nicknames: %s in configuration; %s published.",
              config_s['Nickname'], info_s['Nickname'])
-        ok = 0
     
     idBits = info_s['Identity'].get_modulus_bytes()*8
     confIDBits = config_s['IdentityKeyBits']
     if idBits != confIDBits:
         warn("Mismatched identity bits: %s in configuration; %s published.",
              confIDBits, idBits)
-        ok = 0
 
     if config_s['Contact-Email'] != info_s['Contact']:
         warn("Mismatched contacts: %s in configuration; %s published.",
              config_s['Contact-Email'], info_s['Contact'])
-        ok = 0
 
     if info_s['Software'] and info_s['Software'] != mixminion.__version__:
         warn("Mismatched versions: running %s; %s published.",
              mixminion.__version__, info_s['Software'])
-        ok = 0
 
-    # XXXX Move IP here
+    if config_s['Comments'] != info_s['Comments']:
+        warn("Mismatched comments field.")
+
+    lifetime = info_s['Valid-Until'] - info_s['Valid-After'] 
+    if (previousMidnight(info_s['Valid-Until']) !=
+        previousMidnight(config_s['PublicKeyLifetime'][2] +
+                         info_s['Valid-After'])):
+        warn("Published lifetime does not match PublicKeyLifetime")
+
+    if info_s['Software'] != 'Mixminion %s'%mixminion.__version__:
+        warn("Published version (%s) does not match current version (%s)",
+             info_s['Software'], 'Mixminion %s'%mixminion.__version__)
+
     info_im = info['Incoming/MMTP']
     config_im = config['Incoming/MMTP']
     if info_im['Port'] != config_im['Port']:
         warn("Mismatched ports: %s configured; %s published.",
              config_im['Port'], info_im['Port'])
-        ok = 0
-    # IP is tricky XXXX    
-    #if info['Server']['IP'] != info[
 
-    # XXXX Check protocols
-    # XXXX Check enabled
+    info_ip = info['Server']['IP']
+    if config_im['IP'] == '0.0.0.0':
+        guessed = _guessLocalIP()
+        if guessed != config_im['IP']:
+            warn("Guessed IP (%s) does not match publishe IP (%s)",
+                 guessed, info_ip)
+    elif config_im['IP'] != info_ip:
+        warn("Configured IP (%s) does not match published IP (%s)",
+             config_im['IP'], info_ip)
+
+    if config_im['Enabled'] and not info_im['Enabled']:
+        warn("Incoming MMTP enabled but not published.")
+    elif not config_im['Enabled'] and info_im['Enabled']:
+        warn("Incoming MMTP published but not enabled.")
 
     for section in ('Outgoing/MMTP', 'Delivery/MBOX', 'Delivery/SMTP'):
         info_out = info[section].get('Version')
@@ -439,12 +470,10 @@ def checkDescriptorConsistency(info, config, log=1):
             config_out = config['Delivery/SMTP-Via-Mixmaster'].get("Enabled")
         if info_out and not config_out:
             warn("%s published, but not enabled.", section)
-            ok = 0
         if config_out and not info_out:
             warn("%s enabled, but not published.", section)
-            ok = 0
 
-    return ok
+    return not warn.called
         
 #----------------------------------------------------------------------
 # Functionality to generate keys and server descriptors
@@ -455,8 +484,9 @@ def checkDescriptorConsistency(info, config, log=1):
 CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
 
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
-                                    hashdir, validAt=None, now=None):
-                                    ## useServerKeys=None):
+                                    hashdir, validAt=None, now=None,
+                                    useServerKeys=None):
+    #XXXX reorder args
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
 
@@ -466,10 +496,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           keyname -- The name of this new key set within keydir
           hashdir -- The root directory for storing hash logs.
           validAt -- The starting time (in seconds) for this key's lifetime.
+
+          DOCDOC useServerKeys, 
           """
 
-    useServerKeys = None #XXXX004
-    
     if useServerKeys is None:
         # First, we generate both of our short-term keys...
         packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
@@ -545,7 +575,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "KeyID": identityKeyID,        
         "MMTPProtocolsIn" : mmtpProtocolsIn,
         "MMTPProtocolsOut" : mmtpProtocolsOut,
-        }
+        "PacketFormat" : "%s.%s"%(mixminion.Packet.MAJOR_NO,
+                                  mixminion.Packet.MINOR_NO),
+        "mm_version" : mixminion.__version__
+        
 
     # If we don't know our IP address, try to guess
     if fields['IP'] == '0.0.0.0':
@@ -570,11 +603,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         Valid-After: %(ValidAfter)s
         Valid-Until: %(ValidUntil)s
         Packet-Key: %(PacketKey)s
+        Packet-Formats: %(PacketFormat)s
+        Software: Mixminion %(mm_version)s
         """ % fields
-    # XXXX004 add 'packet-formats'
-    #   Packet-Formats: 0.2
-    # XXXX004 add 'software'
-    #   Software: Mixminion %(version)s
     if contact:
         info += "Contact: %s\n"%contact
     if comments:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.20 2003/03/27 10:31:00 nickm Exp $
+# $Id: ServerConfig.py,v 1.21 2003/04/18 17:41:38 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -110,6 +110,22 @@ class ServerConfig(mixminion.Config._ConfigFile):
         "Return the module manager initialized by this server."
         return self.moduleManager
 
+    def isSecure(self):
+        "Return true iff this configuration is reasonably secure."
+        reasons = ["Software is alpha"]
+        
+        server = self['Server']
+        if server['LogLevel'] in ('TRACE', 'DEBUG'):
+            reasons.append("Log is too verbose")
+        if server['LogStats'] and server['LogInterval'][2] < 24*60*60:
+            reasons.append("StatsInterval is too short")
+        if not server["EncryptIdentityKey"]:
+            reasons.append("Identity key is not encrypted")
+        if server["MixAlgorithm"] not in _SECURE_MIX_RULES:
+            reasons.append("Mix algorithm is not secure")
+        #XXXX004 finish!
+
+        
 def _validateRetrySchedule(mixInterval, entries, sectionname,
                            entryname='Retry'):
     #XXXX writeme.
@@ -156,6 +172,8 @@ _MIX_RULE_NAMES = {
     'binomialcottrell'    : "BinomialCottrellMixPool",
     'binomialdynamicpool' : "BinomialCottrellMixPool",
 }
+
+_SECURE_MIX_RULES = [ "CottrellMixPool", "BinomialCottrellMixPool" ]
 
 def _parseMixRule(s):
     """Validation function.  Given a string representation of a mixing

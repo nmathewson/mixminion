@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.98 2003/04/10 03:03:16 nickm Exp $
+# $Id: test.py,v 1.99 2003/04/18 17:41:38 nickm Exp $
 
 """mixminion.tests
 
@@ -3555,6 +3555,8 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Server']['Valid-Until']-info['Server']['Valid-After'],
            10*24*60*60)
         eq(info['Server']['Contact'], "a@b.c")
+        eq(info['Server']['Software'], "Mixminion 0.0.4alpha")
+        eq(info['Server']['Packet-Formats'], "0.2")
         eq(info['Server']['Comments'],
            "This is a test of the emergency broadcast system")
 
