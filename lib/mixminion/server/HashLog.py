@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.7 2003/03/26 16:34:36 nickm Exp $
+# $Id: HashLog.py,v 1.8 2003/04/13 15:54:42 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -19,6 +19,9 @@ __all__ = [ 'HashLog' ]
 
 # FFFF Two-copy journaling to protect against catastrophic failure that
 # FFFF underlying DB code can't handle.
+
+# We flush the log every MAX_JOURNAL hashes.
+MAX_JOURNAL = 128
 
 # flags to pass to os.open when opening the journal file.
 _JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)
@@ -107,9 +110,11 @@ class HashLog:
         LOG.trace("Logging hash %s", binascii.b2a_hex(hash))
         try:
             self.__lock.acquire()
-            # XXX max journal size?
             self.journal[hash] = 1
             os.write(self.journalFile, hash)
+            #XXXX Make this configurable.
+            if len(self.journal) > MAX_JOURNAL:
+                self.sync()
         finally:
             self.__lock.release()
 

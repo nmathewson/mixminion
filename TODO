@@ -25,9 +25,10 @@ For 0.0.4:
                 o Ctrl-C should just print "interrupted."
                 o Change behavior on binary messages; don't dump 'em
                   to terminals.
-                        o Implement
+             
+           o Implement
                         o Test
-                - DELKEYS should work. (neruaL)
+                o DELKEYS should work. (neruaL)
         . Internal statistics
         	o Event log module
                 o Create and use event log
@@ -71,8 +72,6 @@ For 0.0.4:
                 . Ability to notice discrepancies between SD and
                   server configuration.
                 - Online key rotation
-                - Consider linewrap protection on server descriptors,
-                  if demand warrants.  (None yet.)
 
 Deferred from 0.0.4:
         . UI
@@ -224,6 +223,8 @@ Required for "1.0":
                 - Autonomous directory server
                 - Configurable dirserver fingerprints and URLs.
                 - Support for full-blown multiple-server agreement mechanism
+                - Consider linewrap protection on server descriptors,
+                  if demand warrants.  (None yet.)
         - Full documentation
                 - Complete docs for all code, with comments and examples.
                 - Write guide for module developers

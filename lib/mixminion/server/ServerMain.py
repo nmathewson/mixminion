@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.47 2003/03/28 15:36:23 nickm Exp $
+# $Id: ServerMain.py,v 1.48 2003/04/13 15:54:42 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -523,6 +523,7 @@ class MixminionServer:
         now = time.time()
 
         scheduledEvents.append( (now + 600, "SHRED") )#FFFF make configurable
+        scheduledEvents.append( (now + 180, "WAIT") )#FFFF make configurable
         scheduledEvents.append( (self.mmtpServer.getNextTimeoutTime(now),
                                  "TIMEOUT") )
         nextMix = self.mixPool.getNextMixTime(now)
@@ -579,6 +580,12 @@ class MixminionServer:
             elif event == 'SHRED':
                 self.cleanQueues()
                 insort(scheduledEvents, (now + 600, "SHRED"))
+            elif event == 'WAIT':
+                # Every few minutes, we reap zombies.  Why, you ask?  Isn't
+                # catching sigchild enough?  Nope -- sometimes buggy delivery
+                # software forks, 
+                waitForChildren(blocking=0)
+                insort(scheduledEvents, (now + 180, "WAIT"))
             elif event == 'MIX':
                 # Before we mix, we need to log the hashes to avoid replays.
                 try:
@@ -605,7 +612,7 @@ class MixminionServer:
                 insort(scheduledEvents, (nextMix, "MIX"))
                 LOG.trace("Next mix at %s", formatTime(nextMix,1))
             else:
-                assert event in ("MIX", "SHRED", "TIMEOUT")
+                assert event in ("MIX", "SHRED", "TIMEOUT", "WAIT")
 
     def cleanQueues(self):
         """Remove all deleted messages from queues"""

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.15 2003/03/28 15:36:23 nickm Exp $
+# $Id: ServerKeys.py,v 1.16 2003/04/13 15:54:42 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -238,14 +238,18 @@ class ServerKeyring:
             expiryStr = ""
 
         cutoff = now - self.keySloppiness
-        dirs = [ os.path.join(self.keyDir,"key_"+name)
-                  for va, vu, name in self.keyIntervals if vu < cutoff ]
 
-        for dirname, (va, vu, name) in zip(dirs, self.keyIntervals):
+        for va, vu, name in self.keyIntervals:
+            if vu >= cutoff:
+                continue
             LOG.info("Removing%s key %s (valid from %s through %s)",
-                        expiryStr, name, formatDate(va), formatDate(vu-3600))
+                     expiryStr, name, formatDate(va), formatDate(vu-3600))
+            dirname = os.path.join(self.keyDir, "key_"+name)
             files = [ os.path.join(dirname,f)
-                                 for f in os.listdir(dirname) ]
+                      for f in os.listdir(dirname) ]
+            hashFiles = [ os.path.join(self.hashDir, "hash_"+name) ,
+                          os.path.join(self.hashDir, "hash_"+name+"jrnl") ]
+            files += [ f for f in hashFiles if os.path.exists(f) ]
             secureDelete(files, blocking=1)
             os.rmdir(dirname)
 
