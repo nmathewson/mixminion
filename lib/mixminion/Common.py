@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.20 2002/08/31 04:12:36 nickm Exp $
+# $Id: Common.py,v 1.21 2002/09/04 00:38:15 arma Exp $
 
 """mixminion.Common
 
@@ -189,11 +189,11 @@ if sys.version_info[:2] >= (2,1):
         # Note: Python strftime is implemented using that platform libc's
         # strftime, so in theory, this might barf.  All of the format
         # elements below are (I think) standard, so we should be ok.
-        return time.strftime("%b %d %H:%m:%S")
+        return time.strftime("%b %d %H:%M:%S")
 else:
     def _logtime():
         'Helper function.  Returns current local time formatted for log.'
-        return time.strftime("%b %d %H:%m:%S", time.localtime(time.time()))
+        return time.strftime("%b %d %H:%M:%S", time.localtime(time.time()))
 
 class _FileLogHandler:
     """Helper class for logging.  Represents a file on disk, and allows the
