@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.103 2003/07/30 22:38:03 nickm Exp $
+# $Id: Common.py,v 1.104 2003/08/09 02:53:31 nickm Exp $
 
 """mixminion.Common
 
@@ -655,6 +655,8 @@ def _overwriteFile(f):
         blocks = ceilDiv(size, sz)
         for _ in xrange(blocks):
             os.write(fd, nil)
+        if hasattr(os, 'fsync'):
+            os.fsync(fd)
     finally:
         os.close(fd)
 
