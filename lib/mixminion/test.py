@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.176 2004/01/08 22:35:24 nickm Exp $
+# $Id: test.py,v 1.177 2004/01/08 23:07:31 nickm Exp $
 
 """mixminion.tests
 
@@ -4528,15 +4528,15 @@ class ServerInfoTests(TestCase):
         eq(info['Server']['Contact'], "a@b.c")
         eq(info['Server']['Software'], "Mixminion %s"%mixminion.__version__)
         eq(info['Server']['Packet-Formats'], None)
-        eq(info['Server']['Packet-Versions'], "0.3")
+        eq(info['Server']['Packet-Versions'], ["0.3"])
         eq(info['Server']['Comments'],
            "This is a test of the emergency broadcast system")
 
         eq(info['Incoming/MMTP']['Version'], "0.1")
         eq(info['Incoming/MMTP']['Port'], 48099)
-        eq(info['Incoming/MMTP']['Protocols'], "0.3")
+        eq(info['Incoming/MMTP']['Protocols'], ["0.3"])
         eq(info['Outgoing/MMTP']['Version'], "0.1")
-        eq(info['Outgoing/MMTP']['Protocols'], "0.3")
+        eq(info['Outgoing/MMTP']['Protocols'], ["0.3"])
         eq(info['Incoming/MMTP']['Allow'], [("192.168.0.16", "255.255.255.255",
                                             1,1024),
                                            ("0.0.0.0", "0.0.0.0",

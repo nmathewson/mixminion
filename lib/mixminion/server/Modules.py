@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.68 2004/01/03 07:35:24 nickm Exp $
+# $Id: Modules.py,v 1.69 2004/01/08 23:07:32 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -1011,7 +1011,7 @@ class MBoxModule(DeliveryModule, MailBase):
                  { 'Enabled' : ('REQUIRE',  "boolean", "no"),
                    'Retry': ('ALLOW', "intervalList",
                              "7 hours for 6 days"),
-                   'AddressFile' : ('ALLOW', None, None),
+                   'AddressFile' : ('ALLOW', "filename", None),
                    'ReturnAddress' : ('ALLOW', None, None),
                    'RemoveContact' : ('ALLOW', None, None),
                    'AllowFromAddress' : ('ALLOW', "boolean", 'yes'),
@@ -1176,7 +1176,7 @@ class DirectSMTPModule(SMTPModule):
                  { 'Enabled' : ('REQUIRE', "boolean", "no"),
                    'Retry': ('ALLOW', "intervalList",
                              "7 hours for 6 days"),
-                   'BlacklistFile' : ('ALLOW', None, None),
+                   'BlacklistFile' : ('ALLOW', "filename", None),
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
                    'AllowFromAddress': ('ALLOW', "boolean", "yes"),
                    'Message' : ('ALLOW', None, ""),

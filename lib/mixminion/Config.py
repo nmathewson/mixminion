@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.74 2004/01/03 07:35:23 nickm Exp $
+# $Id: Config.py,v 1.75 2004/01/08 23:07:31 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -186,6 +186,14 @@ def _unparseIntervalList(lst):
         else:
             result.append(str(d))
     return ", ".join(result)
+
+def _parseList(s):
+    """Validation function.  Parse a comma-separated list of strings."""
+    return [ item.strip() for item in s.split(",") ]
+
+def _parseSeq(s):
+    """Validation function.  Parse a space-separated list of strings."""
+    return [ item.strip() for item in s.split() ]
 
 def _parseInt(integer):
     """Validation function.  Converts a config value to an int.
@@ -696,6 +704,8 @@ class _ConfigFile:
         "IP" : (_parseIP, str),
         "IP6" : (_parseIP6, str),
         "host" : (_parseHost, str),
+        "list" : (_parseList, ",".join),
+        "seq" : (_parseSeq, " ".join),
         "addressSet_allow" : (_parseAddressSet_allow, str), #XXXX
         "addressSet_deny" : (_parseAddressSet_deny, str), #XXXX
         "command" : (_parseCommand, lambda c,o: " ".join([c," ".join(o)])),

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.73 2004/01/07 20:44:52 nickm Exp $
+# $Id: ServerInfo.py,v 1.74 2004/01/08 23:07:31 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -119,7 +119,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Contact-Fingerprint": ("ALLOW", None, None),
                      "Packet-Formats": ("ALLOW", None, None),#XXXX007 remove
                      # XXXX008 change these next few to "REQUIRE".
-                     "Packet-Versions": ("ALLOW", None, '0.3'),
+                     "Packet-Versions": ("ALLOW", "list", '0.3'),
                      "Software": ("ALLOW", None, None),
                      "Secure-Configuration": ("ALLOW", "boolean", None),
                      "Why-Insecure": ("ALLOW", None, None),
@@ -130,13 +130,13 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Hostname": ("ALLOW", "host", None),#XXXX008 require
                      "Port": ("REQUIRE", "int", None),
                      "Key-Digest": ("ALLOW", "base64", None),#XXXX007/8 rmv
-                     "Protocols": ("REQUIRE", None, None),
+                     "Protocols": ("REQUIRE", "list", None),
                      "Allow": ("ALLOW*", "addressSet_allow", None),
                      "Deny": ("ALLOW*", "addressSet_deny", None),
                      },
         "Outgoing/MMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     "Protocols": ("REQUIRE", None, None),
+                     "Protocols": ("REQUIRE", "list", None),
                      "Allow": ("ALLOW*", "addressSet_allow", None),
                      "Deny": ("ALLOW*", "addressSet_deny", None),
                      },
@@ -364,22 +364,21 @@ class ServerInfo(mixminion.Config._ConfigFile):
         inc = self['Incoming/MMTP']
         if not inc.get("Version"):
             return []
-        return [ s.strip() for s in inc["Protocols"].split(",") ]
+        return inc["Protocols"]
 
     def getOutgoingMMTPProtocols(self):
         """Return a list of the MMTP versions supported by this this server
            for outgoing packets."""
-        inc = self['Outgoing/MMTP']
-        if not inc.get("Version"):
+        out = self['Outgoing/MMTP']
+        if not out.get("Version"):
             return []
-        return [ s.strip() for s in inc["Protocols"].split(",") ]
+        return out["Protocols"]
 
     def supportsPacketVersion(self):
         """Return true iff we can build packets in a format this server
            recognizes."""
-        formatStr = self['Server'].get("Packet-Versions")
-        if formatStr == None: formatStr = "0.3"
-        formats = [ s.strip() for s in formatStr.split(",") ]
+        formats = self['Server'].get("Packet-Versions")
+        if formats == None: formats = [ "0.3" ]
         return mixminion.Packet.PACKET_VERSION in formats
 
     def canRelayTo(self, otherDesc):
@@ -560,8 +559,8 @@ class ServerDirectory:
         servercontents = [ "[Server]\n%s"%s for s in sections[1:] ]
 
         self.header = _DirectoryHeader(headercontents, digest)
-        self.goodServerNames = [name.strip().lower() for name in
-                   self.header['Directory']['Recommended-Servers'].split(",")]
+        self.goodServerNames = [name.lower() for name in
+                   self.header['Directory']['Recommended-Servers'] ]
         servers = [ ServerInfo(string=s,
                                validatedDigests=validatedDigests)
                     for s in servercontents ]
@@ -604,7 +603,7 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
                        "Published": ("REQUIRE", "time", None),
                        "Valid-After": ("REQUIRE", "date", None),
                        "Valid-Until": ("REQUIRE", "date", None),
-                       "Recommended-Servers": ("REQUIRE", None, None),
+                       "Recommended-Servers": ("REQUIRE", "list", None),
                        },
         'Signature': {"__SECTION__": ("REQUIRE", None, None),
                  "DirectoryIdentity": ("REQUIRE", "publicKey", None),
@@ -612,8 +611,8 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
                  "DirectorySignature": ("REQUIRE", "base64", None),
                       },
         'Recommended-Software': {"__SECTION__": ("ALLOW", None, None),
-                "MixminionClient": ("ALLOW", None, None),
-                "MixminionServer": ("ALLOW", None, None), }
+                "MixminionClient": ("ALLOW", "seq", None),
+                "MixminionServer": ("ALLOW", "seq", None), }
         }
     def __init__(self, contents, expectedDigest):
         """Parse a directory header out of a provided string; validate it
