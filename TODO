@@ -18,8 +18,11 @@ FOR 0.0.1: (The first alpha)
 
 	. Server
 		o Fix bug: delivering self->self.
+		- Actual strategy for reporting exceptions vs
+	   	  user-visible errors.
 		- More explicit overview of queues.
 		- Unit tests for various queues.
+		- Unit tests for modulemanger built-in decoding and delivery.
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
 	*. CLI client
