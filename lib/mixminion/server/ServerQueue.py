@@ -1,7 +1,7 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.5 2003/01/07 01:41:20 nickm Exp $
+# $Id: ServerQueue.py,v 1.1 2003/01/09 06:28:58 nickm Exp $
 
-"""mixminion.server.Queue
+"""mixminion.server.ServerQueue
 
    Facility for fairly secure, directory-based, unordered queues.
    """
@@ -11,6 +11,7 @@ import base64
 import time
 import stat
 import cPickle
+import threading
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir
@@ -45,6 +46,8 @@ class Queue:
              inp_HANDLE  (An incomplete message being created.)
        (Where HANDLE is a randomly chosen 12-character selection from the
        characters 'A-Za-z0-9+-'.  [Collision probability is negligable.])
+
+       XXXX Threading notes: Currently, Queue is only threadsafe when XXXX
        """
        # How negligible?  A back-of-the-envelope approximation: The chance
        # of a collision reaches .1% when you have 3e9 messages in a single
@@ -55,11 +58,12 @@ class Queue:
        # at today's processor speeds, it will take Alice 3 or 4
        # CPU-years to clear her backlog.
 
-    # Fields:   rng--a random number generator for creating new messages
-    #                and getting a random slice of the queue.
-    #           dir--the location of the queue.
+    # Fields:   dir--the location of the queue.
     #           n_entries: the number of complete messages in the queue.
     #                 <0 if we haven't counted yet.
+    #           _lock: A lock that must be held while modifying or accessing
+    #                 the queue object.  Because of our naming scheme, access
+    #                 to the filesystem itself need not be synchronized.
     def __init__(self, location, create=0, scrub=0):
         """Creates a queue object for a given directory, 'location'.  If
            'create' is true, creates the directory if necessary.  If 'scrub'
@@ -68,7 +72,7 @@ class Queue:
 
         secureDelete([]) # Make sure secureDelete is configured. HACK!
 
-        self.rng = getCommonPRNG()
+        self._lock = threading.RLock()
         self.dir = location
 
         if not os.path.isabs(location):
@@ -103,31 +107,40 @@ class Queue:
 
     def count(self, recount=0):
         """Returns the number of complete messages in the queue."""
-        if self.n_entries >= 0 and not recount:
-            return self.n_entries
-        else:
-            res = 0
-            for fn in os.listdir(self.dir):
-                if fn.startswith("msg_"):
-                    res += 1
-            self.n_entries = res
-            return res
-
+        try:
+            self._lock.acquire()
+            if self.n_entries >= 0 and not recount:
+                return self.n_entries
+            else:
+                res = 0
+                for fn in os.listdir(self.dir):
+                    if fn.startswith("msg_"):
+                        res += 1
+                self.n_entries = res
+                return res
+        finally:
+            self._lock.release()
+            
     def pickRandom(self, count=None):
         """Returns a list of 'count' handles to messages in this queue.
            The messages are chosen randomly, and returned in a random order.
 
            If there are fewer than 'count' messages in the queue, all the
            messages will be retained."""
+        self._lock.acquire()
         handles = [ fn[4:] for fn in os.listdir(self.dir)
                            if fn.startswith("msg_") ]
+        self._lock.release()
 
-        return self.rng.shuffle(handles, count)
+        return getCommonPRNG().shuffle(handles, count)
 
     def getAllMessages(self):
         """Returns handles for all messages currently in the queue.
            Note: this ordering is not guaranteed to be random"""
-        return [fn[4:] for fn in os.listdir(self.dir) if fn.startswith("msg_")]
+        self._lock.acquire()
+        hs = [fn[4:] for fn in os.listdir(self.dir) if fn.startswith("msg_")]
+        self._lock.release()
+        return hs
 
     def removeMessage(self, handle):
         """Given a handle, removes the corresponding message from the queue."""
@@ -135,11 +148,15 @@ class Queue:
 
     def removeAll(self):
         """Removes all messages from this queue."""
-        for m in os.listdir(self.dir):
-            if m[:4] in ('inp_', 'msg_'):
-                self.__changeState(m[4:], m[:3], "rmv")
-        self.n_entries = 0
-        self.cleanQueue()
+        try:
+            self._lock.acquire()
+            for m in os.listdir(self.dir):
+                if m[:4] in ('inp_', 'msg_'):
+                    self.__changeState(m[4:], m[:3], "rmv")
+            self.n_entries = 0
+            self.cleanQueue()
+        finally:
+            self._lock.release()
 
     def moveMessage(self, handle, queue):
         """Given a handle and a queue, moves the corresponding message from
@@ -147,8 +164,13 @@ class Queue:
            the message in the destination queue."""
         # Since we're switching handle, we don't want to just rename;
         # We really want to copy and delete the old file.
-        newHandle = queue.queueMessage(self.messageContents(handle))
-        self.removeMessage(handle)
+        try:
+            self._lock.acquire()
+            newHandle = queue.queueMessage(self.messageContents(handle))
+            self.removeMessage(handle)
+        finally:
+            self._lock.release()
+
         return newHandle
 
     def getMessagePath(self, handle):
@@ -198,13 +220,15 @@ class Queue:
         f.close()
         self.__changeState(handle, "inp", "rmv")
 
-    def cleanQueue(self):
+    def cleanQueue(self, secureDeleteFn=None):
         """Removes all timed-out or trash messages from the queue.
 
            Returns 1 if a clean is already in progress; otherwise
            returns 0.
-        """
 
+           DOCDOC secureDeleteFn
+        """
+        # ???? Threading?
         now = time.time()
         cleanFile = os.path.join(self.dir,".cleaning")
 
@@ -245,24 +269,31 @@ class Queue:
                 if s[stat.ST_MTIME] < allowedTime:
                     self.__changeState(m[4:], "inp", "rmv")
                     rmv.append(os.path.join(self.dir, m))
-        secureDelete(rmv, blocking=1)
+        if secureDeleteFn:
+            secureDeleteFn(rmv)
+        else:
+            secureDelete(rmv, blocking=1)
         return 0
 
     def __changeState(self, handle, s1, s2):
         """Helper method: changes the state of message 'handle' from 's1'
            to 's2', and changes the internal count."""
-        os.rename(os.path.join(self.dir, s1+"_"+handle),
-                  os.path.join(self.dir, s2+"_"+handle))
-        if self.n_entries < 0:
-            return
-        if s1 == 'msg' and s2 != 'msg':
-            self.n_entries -= 1
-        elif s1 != 'msg' and s2 == 'msg':
-            self.n_entries += 1
+        try:
+            self._lock.acquire()
+            os.rename(os.path.join(self.dir, s1+"_"+handle),
+                      os.path.join(self.dir, s2+"_"+handle))
+            if self.n_entries < 0:
+                return
+            if s1 == 'msg' and s2 != 'msg':
+                self.n_entries -= 1
+            elif s1 != 'msg' and s2 == 'msg':
+                self.n_entries += 1
+        finally:
+            self._lock.release()
 
     def __newHandle(self):
         """Helper method: creates a new random handle."""
-        junk = self.rng.getBytes(9)
+        junk = getCommonPRNG().getBytes(9)
         return base64.encodestring(junk).strip().replace("/","-")
 
 class DeliveryQueue(Queue):
@@ -298,8 +329,12 @@ class DeliveryQueue(Queue):
     def _rescan(self):
         """Rebuild the internal state of this queue from the underlying
            directory."""
-        self.pending = {}
-        self.sendable = self.getAllMessages()
+        try:
+            self._lock.acquire()
+            self.pending = {}
+            self.sendable = self.getAllMessages()
+        finally:
+            self._lock.release()
 
     def queueMessage(self, msg):
         if 1: raise MixError("Tried to call DeliveryQueue.queueMessage.")
@@ -310,8 +345,12 @@ class DeliveryQueue(Queue):
              msg -- the message itself
              retry -- how many times so far have we tried to send?"""
 
-        handle = self.queueObject( (retry, addr, msg) )
-        self.sendable.append(handle)
+        try:
+            self._lock.acquire()
+            handle = self.queueObject( (retry, addr, msg) )
+            self.sendable.append(handle)
+        finally:
+            self._lock.release()
 
         return handle
 
@@ -323,13 +362,17 @@ class DeliveryQueue(Queue):
     def sendReadyMessages(self):
         """Sends all messages which are not already being sent."""
 
-        handles = self.sendable
-        messages = []
-        self.sendable = []
-        for h in handles:
-            retries, addr, msg = self.getObject(h)
-            messages.append((h, addr, msg, retries))
-            self.pending[h] = 1
+        try:
+            self._lock.acquire()
+            handles = self.sendable
+            messages = []
+            self.sendable = []
+            for h in handles:
+                retries, addr, msg = self.getObject(h)
+                messages.append((h, addr, msg, retries))
+                self.pending[h] = 1
+        finally:
+            self._lock.release()
         if messages:
             self._deliverMessages(messages)
 
@@ -353,24 +396,32 @@ class DeliveryQueue(Queue):
            should be invoked after the corresponding message has been
            successfully delivered.
         """
-        self.removeMessage(handle)
-        del self.pending[handle]
+        try:
+            self._lock.acquire()
+            self.removeMessage(handle)
+            del self.pending[handle]
+        finally:
+            self._lock.release()
 
     def deliveryFailed(self, handle, retriable=0):
         """Removes a message from the outgoing queue, or requeues it
            for delivery at a later time.  This method should be
            invoked after the corresponding message has been
            successfully delivered."""
-        del self.pending[handle]
-        if retriable:
-            # Queue the new one before removing the old one, for
-            # crash-proofness
-            retries, addr, msg = self.getObject(handle)
-            # FFFF This test makes us never retry past the 10th attempt.
-            # FFFF That's wrong; we should be smarter.
-            if retries <= 10:
-                self.queueDeliveryMessage(addr, msg, retries+1)
-        self.removeMessage(handle)
+        try:
+            self._lock.acquire()
+            del self.pending[handle]
+            if retriable:
+                # Queue the new one before removing the old one, for
+                # crash-proofness
+                retries, addr, msg = self.getObject(handle)
+                # FFFF This test makes us never retry past the 10th attempt.
+                # FFFF That's wrong; we should be smarter.
+                if retries <= 10:
+                    self.queueDeliveryMessage(addr, msg, retries+1)
+            self.removeMessage(handle)
+        finally:
+            self._lock.release()
 
 class TimedMixQueue(Queue):
     """A TimedMixQueue holds a group of files, and returns some of them
@@ -458,29 +509,6 @@ class BinomialCottrellMixQueue(CottrellMixQueue):
         if n == 0:
             return []
         msgProbability = n / float(self.count())
-        return self.rng.shuffle([ h for h in self.getAllMessages()
-                                    if self.rng.getFloat() < msgProbability ])
-
-def _secureDelete_bg(files, cleanFile):
-    """Helper method: delete files in another thread, removing 'cleanFile'
-       once we're done.
-
-       XXXX No longer used: cleanup is a lot faster than it once was, now
-       XXXX that we no longer overwrite repeatedly.  If we reinstate it,
-       XXXX it should be a separate process, not a frequent forker."""
-
-    pid = os.fork()
-    if pid != 0:
-        return pid
-    # Now we're in the child process.
-    try:
-        secureDelete(files, blocking=1)
-    except OSError:
-        # This is sometimes thrown when shred finishes before waitpid.
-        pass
-    try:
-        os.unlink(cleanFile)
-    except OSError:
-        pass
-    os._exit(0)
-    return None # Never reached.
+        rng = getCommonPRNG()
+        return rng.shuffle([ h for h in self.getAllMessages()
+                             if rng.getFloat() < msgProbability ])

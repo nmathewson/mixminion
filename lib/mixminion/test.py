@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.69 2003/01/07 01:41:20 nickm Exp $
+# $Id: test.py,v 1.70 2003/01/09 06:28:58 nickm Exp $
 
 """mixminion.tests
 
@@ -61,7 +61,7 @@ from mixminion.Packet import *
 from mixminion.server.HashLog import HashLog
 from mixminion.server.Modules import *
 from mixminion.server.PacketHandler import *
-from mixminion.server.Queue import *
+from mixminion.server.ServerQueue import *
 from mixminion.server.ServerKeys import generateServerDescriptorAndKeys
 
 # Set this flag to 1 in order to have all RSA keys and diffie-hellman params
@@ -2121,7 +2121,7 @@ class TestDeliveryQueue(DeliveryQueue):
 
 class QueueTests(unittest.TestCase):
     def setUp(self):
-        mixminion.Common.installSignalHandlers(child=1,hup=0,term=0)
+        mixminion.Common.installSIGCHLDHandler()
         self.d1 = mix_mktemp("q1")
         self.d2 = mix_mktemp("q2")
         self.d3 = mix_mktemp("q3")
@@ -4210,12 +4210,12 @@ class ServerMainTests(unittest.TestCase):
         # Test pool configuration
         pool = MixPool(configTimed, mixDir)
         self.assert_(isinstance(pool.queue,
-                                mixminion.server.Queue.TimedMixQueue))
+                                TimedMixQueue))
         self.assertEquals(pool.getNextMixTime(100), 100+2*60*60)
 
         pool = MixPool(configCottrell, mixDir)
         self.assert_(isinstance(pool.queue,
-                                mixminion.server.Queue.CottrellMixQueue))
+                                CottrellMixQueue))
         self.assertEquals(pool.getNextMixTime(100), 100+12*60*60)
         self.assertEquals(pool.queue.minPool, 10)
         self.assertEquals(pool.queue.minSend, 1)
@@ -4223,7 +4223,7 @@ class ServerMainTests(unittest.TestCase):
 
         pool = MixPool(configBCottrell, mixDir)
         self.assert_(isinstance(pool.queue,
-                             mixminion.server.Queue.BinomialCottrellMixQueue))
+                                BinomialCottrellMixQueue))
         self.assertEquals(pool.getNextMixTime(100), 100+6*60*60)
         self.assertEquals(pool.queue.minPool, 10)
         self.assertEquals(pool.queue.minSend, 1)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.26 2003/01/08 03:56:54 nickm Exp $
+# $Id: ServerMain.py,v 1.27 2003/01/09 06:28:58 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -14,31 +14,42 @@ import fcntl
 import getopt
 import os
 import sys
+import signal
 import time
+import threading
+# We pull this from mixminion.Common, just in case somebody still has
+# a copy of the old "mixminion/server/Queue.py" (since renamed to
+# ServerQueue.py)
+from mixminion.Common import Queue
 
 import mixminion.Config
 import mixminion.Crypto
 import mixminion.server.MMTPServer
 import mixminion.server.Modules
 import mixminion.server.PacketHandler
-import mixminion.server.Queue
+import mixminion.server.ServerQueue
 import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 
 from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
-     createPrivateDir, formatBase64, formatTime, waitForChildren
+     createPrivateDir, formatBase64, formatTime, installSIGCHLDHandler, \
+     secureDelete, waitForChildren
 
-class IncomingQueue(mixminion.server.Queue.DeliveryQueue):
+class IncomingQueue(mixminion.server.ServerQueue.Queue):
     """A DeliveryQueue to accept messages from incoming MMTP connections,
        process them with a packet handler, and send them into a mix pool."""
 
     def __init__(self, location, packetHandler):
         """Create an IncomingQueue that stores its messages in <location>
            and processes them through <packetHandler>."""
-        mixminion.server.Queue.DeliveryQueue.__init__(self, location)
+        mixminion.server.ServerQueue.Queue.__init__(self, location)
         self.packetHandler = packetHandler
         self.mixPool = None
+        self._queue = Queue.Queue()
+        for h in self.getAllMessages():
+            assert h is not None
+            self._queue.put(h)
 
     def connectQueues(self, mixPool):
         """Sets the target mix queue"""
@@ -48,33 +59,41 @@ class IncomingQueue(mixminion.server.Queue.DeliveryQueue):
         """Add a message for delivery"""
         LOG.trace("Inserted message %s into incoming queue",
                   formatBase64(msg[:8]))
-        self.queueDeliveryMessage(None, msg)
+        h = mixminion.server.ServerQueue.Queue.queueMessage(self, msg)
+        assert h is not None
+        self._queue.put(h)
 
-    def _deliverMessages(self, msgList):
-        "Implementation of abstract method from DeliveryQueue."
+    def deliverMessage(self, handle):
+        "DOCDOC"
+        # DOCDOC called from within thread.
         ph = self.packetHandler
-        for handle, _, message, n_retries in msgList:
-            try:
-                res = ph.processMessage(message)
-                if res is None:
-                    # Drop padding before it gets to the mix.
-                    LOG.debug("Padding message %s dropped",
-                              formatBase64(message[:8]))
-                    self.deliverySucceeded(handle)
-                else:
-                    LOG.debug("Processed message %s; inserting into pool",
-                              formatBase64(message[:8]))
-                    self.mixPool.queueObject(res)
-                    self.deliverySucceeded(handle)
-            except mixminion.Crypto.CryptoError, e:
-                LOG.warn("Invalid PK or misencrypted packet header: %s", e)
-                self.deliveryFailed(handle)
-            except mixminion.Packet.ParseError, e:
-                LOG.warn("Malformed message dropped: %s", e)
-                self.deliveryFailed(handle)
-            except mixminion.server.PacketHandler.ContentError, e:
-                LOG.warn("Discarding bad packet: %s", e)
-                self.deliveryFailed(handle)
+        message = self.messageContents(handle)
+        try:
+            res = ph.processMessage(message)
+            if res is None:
+                # Drop padding before it gets to the mix.
+                LOG.debug("Padding message %s dropped",
+                          formatBase64(message[:8]))
+                self.removeMessage(handle)
+            else:
+                LOG.debug("Processed message %s; inserting into pool",
+                          formatBase64(message[:8]))
+                self.mixPool.queueObject(res)
+                self.removeMessage(handle)
+        except mixminion.Crypto.CryptoError, e:
+            LOG.warn("Invalid PK or misencrypted packet header: %s", e)
+            self.removeMessage(handle)
+        except mixminion.Packet.ParseError, e:
+            LOG.warn("Malformed message dropped: %s", e)
+            self.removeMessage(handle)
+        except mixminion.server.PacketHandler.ContentError, e:
+            LOG.warn("Discarding bad packet: %s", e)
+            self.removeMessage(handle)
+        except:
+            LOG.error_exc(sys.exc_info(),
+                    "Unexpected error when processing message %s (handle %s)",
+                          formatBase64(message[:8]), handle)
+            # ???? Remove?  Don't remove?
 
 class MixPool:
     """Wraps a mixminion.server.Queue.*MixQueue to send messages to an exit
@@ -83,18 +102,21 @@ class MixPool:
         """Create a new MixPool, based on this server's configuration and
            queue location."""
 
+        # DOCDOC lock
+        self.__lock = threading.Lock()
+
         server = config['Server']
         interval = server['MixInterval'][2]
         if server['MixAlgorithm'] == 'TimedMixQueue':
-            self.queue = mixminion.server.Queue.TimedMixQueue(
+            self.queue = mixminion.server.ServerQueue.TimedMixQueue(
                 location=queueDir, interval=interval)
         elif server['MixAlgorithm'] == 'CottrellMixQueue':
-            self.queue = mixminion.server.Queue.CottrellMixQueue(
+            self.queue = mixminion.server.ServerQueue.CottrellMixQueue(
                 location=queueDir, interval=interval,
                 minPool=server.get("MixPoolMinSize", 5),
                 sendRate=server.get("MixPoolRate", 0.6))
         elif server['MixAlgorithm'] == 'BinomialCottrellMixQueue':
-            self.queue = mixminion.server.Queue.BinomialCottrellMixQueue(
+            self.queue = mixminion.server.ServerQueue.BinomialCottrellMixQueue(
                 location=queueDir, interval=interval,
                 minPool=server.get("MixPoolMinSize", 5),
                 sendRate=server.get("MixPoolRate", 0.6))
@@ -104,9 +126,17 @@ class MixPool:
         self.outgoingQueue = None
         self.moduleManager = None
 
+    def lock(self):
+        self.__lock.acquire()
+
+    def unlock(self):
+        self.__lock.release()
+
     def queueObject(self, obj):
         """Insert an object into the queue."""
+        self.__lock.acquire()
         self.queue.queueObject(obj)
+        self.__lock.release()
 
     def count(self):
         "Return the number of messages in the queue"
@@ -148,12 +178,12 @@ class MixPool:
            mix."""
         return now + self.queue.getInterval()
 
-class OutgoingQueue(mixminion.server.Queue.DeliveryQueue):
+class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
     """DeliveryQueue to send messages via outgoing MMTP connections."""
     def __init__(self, location):
         """Create a new OutgoingQueue that stores its messages in a given
            location."""
-        mixminion.server.Queue.DeliveryQueue.__init__(self, location)
+        mixminion.server.ServerQueue.DeliveryQueue.__init__(self, location)
         self.server = None
 
     def connectQueues(self, server):
@@ -190,6 +220,84 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
 
     def onMessageUndeliverable(self, msg, handle, retriable):
         self.outgoingQueue.deliveryFailed(handle, retriable)
+#----------------------------------------------------------------------
+class CleaningThread(threading.Thread):
+    #DOCDOC
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self._queue = Queue.Queue()
+        self.setDaemon(1)
+
+    def deleteFile(self, fname):
+        LOG.trace("Scheduling %s for deletion", fname)
+        assert fname is not None
+        self._queue.put(fname)
+
+    def deleteFiles(self, fnames):
+        for f in fnames:
+            self.deleteFile(f)
+
+    def shutdown(self):
+        LOG.info("Telling cleanup thread to shut down") #????info
+        self._queue.put(None)
+
+    def run(self):
+        try:
+            while 1:
+                fn = self._queue.get()
+                if fn is None:
+                    LOG.info("Cleanup thread shutting down.")
+                    return
+                if os.path.exists(fn):
+                    LOG.trace("Deleting %s", fn)
+                    secureDelete(fn, blocking=1)
+                else:
+                    LOG.warn("Delete thread didn't find file %s",fn)
+        except:
+            LOG.error_exc(sys.exc_info(),
+                          "Exception while cleaning; shutting down thread.")
+
+class PacketProcessingThread(threading.Thread):
+    #DOCDOC
+    def __init__(self, incomingQueue):
+        threading.Thread.__init__(self)
+        # Clean up logic; maybe refactor. ????
+        self.incomingQueue = incomingQueue
+        self.setDaemon(1) #????
+
+    def shutdown(self):
+        LOG.info("Telling processing thread to shut down.")
+        self.incomingQueue._queue.put(None)
+
+    def run(self):
+        while 1:
+            handle = self.incomingQueue._queue.get()
+            if handle is None:
+                LOG.info("Processing thread shutting down.")
+                return
+            self.incomingQueue.deliverMessage(handle)
+
+
+STOPPING = 0
+def _sigTermHandler(signal_num, _):
+    '''(Signal handler for SIGTERM)'''
+    signal.signal(signal_num, _sigTermHandler)
+    global STOPPING
+    STOPPING = 1
+
+GOT_HUP = 0
+def _sigHupHandler(signal_num, _):
+    '''(Signal handler for SIGTERM)'''
+    signal.signal(signal_num, _sigHupHandler)
+    global GOT_HUP
+    GOT_HUP = 1
+
+def installSignalHandlers():
+    "DOCDOC"
+    signal.signal(signal.SIGHUP, _sigHupHandler)
+    signal.signal(signal.SIGTERM, _sigTermHandler)
+
+#----------------------------------------------------------------------
 
 class MixminionServer:
     """Wraps and drives all the queues, and the async net server.  Handles
@@ -212,10 +320,15 @@ class MixminionServer:
     # moduleManager: Instance of ModuleManager.  Map routing types to
     #    outging queues, and processes non-MMTP exit messages.
     # outgoingQueue: Holds messages waiting to be send via MMTP.
-
+    # DOCDOC cleaningThread, processingthread
+    
     def __init__(self, config):
         """Create a new server from a ServerConfig."""
         LOG.debug("Initializing server")
+
+        installSIGCHLDHandler()
+        installSignalHandlers()
+        
         self.config = config
         homeDir = config['Server']['Homedir']
         createPrivateDir(homeDir)
@@ -283,10 +396,15 @@ class MixminionServer:
         self.mmtpServer.connectQueues(incoming=self.incomingQueue,
                                       outgoing=self.outgoingQueue)
 
+        self.cleaningThread = CleaningThread()
+        self.cleaningThread.start()
+        self.processingThread = PacketProcessingThread(self.incomingQueue)
+        self.processingThread.start()
+        self.moduleManager.startThreading()
 
     def run(self):
         """Run the server; don't return unless we hit an exception."""
-
+        global GOT_HUP
         f = open(self.pidFile, 'wt')
         f.write("%s\n" % os.getpid())
         f.close()
@@ -297,7 +415,8 @@ class MixminionServer:
         #  'MIX', 'SHRED', and 'TIMEOUT'.  Kept in sorted order.
         scheduledEvents = []
         now = time.time()
-        scheduledEvents.append( (now + 600, "SHRED") )#FFFF make configurable
+        #XXXX restore
+        scheduledEvents.append( (now + 120, "SHRED") )#FFFF make configurable
         scheduledEvents.append( (self.mmtpServer.getNextTimeoutTime(now),
                                  "TIMEOUT") )
         nextMix = self.mixPool.getNextMixTime(now)
@@ -319,12 +438,21 @@ class MixminionServer:
             timeLeft = nextEventTime - now
             while timeLeft > 0:
                 # Handle pending network events
-                self.mmtpServer.process(timeLeft)
-                # Process any new messages that have come in, placing them
-                # into the mix pool.
-                self.incomingQueue.sendReadyMessages()
-                # Prevent child processes from turning into zombies.
-                waitForChildren(1)
+                self.mmtpServer.process(2)
+                if STOPPING:
+                    LOG.info("Caught sigterm; shutting down.")
+                    return
+                elif GOT_HUP:
+                    LOG.info("Ignoring sighup for now, sorry.")
+                    GOT_HUP = 0
+                
+##                 # Process any new messages that have come in, placing them
+##                 # into the mix pool.
+##                 self.incomingQueue.sendReadyMessages()
+##                  ##Prevent child processes from turning into zombies.
+##                  #???? I think we should just install a SIGCHLD handler.
+##                  waitForChildren(onceOnly=1,blocking=0)
+
                 # Calculate remaining time.
                 now = time.time()
                 timeLeft = nextEventTime - now
@@ -338,19 +466,27 @@ class MixminionServer:
                 insort(scheduledEvents,
                        (self.mmtpServer.getNextTimeoutTime(now), "TIMEOUT"))
             elif event == 'SHRED':
-                LOG.debug("Overwriting deleted files")
                 self.cleanQueues()
                 insort(scheduledEvents,
-                       (now + 600, "SHRED"))
+                       (now + 120, "SHRED")) #XXXX Restore original value
             elif event == 'MIX':
                 # Before we mix, we need to log the hashes to avoid replays.
                 # FFFF We need to recover on server failure.
-                self.packetHandler.syncLogs()
 
-                LOG.trace("Mix interval elapsed")
-                # Choose a set of outgoing messages; put them in
-                # outgoingqueue and modulemanger
-                self.mixPool.mix()
+                try:
+                    # There's a potential threading problem here... in
+                    # between this sync and the 'mix' below, nobody should
+                    # insert into the mix pool.
+                    self.mixPool.lock()
+                    self.packetHandler.syncLogs()
+
+                    LOG.trace("Mix interval elapsed")
+                    # Choose a set of outgoing messages; put them in
+                    # outgoingqueue and modulemanager
+                    self.mixPool.mix()
+                finally:
+                    self.mixPool.unlock()
+                    
                 # Send outgoing messages
                 self.outgoingQueue.sendReadyMessages()
                 # Send exit messages
@@ -366,13 +502,22 @@ class MixminionServer:
     def cleanQueues(self):
         """Remove all deleted messages from queues"""
         LOG.trace("Expunging deleted messages from queues")
-        self.incomingQueue.cleanQueue()
-        self.mixPool.queue.cleanQueue()
-        self.outgoingQueue.cleanQueue()
-        self.moduleManager.cleanQueues()
+        df = self.cleaningThread.deleteFiles
+        self.incomingQueue.cleanQueue(df)
+        self.mixPool.queue.cleanQueue(df)
+        self.outgoingQueue.cleanQueue(df)
+        self.moduleManager.cleanQueues(df)
 
     def close(self):
         """Release all resources; close all files."""
+        self.cleaningThread.shutdown()
+        self.processingThread.shutdown()
+        self.moduleManager.shutdown()
+
+        self.cleaningThread.join()
+        self.processingThread.join()
+        self.moduleManager.join()
+        
         self.packetHandler.close()
         try:
             os.unlink(self.lockFile)

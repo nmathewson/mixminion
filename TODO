@@ -53,9 +53,11 @@ For 0.0.3:
                   down explicitly so they can't die halfway.
                 - Test like crazy
         - Signals
-                - Cleaner shutdown on TERM.
-                - Good reset handling for HUP.
-			- Don't die
+                . Cleaner shutdown on TERM.
+                        o Implement
+                        - Test
+                . Good reset handling for HUP.
+			o Don't die
                         - Restart logs
                         - Check configuration file for changeable
                           things.  (First, decide what's changeable on

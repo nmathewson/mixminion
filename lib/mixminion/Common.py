@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.49 2003/01/08 08:04:25 nickm Exp $
+# $Id: Common.py,v 1.50 2003/01/09 06:28:58 nickm Exp $
 
 """mixminion.Common
 
@@ -8,10 +8,10 @@
 __all__ = [ 'IntervalSet', 'LOG', 'LogStream', 'MixError', 'MixFatalError',
             'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
             'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
-            'formatFnameTime', 'formatTime', 'installSignalHandlers',
-            'isSMTPMailbox', 'onReset', 'onTerminate', 'openUnique',
-            'previousMidnight', 'readPossiblyGzippedFile', 'secureDelete',
-            'stringContains', 'waitForChildren' ]
+            'formatFnameTime', 'formatTime', 'installSIGCHLDHandler',
+            'isSMTPMailbox', 'openUnique', 'previousMidnight',
+            'readPossiblyGzippedFile', 'secureDelete', 'stringContains',
+            'waitForChildren' ]
 
 import base64
 import bisect
@@ -26,6 +26,9 @@ import sys
 import threading
 import time
 import traceback
+# Imported here so we can get it in mixminion.server without being shadowed
+# by the old Queue.py file.
+import Queue
 
 from types import StringType
 
@@ -271,15 +274,17 @@ def secureDelete(fnames, blocking=0):
             os.unlink(f)
         return None
 
-    if blocking:
-        mode = os.P_WAIT
-    else:
-        mode = os.P_NOWAIT
-
     # Some systems are unhappy when you call them with too many options.
     for i in xrange(0, len(fnames), 250-len(_SHRED_OPTS)):
         files = fnames[i:i+250-len(_SHRED_OPTS)]
-        os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
+        pid = os.spawnl(os.P_NOWAIT,
+                        _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
+        if blocking:
+            try:
+                os.waitpid(pid, 0)
+            except OSError:
+                # sigchild handler might get to the pid first.
+                pass
 
 #----------------------------------------------------------------------
 # Logging
@@ -749,28 +754,16 @@ def isSMTPMailbox(s):
 #----------------------------------------------------------------------
 # Signal handling
 
-# List of 0-argument functions to call on SIGHUP
-resetHooks = []
-
-# List of 0-argument functions to call on SIGTERM
-terminateHooks = []
-
-def onReset(fn):
-    """Given a 0-argument function fn, cause fn to be invoked when
-       this process next receives a SIGHUP."""
-    resetHooks.append(fn)
-
-def onTerminate(fn):
-    """Given a 0-argument function fn, cause fn to be invoked when
-       this process next receives a SIGTERM."""
-    terminateHooks.append(fn)
-
-def waitForChildren(onceOnly=0):
+def waitForChildren(onceOnly=0, blocking=1):
     """Wait until all subprocesses have finished.  Useful for testing."""
+    if blocking:
+        options = 0
+    else:
+        options = os.WNOHANG
     while 1:
         try:
             # FFFF This won't work on Windows.  What to do?
-            pid, status = os.waitpid(0, 0)
+            pid, status = os.waitpid(0, options)
         except OSError, e:
             break
         except e:
@@ -796,27 +789,9 @@ def _sigChldHandler(signal_num, _):
     #outcome, core, sig = status & 0xff00, status & 0x0080, status & 0x7f
     # FFFF Log if outcome wasn't as expected.
 
-def _sigHandler(signal_num, _):
-    '''(Signal handler for SIGTERM and SIGHUP)'''
-    signal.signal(signal_num, _sigHandler)
-    if signal_num == signal.SIGTERM:
-        for hook in terminateHooks:
-            hook()
-        sys.exit(1)
-    else:
-        for hook in resetHooks:
-            hook()
-
-def installSignalHandlers(child=1,hup=1,term=1):
-    '''Register signal handlers for this process.  If 'child', registers
-       a handler for SIGCHLD.  If 'hup', registers a handler for SIGHUP.
-       If 'term', registes a handler for SIGTERM.'''
-    if child:
-        signal.signal(signal.SIGCHLD, _sigChldHandler)
-    if hup:
-        signal.signal(signal.SIGHUP, _sigHandler)
-    if term:
-        signal.signal(signal.SIGTERM, _sigHandler)
+def installSIGCHLDHandler():
+    '''Register sigchld handler for this process.'''
+    signal.signal(signal.SIGCHLD, _sigChldHandler)
 
 #----------------------------------------------------------------------
 # File helpers.

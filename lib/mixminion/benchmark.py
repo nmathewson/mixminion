@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.26 2003/01/05 13:19:53 nickm Exp $
+# $Id: benchmark.py,v 1.27 2003/01/09 06:28:58 nickm Exp $
 
 """mixminion.benchmark
 
@@ -21,7 +21,7 @@ from time import time
 import mixminion._minionlib as _ml
 from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
      compressData, uncompressData
-from mixminion.Common import secureDelete, installSignalHandlers, \
+from mixminion.Common import secureDelete, installSIGCHLDHandler, \
      waitForChildren, formatBase64
 from mixminion.Crypto import *
 from mixminion.Crypto import OAEP_PARAMETER
@@ -320,6 +320,7 @@ def _hashlogTiming(fname, load):
     h = HashLog(fname, "A")
     hashes = [ prng.getBytes(20) for _ in xrange(load) ]
 
+    # XXXX Check under different circumstances -- different sync patterns.
     t = time()
     for n in xrange(len(hashes)):
         h.logHash(hashes[n])
@@ -580,9 +581,8 @@ def timeEfficiency():
 
 def fileOpsTiming():
     print "#================= File ops ====================="
-    installSignalHandlers(child=1,hup=0,term=0)
+    installSIGCHLDHandler()
     dname = mix_mktemp(".d")
-
 
     os.mkdir(dname)
     for i in xrange(200):

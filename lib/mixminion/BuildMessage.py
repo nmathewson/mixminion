@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.33 2003/01/05 13:19:53 nickm Exp $
+# $Id: BuildMessage.py,v 1.34 2003/01/09 06:28:58 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -388,7 +388,7 @@ def _buildMessage(payload, exitType, exitInfo,
     if paranoia:
         nHops = len(path1)
         if path2: nHops += len(path2)
-        secretRNG = Crypto.TrueRNG(SECRET_LEN*len(nHops))
+        secretRNG = Crypto.getTrueRNG()
     else:
         secretRNG = paddingPRNG
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.3 2002/12/16 02:40:11 nickm Exp $
+# $Id: HashLog.py,v 1.4 2003/01/09 06:28:58 nickm Exp $
 
 """mixminion.HashLog
 
@@ -8,6 +8,7 @@
 
 import os
 import anydbm, dumbdbm
+import threading
 from mixminion.Common import MixFatalError, LOG, createPrivateDir
 from mixminion.Packet import DIGEST_LEN
 
@@ -80,36 +81,53 @@ class HashLog:
 
         self.journalFile = os.open(self.journalFileName,
                     _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
+        self.__lock = threading.RLock()
 
     def seenHash(self, hash):
         """Return true iff 'hash' has been logged before."""
         try:
-            if self.journal.get(hash,0):
+            self.__lock.acquire()
+            try:
+                if self.journal.get(hash,0):
+                    return 1
+                _ = self.log[hash]
                 return 1
-            _ = self.log[hash]
-            return 1
-        except KeyError:
-            return 0
+            except KeyError:
+                return 0
+        finally:
+            self.__lock.release()
 
     def logHash(self, hash):
         """Insert 'hash' into the database."""
         assert len(hash) == DIGEST_LEN
-        self.journal[hash] = 1
-        os.write(self.journalFile, hash)
+        try:
+            self.__lock.acquire()
+            self.journal[hash] = 1
+            os.write(self.journalFile, hash)
+        finally:
+            self.__lock.release()
 
     def sync(self):
         """Flushes changes to this log to the filesystem."""
-        for hash in self.journal.keys():
-            self.log[hash] = "1"
-        if hasattr(self.log, "sync"):
-            self.log.sync()
-        os.close(self.journalFile)
-        self.journalFile = os.open(self.journalFileName,
-                   _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
-        self.journal = {}
+        try:
+            self.__lock.acquire()
+            for hash in self.journal.keys():
+                self.log[hash] = "1"
+            if hasattr(self.log, "sync"):
+                self.log.sync()
+            os.close(self.journalFile)
+            self.journalFile = os.open(self.journalFileName,
+                       _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
+            self.journal = {}
+        finally:
+            self.__lock.release()
 
     def close(self):
         """Closes this log."""
-        self.sync()
-        self.log.close()
-        os.close(self.journalFile)
+        try:
+            self.__lock.acquire()
+            self.sync()
+            self.log.close()
+            os.close(self.journalFile)
+        finally:
+            self.__lock.release()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.36 2003/01/08 08:04:27 nickm Exp $
+# $Id: Crypto.py,v 1.37 2003/01/09 06:28:58 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -479,6 +479,7 @@ class RNG:
            bytes at a time."""
         self.bytes = ""
         self.chunksize = chunksize
+        
     def getBytes(self, n):
         """Returns a string of 'n' random bytes."""
 
@@ -593,9 +594,11 @@ def getCommonPRNG():
     '''Returns a general-use AESCounterPRNG, initializing it if necessary.'''
     # We create one PRNG per thread.
     thisThread = threading.currentThread()
-    if not hasattr(thisThread, "minion_shared_PRNG"):
+    try:
+        return thisThread.minion_shared_PRNG
+    except AttributeError:
         thisThread.minion_shared_PRNG = AESCounterPRNG()
-    return thisThread.minion_shared_PRNG
+        return thisThread.minion_shared_PRNG
 
 #----------------------------------------------------------------------
 # TRNG implementation
@@ -667,6 +670,8 @@ class _TrueRNG(RNG):
         """Creates a TrueRNG to retrieve data from our underlying RNG 'n'
            bytes at a time"""
         RNG.__init__(self,n)
+        self.__lock = threading.Lock()
+        
     def _prng(self,n):
         "Returns n fresh bytes from our true RNG."
         if _TRNG_FILENAME is None:
@@ -677,6 +682,19 @@ class _TrueRNG(RNG):
         f.close()
         return d
 
+    def getBytes(self, n):
+        # We need to synchronize this method, since a single TRNG instance
+        # is shared by all threads.
+        self.__lock.acquire()
+        b = RNG.getBytes(self, n)
+        self.__lock.release()
+        return b
+        
+
 # Global _TrueRNG instance, for use by trng().
 _theTrueRNG = _TrueRNG(1024)
 
+# Return the shared instance of the true RNG.
+def getTrueRNG():
+    """Return the shared instance of the true RNG."""
+    return _theTrueRNG

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.21 2003/01/08 07:58:10 nickm Exp $
+# $Id: Modules.py,v 1.22 2003/01/09 06:28:58 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -19,6 +19,7 @@ import sys
 import smtplib
 import socket
 import base64
+import threading
 
 if sys.version_info[:2] >= (2,3):
     import textwrap
@@ -28,7 +29,7 @@ else:
 import mixminion.BuildMessage
 import mixminion.Config
 import mixminion.Packet
-import mixminion.server.Queue
+import mixminion.server.ServerQueue
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
      isPrintingAscii
@@ -118,7 +119,7 @@ class DeliveryModule:
 class ImmediateDeliveryQueue:
     """Helper class usable as delivery queue for modules that don't
        actually want a queue.  Such modules should have very speedy
-       processMessage() methods, and should never have deliery fail."""
+       processMessage() methods, and should never have delivery fail."""
     ##Fields:
     #  module: the underlying DeliveryModule object.
     def __init__(self, module):
@@ -143,17 +144,17 @@ class ImmediateDeliveryQueue:
         # We do nothing here; we already delivered the messages
         pass
 
-    def cleanQueue(self):
+    def cleanQueue(self, deleteFn=None):
         # There is no underlying queue to worry about here; do nothing.
         pass
 
-class SimpleModuleDeliveryQueue(mixminion.server.Queue.DeliveryQueue):
+class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
     """Helper class used as a default delivery queue for modules that
        don't care about batching messages to like addresses."""
     ## Fields:
     # module: the underlying module.
     def __init__(self, module, directory):
-        mixminion.server.Queue.DeliveryQueue.__init__(self, directory)
+        mixminion.server.ServerQueue.DeliveryQueue.__init__(self, directory)
         self.module = module
 
     def _deliverMessages(self, msgList):
@@ -172,6 +173,37 @@ class SimpleModuleDeliveryQueue(mixminion.server.Queue.DeliveryQueue):
                 LOG.error_exc(sys.exc_info(),
                                    "Exception delivering message")
                 self.deliveryFailed(handle, 0)
+
+class DeliveryThread(threading.Thread):
+    def __init__(self, moduleManager):
+        threading.Thread.__init__(self)
+        self.moduleManager = moduleManager
+        self.event = threading.Event()
+        self.setDaemon(1)
+        self.__stoppinglock = threading.Lock() # UGLY. XXXX
+        self.isStopping = 0
+
+    def beginSending(self):
+        self.event.set()
+
+    def shutdown(self):
+        LOG.info("Telling delivery thread to shut down.")
+        self.__stoppinglock.acquire()
+        self.isStopping = 1
+        self.__stoppinglock.release()
+        self.event.set()
+
+    def run(self):
+        while 1:
+            self.event.wait()
+            self.event.clear()
+            self.__stoppinglock.acquire()
+            stop = self.isStopping
+            self.__stoppinglock.release()
+            if stop:
+                LOG.info("Delivery thread shutting down.")
+                return
+            self.moduleManager._sendReadyMessages()
 
 class ModuleManager:
     """A ModuleManager knows about all of the server modules in the system.
@@ -202,8 +234,9 @@ class ModuleManager:
     #            queueMessage and sendReadyMessages as in DeliveryQueue.)
     #    _isConfigured: flag: has this modulemanager's configure method been
     #            called?
+    # DOCDOC threaded, thread.
 
-    def __init__(self):
+    def __init__(self, threaded=0):
         "Create a new ModuleManager"
         self.syntax = {}
         self.modules = []
@@ -221,6 +254,11 @@ class ModuleManager:
         self.registerModule(MixmasterSMTPModule())
 
         self._isConfigured = 0
+        self.thread = None
+
+    def startThreading(self):
+        self.thread = DeliveryThread(self)
+        self.thread.start()
 
     def isConfigured(self):
         """Return true iff this object's configure method has been called"""
@@ -312,10 +350,10 @@ class ModuleManager:
         self.queues[module.getName()] = queue
         self.enabled[module.getName()] = 1
 
-    def cleanQueues(self):
+    def cleanQueues(self, deleteFn=None):
         """Remove trash messages from all internal queues."""
         for queue in self.queues.values():
-            queue.cleanQueue()
+            queue.cleanQueue(deleteFn)
 
     def disableModule(self, module):
         """Unmaps all the types for a module object."""
@@ -331,6 +369,8 @@ class ModuleManager:
 
     def queueMessage(self, message, tag, exitType, address):
         """Queue a message for delivery."""
+        # XXXX003 remove the more complex logic here into the PacketHandler
+        # XXXX003 code.
         # FFFF Support non-exit messages.
         mod = self.typeToModule.get(exitType, None)
         if mod is None:
@@ -358,7 +398,23 @@ class ModuleManager:
             # forward message
             queue.queueDeliveryMessage((exitType, address, None), payload)
 
+    #DOCDOC
+    def shutdown(self):
+        if self.thread is not None:
+            self.thread.shutdown()
+
+    def join(self):
+        if self.thread is not None:
+            self.thread.join()
+
+    # XXXX refactor, document
     def sendReadyMessages(self):
+        if self.thread is not None:
+            self.thread.beginSending()
+        else:
+            self._sendReadyMessages()
+
+    def _sendReadyMessages(self):
         for name, queue in self.queues.items():
             queue.sendReadyMessages()
 
@@ -805,7 +861,7 @@ class MixmasterSMTPModule(SMTPModule):
     def createDeliveryQueue(self, queueDir):
         # We create a temporary queue so we can hold files there for a little
         # while before passing their names to mixmaster.
-        self.tmpQueue = mixminion.server.Queue.Queue(queueDir+"_tmp", 1, 1)
+        self.tmpQueue = mixminion.server.ServerQueue.Queue(queueDir+"_tmp", 1, 1)
         self.tmpQueue.removeAll()
         return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
 
