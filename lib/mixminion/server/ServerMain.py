@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.8 2002/12/20 23:52:07 nickm Exp $
+# $Id: ServerMain.py,v 1.9 2002/12/21 00:18:49 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -281,7 +281,8 @@ class MixminionServer:
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         # FFFF Use heapq to schedule events? [I don't think so; there are only
-        # FFFF   two events, after all!]
+        # FFFF   two events, after all!]  [But the intervals may be very
+        # FFFF   different...!]
 
         f = open(self.pidFile, 'wt')
         f.write("%s\n" % os.getpid())
@@ -296,14 +297,17 @@ class MixminionServer:
         #nextRotate = self.keyring.getNextKeyRotation()
         while 1:
             LOG.trace("Next mix at %s", formatTime(nextMix,1))
-            while time.time() < nextMix:
+            timeLeft = 1
+            while timeLeft > 0:
                 # Handle pending network events
-                self.mmtpServer.process(1)
+                self.mmtpServer.process(timeLeft)
                 # Process any new messages that have come in, placing them
                 # into the mix pool.
                 self.incomingQueue.sendReadyMessages()
                 # Prevent child processes from turning into zombies.
                 waitForChildren(1)
+                # Calculate remaining time.
+                timeLeft = nextMix - time.time()
 
             # Before we mix, we need to log the hashes to avoid replays.
             # FFFF We need to recover on server failure.
