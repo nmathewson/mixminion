@@ -1,6 +1,6 @@
-$Id: README,v 1.59.2.2 2003/09/16 15:06:20 nickm Exp $
+$Id: README,v 1.59.2.3 2003/10/27 13:26:44 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.5.1.
+This is Mixminion version 0.0.5.2.
 
 CONTENTS:
         I.    Overview
@@ -37,6 +37,15 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.5.2:
+   - Better recovery from files corrupted due to a crash or otherwise.
+   - Don't crash on systems where DBM is the preferred database.
+   - Clients tolerate and detect timed-out TLS connections better.
+   - Don't crash server on certain kinds of MMTP failure.
+   - Don't crash server with fragmented delivery on SIGHUP.
+   - Fix race conditions in fragmented delivery.
+   - Better errors on failed TLS connect.
 
 NEW IN VERSION 0.0.5.1:
    - Allow exit servers to decide whether to support user-supplied from
@@ -131,9 +140,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5.1.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5.2.tar.gz>
 
-  % cd Mixminion-0.0.5.1
+  % cd Mixminion-0.0.5.2
   % make download-openssl
   % make build-openssl
   % make
