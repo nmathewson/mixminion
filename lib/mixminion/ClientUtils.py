@@ -395,8 +395,6 @@ class ClientQueue:
     def removePacket(self, handle):
         """Remove the packet named with the handle 'handle'."""
         self.store.removeMessage(handle)
-        # XXXX006 This cleanQueue shouldn't need to happen so often!
-        self.store.cleanQueue()
 
     def inspectQueue(self, now=None):
         """Print a message describing how many messages in the queue are headed
@@ -421,27 +419,28 @@ class ClientQueue:
             days = floorDiv(now - oldest, 24*60*60)
             if days < 1:
                 days = "<1"
-            print "%2d messages for server at %s:%s (oldest is %s days old)"%(
+            print "%2d packets for server at %s:%s (oldest is %s days old)"%(
                 count, s.ip, s.port, days)
 
-    def cleanQueue(self, maxAge, now=None):
+    def cleanQueue(self, maxAge=None, now=None):
         """Remove all messages older than maxAge seconds from this
            queue."""
         if now is None:
             now = time.time()
-        cutoff = now - maxAge
-        remove = []
-        self.loadMetadata()
-        for h in self.getHandles():
-            try:
-                when = self.store.getMetadata(h)[2]
-            except mixminion.Filestore.CorruptedFile:
-                continue
-            if when < cutoff:
-                remove.append(h)
-        LOG.info("Removing %s old messages from queue", len(remove))
-        for h in remove:
-            self.store.removeMessage(h)
+        if maxAge is not None:
+            cutoff = now - maxAge
+            remove = []
+            self.loadMetadata()
+            for h in self.getHandles():
+                try:
+                    when = self.store.getMetadata(h)[2]
+                except mixminion.Filestore.CorruptedFile:
+                    continue
+                if when < cutoff:
+                    remove.append(h)
+            LOG.info("Removing %s old messages from queue", len(remove))
+            for h in remove:
+                self.store.removeMessage(h)
         self.store.cleanQueue()
 
     def loadMetadata(self):

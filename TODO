@@ -24,7 +24,7 @@ TCP latency, and me.)
                         o Implement
                         o Integrate
                         . Test
-                - Switch ClientQueue to use metadata
+                o Switch ClientQueue to use metadata
         . Infrastructure -- high level
                 o Separate directory downloading, directory caching, path
                   parsing, and path generation into a new module.
@@ -39,10 +39,10 @@ TCP latency, and me.)
                           path from specifier list.
                         o Switch unit tests to test new interface to ClientDir
                         - New unit tests for multiple converging paths.
-                . Rewrite ClientMain path generation to do the right
+                o Rewrite ClientMain path generation to do the right
                   thing with multi-packet messages
                         o Write the code
-                        - Hand-test multi-packet and single-packet fwd
+                        o Hand-test multi-packet and single-packet fwd
                           messages and replies.
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
@@ -56,7 +56,7 @@ TCP latency, and me.)
                           ClientDirectory.
                         o Formatting for featuremap
                         o CLI for new listservers
-                        - Replace old listservers
+                        o Replace old listservers
                         - Unit tests for features
                         - Unit tests for featureMaps
                 - Timeouts should say 'timeout', not EINTR.
@@ -74,7 +74,7 @@ TCP latency, and me.)
                 - Make TRACE mode less verbose, or make DEBUG mode more useful.
         - Large reply messages and efwd messages
                 - Relay non-FRAGMENT fragment messages
-                - Make the fragment path selection not suck.
+                o Make the fragment path selection not suck.
                 - Send logic for client
                 - Fragment-pool logic for client
                 - Don't allow 'FRAGMENT' exit type if no exit modules are
@@ -87,12 +87,13 @@ TCP latency, and me.)
                 - Installer
                 - Instructions
                 - Py2EXE support
-        . Fix misc annoyances
+        o Fix misc annoyances
                 o Don't generate dead keys when restarting the server
                   after the last keys have long expired.
-                - Make sure we clean out Filestores used by clients.
-                - Don't remove currently-undeliverable messages from client
+                o Make sure we clean out Filestores used by clients.
+                o Don't remove currently-undeliverable messages from client
                   queue when flushing.
+                o Don't say "foo is not recommended" 7 times!
         - Dynamic IP support
                 - Change IPv4/IPv6 delivery methods to use DNS if desired.
                   [Migration plan: Supplement 'IP' with 'Hostname' in

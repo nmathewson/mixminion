@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.63 2003/11/07 09:07:54 nickm Exp $
+# $Id: Config.py,v 1.64 2003/11/07 10:43:18 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -636,7 +636,7 @@ def resolveFeatureName(name, klass):
                     if entry.lower() == ent:
                         return section, entry
         if goodSection:
-            raise UIError("Section %s has no entry %r"%(section,ent))
+            raise UIError("Section %s has no entry %r"%(goodSection,ent))
         else:
             raise UIError("No such section as %s"%sec)
     else:
@@ -652,8 +652,8 @@ def resolveFeatureName(name, klass):
         elif len(result) > 1:
             secs = [ "%s:%s"%(secname,entname) for secname,entname
                      in result ]
-            raise UIError("%r is ambiguous.  Did you mean %s?",
-                          name, englishSequence(secs,compound="or"))
+            raise UIError("%r is ambiguous.  Did you mean %s?"%(
+                          name, englishSequence(secs,compound="or")))
         else:
             return result[0]
 

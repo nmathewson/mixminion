@@ -247,7 +247,7 @@ class MixminionClient:
 
                DOCDOC args are wrong."""
         #XXXX write unit tests
-        allPackets = self.generateReplyMessage(
+        allPackets = self.generateReplyPackets(
             directory, address, pathSpec, message, surbList, startAt, endAt)
 
         for routing, packets in self._sortPackets(allPackets):
@@ -300,7 +300,8 @@ class MixminionClient:
             address.setFragmented(0,1)
         routingType, routingInfo, _ = address.getRouting()
         
-        directory.validatePath(pathSpec, address, startAt, endAt)
+        directory.validatePath(pathSpec, address, startAt, endAt,
+                               warnUnrecommended=0)
         
         for p, (path1,path2) in zip(payloads, directory.generatePaths(
             len(payloads), pathSpec, address, startAt, endAt)):
@@ -312,9 +313,9 @@ class MixminionClient:
 
         return r
 
-    def generateReplyMessage(self, directory, address, pathSpec, message,
+    def generateReplyPackets(self, directory, address, pathSpec, message,
                              surbList, startAt, endAt):
-        """Generate a forward message, but do not send it.  Returns
+        """Generate a reply message, but do not send it.  Returns
            a tuple of (the message body, a ServerInfo for the first hop.)
 
             address -- the results of a parseAddress call
@@ -324,6 +325,7 @@ class MixminionClient:
             surbList -- a list of SURBs to consider for the second leg of
                the path.  We use the first one that is neither expired nor
                used, and mark it used.
+               DOCDOC
             """
         #XXXX write unit tests
         assert address.isReply
@@ -333,9 +335,9 @@ class MixminionClient:
         surbLog = self.openSURBLog() # implies lock
         result = []
         try:
-            surbs = surbLog.findUnusedSURB(surbList, len(payloads), 
+            surbs = surbLog.findUnusedSURBs(surbList, len(payloads), 
                                            verbose=1, now=startAt)
-            if len(surbs) <= len(payloads):
+            if len(surbs) < len(payloads):
                 raise UIError("Not enough usable reply blocks found; all were used or expired.")
             
 
@@ -352,6 +354,8 @@ class MixminionClient:
             
         finally:
             surbLog.close() #implies unlock
+            
+        return result
 
     def openSURBLog(self):
         """Return a new, open SURBLog object for this client; it must be closed
@@ -404,11 +408,12 @@ class MixminionClient:
             handles = self.queueMessages(msgList, routingInfo)
 
         if len(msgList) > 1:
-            mword = "messages"
+            mword = "packets"
         else:
-            mword = "message"
+            mword = "packet"
 
         try:
+            success = 0
             try:
                 # May raise TimeoutError
                 LOG.info("Connecting...")
@@ -416,6 +421,7 @@ class MixminionClient:
                                                   msgList,
                                                   timeout)
                 LOG.info("... %s sent", mword)
+                success = 1
             except:
                 e = sys.exc_info()
                 if noQueue and warnIfLost:
@@ -434,6 +440,8 @@ class MixminionClient:
                 for h in handles:
                     if self.queue.packetExists(h):
                         self.queue.removePacket(h)
+                if handles:
+                    self.queue.cleanQueue()
             finally:
                 clientUnlock()
         except MixProtocolError, e:
@@ -481,14 +489,16 @@ class MixminionClient:
             handles = [ h for _, h in messagesByServer[routing] ]
             try:
                 self.sendMessages(msgs, routing, noQueue=1, warnIfLost=0)
-                #XXXX006 is this part needed?
-                try:
-                    clientLock()
-                    for h in handles:
-                        if self.queue.packetExists(h):
-                            self.queue.removePacket(h)
-                finally:
-                    clientUnlock()
+##                 #XXXX006 is this part needed?
+##                 try:
+##                     clientLock()
+##                     for h in handles:
+##                         if self.queue.packetExists(h):
+##                             self.queue.removePacket(h)
+##                     if handles:
+##                         self.queue.cleanQueue()
+##                 finally:
+##                     clientUnlock()
                 sentSome = 1
             except MixError, e:
                 LOG.error("Can't deliver messages to %s:%s: %s; leaving messages in queue",
@@ -845,6 +855,7 @@ class CLIArgumentParser:
                 except ParseError, e:
                         raise UIError("Error parsing %s: %s" % (fn, e))
             self.surbList = surbs
+            self.exitAddress = mixminion.ClientDirectory.ExitAddress(isReply=1)
         else:
             assert self.exitAddress is not None
             useRB = 0
@@ -1033,7 +1044,7 @@ def runClient(cmd, args):
         # from stdin.
         surblog = client.openSURBLog()
         try:
-            s = surblog.findUnusedSURB(parser.path2)
+            s = surblog.findUnusedSURBs(parser.path2)
             if s is None:
                 raise UIError("No unused and unexpired reply blocks found.")
         finally:
@@ -1209,7 +1220,7 @@ def listServers(cmd, args):
     separator = "\t"
     for opt,val in options:
         if opt in ('-F', '--feature'):
-            features.append(val)
+            features.extend(val.split(","))
         elif opt in ('-c', '--cascade'):
             try:
                 cascade = int(val)
@@ -1225,7 +1236,7 @@ def listServers(cmd, args):
             showTime = 2
         elif opt in ('-V', '--valid'):
             validOnly = 1
-        elif sep in ('-s', '--separator'):
+        elif opt in ('-s', '--separator'):
             separator = val
 
     if not features:

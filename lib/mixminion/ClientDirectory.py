@@ -525,10 +525,7 @@ class ClientDirectory:
                     "Couldn't find any currently live descriptor with name %s"
                     % name)
 
-            s = s[0]
-            if not self.goodServerNicknames.has_key(s.getNickname().lower()):
-                LOG.warn("Server %s is not recommended",name)
-            
+            s = s[0]            
             return s
         elif os.path.exists(os.path.expanduser(name)):
             # If it's a filename, try to read it.
@@ -577,7 +574,7 @@ class ClientDirectory:
             # Make the exit hop _not_ be None; deal with getPath brokenness.
             #XXXX refactor this.
             if lastHop:
-                if not p or p[-1].lower()!=lastHop.lower():
+                if not p or not p[-1] or p[-1].lower()!=lastHop.lower():
                     p.append(lastHop)
             elif p[-1] == None and not exitAddress.isReply:
                 p[-1] = prng.pick(plausibleExits)
@@ -689,7 +686,8 @@ class ClientDirectory:
 
         return servers
 
-    def validatePath(self, pathSpec, exitAddress, startAt=None, endAt=None):
+    def validatePath(self, pathSpec, exitAddress, startAt=None, endAt=None,
+                     warnUnrecommended=1):
         """DOCDOC 
            takes pathspec; raises UIError or does nothing."""
         if startAt is None: startAt = time.time()
@@ -732,6 +730,20 @@ class ClientDirectory:
         elif exitAddress.isServerRelative():
             raise UIError("%s exit type expects a fixed exit server.",
                           exitAddress.getPrettyExitType())
+
+        # Check for unrecommended servers
+        if not warnUnrecommended:
+            return
+        warned = {}
+        for e in p:
+            fixed = e.getFixedServer(self, startAt, endAt)
+            if not fixed: continue
+            lc_nickname = fixed.getNickname().lower()
+            if not self.goodServerNicknames.has_key(lc_nickname):
+                if warned.has_key(lc_nickname):
+                    continue
+                warned[lc_nickname] = 1
+                LOG.warn("Server %s is not recommended",fixed.getNickname())
             
     def checkClientVersion(self):
         """Check the current client's version against the stated version in
@@ -874,7 +886,7 @@ class ExitAddress:
         elif type(exitType) == types.IntType:
             if not (0 <= exitType <0xFFFF):
                 raise UIError("Exit type 0x%04X is out of range."%exitType)
-        else:
+        elif exitType is not None:
             raise UIError("Unknown exit type: %r"%exitType)
         self.exitType = exitType
         self.exitAddress = exitAddress
