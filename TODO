@@ -90,6 +90,7 @@ For 0.0.5:
                         - Server-side reassembly in pools
                         - Message-size maxima
                         - Cleaning out dead messages
+                        - Fragmented cap in server descriptors
         . Bugfixes
                 o Make AttemptedRelay ~~ SuccessfulRelay+FailedRelay.
                 o Solve CPU infinite loop bug

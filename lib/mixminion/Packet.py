@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.58 2003/08/28 01:40:08 nickm Exp $
+# $Id: Packet.py,v 1.59 2003/08/28 18:43:44 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -767,7 +767,7 @@ def encodeMailHeaders(subject=None, fromAddr=None, inReplyTo=None,
     if subject:
         headers['SUBJECT'] = subject
     if fromAddr:
-        for badchar in '"[]:':
+        for badchar in ('"', '[', ']', ':'):
             if badchar in fromAddr:
                 raise MixError("Forbidden character %r in from address"%
                                badchar)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.8 2003/08/25 21:05:34 nickm Exp $
+# $Id: Filestore.py,v 1.9 2003/08/28 18:43:44 nickm Exp $
 
 """mixminion.Filestore
 
@@ -470,7 +470,7 @@ class ObjectMetadataStoreMixin(ObjectStoreMixin):
         ObjectStoreMixin.__init__(self)
     def queueObject(self, object):
         LOG.warn("Called 'queueObject' on a metadata store.")
-        return self.queueObjectAndMetadata(message, None)
+        return self.queueObjectAndMetadata(object, None)
     def queueObjectAndMetadata(self, object, metadata):
         f, handle = self.openNewMessage()
         cPickle.dump(object, f, 1)

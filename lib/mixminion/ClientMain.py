@@ -502,7 +502,7 @@ class ClientDirectory:
         for s in servers:
             maxSize = s['Delivery/SMTP']['Maximum-Size'] * 1024
             maxPackets = s['Delivery/Fragmented'].get('Maximum-Fragments',1)
-            if maxSize >= size and maxPackets >= packets:
+            if maxSize >= size and maxPackets >= nPackets:
                 return s
 
         return None
