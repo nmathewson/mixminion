@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.14 2003/05/17 00:08:45 nickm Exp $ */
+/* $Id: main.c,v 1.15 2003/07/07 23:46:51 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -41,6 +41,8 @@ static struct PyMethodDef _mixcryptlib_functions[] = {
         ENTRY(generate_cert),
 
         ENTRY(TLSContext_new),
+
+        ENTRY(FEC_generate),
         { NULL, NULL }
 };
 
@@ -116,10 +118,13 @@ init_minionlib(void)
         if (exc(d, &mm_TLSClosed, "mixminion._minionlib.TLSClosed",
                 "TLSClosed", mm_TLSClosed__doc__))
                 return;
+        if (exc(d, &mm_FECError, "mixminion._minionlib.FECError",
+                "FECError", mm_FECError__doc__))
+                return;
 
-        /* We set ob_type here so that Cygwin is happy. */
+        /* We set ob_type here so that Cygwin and Win32 are happy. */
         mm_RSA_Type.ob_type = mm_TLSContext_Type.ob_type =
-                mm_TLSSock_Type.ob_type = &PyType_Type;
+                mm_TLSSock_Type.ob_type = mm_FEC_Type.ob_type = &PyType_Type;
 
         Py_INCREF(&mm_RSA_Type);
         if (PyDict_SetItemString(d, "RSA", (PyObject*)&mm_RSA_Type) < 0)
@@ -133,6 +138,11 @@ init_minionlib(void)
         Py_INCREF(&mm_TLSSock_Type);
         if (PyDict_SetItemString(d, "TLSSock",
                                  (PyObject*)&mm_TLSSock_Type) < 0)
+                return;
+
+        Py_INCREF(&mm_FEC_Type);
+        if (PyDict_SetItemString(d, "FEC",
+                                 (PyObject*)&mm_FEC_Type) < 0)
                 return;
 }
 

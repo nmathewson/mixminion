@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.65 2003/07/07 18:55:14 nickm Exp $
+# $Id: setup.py,v 1.66 2003/07/07 23:46:50 nickm Exp $
 import sys
 
 #
@@ -401,7 +401,7 @@ INCLUDE_DIRS.append("src")
 
 extmodule = Extension(
     "mixminion._minionlib",
-    ["src/crypt.c", "src/aes_ctr.c", "src/main.c", "src/tls.c", ],# "src/fec.c" ],
+    ["src/crypt.c", "src/aes_ctr.c", "src/main.c", "src/tls.c", "src/fec.c" ],
     include_dirs=INCLUDE_DIRS,
     extra_objects=STATIC_LIBS,
     extra_compile_args=["-Wno-strict-prototypes"]+OPENSSL_CFLAGS,

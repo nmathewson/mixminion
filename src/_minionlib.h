@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.14 2003/02/12 01:23:24 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.15 2003/07/07 23:46:51 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -38,6 +38,7 @@ typedef struct mm_RSA {
 
 extern PyTypeObject mm_TLSContext_Type;
 extern PyTypeObject mm_TLSSock_Type;
+extern PyTypeObject mm_FEC_Type;
 
 /**
  * Macros to declare function prototypes with the proper signatures for Python.
@@ -52,7 +53,6 @@ extern PyTypeObject mm_TLSSock_Type;
 #define METHOD(obj, name) { #name, (PyCFunction)obj##_##name, \
                         METH_VARARGS|METH_KEYWORDS,       \
                         (char*)obj##_##name##__doc__ }
-
 
 /* Functions from crypt.c */
 FUNC_DOC(mm_sha1);
@@ -74,6 +74,11 @@ FUNC_DOC(mm_generate_cert);
 extern PyObject *mm_CryptoError;
 extern char mm_CryptoError__doc__[];
 
+/* From fec.c */
+FUNC_DOC(mm_FEC_generate);
+extern PyTypeObject mm_FEC_Type;
+extern PyObject *mm_FECError;
+extern char mm_FECError__doc__[];
 
 /* From tls.c */
 extern PyTypeObject mm_TLSSock_Type;

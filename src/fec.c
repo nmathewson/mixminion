@@ -1,8 +1,9 @@
 /* Portions Copyright (c) 2003 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.2 2003/07/07 22:20:15 nickm Exp $ */ 
+/* $Id: fec.c,v 1.3 2003/07/07 23:46:51 nickm Exp $ */ 
 
 #include <Python.h>
+#include "_minionlib.h"
 
 /* ======= ORIGINAL CODE BY LUIGI RIZZO, TUNED AND TWEAKED ======= */
 
@@ -791,12 +792,14 @@ extern PyTypeObject mm_FEC_Type;
 
 /* **************** */
 
+const char mm_FEC_generate__doc__[] = "DOCDOC";
+
 PyObject *
 mm_FEC_generate(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	static char *kwlist[] = { "k", "n", NULL };
 	int k, n;
-	PyObject *output;
+	mm_FEC *output;
 	
         if (!PyArg_ParseTupleAndKeywords(args, kwargs,
                                          "ii:FEC_generate", kwlist,
@@ -808,7 +811,7 @@ mm_FEC_generate(PyObject *self, PyObject *args, PyObject *kwargs)
 		return NULL;
 	}
 	
-	if (!(output=PyObject_NEW(mm_FEC, &mm_FEC_Type)))
+	if (!(output = PyObject_NEW(mm_FEC, &mm_FEC_Type)))
 		return NULL;
 
 	output->fec = NULL;
@@ -821,16 +824,18 @@ mm_FEC_generate(PyObject *self, PyObject *args, PyObject *kwargs)
 		return NULL;
 	}
 	
-	return output;
+	return (PyObject*)output;
 }
 
 static void
 mm_FEC_dealloc(mm_FEC *self)
 {
 	if (self->fec)
-		fec_free(p);
+		fec_free(self->fec);
         PyObject_DEL(self);
 }
+
+static const char mm_FEC_getParameters__doc__[] = "DOCDOC";
 
 static PyObject*
 mm_FEC_getParameters(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -840,12 +845,12 @@ mm_FEC_getParameters(PyObject *self, PyObject *args, PyObject *kwargs)
                 PyErr_SetString(PyExc_TypeError, "No arguments expected");
                 return NULL;
         }
-        fec = ((mm_FEC)self)->fec;
+        fec = ((mm_FEC*)self)->fec;
 
         return Py_BuildValue("ii", fec->k, fec->n);
 }
 
-
+static const char mm_FEC_encode__doc__[] = "DOCDOC";
 
 static PyObject *
 mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -870,10 +875,10 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
 
         fec = ((mm_FEC*)self)->fec;
 	
-        /* Check whether the second arg is a sequence of N equally sized
+        /* Check whether the second arg is a sequence of K equally sized
          * strings. */
         if (!PySequence_Check(blocks)) {
-                PyErr_SetString(mm_FECError, "encode expects a list");
+                PyErr_SetString(mm_FECError, "encode expects a sequence");
                 return NULL;
         }
         if (PySequence_Size(blocks) != fec->k) {
@@ -892,11 +897,11 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
         if (!(tup = PySequence_Tuple(blocks))) {
                 return NULL;
         }
-        if (!stringPtrs = malloc((sizeof gf*)*fec->n)) {
+        if (!(stringPtrs = malloc((sizeof(gf*))*fec->k))) {
                 PyErr_NoMemory();
-                return NULL;
+                goto err;
         }        
-        for (i = 0; i < fec->n; ++i) {
+        for (i = 0; i < fec->k; ++i) {
                 o = PyTuple_GET_ITEM(tup, i);
                 if (!PyString_Check(o)) {
                         PyErr_SetString(mm_FECError, 
@@ -904,8 +909,8 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
                         goto err;
                 }
                 if (sz<0)
-                        sz = PyString_Length(o);
-                else if (sz != PyString_Length(o)) {
+                        sz = PyString_Size(o);
+                else if (sz != PyString_Size(o)) {
                         PyErr_SetString(mm_FECError, 
                               "encode expects a list of equally long strings");
                         goto err;
@@ -915,7 +920,7 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
 	
         /* We could pull this up, but it's good to do all the checking. */
         if (idx < fec->k) {
-                result = PyTuple_GET_ITEM(tup, index);
+                result = PyTuple_GET_ITEM(tup, idx);
                 Py_INCREF(result);
                 Py_DECREF(tup);
                 free(stringPtrs);
@@ -944,19 +949,109 @@ mm_FEC_encode(PyObject *self, PyObject *args, PyObject *kwargs)
 	return NULL;
 }
 
+static const char mm_FEC_decode__doc__[] = "DOCDOC";
+
 static PyObject *
 mm_FEC_decode(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	static char *kwlist[] = { "blocks", NULL };
+        struct fec_parms *fec;
+        PyObject *blocks;
 
+        int tmp;
+        int sz = -1;
+        int i;
+        PyObject *o;
 
+        PyObject *tup = NULL;
+        char **stringPtrs = NULL;
+        int *indices = NULL;
+        PyObject *result = NULL;
         
-	
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                         "O:decode", kwlist,
+					 &blocks))
+                return NULL;
+
+        fec = ((mm_FEC*)self)->fec;
+
+        /* Check whether the second arg is a sequence of K equally sized
+         * strings. */
+        if (!PySequence_Check(blocks)) {
+                PyErr_SetString(mm_FECError, "decode expects a sequence");
+                return NULL;
+        }
+        if (PySequence_Size(blocks) != fec->k) {
+                PyErr_SetString(mm_FECError, 
+                                "encode expects a sequence of length K");
+                return NULL;
+        }
+        
+        /* We hold onto the sequence as a tuple to prevent it changing
+         * out from under us, and to temporarily incref all the strings.
+         */
+        if (!(tup = PySequence_Tuple(blocks))) {
+                return NULL;
+        }
+        if (!(stringPtrs = malloc((sizeof(gf*))*fec->k))) {
+                PyErr_NoMemory();
+                goto err;
+        }        
+        if (!(indices = malloc((sizeof(int))*fec->k))) {
+                PyErr_NoMemory();
+                goto err;
+        }
+        for (i = 0; i < fec->k; ++i) {
+                o = PyTuple_GET_ITEM(tup, i);
+                if (!PyArg_ParseTuple(o, "is#", &indices[i], &stringPtrs[i],
+                                      &tmp)) {
+                        PyErr_SetString(mm_FECError, 
+                               "decode expects a list of index-string tuples");
+                        goto err;
+                }
+                if (sz<0)
+                        sz = tmp;
+                else if (sz != tmp) {
+                        PyErr_SetString(mm_FECError, 
+                              "decode expects equally long strings");
+                        goto err;
+                }
+        }
+
+        if (!(result = PyString_FromStringAndSize(NULL, sz*fec->k))) {
+                PyErr_NoMemory(); goto err;
+        }
+        
+        Py_BEGIN_ALLOW_THREADS
+        tmp = fec_decode(fec, (gf**) stringPtrs, (int*) indices, sz);
+        Py_END_ALLOW_THREADS 
+              
+        if (tmp)
+                goto err;
+
+        for (i = 0; i < fec->k; ++i) {
+                memcpy(PyString_AsString(result)+sz*i, stringPtrs[i], sz);
+                free(stringPtrs[i]);
+        }
+
+        free(stringPtrs);
+        free(indices);
+        Py_DECREF(tup);
+
+        return result;
+ err:
+        if (tup)
+                Py_DECREF(tup);
+        if (indices)
+                free(indices);
+        if (stringPtrs)
+                free(stringPtrs);
 	
 	return NULL;
 }
 
 static PyMethodDef mm_FEC_methods[] = {
+        METHOD(mm_FEC, getParameters),
         METHOD(mm_FEC, encode),
         METHOD(mm_FEC, decode),
         { NULL, NULL }
@@ -967,6 +1062,8 @@ mm_FEC_getattr(PyObject *self, char *name)
 {
         return Py_FindMethod(mm_FEC_methods, self, name);
 }
+
+static const char mm_FEC_Type__doc__[] = "DOCDOC";
 
 PyTypeObject mm_FEC_Type = {
 	PyObject_HEAD_INIT(/*&PyType_Type*/ 0)
