@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.50 2002/12/20 23:52:07 nickm Exp $
+# $Id: test.py,v 1.51 2002/12/29 20:34:36 nickm Exp $
 
 """mixminion.tests
 
@@ -192,17 +192,15 @@ class MiscTests(unittest.TestCase):
         # Sample 1000 evenly spaced points, making sure...
         for t in xrange(10, now, floorDiv(now, 1000)):
             yyyy,MM,dd,hh,mm,ss = time.gmtime(t)[:6]
-            # 1. That mkgmtime inverts time.gmtime.
-            self.assertEquals(t, mkgmtime(yyyy,MM,dd,hh,mm,ss))
-            # 2. That previousMidnight returns the same day, at midnight.
+            # 1. That previousMidnight returns the same day, at midnight.
             pm = previousMidnight(t)
             yyyy2,MM2,dd2,hh2,mm2,ss2 = time.gmtime(pm)[:6]
             self.assertEquals((yyyy2,MM2,dd2), (yyyy,MM,dd))
             self.assertEquals((0,0,0), (hh2,mm2,ss2))
             self.failUnless(pm <= t and 0 <= (t-pm) <= max_sec_per_day)
-            # 3. That previousMidnight is repeatable
+            # 2. That previousMidnight is repeatable
             self.assertEquals(previousMidnight(t), pm)
-            # 4. That previousMidnight is idempotent
+            # 3. That previousMidnight is idempotent
             self.assertEquals(previousMidnight(pm), pm)
 
     def test_isSMTPMailbox(self):
@@ -494,6 +492,9 @@ class CryptoTests(unittest.TestCase):
         # Test pickling
         init_crypto()
         s = cPickle.dumps(k512)
+        self.assertEquals(cPickle.loads(s).get_public_key(),
+                          k512.get_public_key())
+        s = cPickle.dumps(k512, 1)
         self.assertEquals(cPickle.loads(s).get_public_key(),
                           k512.get_public_key())
 
@@ -2379,6 +2380,9 @@ class MMTPTests(unittest.TestCase):
     def testNonblockingTransmission(self):
         self.doTest(self._testNonblockingTransmission)
 
+    def testTimeout(self):
+        self.doTest(self._testTimeout)
+
     def _testBlockingTransmission(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
         self.listener = listener
@@ -2395,9 +2399,9 @@ class MMTPTests(unittest.TestCase):
             server.process(0.1)
         t.join()
 
-        for _ in xrange(10):
+        for _ in xrange(3):
             server.process(0.1)
-
+        
         self.failUnless(messagesIn == messages)
 
         # Now, with bad keyid.
@@ -2417,6 +2421,7 @@ class MMTPTests(unittest.TestCase):
         self.listener = listener
         self.server = server
 
+        tlscon = mixminion.server.MMTPServer.SimpleTLSConnection
         messages = ["helloxxx"*4096, "helloyyy"*4096]
         async = mixminion.server.MMTPServer.AsyncServer()
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
@@ -2427,18 +2432,28 @@ class MMTPTests(unittest.TestCase):
             while not clientcon.isShutdown():
                 async.process(2)
 
+
         server.process(0.1)
+        startTime = time.time()
         t = threading.Thread(None, clientThread)
 
+        c = None
         t.start()
         while len(messagesIn) < 2:
+            if c is None and len(server.readers) > 1:
+                c = [ c for c in server.readers.values() if 
+                      isinstance(c, tlscon) ] 
             server.process(0.1)
         while t.isAlive():
             server.process(0.1)
         t.join()
+        endTime = time.time()
 
         self.assertEquals(len(messagesIn), len(messages))
         self.failUnless(messagesIn == messages)
+        self.failUnless(c is not None)
+        self.failUnless(len(c) == 1)
+        self.failUnless(startTime <= c[0].lastActivity <= endTime)
 
         # Again, with bad keyid.
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
@@ -2461,10 +2476,84 @@ class MMTPTests(unittest.TestCase):
         finally:
             resumeLog()  #unsuppress warning
 
+    def _testTimeout(self):
+        server, listener, messagesIn, keyid = _getMMTPServer()
+        self.listener = listener
+        self.server = server
+
+        # This is a little tricky.  We want to test connection timeouts, so we
+        # concoct a fake list object that blocks before returning its second
+        # element so that we can make MMTPClient.sendMessages pause for a
+        # while.
+        class SlowMessageList:
+            def __init__(self):
+                self.pausing = 50
+            def __getitem__(self, i):
+                if i == 0:
+                    return "helloxxx"*4096
+                elif i == 1:
+                    # We use a counter here so that we can make the thread
+                    # holding this list end quickly when we want it to.
+                    while self.pausing > 0:
+                        time.sleep(0.1)
+                        self.pausing -= 0.1
+                    return "helloyyy"*4096
+                else:
+                    raise IndexError
+
+        # This function wraps MMTPClient.sendMessages, but catches exceptions.
+        # Since we're going to run this function in a thread, we pass the
+        # exception back through a list argument.
+        def sendAndCaptureException(lst, *args):
+            try:
+                mixminion.MMTPClient.sendMessages(*args)
+            except:
+                lst.append(sys.exc_info())
+
+        # Manually set the server's timeout threshold to 600 msec.
+        server._timeout = 0.6
+        server.process(0.1)
+        excList = []
+        msgList = SlowMessageList()
+        t = threading.Thread(None,
+              sendAndCaptureException,
+              args=(excList, "127.0.0.1", TEST_PORT, keyid, msgList))
+        t.start()
+        timedOut = 0 # flag: have we really timed out?
+        try:
+            suspendLog() # stop logging, but wait for the timeout message.
+            while len(messagesIn) < 2:
+                server.process(0.1)
+                # If the number of connections changes around the call
+                # to tryTimeout, the timeout has occurred.
+                nConnections = len(server.readers)+len(server.writers)
+                server.tryTimeout(time.time())
+                if len(server.readers)+len(server.writers) < nConnections:
+                    timedOut = 1
+                    break
+            # Did we really time out the connection, or did we end normally?
+            self.assert_(timedOut)
+        finally:
+            logMessage = resumeLog()
+            # Did we log the timeout?
+            self.assert_(stringContains(logMessage, "timed out"))
+        # Was the one message we expected in fact transmitted?
+        self.assertEquals([messagesIn[0]], ["helloxxx"*4096])
+
+        # Now stop the transmitting thread.  It will notice that its
+        # connection has been forcibly closed.
+        msgList.pausing = 0
+        t.join()
+        # Was an exception raised?
+        self.assertEquals(1, len(excList))
+        # Was it the right exception?
+        self.assert_(isinstance(excList[0][1], _ml.TLSClosed))
+
+        for _ in xrange(3):
+            server.process(0.1)        
 
 #----------------------------------------------------------------------
 # Config files
-
 
 class TestConfigFile(_ConfigFile):
     _syntax = { 'Sec1' : {'__SECTION__': ('REQUIRE', None, None),
@@ -2661,8 +2750,10 @@ IntRS=5
 
         # Base64
         self.assertEquals(C._parseBase64(" YW\nJj"), "abc")
+        self.assertEquals(C._parseBase64(" Y W\nJ j"), "abc")
         # Hex
         self.assertEquals(C._parseHex(" C0D0"), "\xC0\xD0")
+        self.assertEquals(C._parseHex(" C0\n D 0"), "\xC0\xD0")
         # Date
         tm = C._parseDate("2002/05/30")
         self.assertEquals(time.gmtime(tm)[:6], (2002,5,30,0,0,0))
@@ -2835,6 +2926,15 @@ class ServerInfoTests(unittest.TestCase):
                                            ])
         eq(info['Delivery/MBOX'].get('Version'), None)
 
+        # Now check whether we still validate the same after some corruption
+        self.assert_(inf.startswith("[Server]\n"))
+        self.assert_(inf.endswith("\n"))
+        self.assert_(stringContains(inf, "b.c\n"))
+        inf2 = inf.replace("[Server]\n", "[Server] \r")
+        inf2 = inf2.replace("b.c\n", "b.c\r\n")
+        inf2 = inf2.replace("0.1\n", "0.1  \n")
+        mixminion.ServerInfo.ServerInfo(string=inf2)
+        
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
         eq(inf, readFile(os.path.join(keydir, "ServerDesc")))
@@ -2856,6 +2956,13 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Server']['Digest'], x)
         eq(x, Crypto.pk_check_signature(info['Server']['Signature'],
                                                   identityPK))
+
+        # Now check pickleability
+        pickled = cPickle.dumps(info, 1)
+        loaded = cPickle.loads(pickled)
+        eq(info['Server']['Digest'], loaded['Server']['Digest'])
+        eq(info['Server']['Identity'].get_public_key(),
+           loaded['Server']['Identity'].get_public_key())
 
         # Now with a shorter configuration
         try:
