@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.12 2003/09/28 04:12:29 nickm Exp $
+# $Id: Filestore.py,v 1.13 2003/11/07 06:59:35 nickm Exp $
 
 """mixminion.Filestore
 
@@ -22,6 +22,7 @@ import os
 import stat
 import threading
 import time
+import whichdb
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir, readFile, tryUnlink
@@ -570,7 +571,15 @@ class DBBase:
             tryUnlink(filename)
 
         LOG.debug("Opening %s database at %s", purpose, filename)
-        self.log = anydbm.open(filename, 'c')
+        try:
+            self.log = anydbm.open(filename, 'c')
+        except anydbm.error, e:
+            raise MixFatalError("Can't open %s database: %s"%(purpose,e))
+        except ImportError:
+            dbtype = whichdb.whichdb(filename)
+            raise MixFatalError("Unsupported type for %s database: %s"
+                                %(purpose, dbtype))
+        
         if hasattr(self.log, 'sync'):
             self._syncLog = self.log.sync
         elif hasattr(self.log, '_commit'):
