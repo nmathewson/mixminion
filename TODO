@@ -66,6 +66,8 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
                   downloading directories.
                 - Make client-side pooling configurable and more
                   sophisticated.
+                - Make DH parameter length configurable at 1024 bits
+                  (or higher)?              
                 . Freak out properly on missing/unpublishable IP.
                 . Full validation function for client
                 . Full validation function for server

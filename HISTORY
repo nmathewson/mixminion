@@ -1,8 +1,11 @@
-$Id: HISTORY,v 1.8 2003/12/18 23:29:50 nickm Exp $
+$Id: HISTORY,v 1.9 2003/12/21 19:07:19 nickm Exp $
 ----------------------------------------------------------------------
 This file lists changes for earlier versions of Mixminion.  For changes
 in the latest version, see the README file.
 ----------------------------------------------------------------------
+NEW IN VERSION 0.0.6.2:
+   - 
+
 NEW IN VERSION 0.0.6.1:
    - Several documentation fixes.
 
