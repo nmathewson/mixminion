@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.16 2002/12/16 19:17:46 nickm Exp $
+# $Id: setup.py,v 1.17 2002/12/16 19:20:49 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -20,7 +20,7 @@ except ImportError:
 
 import os, struct, shutil
 
-VERSION= '0.0.1'
+VERSION= '0.0.2a0'
 
 USE_OPENSSL=1
 
