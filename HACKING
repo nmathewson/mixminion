@@ -3,8 +3,8 @@ Hacking Mixminion
 Requirements:
 	Python 2.0-2.2  (see PORTING NOTES below)
 
-	OpenSSL 0.9.7 (You'll need to download a beta. As of 24 August 2002,
-           that's http//www.openssl.org/source/openssl-0.9.7-beta3.tar.gz)
+	OpenSSL 0.9.7 (You'll need to download a beta. As of 1 December 2002,
+           that's http//www.openssl.org/source/openssl-0.9.7-beta4.tar.gz)
 
 	A working /dev/urandom (see PORTING NOTES below)
 
