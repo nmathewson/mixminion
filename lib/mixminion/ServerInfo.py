@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.19 2002/11/22 00:26:35 nickm Exp $
+# $Id: ServerInfo.py,v 1.20 2002/11/22 21:11:15 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -80,6 +80,9 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def __init__(self, fname=None, string=None, assumeValid=0):
 	mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
+	getLog().trace("Read server %s from %s",
+		       self['Server']['Nickname'],
+		       fname or "<string>")
 
     def validate(self, sections, entries, lines, contents):
 	####
