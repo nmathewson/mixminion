@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.19 2002/12/16 19:17:46 nickm Exp $
+# $Id: Makefile,v 1.20 2002/12/16 19:18:24 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -185,4 +185,4 @@ xxxx001:
 
 longlines:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
-	   | xargs -0 grep '^.{80,}'
+	   | xargs -0 grep '^................................................................................'
