@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.55 2003/09/12 15:52:46 nickm Exp $
+# $Id: ServerInfo.py,v 1.56 2003/10/06 20:55:06 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -265,6 +265,10 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def getIdentity(self):
         return self['Server']['Identity']
+
+    def canDeliverTo(self, otherDesc):
+        #DOCDOC
+        return 1
 
     def getCaps(self):
         # FFFF refactor this once we have client addresses.

@@ -26,10 +26,10 @@ TCP latency, and me.)
                   parsing, and path generation into a new module.
                 o Separate SURB logging, keystores, and client queues into
                   client support module.
-                - Refactor path selection to have a nicer interface.
-                        - Generic, cross-module notion of "address".
-                        - Better capability infrastructure.
-                        - Separate parsing path str into specifier list, 
+                . Refactor path selection to have a nicer interface.
+                        . Generic, cross-module notion of "address".
+                        D Better capability infrastructure.
+                        . Separate parsing path str into specifier list, 
                           checking specifier list for sanity, and generating
                           path from specifier list.
                 - Rewrite ClientMain path generation to do the right
@@ -39,7 +39,7 @@ TCP latency, and me.)
                 - Make processing thread and module thread general
                   cases of a thread pool abstraction
         - UI improvements:
-                - Add some convenient way to list arbitrary server features.
+                . Add some convenient way to list arbitrary server features.
                 - Timeouts should say 'timeout', not EINTR.
                 - Logging UIErrors isn't a bad idea.
                 - Separate 'mixminiond' wrapper; 'mixminion server-foo'

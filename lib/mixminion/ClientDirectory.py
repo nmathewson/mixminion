@@ -17,6 +17,7 @@ import signal
 import socket
 import stat
 import time
+import types
 import urllib2
 
 import mixminion.ClientMain #XXXX
@@ -85,21 +86,6 @@ class ClientDirectory:
             self.clean()
         finally:
             mixminion.ClientMain.clientUnlock() # XXXX
-
-        # Mixminion 0.0.1 used an obsolete directory-full-of-servers in
-        #   DIR/servers.  If there's nothing there, we remove it.  Otherwise,
-        #   we warn.
-        # XXXX010 Eventually, we can remove this.
-        sdir = os.path.join(self.dir,"servers")
-        if os.path.exists(sdir):
-            if os.listdir(sdir):
-                LOG.warn("Skipping obsolete server directory %s", sdir)
-            else:
-                try:
-                    LOG.warn("Removing obsolete server directory %s", sdir)
-                    os.rmdir(sdir)
-                except OSError, e:
-                    LOG.warn("Failed: %s", e)
 
     def updateDirectory(self, forceDownload=0, now=None):
         """Download a directory from the network as needed."""
@@ -556,6 +542,42 @@ class ClientDirectory:
         else:
             return None
 
+    def generatePaths(self, nPaths, pathSpec, exitAddress, startAt=None, endAt=None,
+                      prng=None):
+        """Return a list of pairs of lists of serverinfo DOCDOC."""
+
+        paths = []
+        lastHop = exitAddress.getLastHop()
+        fixedLastHop = pathSpec.getFixedLastServer(startAt,endAt)
+        if exitAddress.isSSFragmented:
+            # We _must_ have a single common last hop.
+            if not lastHop and not fixedLastHop:
+                fixedLastHop = exitAddress.pickExitServer(self,startAt,endAt)
+
+        for _ in xrange(nPaths):
+            p1 = []
+            p2 = []
+            for p in pathSpec.path1:
+                p1.extend(p.getServerNames())
+            for p in pathSpec.path2:
+                p2.extend(p.getServerNames())
+            n1 = len(p1)
+            p = p1+p2
+            # Make the exit hop _not_ be None; deal with getPath brokenness.
+            #XXXX refactor this.
+            if lastHop:
+                p.append(lastHop)
+            elif fixedLastHop:
+                assert p[-1] == None
+                p[-1] = fixedLastHop
+            elif p[-1] == None and not exitAddress.isReply:
+                p[-1] = exitAddress.pickExitServer(self, startAt, endAt)
+
+            path = self.getPath(None, p, startAt=startAt, endAt=endAt)
+            paths.append( (path[:n1], path[n1:]) )
+            
+        return paths
+    
     def getPath(self, endCap, template, startAt=None, endAt=None, prng=None):
         """Workhorse method for path selection.  Given a template, and
            a capability that must be supported by the exit node, return
@@ -656,6 +678,24 @@ class ClientDirectory:
 
         return servers
 
+    def validatePath2(self, pathSpec, exitAddress, startAt=None, endAt=None):
+        """DOCDOC 
+           takes pathspec; raises UIError or does nothing."""
+        if startAt is None: startAt = time.time()
+        if endAt is None: endAt = startAt+self.DEFAULT_REQUIRED_LIFETIME
+
+        p = pathSpec.path1+pathSpec.path2
+        for e in p:
+            e.validate(self, startAt, endAt)
+        fs = p[-1].getFixedServer()
+        lh = exitAddress.getLastHop()
+        if lh is not None:
+            fs = self.getServerInfo(lh, startAt, endAt)
+            if fs is None:
+                raise UIError("No known server descriptor named %s",lh)
+        if fs is not None:
+            exitAddress.checkSupportedBySever(fs)
+            
     def checkClientVersion(self):
         """Check the current client's version against the stated version in
            the most recently downloaded directory; print a warning if this
@@ -905,3 +945,258 @@ def parsePathLeg(directory, config, path, nHops, address=None,
                              defaultNHops=defaultNHops)
     assert path1 == []
     return path2
+
+#----------------------------------------------------------------------
+
+KNOWN_STRING_EXIT_TYPES = [
+    "mbox", "smtp", "drop"
+]
+
+class ExitAddress:
+    #FFFF Perhaps this crams too much into ExitAddress.
+    def __init__(self,exitType=None,exitAddress=None,lastHop=None,isReply=0, 
+                 isSSFragmented=0):
+        if isReply:
+            assert exitType is None
+            assert exitAddress is None
+        else:
+            assert exitType is not None
+            assert exitAddress is not None
+        if exitType in (MBOX_TYPE, 'mbox'):
+            assert lastHop
+        if type(exitType) == types.StringType:
+            if exitType not in KNOWN_STRING_EXIT_TYPES:
+                raise UIError("Unknown exit type: %r"%exitType)
+        elif type(exitType) == types.IntType:
+            if not (0 <= exitType <0xFFFF):
+                raise UIError("Exit type 0x%04X is out of range."%exitType)
+        else:
+            raise UIError("Unknown exit type: %r"%exitType)
+        self.exitType = exitType
+        self.exitAddress = exitAddress
+        self.lastHop = lastHop
+        self.isReply = isReply
+        self.isSSFragmented = isSSFragmented #server-side frag reassembly only.
+        self.nFragments = self.exitSize = 0
+        self.headers = {}
+    def setFragmented(self, isSSFragmented, nFragments):
+        self.isSSFragmented = isFragmented
+        self.nFragments = nFragments
+    def setExitSize(self, exitSize):
+        self.exitSize = exitSize
+    def setHeaders(self, headers):
+        self.headers = headers
+    def isReply(self):
+        return self.isReply
+    def getLastHop(self):
+        return self.lastHop
+    def isSupportedByServer(self, desc):
+        try:
+            self.checkSupportedByServer(desc)
+            return 1
+        except UIError:
+            return 0
+    def checkSupportedByServer(self, desc):
+        if self.isReply:
+            return
+        nickname = desc.getNickname()
+        if self.isSSFragmented:
+            dfsec = desc['Delivery/Fragmented']
+            if not dfsec.get("Version"):
+                raise UIError("Server %s doesn't support fragment reassembly."
+                              %nickname)
+            if self.nFragments > dfsec.get("Maximum-Fragments",0):
+                raise UIError("Too many fragments for server %s to reassemble."
+                              %nickname)
+        if self.exitType in ('smtp', SMTP_TYPE):
+            ssec = desc['Delivery/SMTP']
+            if not ssec.get("Version"):
+                raise UIError("Server %s doesn't support SMTP"%nickname)
+            if self.headers.has_key("FROM") and not ssec['Allow-From']:
+                raise UIError("Server %s doesn't support user-supplied From"%
+                              nickname)
+            if floorDiv(self.exitSize,1024) > ssec['Maximum-Size']:
+                raise UIError("Message to long for server %s to deliver."%
+                              nickname)
+        elif self.exitType in ('mbox', MBOX_TYPE):
+            msec = desc['Delivery/SMTP']
+            if not msec.get("Version"):
+                raise UIError("Server %s doesn't support MBOX"%nickname)
+            if self.headers.has_key("FROM") and not msec['Allow-From']:
+                raise UIError("Server %s doesn't support user-supplied From"%
+                              nickname)
+            if floorDiv(self.exitSize,1024) > msec['Maximum-Size']:
+                raise UIError("Message to long for server %s to deliver."%
+                              nickname)
+    def pickExitServer(self, directory, startAt, endAt):
+        """DOCDOC"""
+
+        assert 0
+
+    def getRouting(self, desc):
+        """DOCDOC"""
+        #XXXX
+        assert 0
+
+class PathElement:
+    def validate(self, directory, start, end):
+        raise NotImplemented
+    def getServers(self, directory, start, end):
+        raise NotImplemented
+    def getFixedServer(self, directory, start, end):
+        raise NotImplemented
+    def getServerNames(self):
+        raise NotImplemented
+
+class ServerPathElement(PathElement):
+    def __init__(self, nickname):
+        self.nickname = nickname
+    def validate(self, directory, start, end):
+        if None == directory.getServerInfo(self.nickname, start, end):
+            raise UIError("No valid server found with name %r",self.nickname)
+    def getFixedServer(self, directory, start, end):
+        return directory.getServerInfo(self.nickname, start, end)
+    def getServerNames(self):
+        return [ self.nickname ]
+
+class DescriptorPathElement(PathElement):
+    def __init__(self, desc):
+        self.desc = desc
+    def validate(self, directory, start, end):
+        if not self.desc.isValidFrom(start, end):
+            raise UIError("Server %r is not valid during given time range",
+                           self.desc.getNickname())
+    def getFixedServer(self, directory, start, end):
+        return self.desc
+    def getServerNames(self):
+        return [ self.desc ]
+
+class RandomServersPathElement(PathElement):
+    def __init__(self, n=None, approx=None):
+        assert not (n and approx)
+        self.n=n
+        self.approx=approx
+    def validate(self, directory, start, end):
+        pass
+    def getFixedServer(self, directory, start, end):
+        return None
+    def getServerNames(self):
+        if self.n:
+            n = self.n
+        else:
+            prng = mixminion.Crypto.getCommonPRNG()
+            n = int(prng.getNormal(self.approx,1.5)+0.5)
+        return [ None ] * self.n
+
+#----------------------------------------------------------------------
+class PathSpecifier:
+    def __init__(self, path1, path2, isReply, isSURB):
+        if isSURB:
+            assert path2 and not path1
+        elif isReply:
+            assert path1 and not path2
+        else:
+            assert path1 and path2
+        self.path1=path1
+        self.path2=path2
+        self.isReply=isReply
+        self.isSURB=isSURB
+    def getFixedLastServer(self,startAt,endAt):
+        """DOCDOC"""
+        if self.path2:
+            return self.path2[-1].getFixedServer(startAt,endAt)
+        else:
+            return None
+
+#----------------------------------------------------------------------
+def parsePath2(config, path, nHops=None, isReply=0, isSURB=0,
+               defaultNHops=None):
+    """DOCDOC ; Returns a pathSpecifier.
+    """
+    halfPath = isReply or isSURB
+    if not path:
+        path = '*'
+    # Break path into a list of entries of the form:
+    #        Nickname
+    #     or "<swap>"
+    #     or "?"
+    p = []
+    while path:
+        if path[0] == "'":
+            m = re.match(r"'([^']+|\\')*'", path)
+            if not m: 
+                raise UIError("Mismatched quotes in path.")
+            p.append(m.group(1).replace("\\'", "'"))
+            path = path[m.end():]
+            if path and path[0] not in ":,":
+                raise UIError("Invalid quotes in path.")
+        elif path[0] == '"':
+            m = re.match(r'"([^"]+|\\")*"', path)
+            if not m: 
+                raise UIError("Mismatched quotes in path.")
+            p.append(m.group(1).replace('\\"', '"'))
+            path = path[m.end():]
+            if path and path[0] not in ":,":
+                raise UIError("Invalid quotes in path.")
+        else:
+            m = re.match(r"[^,:]+",path)
+            if not m:
+                raise UIError("Invalid path") 
+            p.append(m.group(0))
+            path = path[m.end():]
+        if not path:
+            break 
+        elif path[0] == ',':
+            path = path[1:]
+        elif path[0] == ':':
+            path = path[1:]
+            p.append("<swap>")
+
+    pathEntries = []
+    approxHops = 0 # Not including star.
+    for ent in p:
+        if re.match(r'\*(\d+)', ent):
+            pathEntries.append(RandomServersPathElement(n=int(ent[1:])))
+            nHops += int(ent[1:])
+        elif re.match(r'\~(\d+)', ent):
+            pathEntries.append(RandomServersPathElement(approx=int(ent[1:])))
+            nHops += int(ent[1:])
+        elif ent == '*':
+            pathEntries.append("*")
+        elif ent == '<swap>':
+            pathEntries.append("<swap>")
+        else:
+            pathEntries.append(ServerPathElement(ent))
+            nHops += 1
+
+    # If there's a variable-length wildcard...
+    if "*" in path:
+        # Find out how many hops we should have.
+        starPos = pathEntries.index("*")
+        myNHops = nHops or defaultNHops or 6
+        extraHops = max(myNHops-approxHops, 0)
+        pathEntries[starPos:starPos+1] = RandomServersPathElement(n=extraHops)
+
+    # Figure out how long the first leg should be.
+    if "<swap>" in pathElements:
+        # Calculate colon position
+        if halfPath:
+            raise UIError("Can't specify swap point with replies")
+        colonPos = pathElements.index("<swap>")
+        firstLegLen = colonPos
+        del pathElements[colonPos]
+    elif isReply:
+        firstLegLen = len(pathElements)
+    elif isSURB:
+        firstLegLen = 0
+    else:
+        firstLegLen = ceilDiv(len(pathElements), 2)
+
+    # Split the path into 2 legs.
+    path1, path2 = pathElements[:firstLegLen], pathElements[firstLegLen:]
+    if not halfPath and len(path1)+len(path2) < 2:
+        raise UIError("Path is too short")
+    if not halfPath and (not path1 or not path2):
+        raise UIError("Each leg of the path must have at least 1 hop")
+
+    return PathSpecifier(path1, path2, isReply, isSURB)
