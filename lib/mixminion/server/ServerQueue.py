@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.26 2003/07/24 03:22:57 nickm Exp $
+# $Id: ServerQueue.py,v 1.27 2003/07/24 03:36:59 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -154,7 +154,7 @@ class PendingMessage:
             self.message = self.queue.getObject(self.handle)
         return self.message
 
-class XDeliveryQueue(mixminion.Filestore.ObjectMetadataStore):
+class DeliveryQueue(mixminion.Filestore.ObjectMetadataStore):
     """A DeliveryQueue implements a queue that greedily sends messages to
        outgoing streams that occasionally fail.  All underlying messages
        are pickled objects.  Additionally, we store metadata about
