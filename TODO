@@ -121,6 +121,8 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   incompatible changes.  Target: first half of 2004.  (No guarantees!)]
         - Security
                 - Upgrade packet format as necessary.
+                - Perhaps, increased or configurable DH parameter size,
+                  or fixed DH parameters.
         - Modules and module support
                 - Use STARTTLS as available, if it's not too hard.
                 - Real SMTP module

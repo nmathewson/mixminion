@@ -731,7 +731,6 @@ class CLIArgumentParser:
           PATH-RELATED
              -t | --to : specify an exit address
              -R | --reply-block | --reply-block-fd : specify a reply block
-             -H | --hops : specify a path length
              -P | --path : specify a literal path.
           REPLY PATH ONLY
              --lifetime : Required lifetime of new reply blocks.
@@ -1055,7 +1054,6 @@ Options:
                                fresh directory.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
-  -H <n>, --hops=<n>         Force the path to use <n> hops.
   -i <file>, --input=<file>  Read the message from <file>. (Defaults to stdin.)
   -P <path>, --path=<path>   Specify an explicit message path.
   -t address, --to=address   Specify the recipient's address.
@@ -1075,12 +1073,14 @@ EXAMPLES:
   %(Send)s a message contained in a file <data> to user@domain.
       %(cmd)s -t user@domain -i data
   As above, but force 6 hops.
-      %(cmd)s -t user@domain -i data -H 6
+      %(cmd)s -t user@domain -i data -P '*6'
+  As above, but use a random number of hops (about 6).
+      %(cmd)s -t user@domain -i data -P '~6'
   As above, but use the server nicknamed Foo for the first hop and the server
   whose descriptor is stored in bar/baz for the last hop.
-      %(cmd)s -t user@domain -i data -H 6 -P 'Foo,*,bar/baz'
+      %(cmd)s -t user@domain -i data -P 'Foo,~4,bar/baz'
   As above, but switch legs of the path after the second hop.
-      %(cmd)s -t user@domain -i data -H 6 -P 'Foo,?:*,bar/baz'
+      %(cmd)s -t user@domain -i data -P 'Foo,?:~3,bar/baz'
   Specify an explicit path
       %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux,Fee,Fie,Foe'
   Specify an explicit path with a swap point
@@ -1617,7 +1617,6 @@ Options:
                                fresh directory.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
-  -H <n>, --hops=<n>         Force the path to use <n> hops.
   -P <path>, --path=<path>   Specify an explicit path.
   -t address, --to=address   Specify the block's address. (Defaults to value
                                in configuration file.)
@@ -1637,15 +1636,15 @@ EXAMPLES:
   As above, but force change address to deliver to user@domain.
       %(cmd)s -t user@domain
   As above, but force a 6-hop path.
-      %(cmd)s -t user@domain -H 6
+      %(cmd)s -t user@domain -P '*6'
   As above, but force the first hop to be 'Foo' and the last to be 'Bar'.
-      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar'
+      %(cmd)s -t user@domain 'Foo,*4,Bar'
   As above, but write the reply block to the file 'MyBlocks'.
-      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar' -o MyBlocks
+      %(cmd)s -t user@domain -P 'Foo,*4,Bar' -o MyBlocks
   As above, but write the reply block in binary mode.
-      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar' -o MyBlocks -b
+      %(cmd)s -t user@domain -P 'Foo,*4,Bar' -o MyBlocks -b
   As above, but generate 100 reply blocks.
-      %(cmd)s -t user@domain -H 6 -P 'Foo,*,Bar' -o MyBlocks -b -n 100
+      %(cmd)s -t user@domain -P 'Foo,*4,Bar' -o MyBlocks -b -n 100
   Specify an explicit path.
       %(cmd)s -P 'Foo,Bar,Baz,Quux'
   Generate 10 reply blocks without downloading a new directory, even if the
