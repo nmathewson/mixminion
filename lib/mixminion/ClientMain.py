@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.70 2003/04/04 20:28:55 nickm Exp $
+# $Id: ClientMain.py,v 1.71 2003/04/26 14:39:58 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -25,7 +25,8 @@ import mixminion.BuildMessage
 import mixminion.Crypto
 import mixminion.MMTPClient
 from mixminion.Common import IntervalSet, LOG, floorDiv, MixError, \
-     MixFatalError, MixProtocolError, UIError, UsageError, ceilDiv, \
+     MixFatalError, MixProtocolError, MixProtocolBadAuth, \
+     UIError, UsageError, ceilDiv, \
      createPrivateDir, isPrintingAscii, \
      isSMTPMailbox, formatDate, formatFnameTime, formatTime,\
      Lockfile, openUnique, previousMidnight, readPossiblyGzippedFile, \
@@ -483,7 +484,7 @@ class ClientDirectory:
 
     def getServerInfo(self, name, startAt=None, endAt=None, strict=0):
         """Return the most-recently-published ServerInfo for a given
-           'name' valid over a given time range.  If strict, and no
+           'name' valid over a given time range.  If not strict, and no
            such server is found, return None.
 
            name -- A ServerInfo object, a nickname, or a filename.
@@ -493,7 +494,6 @@ class ClientDirectory:
             startAt = time.time()
         if endAt is None:
             endAt = startAt + self.DEFAULT_REQUIRED_LIFETIME
-
             
         if isinstance(name, ServerInfo):
             # If it's a valid ServerInfo, we're done.
@@ -1478,6 +1478,23 @@ class MixminionClient:
         """
         return SURBLog(self.surbLogFilename)
 
+    def pingServer(self, routingInfo):
+        """Given an IPV4Info, try to connect to a server and find out if
+           it's up.  Returns a boolean and a status message."""
+        timeout = self.config['Network'].get('ConnectionTimeout')
+        if timeout:
+            timeout = timeout[2]
+        else:
+            timeout = 60
+
+        try:
+            mixminion.MMTPClient.pingServer(routingInfo, timeout)
+            return 1, "Server seems to be running"
+        except MixProtocolBadAuth: 
+            return 0, "Server seems to be running, but its key is wrong!"
+        except MixProtocolError, e:
+            return 0, "Couldn't connect to server: %s" % e
+
     def sendMessages(self, msgList, routingInfo, noQueue=0, lazyQueue=0,
                      warnIfLost=1):
         """Given a list of packets and an IPV4Info object, sends the
@@ -2200,6 +2217,55 @@ def runClient(cmd, args):
     else:
         client.sendForwardMessage(address, payload, path1, path2,
                                   forceQueue, forceNoQueue)
+
+_PING_USAGE = """\
+Usage: mixminion ping [options] serverName
+Options
+  -h, --help:             Print this usage message and exit.
+  -v, --verbose           Display extra debugging messages.
+  -f FILE, --config=FILE  Use a configuration file other than ~/.mixminionrc
+  -D <yes|no>, --download-directory=<yes|no>
+                          Force the client to download/not to download a
+                            fresh directory.
+"""
+def runPing(cmd, args):
+    #DOCDOC comment me
+
+    if len(args) == 1 and args[0] in ('-h', '--help'):
+        print _PING_USAGE
+        sys.exit(0)
+
+    options, args = getopt.getopt(args, "hvf:D:",
+             ["help", "verbose", "config=", "download-directory=", ])
+
+    if len(args) != 1:
+        raise UsageError("mixminion ping requires a single server name")
+
+
+    print "==========================================================="
+    print "WARNING: Pinging a server is potentially dangerous, since"
+    print "      it might alert people that you plan to use the server"
+    print "      for your messages.  This command is for testing only,"
+    print "      and will go away before Mixminion 1.0.  By then, all"
+    print "      listed servers will be reliable anyway.  <wink>"
+    print "==========================================================="
+
+    parser = CLIArgumentParser(options, wantConfig=1,
+                               wantClientDirectory=1, wantClient=1,
+                               wantLog=1, wantDownload=1)
+
+    parser.init()
+
+    directory = parser.directory
+    client = parser.client
+
+    info = directory.getServerInfo(args[0],
+                                   startAt=time.time(), endAt = time.time(),
+                                   strict=1)
+
+    ok, status = client.pingServer(info.getRoutingInfo())
+    print ">>>", status
+    print info.getNickname(), (ok and "is up" or "is down")
 
 _IMPORT_SERVER_USAGE = """\
 Usage: %(cmd)s [options] <filename> ...

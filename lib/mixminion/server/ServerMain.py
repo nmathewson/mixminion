@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.49 2003/04/22 02:07:34 nickm Exp $
+# $Id: ServerMain.py,v 1.50 2003/04/26 14:39:59 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -274,20 +274,20 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
 
     def onMessageReceived(self, msg):
         self.incomingQueue.queueMessage(msg)
-        EventStats.log("ReceivedPacket", None) # XXXX Replace with server.
+        EventStats.receivedPacket("ReceivedPacket", None) # XXXX Replace with server.
 
     def onMessageSent(self, msg, handle):
         self.outgoingQueue.deliverySucceeded(handle)
-        EventStats.log("AttemptedRelay", None) # XXXX replace with addr
-        EventStats.log("SuccessfulRelay", None) # XXXX replace with addr
+        EventStats.log.attemptedRelay() # XXXX replace with addr
+        EventStats.log.successfulRelay() # XXXX replace with addr
 
     def onMessageUndeliverable(self, msg, handle, retriable):
         self.outgoingQueue.deliveryFailed(handle, retriable)
-        EventStats.log("AttemptedRelay", None) # XXXX replace with addr
+        EventStats.log.attemptedRelay() # XXXX replace with addr
         if retriable:
-            EventStats.log("FailedRelay", None) # XXXX replace with addr
+            EventStats.log.failedRelay() # XXXX replace with addr
         else:
-            EventStats.log("UnretriableRelay", None) # XXXX replace with addr
+            EventStats.log.unretriableRelay() # XXXX replace with addr
         
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
@@ -444,6 +444,8 @@ class MixminionServer:
         # The pid file.
         self.pidFile = os.path.join(homeDir, "pid")
 
+        #XXXX004 Catch ConfigError for bad serverinfo.
+        #XXXX004 Check whether config matches serverinfo
         self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
         if self.keyring._getLiveKey() is None:
             LOG.info("Generating a month's worth of keys.")
@@ -555,7 +557,7 @@ class MixminionServer:
                     LOG.info("Caught sighup")
                     LOG.info("Resetting logs")
                     LOG.reset()
-                    EventStats.save()
+                    EventStats.log.save()
                     GOT_HUP = 0
                 # Make sure that our worker threads are still running.
                 if not (self.cleaningThread.isAlive() and
@@ -641,7 +643,7 @@ class MixminionServer:
 
         self.packetHandler.close()
 
-        EventStats.save()
+        EventStats.log.save()
 
         try:
             self.lockFile.release()
@@ -821,7 +823,7 @@ def printServerStats(cmd, args):
     config = configFromServerArgs(cmd, args)
     _signalServer(config, 1)
     EventStats.configureLog(config)
-    EventStats.THE_EVENT_LOG.dump(sys.stdout)
+    EventStats.log.dump(sys.stdout)
 
 #----------------------------------------------------------------------
 _SIGNAL_SERVER_USAGE = """\

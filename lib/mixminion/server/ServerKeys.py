@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.18 2003/04/18 18:32:36 nickm Exp $
+# $Id: ServerKeys.py,v 1.19 2003/04/26 14:39:59 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -23,9 +23,11 @@ import mixminion.server.HashLog
 import mixminion.server.PacketHandler
 import mixminion.server.MMTPServer
 
-from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, signServerInfo
+from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
+     signServerInfo
 from mixminion.Common import LOG, MixError, MixFatalError, createPrivateDir, \
-     formatBase64, formatDate, formatTime, previousMidnight, secureDelete
+     checkPrivateFile, formatBase64, formatDate, formatTime, previousMidnight,\
+     secureDelete
 
 #----------------------------------------------------------------------
 class ServerKeyring:
@@ -153,6 +155,7 @@ class ServerKeyring:
         fn = os.path.join(self.keyDir, "identity.key")
         bits = self.config['Server']['IdentityKeyBits']
         if os.path.exists(fn):
+            checkPrivateFile(fn)
             key = mixminion.Crypto.pk_PEM_load(fn, password)
             keylen = key.get_modulus_bytes()*8
             if keylen != bits:
@@ -326,7 +329,7 @@ class ServerKeyring:
         """Return out current ip/port/keyid tuple"""
         keys = self.getServerKeyset()
         desc = keys.getServerDescriptor()
-        return (desc['Server']['IP'],
+        return (desc['Incoming/MMTP']['IP'],
                 desc['Incoming/MMTP']['Port'],
                 desc['Incoming/MMTP']['Key-Digest'])
 
@@ -367,6 +370,8 @@ class ServerKeyset:
     def load(self, password=None):
         """Read the short-term keys from disk.  Must be called before
            getPacketKey or getMMTPKey."""
+        checkPrivateFile(self.packetKeyFile)
+        checkPrivateFile(self.mmtpKeyFile)
         self.packetKey = mixminion.Crypto.pk_PEM_load(self.packetKeyFile,
                                                       password)
         self.mmtpKey = mixminion.Crypto.pk_PEM_load(self.mmtpKeyFile,
@@ -432,7 +437,6 @@ def checkDescriptorConsistency(info, config, log=1):
     if config_s['Comments'] != info_s['Comments']:
         warn("Mismatched comments field.")
 
-    lifetime = info_s['Valid-Until'] - info_s['Valid-After'] 
     if (previousMidnight(info_s['Valid-Until']) !=
         previousMidnight(config_s['PublicKeyLifetime'][2] +
                          info_s['Valid-After'])):
@@ -448,7 +452,7 @@ def checkDescriptorConsistency(info, config, log=1):
         warn("Mismatched ports: %s configured; %s published.",
              config_im['Port'], info_im['Port'])
 
-    info_ip = info['Server']['IP']
+    info_ip = info['Incoming/MMTP']['IP']
     if config_im['IP'] == '0.0.0.0':
         guessed = _guessLocalIP()
         if guessed != config_im['IP']:
@@ -503,7 +507,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     if useServerKeys is None:
         # First, we generate both of our short-term keys...
         packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
-        mmtpKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
+        mmtpKey = mixminion.Crypto.pk_generate(MMTP_KEY_BYTES*8)
 
         # ...and save them to disk, setting up our directory structure while
         # we're at it.
@@ -534,6 +538,11 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         now = time.time()
     if not validAt:
         validAt = now
+
+    if config.getInsecurities():
+        secure = "no"
+    else:
+        secure = "yes"
 
     # Calculate descriptor and X509 certificate lifetimes.
     # (Round validAt to previous mignight.)
@@ -577,7 +586,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "MMTPProtocolsOut" : mmtpProtocolsOut,
         "PacketFormat" : "%s.%s"%(mixminion.Packet.MAJOR_NO,
                                   mixminion.Packet.MINOR_NO),
-        "mm_version" : mixminion.__version__
+        "mm_version" : mixminion.__version__,
+        "Secure" : secure
         }
 
     # If we don't know our IP address, try to guess
@@ -593,8 +603,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # Signature: lines.
     info = """\
         [Server]
-        Descriptor-Version: 0.1
-        IP: %(IP)s
+        Descriptor-Version: 0.2
         Nickname: %(Nickname)s
         Identity: %(Identity)s
         Digest:
@@ -605,6 +614,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         Packet-Key: %(PacketKey)s
         Packet-Formats: %(PacketFormat)s
         Software: Mixminion %(mm_version)s
+        Secure-Configuration: %(Secure)s
         """ % fields
     if contact:
         info += "Contact: %s\n"%contact
@@ -616,6 +626,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         info += """\
             [Incoming/MMTP]
             Version: 0.1
+            IP: %(IP)s
             Port: %(Port)s
             Key-Digest: %(KeyID)s
             Protocols: %(MMTPProtocolsIn)s

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.38 2003/02/20 16:57:39 nickm Exp $
+# $Id: Packet.py,v 1.39 2003/04/26 14:39:58 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -12,13 +12,14 @@
 __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'ENC_FWD_OVERHEAD', 'ENC_SUBHEADER_LEN',
             'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_TYPE', 'FragmentPayload',
-            'HEADER_LEN', 'Header', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
-            'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE', 'Message',
+            'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
+            'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
+            'MIN_SUBHEADER_LEN', 'Message',
             'OAEP_OVERHEAD', 'PAYLOAD_LEN', 'ParseError', 'ReplyBlock',
             'ReplyBlock', 'SECRET_LEN', 'SINGLETON_PAYLOAD_OVERHEAD',
             'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_TYPE', 'SingletonPayload',
             'Subheader', 'TAG_LEN', 'TextEncodedMessage',
-            'getTotalBlocksForRoutingInfoLen', 'parseHeader', 'parseIPV4Info',
+            'parseHeader', 'parseIPV4Info',
             'parseMBOXInfo', 'parseMessage', 'parsePayload', 'parseReplyBlock',
             'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
             'parseTextEncodedMessage', 'parseTextReplyBlocks', 'uncompressData'
@@ -38,7 +39,7 @@ if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
 
 # Major and minor number for the understood packet format.
-MAJOR_NO, MINOR_NO = 0,2
+MAJOR_NO, MINOR_NO = 0,3
 
 # Length of a Mixminion message
 MESSAGE_LEN = 1 << 15
@@ -51,12 +52,13 @@ PAYLOAD_LEN = MESSAGE_LEN - HEADER_LEN*2
 OAEP_OVERHEAD = 42
 
 # Length of a subheader, once RSA-encoded.
-ENC_SUBHEADER_LEN = 128
+ENC_SUBHEADER_LEN = 256
 # Smallest possible size for a subheader
 MIN_SUBHEADER_LEN = 42
 # Most information we can fit into a subheader before padding
 MAX_SUBHEADER_LEN = ENC_SUBHEADER_LEN - OAEP_OVERHEAD
-# Longest routing info that will fit in the main subheader
+# Longest routing info that will fit into the RSA-encrypted portion of
+# the subheader.
 MAX_ROUTING_INFO_LEN = MAX_SUBHEADER_LEN - MIN_SUBHEADER_LEN
 
 # Length of a digest
@@ -65,9 +67,6 @@ DIGEST_LEN = 20
 SECRET_LEN = 16
 # Length of end-to-end message tag
 TAG_LEN = 20
-
-# Most info that fits in a single extened subheader
-ROUTING_INFO_PER_EXTENDED_SUBHEADER = ENC_SUBHEADER_LEN
 
 #----------------------------------------------------------------------
 # Values for the 'Routing type' subheader field
@@ -118,35 +117,7 @@ def parseHeader(s):
     if len(s) != HEADER_LEN:
         raise ParseError("Bad header length")
 
-    return Header(s)
-
-class Header:
-    """Represents a 2K Mixminion header, containing up to 16 subheaders."""
-    def __init__(self, contents):
-        """Initialize a new header from its contents"""
-        self.contents = contents
-
-    def __getitem__(self, i):
-        """header[i] -> str
-
-           Returns the i'th encoded subheader of this header, for i in 0..15"""
-        if i < 0: i = 16+i
-        return self.contents[i*ENC_SUBHEADER_LEN:
-                             (i+1)*ENC_SUBHEADER_LEN]
-
-    def __getslice__(self, i, j):
-        """header[i:j] -> str
-
-           Returns a slice of the i-j'th subheaders of this header."""
-        if j > 16: j = 16
-        if i < 0: i += 16
-        if j < 0: j += 16
-        return self.contents[i*ENC_SUBHEADER_LEN:
-                             j*ENC_SUBHEADER_LEN]
-
-    def __len__(self):
-        """Return the number of subheaders in this header (always 16)"""
-        return 16
+    return s
 
 # A subheader begins with: a major byte, a minor byte, SECRET_LEN secret
 # bytes, DIGEST_LEN digest bytes, a routing_len short, and a routing_type
@@ -166,20 +137,13 @@ def parseSubheader(s):
     except struct.error:
         raise ParseError("Misformatted subheader")
     ri = s[MIN_SUBHEADER_LEN:]
+    underflow = ""
     if rlen < len(ri):
-        ri = ri[:rlen]
+        ri, underflow = ri[:rlen], ri[rlen:]
     if rt >= MIN_EXIT_TYPE and rlen < 20:
         raise ParseError("Subheader missing tag")
-    return Subheader(major,minor,secret,digest,rt,ri,rlen)
-
-def getTotalBlocksForRoutingInfoLen(bytes):
-    """Return the number of subheaders that will be needed for a hop
-       whose routinginfo is (bytes) long."""
-    if bytes <= MAX_ROUTING_INFO_LEN:
-        return 1
-    else:
-        extraBytes = bytes - MAX_ROUTING_INFO_LEN
-        return 2 + floorDiv(extraBytes,ROUTING_INFO_PER_EXTENDED_SUBHEADER)
+    #XXXX004 test underflow
+    return Subheader(major,minor,secret,digest,rt,ri,rlen,underflow)
 
 class Subheader:
     """Represents a decoded Mixminion subheader
@@ -190,10 +154,11 @@ class Subheader:
        A Subheader can exist in a half-initialized state where routing
        info has been read from the first header, but not from the
        extened headers.  If this is so, routinglen will be > len(routinginfo).
+       DOCDOC underflow
        """
 
     def __init__(self, major, minor, secret, digest, routingtype,
-                 routinginfo, routinglen=None):
+                 routinginfo, routinglen=None, underflow=""):
         """Initialize a new subheader"""
         self.major = major
         self.minor = minor
@@ -205,6 +170,7 @@ class Subheader:
             self.routinglen = routinglen
         self.routingtype = routingtype
         self.routinginfo = routinginfo
+        self.underflow = underflow
 
     def __repr__(self):
         return ("Subheader(major=%(major)r, minor=%(minor)r, "+
@@ -231,33 +197,33 @@ class Subheader:
         self.routinginfo = info
         self.routinglen = len(info)
 
-    def isExtended(self):
-        """Return true iff the routinginfo is too long to fit in a single
-           subheader."""
-        return self.routinglen > MAX_ROUTING_INFO_LEN
-
-    def getNExtraBlocks(self):
-        """Return the number of extra blocks that will be needed to fit
-           the routinginfo."""
-        return getTotalBlocksForRoutingInfoLen(self.routinglen)-1
-
-    def appendExtraBlocks(self, data):
-        """Given a string containing additional (decoded) blocks of
-           routing info, add them to the routinginfo of this
+    def appendOverflow(self, data):
+        """Given a string containing additional 
+           routing info, add it to the routinginfo of this
            object.
+           DOCDOC
         """
-        nBlocks = self.getNExtraBlocks()
-        assert len(data) == nBlocks * ENC_SUBHEADER_LEN
-        raw = [self.routinginfo]
-        for i in range(nBlocks):
-            block = data[i*ENC_SUBHEADER_LEN:(i+1)*ENC_SUBHEADER_LEN]
-            raw.append(block)
-        self.routinginfo = ("".join(raw))[:self.routinglen]
+        #XXXX004 test
+        self.routinginfo += data
+        assert len(self.routinginfo) <= self.routinglen
+
+    def getUnderflowLength(self):
+        return max(0, MAX_ROUTING_INFO_LEN - self.routinglen)
+
+    def getOverflowLength(self):
+        """DOCDOC"""
+        #XXXX004 test
+        return max(0, self.routinglen - MAX_ROUTING_INFO_LEN)
+
+    def getOverflow(self):
+        """DOCDOC"""
+        #XXXX004 test
+        return self.routinginfo[MAX_ROUTING_INFO_LEN:]
 
     def pack(self):
         """Return the (unencrypted) string representation of this Subhead.
 
-           Does not include extra blocks"""
+           Does not include overflow or underflow"""
         assert self.routinglen == len(self.routinginfo)
         assert len(self.digest) == DIGEST_LEN
         assert len(self.secret) == SECRET_LEN
@@ -266,22 +232,6 @@ class Subheader:
         return struct.pack(SH_UNPACK_PATTERN,
                            self.major,self.minor,self.secret,self.digest,
                            self.routinglen, self.routingtype)+info
-
-    def getExtraBlocks(self):
-        """Return a list of (unencrypted) blocks of extra routing info."""
-        if not self.isExtended():
-            return []
-        else:
-            info = self.routinginfo[MAX_ROUTING_INFO_LEN:]
-            result = []
-            for i in range(self.getNExtraBlocks()):
-                content = info[i*ROUTING_INFO_PER_EXTENDED_SUBHEADER:
-                               (i+1)*ROUTING_INFO_PER_EXTENDED_SUBHEADER]
-                missing = ROUTING_INFO_PER_EXTENDED_SUBHEADER-len(content)
-                if missing > 0:
-                    content += '\000'*missing
-                result.append(content)
-            return result
 
 #----------------------------------------------------------------------
 # UNENCRYPTED PAYLOADS
@@ -535,7 +485,7 @@ def parseIPV4Info(s):
     """Converts routing info for an IPV4 address into an IPV4Info object,
        suitable for use by FWD or SWAP_FWD modules."""
     if len(s) != 4+2+DIGEST_LEN:
-        raise ParseError("IPV4 information with wrong length")
+        raise ParseError("IPV4 information with wrong length (%d)" % len(s))
     try:
         ip, port, keyinfo = struct.unpack(IPV4_PAT, s)
     except struct.error:
@@ -579,7 +529,7 @@ class IPV4Info:
         r = cmp(self.ip, other.ip)
         if r: return r
         r = cmp(self.port, other.port)
-        if r: return n
+        if r: return r
         return cmp(self.keyinfo, other.keyinfo)
 
 def parseSMTPInfo(s):

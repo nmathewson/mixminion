@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.24 2003/04/22 01:45:22 nickm Exp $
+# $Id: MMTPServer.py,v 1.25 2003/04/26 14:39:59 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -664,7 +664,8 @@ class MMTPClientConnection(SimpleTLSConnection):
            sentCallback -- None, or a function of (msg, handle) to be called
               whenever a message is successfully sent.
            failCallback -- None, or a function of (msg, handle, retriable)
-              to be called when messages can't be sent."""
+              to be called when messages can't be sent.
+              DOCDOC certcache,finishedCallback"""
 
         # Generate junk before connecting to avoid timing attacks
         self.junk = [] #XXXX doc this field.
@@ -855,6 +856,8 @@ class MMTPAsyncServer(AsyncServer):
        callbacks for message success and failure."""
     ##
     # clientConByAddr
+    # certificateCache
+    #DOCDOC fields
     def __init__(self, config, tls):
         AsyncServer.__init__(self)
 
@@ -879,6 +882,7 @@ class MMTPAsyncServer(AsyncServer):
         self.listener.register(self)
         self._timeout = config['Server']['Timeout'][2]
         self.clientConByAddr = {}
+        self.certificateCache = PeerCertificateCache()
 
     def setContext(self, context):
         """Change the TLS context used for newly received connections.
@@ -921,26 +925,30 @@ class MMTPAsyncServer(AsyncServer):
             pass
 
         try:
+            addr = (ip, port, keyID)
+            finished = lambda addr=addr, self=self: self.__clientFinished(addr)
             con = MMTPClientConnection(self.context,
-                                       ip, port, keyID, messages, handles,
-                                       self.onMessageSent,
-                                       self.onMessageUndeliverable)
-            #XXXX004
-            con.finishedCallback = (lambda con=con,self=self:
-                                       self.__clientFinished(con))
+                                     ip, port, keyID, messages, handles,
+                                     sentCallback=self.onMessageSent,
+                                     failCallback=self.onMessageUndeliverable,
+                                     finishedCallback=finished,
+                                     certCache=self.certificateCache)
             con.register(self)
-            self.clientConByAddr[con.getAddr()] = con
+            assert addr == con.getAddr()
+            self.clientConByAddr[addr] = con
         except socket.error, e:
             LOG.error("Unexpected socket error connecting to %s:%s: %s",
                       ip, port, e)
             for m,h in zip(messages, handles):
                 self.onMessageUndeliverable(m,h,1)
 
-    def __clientFinished(self, con):
+    def __clientFinished(self, addr):
+        """DOCDOC"""
         try:
-            del self.clientConByAddr[con.getAddr()]
+            del self.clientConByAddr[addr]
         except KeyError:
-            LOG.warn("Didn't find client connection in address map")
+            LOG.warn("Didn't find client connection to %s in address map",
+                     addr)
 
     def onMessageReceived(self, msg):
         pass

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.40 2003/02/20 16:57:39 nickm Exp $
+# $Id: Config.py,v 1.41 2003/04/26 14:39:58 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -511,40 +511,22 @@ class _ConfigFile:
            If <assumeValid> is true, skip all unnecessary validation
            steps.  (Use this to load a file that's already been checked as
            valid.)"""
-        assert filename is None or string is None
+        assert (filename is None) != (string is None)
+        
         if not hasattr(self, '_callbacks'):
             self._callbacks = {}
 
         self.assumeValid = assumeValid
-        self.fname = filename
+
         if filename:
-            self.reload()
-        elif string:
-            self.__reload(None, string)
+            contents = mixminion.Common.readPossiblyGzippedFile(filename)
+            self.__load(contents)
         else:
-            self.clear()
+            assert string is not None
+            self.__load(string)
 
-    def clear(self):
-        """Remove all sections from this _ConfigFile object."""
-        self._sections = {}
-        self._sectionEntries = {}
-        self._sectionNames = []
-
-    def reload(self):
-        """Reload this _ConfigFile object from disk.  If the object is no
-           longer present and correctly formatted, raise an error, but leave
-           the contents of this object unchanged."""
-        if not self.fname:
-            return
-
-        contents = mixminion.Common.readPossiblyGzippedFile(self.fname)
-        self.__reload(None, contents)
-
-    def __reload(self, file, fileContents):
+    def __load(self, fileContents):
         """As in .reload(), but takes an open file object _or_ a string."""
-        if fileContents is None:
-            fileContents = file.read()
-            file.close()
 
         fileContents = _abnormal_line_ending_re.sub("\n", fileContents)
 
@@ -553,24 +535,24 @@ class _ConfigFile:
         else:
             sections = _readConfigFile(fileContents)
 
-        # These will become self.(_sections,_sectionEntries,_sectionNames)
-        # if we are successful.
-        self_sections = {}
-        self_sectionEntries = {}
-        self_sectionNames = []
+        sections = self.prevalidate(sections)
+
+        self._sections = {}
+        self._sectionEntries = {}
+        self._sectionNames = []
         sectionEntryLines = {}
 
         for secName, secEntries in sections:
-            self_sectionNames.append(secName)
+            self._sectionNames.append(secName)
 
-            if self_sections.has_key(secName):
+            if self._sections.has_key(secName):
                 raise ConfigError("Duplicate section [%s]" %secName)
 
             section = {}
             sectionEntries = []
             entryLines = []
-            self_sections[secName] = section
-            self_sectionEntries[secName] = sectionEntries
+            self._sections[secName] = section
+            self._sectionEntries[secName] = sectionEntries
             sectionEntryLines[secName] = entryLines
 
             secConfig = self._syntax.get(secName, None)
@@ -647,20 +629,15 @@ class _ConfigFile:
         for secName, secConfig in self._syntax.items():
             secRule = secConfig.get('__SECTION__', ('ALLOW',None,None))
             if (secRule[0] == 'REQUIRE'
-                and not self_sections.has_key(secName)):
+                and not self._sections.has_key(secName)):
                 raise ConfigError("Section [%s] not found." %secName)
-            elif not self_sections.has_key(secName):
-                self_sections[secName] = {}
-                self_sectionEntries[secName] = []
+            elif not self._sections.has_key(secName):
+                self._sections[secName] = {}
+                self._sectionEntries[secName] = []
 
         if not self.assumeValid:
             # Call our validation hook.
-            self.validate(self_sections, self_sectionEntries,
-                          sectionEntryLines, fileContents)
-
-        self._sections = self_sections
-        self._sectionEntries = self_sectionEntries
-        self._sectionNames = self_sectionNames
+            self.validate(sectionEntryLines, fileContents)
 
     def _addCallback(self, section, cb):
         """For use by subclasses.  Adds a callback for a section"""
@@ -668,8 +645,14 @@ class _ConfigFile:
             self._callbacks = {}
         self._callbacks[section] = cb
 
-    def validate(self, sections, sectionEntries, entryLines,
-                 fileContents):
+    def prevalidate(self, contents):
+        """Given a list of (SECTION-NAME, [(KEY, VAL, LINENO)]), makes
+           decision on whether to parse sections.  Subclasses should
+           override.  Returns a revised version of its input.
+        """
+        return contents
+
+    def validate(self, entryLines, fileContents):
         """Check additional semantic properties of a set of configuration
            data before overwriting old data.  Subclasses should override."""
         pass
@@ -723,10 +706,10 @@ class ClientConfig(_ConfigFile):
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
 
-    def validate(self, sections, entries, lines, contents):
-        _validateHostSection(sections.get('Host', {}))
+    def validate(self, lines, contents):
+        _validateHostSection(self['Host'])
 
-        security = sections.get('Security', {})
+        security = self['Security']
         p = security.get('PathLength', 8)
         if not 0 < p <= 16:
             raise ConfigError("Path length must be between 1 and 16")
@@ -734,7 +717,7 @@ class ClientConfig(_ConfigFile):
             LOG.warn("Your default path length is frighteningly low."
                           "  I'll trust that you know what you're doing.")
 
-        t = sections['Network'].get('ConnectionTimeout')
+        t = self['Network'].get('ConnectionTimeout')
         if t:
             if t[2] < 5:
                 LOG.warn("Very short connection timeout")

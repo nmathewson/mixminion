@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.21 2003/04/18 17:41:38 nickm Exp $
+# $Id: ServerConfig.py,v 1.22 2003/04/26 14:39:59 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -33,20 +33,21 @@ class ServerConfig(mixminion.Config._ConfigFile):
 
         mixminion.Config._ConfigFile.__init__(self, fname, string)
 
-    def validate(self, sections, entries, lines, contents):
-        def _haveEntry(entries, section, ent):
+    def validate(self, lines, contents):
+        def _haveEntry(self, section, ent):
+            entries = self._sectionEntries
             return len([e for e in entries[section] if e[0] == ent]) != 0
 
         # Pre-emptively configure the log before validation, so we don't
         # write to the terminal if we've been asked not to.
-        if not sections['Server'].get("EchoMessages", 0):
+        if not self['Server'].get("EchoMessages", 0):
             LOG.handlers = []
             # ???? This can't be the best way to do this.
 
         # Now, validate the host section.
-        mixminion.Config._validateHostSection(sections.get('Host', {}))
+        mixminion.Config._validateHostSection(self['Host'])
         # Server section
-        server = sections['Server']
+        server = self['Server']
         bits = server['IdentityKeyBits']
         if not (2048 <= bits <= 4096):
             raise ConfigError("IdentityKeyBits must be between 2048 and 4096")
@@ -59,19 +60,19 @@ class ServerConfig(mixminion.Config._ConfigFile):
         if server['PublicKeySloppiness'][2] > 20*60:
             raise ConfigError("PublicKeySloppiness must be <= 20 minutes.")
 
-        if _haveEntry(entries, 'Server', 'NoDaemon'):
+        if _haveEntry(self, 'Server', 'NoDaemon'):
             LOG.warn("The NoDaemon option is obsolete.  Use Daemon instead.")
 
-        if _haveEntry(entries, 'Server', 'Mode'):
+        if _haveEntry(self, 'Server', 'Mode'):
             LOG.warn("Mode specification is not yet supported.")
 
         mixInterval = server['MixInterval'][2]
         if mixInterval < 30*60:
             LOG.warn("Dangerously low MixInterval")
         if server['MixAlgorithm'] == 'TimedMixPool':
-            if _haveEntry(entries, 'Server', 'MixPoolRate'):
+            if _haveEntry(self, 'Server', 'MixPoolRate'):
                 LOG.warn("Option MixPoolRate is not used for Timed mixing.")
-            if _haveEntry(entries, 'Server', 'MixPoolMinSize'):
+            if _haveEntry(self, 'Server', 'MixPoolMinSize'):
                 LOG.warn("Option MixPoolMinSize is not used for Timed mixing.")
         else:
             rate = server['MixPoolRate']
@@ -81,19 +82,23 @@ class ServerConfig(mixminion.Config._ConfigFile):
             if minSize < 0:
                 raise ConfigError("MixPoolMinSize %s must be nonnegative.")
 
-        if not sections['Incoming/MMTP'].get('Enabled'):
+        if not self['Incoming/MMTP'].get('Enabled'):
             LOG.warn("Disabling incoming MMTP is not yet supported.")
-        if [e for e in entries['Incoming/MMTP'] if e[0] in ('Allow', 'Deny')]:
+        if [e for e in self._sectionEntries['Incoming/MMTP']
+            if e[0] in ('Allow', 'Deny')]:
             LOG.warn("Allow/deny are not yet supported")
 
-        if not sections['Outgoing/MMTP'].get('Enabled'):
+        if not self['Outgoing/MMTP'].get('Enabled'):
             LOG.warn("Disabling incoming MMTP is not yet supported.")
-        if [e for e in entries['Outgoing/MMTP'] if e[0] in ('Allow', 'Deny')]:
+        if [e for e in self._sectionEntries['Outgoing/MMTP']
+            if e[0] in ('Allow', 'Deny')]:
             LOG.warn("Allow/deny are not yet supported")
 
-        _validateRetrySchedule(mixInterval, entries, "Outgoing/MMTP")
+        _validateRetrySchedule(mixInterval, self._sectionEntries,
+                               "Outgoing/MMTP")
 
-        self.moduleManager.validate(sections, entries, lines, contents)
+        self.moduleManager.validate(self._sections, self._sectionEntries,
+                                    lines, contents)
 
     def __loadModules(self, section, sectionEntries):
         """Callback from the [Server] section of a config file.  Parses
@@ -110,22 +115,37 @@ class ServerConfig(mixminion.Config._ConfigFile):
         "Return the module manager initialized by this server."
         return self.moduleManager
 
-    def isSecure(self):
-        "Return true iff this configuration is reasonably secure."
+    def getInsecurities(self):
+        """Return false iff this configuration is reasonably secure.
+           Otherwise, return a list of reasons why it isn't."""
         reasons = ["Software is alpha"]
-        
+
+        # SERVER
         server = self['Server']
         if server['LogLevel'] in ('TRACE', 'DEBUG'):
             reasons.append("Log is too verbose")
-        if server['LogStats'] and server['LogInterval'][2] < 24*60*60:
+        if server['LogStats'] and server['StatsInterval'][2] < 24*60*60:
             reasons.append("StatsInterval is too short")
         if not server["EncryptIdentityKey"]:
             reasons.append("Identity key is not encrypted")
+        # ???? Pkey lifetime, sloppiness? 
         if server["MixAlgorithm"] not in _SECURE_MIX_RULES:
             reasons.append("Mix algorithm is not secure")
-        #XXXX004 finish!
-
+        else:
+            if server["MixPoolMinSize"] < 5:
+                reasons.append("MixPoolMinSize is too small")
+            #MixPoolRate?
+        if server["MixInterval"][2] < 30*60:
+            reasons.append("Mix interval under 30 minutes")
         
+        # ???? DIRSERVERS?
+
+        # ???? Incoming/MMTP
+
+        # ???? Outgoing/MMTP
+
+        # ???? Modules?
+
 def _validateRetrySchedule(mixInterval, entries, sectionname,
                            entryname='Retry'):
     #XXXX writeme.

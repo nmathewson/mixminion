@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.41 2003/02/16 04:50:55 nickm Exp $
+# $Id: Crypto.py,v 1.42 2003/04/26 14:39:58 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -272,7 +272,8 @@ def pk_fingerprint(key):
 def pk_PEM_save(rsa, filename, password=None):
     """Save a PEM-encoded private key to a file.  If <password> is provided,
        encrypt the key using the password."""
-    f = open(filename, 'w')
+    fd = os.open(filename, os.O_WRONLY|os.O_CREAT, 0600)
+    f = os.fdopen(fd, 'wb')
     if password:
         rsa.PEM_write_key(f, 0, password)
     else:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.69 2003/04/22 01:45:22 nickm Exp $
+# $Id: Common.py,v 1.70 2003/04/26 14:39:58 nickm Exp $
 
 """mixminion.Common
 
@@ -7,14 +7,14 @@
 
 __all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
-            'ceilDiv', 'checkPrivateDir', 'createPrivateDir',
+            'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
+            'createPrivateDir',
             'encodeBase64', 'floorDiv',
             'formatBase64', 'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
             'previousMidnight', 'readPossiblyGzippedFile', 'secureDelete',
             'stringContains', 'succeedingMidnight', 'waitForChildren' ]
 
-import base64
 import binascii
 import bisect
 import calendar
@@ -51,6 +51,10 @@ class MixProtocolError(MixError):
 
 class MixProtocolReject(MixProtocolError):
     """Exception class for server-rejected packets."""
+    pass
+
+class MixProtocolBadAuth(MixProtocolError):
+    """Exception class for failed authentication to a server."""
     pass
 
 class UIError(MixError):
@@ -152,6 +156,30 @@ def encodeBase64(s, lineWidth=64, oneline=0):
         return "".join(pieces)
     
 #----------------------------------------------------------------------
+def checkPrivateFile(fn, fix=1):
+    """Checks whether f is a file owned by this uid, set to mode 0600 or
+       0700, and all its parents pass checkPrivateDir.  Raises MixFatalError
+       if the assumtions are not met; else return None.  If 'fix' is true,
+       repair permissions on the file rather than raising MixFatalError."""
+    parent, _ = os.path.split(fn)
+    if not checkPrivateDir(parent):
+        return None
+    st = os.stat(fn)
+    if not st:
+        raise MixFatalError("Nonexistant file %s" % fn)
+    if not os.path.isfile(fn):
+        raise MixFatalError("%s is not a regular file" % fn)
+    me = os.getuid()
+    if st[stat.ST_UID] != me:
+        raise MixFatalError("File %s must have owner %s" % (fn, me))
+    mode = st[stat.ST_MODE] & 0777
+    if mode not in (0700, 0600):
+        if not fix:
+            raise MixFatalError("Bad mode %o on file %s" % mode)
+        newmode = {0:0600,0100:0700}[(newmode & 0100)]
+        LOG.warn("Repairing permissions on file %s" % fn)
+        os.chmod(fn, newmode)
+
 def createPrivateDir(d, nocreate=0):
     """Create a directory, and all parent directories, checking permissions
        as we go along.  All superdirectories must be owned by root or us."""
@@ -168,7 +196,7 @@ def createPrivateDir(d, nocreate=0):
 _WARNED_DIRECTORIES = {}
 
 def checkPrivateDir(d, recurse=1):
-    """Return true iff d is a directory owned by this uid, set to mode
+    """Check whether d is a directory owned by this uid, set to mode
        0700. All of d's parents must not be writable or owned by anybody but
        this uid and uid 0.  If any of these conditions are unmet, raise
        MixFatalErrror.  Otherwise, return None."""

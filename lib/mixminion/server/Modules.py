@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.34 2003/03/26 16:36:46 nickm Exp $
+# $Id: Modules.py,v 1.35 2003/04/26 14:39:59 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -135,21 +135,21 @@ class ImmediateDeliveryQueue:
         """Instead of queueing our message, pass it directly to the underlying
            DeliveryModule."""
         try:
-            EventStats.log('AttemptedDelivery') #XXXX
+            EventStats.log.attemptedDelivery() #XXXX
             res = self.module.processMessage(packet)
             if res == DELIVER_OK:
-                EventStats.log('SuccessfulDelivery') #XXXXq
+                EventStats.log.successfulDelivery() #XXXX
                 return
             elif res == DELIVER_FAIL_RETRY:
                 LOG.error("Unable to retry delivery for message")
-                EventStats.log('UnretriableDelivery') #XXXX
+                EventStats.log.unretriableDelivery() #XXXX
             else:
                 LOG.error("Unable to deliver message")
-                EventStats.log('UnretriableDelivery') #XXXX
+                EventStats.log.unretriableDelivery() #XXXX
         except:
             LOG.error_exc(sys.exc_info(),
                                "Exception delivering message")
-            EventStats.log('UnretriableDelivery') #XXXX
+            EventStats.log.unretriableDeliery() #XXXX
 
     def sendReadyMessages(self):
         # We do nothing here; we already delivered the messages
@@ -172,23 +172,23 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
     def _deliverMessages(self, msgList):
         for handle, packet, n_retries in msgList:
             try:
-                EventStats.log('AttemptedDelivery') #XXXX
+                EventStats.log.attemptedDelivery() #XXXX
                 result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
                     self.deliverySucceeded(handle)
-                    EventStats.log('SuccessfulDelivery') #XXXX
+                    EventStats.log.successfulDelivery() #XXXX
                 elif result == DELIVER_FAIL_RETRY:
                     self.deliveryFailed(handle, 1)
-                    EventStats.log('FailedDelivery') #XXXX
+                    EventStats.log.failedDelivery() #XXXX
                 else:
                     LOG.error("Unable to deliver message")
                     self.deliveryFailed(handle, 0)
-                    EventStats.log('UnretriableDelivery') #XXXX
+                    EventStats.log.unretriableDelivery() #XXXX
             except:
                 LOG.error_exc(sys.exc_info(),
                                    "Exception delivering message")
                 self.deliveryFailed(handle, 0)
-                EventStats.log('UnretriableDelivery') #XXXX
+                EventStats.log.unretriableDelivery() #XXXX
 
 class DeliveryThread(threading.Thread):
     """A thread object used by ModuleManager to send messages in the

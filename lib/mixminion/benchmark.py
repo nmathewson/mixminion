@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.32 2003/04/10 03:03:16 nickm Exp $
+# $Id: benchmark.py,v 1.33 2003/04/26 14:39:59 nickm Exp $
 
 """mixminion.benchmark
 
@@ -406,7 +406,7 @@ IP: 1.1.1.1
 
 def buildMessageTiming():
     print "#================= BUILD MESSAGE ====================="
-    pk = pk_generate()
+    pk = pk_generate(2048)
 
     for payload in "Hello!!!"*128, "Hello!!!"*(128*28):
         print "Compress %sK" % (len(payload)/1024), \
@@ -470,7 +470,7 @@ class DummyLog:
 def serverProcessTiming():
     print "#================= SERVER PROCESS ====================="
 
-    pk = pk_generate()
+    pk = pk_generate(2048)
     server = FakeServerInfo("127.0.0.1", 1, pk, "X"*20)
     sp = PacketHandler(pk, DummyLog())
 
@@ -550,7 +550,7 @@ def timeEfficiency():
     print "              short xor: %3.1f%%" % (100*2*strxor_20b/lioness_e)
 
     ##### SERVER PROCESS
-    pk = pk_generate(1024)
+    pk = pk_generate(2048)
 
     # Typical (no swap) server process is:
     #  pk_decrypt (128b)
@@ -825,8 +825,6 @@ def testLeaks6_2():
         sock.close()
 
 #----------------------------------------------------------------------
-
-
 def timeAll(name, args):
     cryptoTiming()
     buildMessageTiming()
@@ -838,6 +836,3 @@ def timeAll(name, args):
     timeEfficiency()
     #import profile
     #profile.run("import mixminion.benchmark; mixminion.benchmark.directoryTiming()")
-
-def timeAll(name,args):
-    testLeaks6_2()

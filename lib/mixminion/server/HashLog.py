@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.8 2003/04/13 15:54:42 nickm Exp $
+# $Id: HashLog.py,v 1.9 2003/04/26 14:39:59 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -63,6 +63,7 @@ class HashLog:
            'keyid'."""
         parent = os.path.split(filename)[0]
         createPrivateDir(parent)
+        # XXXX004 catch empty hashlog.
         self.log = anydbm.open(filename, 'c')
         LOG.debug("Opening database %s for packet digests", filename)
         if isinstance(self.log, dumbdbm._Database):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.30 2003/03/05 21:34:04 nickm Exp $
+# $Id: __init__.py,v 1.31 2003/04/26 14:39:59 nickm Exp $
 
 """mixminion
 
@@ -7,7 +7,7 @@
    """
 
 # This version string is generated from setup.py; don't edit it.
-__version__ = "0.0.4alpha"
+__version__ = "0.0.4alpha2"
 # This 5-tuple encodes the version number for comparison.  Don't edit it.
 # The first 3 numbers are the version number; the 4th is:
 #          0 for alpha
@@ -18,7 +18,7 @@ __version__ = "0.0.4alpha"
 # The 4th or 5th number may be a string.  If so, it is not meant to
 #   succeed or preceed any other sub-version with the same a.b.c version
 #   number.
-version_info = (0, 0, 4, 0, -1)
+version_info = (0, 0, 4, 0, 2)
 __all__ = [ 'server', 'directory' ]
 
 def version_tuple_to_string(t):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.13 2003/04/18 18:32:36 nickm Exp $
+# $Id: PacketHandler.py,v 1.14 2003/04/26 14:39:59 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -110,6 +110,8 @@ class PacketHandler:
         # Break into headers and payload
         msg = Packet.parseMessage(msg)
         header1 = Packet.parseHeader(msg.header1)
+        encSubh = header1[:Packet.ENC_SUBHEADER_LEN]
+        header1 = header1[Packet.ENC_SUBHEADER_LEN:]
 
         # Try to decrypt the first subheader.  Try each private key in
         # order.  Only fail if all private keys fail.
@@ -119,7 +121,7 @@ class PacketHandler:
         try:
             for pk, hashlog in zip(self.privatekey, self.hashlog):
                 try:
-                    subh = Crypto.pk_decrypt(header1[0], pk)
+                    subh = Crypto.pk_decrypt(encSubh, pk)
                     break
                 except Crypto.CryptoError, err:
                     e = err
@@ -137,7 +139,7 @@ class PacketHandler:
             raise ContentError("Invalid protocol version")
 
         # Check the digest of all of header1 but the first subheader.
-        if subh.digest != Crypto.sha1(header1[1:]):
+        if subh.digest != Crypto.sha1(header1):
             raise ContentError("Invalid digest")
 
         # Get ready to generate message keys.
@@ -159,23 +161,26 @@ class PacketHandler:
         # using this more than once.
         header_sec_key = Crypto.aes_key(keys.get(Crypto.HEADER_SECRET_MODE))
 
-        # If the subheader says that we have extra blocks of routing info,
-        # decrypt and parse them now.
-        if subh.isExtended():
-            nExtra = subh.getNExtraBlocks()
-            if (rt < Packet.MIN_EXIT_TYPE) or (nExtra > 15):
-                # None of the native methods allow multiple blocks; no
-                # size can be longer than the number of bytes in the rest
-                # of the header.
-                raise ContentError("Impossibly long routing info length")
+        # Prepare key to generate padding
+        junk_key = Crypto.aes_key(keys.get(Crypto.RANDOM_JUNK_MODE))
 
-            extra = Crypto.ctr_crypt(header1[1:1+nExtra], header_sec_key)
-            subh.appendExtraBlocks(extra)
-            remainingHeader = header1[1+nExtra:]
-        else:
-            nExtra = 0
-            remainingHeader = header1[1:]
+        # Pad the rest of header 1
+        header1 += Crypto.prng(junk_key,
+                               Packet.OAEP_OVERHEAD + Packet.MIN_SUBHEADER_LEN
+                               + subh.routinglen)
 
+        # Decrypt the rest of header 1, encrypting the padding.
+        header1 = Crypto.ctr_crypt(header1, header_sec_key)
+
+        # If the subheader says that we have extra routing info that didn't
+        # fit in the RSA-encrypted part, get it now.
+        overflowLength = subh.getOverflowLength()
+        if overflowLength:
+            subh.appendOverflow(header1[:overflowLength])
+            header1 = header1[overflowLength:]
+
+        header1 = subh.underflow + header1
+        
         # Decrypt the payload.
         payload = Crypto.lioness_decrypt(msg.payload,
                               keys.getLionessKeys(Crypto.PAYLOAD_ENCRYPT_MODE))
@@ -191,14 +196,6 @@ class PacketHandler:
         # routing type.
         if rt not in (Packet.SWAP_FWD_TYPE, Packet.FWD_TYPE):
             raise ContentError("Unrecognized Mixminion routing type")
-
-        # Pad the rest of header 1
-        remainingHeader = remainingHeader +\
-                          Crypto.prng(keys.get(Crypto.PRNG_MODE),
-                                      Packet.HEADER_LEN-len(remainingHeader))
-
-        # Decrypt the rest of header 1, encrypting the padding.
-        header1 = Crypto.ctr_crypt(remainingHeader, header_sec_key, nExtra*128)
 
         # Decrypt header 2.
         header2 = Crypto.lioness_decrypt(msg.header2,

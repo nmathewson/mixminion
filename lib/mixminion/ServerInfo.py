@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.40 2003/04/18 17:41:38 nickm Exp $
+# $Id: ServerInfo.py,v 1.41 2003/04/26 14:39:58 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -26,12 +26,16 @@ from mixminion.Crypto import CryptoError, DIGEST_LEN, pk_check_signature
 MAX_CONTACT = 256
 # Longest allowed Comments field
 MAX_COMMENTS = 1024
+# Longest allowed Contact-Fingerprint field
+MAX_FINGERPRINT = 128
 # Shortest permissible identity key
 MIN_IDENTITY_BYTES = 2048 >> 3
 # Longest permissible identity key
 MAX_IDENTITY_BYTES = 4096 >> 3
 # Length of packet key
-PACKET_KEY_BYTES = 1024 >> 3
+PACKET_KEY_BYTES = 2048 >> 3
+# Length of MMTP key
+MMTP_KEY_BYTES = 1024 >> 3
 
 # tmp alias to make this easier to spell.
 C = mixminion.Config
@@ -47,7 +51,6 @@ class ServerInfo(mixminion.Config._ConfigFile):
     _syntax = {
         "Server" : { "__SECTION__": ("REQUIRE", None, None),
                      "Descriptor-Version": ("REQUIRE", None, None),
-                     "IP": ("REQUIRE", C._parseIP, None),
                      "Nickname": ("REQUIRE", C._parseNickname, None),
                      "Identity": ("REQUIRE", C._parsePublicKey, None),
                      "Digest": ("REQUIRE", C._parseBase64, None),
@@ -58,7 +61,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Contact": ("ALLOW", None, None),
                      "Comments": ("ALLOW", None, None),
                      "Packet-Key": ("REQUIRE", C._parsePublicKey, None),
-                     "Contact-Fingerptint": ("ALLOW", None, None),
+                     "Contact-Fingerprint": ("ALLOW", None, None),
                      # XXXX010 change these next few to "REQUIRE".
                      "Packet-Formats": ("ALLOW", None, None),
                      "Software": ("ALLOW", None, None),
@@ -66,6 +69,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
+                     "IP": ("REQUIRE", C._parseIP, None),
                      "Port": ("REQUIRE", C._parseInt, None),
                      "Key-Digest": ("REQUIRE", C._parseBase64, None),
                      "Protocols": ("REQUIRE", None, None),
@@ -105,16 +109,28 @@ class ServerInfo(mixminion.Config._ConfigFile):
                        self['Server']['Nickname'],
                        fname or "<string>")
 
-    def validate(self, sections, entries, lines, contents):
+    def prevalidate(self, contents):
+        for name, ents in contents:
+            if name == 'Server':
+                for k,v,_ in ents:
+                    if k == 'Descriptor-Version' and v.strip() != '0.2':
+                        raise ConfigError("Unrecognized descriptor version %s"
+                                          % v.strip())
+            #XXXX Remove sections with unrecognized versions.
+
+        return contents
+
+
+    def validate(self, lines, contents):
         ####
         # Check 'Server' section.
-        server = sections['Server']
-        if server['Descriptor-Version'] != '0.1':
+        server = self['Server']
+        if server['Descriptor-Version'] != '0.2':
             raise ConfigError("Unrecognized descriptor version %r",
                               server['Descriptor-Version'])
 
         ####
-        # Check the igest of file
+        # Check the digest of file
         digest = getServerInfoDigest(contents)
         if digest != server['Digest']:
             raise ConfigError("Invalid digest")
@@ -138,10 +154,13 @@ class ServerInfo(mixminion.Config._ConfigFile):
             raise ConfigError("Contact too long")
         if server['Comments'] and len(server['Comments']) > MAX_COMMENTS:
             raise ConfigError("Comments too long")
+        if server['Contact-Fingerprint'] and \
+               len(server['Contact-Fingerprint']) > MAX_FINGERPRINT:
+            raise ConfigError("Contact-Fingerprint too long")
+
         packetKeyBytes = server['Packet-Key'].get_modulus_bytes()
         if packetKeyBytes != PACKET_KEY_BYTES:
             raise ConfigError("Invalid length on packet key")
-
 
         ####
         # Check signature
@@ -154,7 +173,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
             raise ConfigError("Signed digest is incorrect")
 
         ## Incoming/MMTP section
-        inMMTP = sections['Incoming/MMTP']
+        inMMTP = self['Incoming/MMTP']
         if inMMTP:
             if inMMTP['Version'] != '0.1':
                 raise ConfigError("Unrecognized MMTP descriptor version %s"%
@@ -164,7 +183,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                                   formatBase64(inMMTP['Key-Digest']))
 
         ## Outgoing/MMTP section
-        outMMTP = sections['Outgoing/MMTP']
+        outMMTP = self['Outgoing/MMTP']
         if outMMTP:
             if outMMTP['Version'] != '0.1':
                 raise ConfigError("Unrecognized MMTP descriptor version %s"%
@@ -186,7 +205,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def getAddr(self):
         """Returns this server's IP address"""
-        return self['Server']['IP']
+        return self['Incoming/MMTP']['IP']
 
     def getPort(self):
         """Returns this server's IP port"""
@@ -369,8 +388,17 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
         self.expectedDigest = expectedDigest
         mixminion.Config._ConfigFile.__init__(self, string=contents)
 
-    def validate(self, sections, entries, lines, contents):
-        direc = sections['Directory']
+    def prevalidate(self, contents):
+        for name, ents in contents:
+            if name == 'Directory':
+                for k,v,_ in ents:
+                    if k == 'Version' and v.strip() != '0.1':
+                        raise ConfigError("Unrecognized directory version")
+
+        return contents
+
+    def validate(self, lines, contents):
+        direc = self['Directory']
         if direc['Version'] != "0.1":
             raise ConfigError("Unrecognized directory version")
         if direc['Published'] > time.time() + 600:
@@ -378,7 +406,7 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
         if direc['Valid-Until'] <= direc['Valid-After']:
             raise ConfigError("Directory is never valid")
 
-        sig = sections['Signature']
+        sig = self['Signature']
         identityKey = sig['DirectoryIdentity']
         identityBytes = identityKey.get_modulus_bytes()
         if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):

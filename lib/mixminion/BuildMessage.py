@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.42 2003/03/27 10:30:59 nickm Exp $
+# $Id: BuildMessage.py,v 1.43 2003/04/26 14:39:58 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -227,10 +227,6 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
     # message with 99.6% probability.  (Otherwise, we'd need to repeatedly
     # lioness-decrypt the payload in order to see whether the message was
     # a reply.)
-
-    # XXXX D'oh!  This enables an offline password guessing attack for
-    # XXXX anybody who sees multiple tags.  We need to make sure that userKey
-    # XXXX is stored on disk, and isn't a password.  This needs more thought.
     while 1:
         seed = _getRandomTag(secretRNG)
         if Crypto.sha1(seed+userKey+"Validate")[-1] == '\x00':
@@ -464,14 +460,22 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
            paddingPRNG: A pseudo-random number generator to generate padding
     """
     assert len(path) == len(secrets)
-    if len(path) * ENC_SUBHEADER_LEN > HEADER_LEN:
-        raise MixError("Too many nodes in path")
 
     routing, sizes, totalSize = _getRouting(path, exitType, exitInfo)
+    if totalSize > HEADER_LEN:
+        raise MixError("Path cannot fit in header")
 
     # headerKey[i]==the AES key object node i will use to decrypt the header
     headerKeys = [ Crypto.Keyset(secret).get(Crypto.HEADER_SECRET_MODE)
                        for secret in secrets ]
+
+##     # junkKeys[i]==the AES key object that node i will use to re-pad the
+##     # header.
+##     junkKeys = [ Crypto.Keyset(secret).get(Crypto.RANDOM_JUNK_MODE)
+##                        for secret in secrets ]
+
+    # Length of padding needed for the header
+    paddingLen = HEADER_LEN - totalSize
 
     # Calculate junk.
     #   junkSeen[i]==the junk that node i will see, before it does any
@@ -483,25 +487,28 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
         #
         # Node i+1 sees the junk that node i saw, plus the junk that i appends,
         # all encrypted by i.
-        prngKey = Crypto.Keyset(secret).get(Crypto.RANDOM_JUNK_MODE)
-        # NewJunk is the junk that node i will append. (It's as long as
-        #   the subheaders that i removes.)
-        newJunk = Crypto.prng(prngKey,size*128)
+
+        prngKey = Crypto.Keyset(secret).get(Crypto.RANDOM_JUNK_MODE) 
+    
+        # newJunk is the junk that node i will append. (It's as long as
+        #   the data that i removes.)
+        newJunk = Crypto.prng(prngKey,size)
         lastJunk = junkSeen[-1]
         nextJunk = lastJunk + newJunk
-        # Node i encrypts starting with its first extended subheader.  By
-        #   the time it reaches the junk, it's traversed:
-        #          All of its extended subheaders    [(size-1)*128]
-        #          Non-junk parts of the header      [HEADER_LEN-len(nextJunk)]
-        #
-        # Simplifying, we find that the PRNG index for the junk is
-        #    HEADER_LEN-len(lastJunk)-128.
-        startIdx = HEADER_LEN-len(lastJunk)-128
+
+        # Before we encrypt the junk, we'll encrypt all the data, and
+        # all the initial padding, but not the RSA-encrypted part.
+        #    This is equal to - 256
+        #                     + sum(size[current]....size[last])
+        #                     + paddingLen
+        #    This simplifies to:
+        #startIdx = paddingLen - 256 + totalSize - len(lastJunk)
+        startIdx = HEADER_LEN - ENC_SUBHEADER_LEN - len(lastJunk)
         nextJunk = Crypto.ctr_crypt(nextJunk, headerKey, startIdx)
         junkSeen.append(nextJunk)
 
     # We start with the padding.
-    header = paddingPRNG.getBytes(HEADER_LEN - totalSize*128)
+    header = paddingPRNG.getBytes(paddingLen)
 
     # Now, we build the subheaders, iterating through the nodes backwards.
     for i in range(len(path)-1, -1, -1):
@@ -514,12 +521,32 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
                             None, #placeholder for as-yet-uncalculated digest
                             rt, ri)
 
-        extHeaders = "".join(subhead.getExtraBlocks())
-        rest = Crypto.ctr_crypt(extHeaders+header, headerKeys[i])
-        subhead.digest = Crypto.sha1(rest+junkSeen[i])
+        # Do we need to include some of the remaining header in the
+        # RSA-encrypted portion?
+        underflowLength = subhead.getUnderflowLength()
+        if underflowLength > 0:
+            underflow = header[:underflowLength]
+            header = header[underflowLength:]
+        else:
+            underflow = ""
+
+        # Do we need to spill some of the routing info out from the
+        # RSA-encrypted portion?
+        #XXXX004 most of these asserts are silly.
+        assert not subhead.getOverflow() or not subhead.getUnderflowLength()
+        header = subhead.getOverflow() + header
+
+        header = Crypto.ctr_crypt(header, headerKeys[i])
+
+        assert len(header)+len(junkSeen[i])+ENC_SUBHEADER_LEN == HEADER_LEN
+        subhead.digest = Crypto.sha1(header+junkSeen[i])
         pubkey = path[i].getPacketKey()
-        esh = Crypto.pk_encrypt(subhead.pack(), pubkey)
-        header = esh + rest
+        rsaPart = subhead.pack() + underflow
+        assert len(rsaPart) + OAEP_OVERHEAD == ENC_SUBHEADER_LEN
+        assert pubkey.get_modulus_bytes() == ENC_SUBHEADER_LEN
+        esh = Crypto.pk_encrypt(rsaPart, pubkey)
+        assert len(esh) == ENC_SUBHEADER_LEN == 256
+        header = esh + header
 
     return header
 
@@ -636,12 +663,12 @@ def _getRouting(path, exitType, exitInfo):
                 node in path[1:] ]
     routing.append((exitType, exitInfo))
 
-    # sizes[i] is size, in blocks, of subheaders for i.
-    sizes =[ getTotalBlocksForRoutingInfoLen(len(ri)) for _, ri in routing]
+    # sizes[i] is number of bytes added to header for subheader i.
+    sizes = [ len(ri)+OAEP_OVERHEAD+MIN_SUBHEADER_LEN for _, ri in routing]
 
-    # totalSize is the total number of blocks.
+    # totalSize is the total number of bytes needed for header
     totalSize = reduce(operator.add, sizes)
-    if totalSize * ENC_SUBHEADER_LEN > HEADER_LEN:
+    if totalSize > HEADER_LEN:
         raise MixError("Routing info won't fit in header")
 
     return routing, sizes, totalSize

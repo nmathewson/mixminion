@@ -25,17 +25,17 @@ For 0.0.4:
                 o Ctrl-C should just print "interrupted."
                 o Change behavior on binary messages; don't dump 'em
                   to terminals.
-                o DELKEYS should work. (neruaL)
+                . DELKEYS should work. (neruaL)
+                        - Test
         . Internal statistics
         	o Event log module
                 o Create and use event log
                 o Event log configurability
                 o server-stats command
-                - Test event log
+                . Test event log
                 - Document log and events
                 - Test use of event log
-                - Full statistics (ask Len what the list is.)
-        . Security:
+        o Security:
                 o Support multiple SURB keys
                         o Better keyrings: implement
                         o Better keyrings: test
@@ -45,27 +45,47 @@ For 0.0.4:
                         o Test CLI support
                         o Specify behavior
                         o Document in --help and README
-                - Increase key length to 2048 bits
+                o Increase key length to 2048 bits
                         o Specify
                         o Come up with an upgrade path? 
                           (Result: drop backward compatibility.)
-                        - Implement
-        - Make ServerInfo more forward-compatible.
-                - Skip sections completely if the version number isn't
+                        o Bump up logs
+                        o Implement: Packet
+                        o Implement: BuildMessage
+                        o Implement: PacketHandler
+                        o Test
+                        	o Make old tests work
+                                o Tests for BuildMessage with overflow.
+                                o Tests for parsing underflow on subheads
+        o Make ServerInfo more forward-compatible.
+                o Skip sections completely if the version number isn't
                   recognized.
-        - Add new fields to ServerInfo:
-                . Stub Secure-Configuration support
-                . Stub Contact-Fingerprint support
+                        o Implement
+                        o Test
+        o Refactor configuration code.
+        o Add new fields to ServerInfo:
+                o Stub Secure-Configuration support
+                o Stub Contact-Fingerprint support
         . MMTP
-                o self->self packets shouldn't hit the network.
-                        - Implement
+                o "IP" belongs in the MMTP part of the server descriptor.
+                . self->self packets shouldn't hit the network.
+                        o Implement
                         - Test
                 o Don't have multiple connections to same server.
                 o KEYID should be hash of signing key==hash of
                   identity key.  (Spec may be incorrect.)
-                . Add support for "REJECTED" reply.
+                        o Implement
+                        o Check expiration date on certificates
+                        o Use PeerCertificateCache properly
+                        - Test peercertificatecache.
+                . Add support for "REJECTED" reply (receive only).
                         o Implement
                         - Test
+        . "mixminion ping" command
+                o Implement backend
+                o Implement frontend
+                - Test backend
+                o Test frontend
         - Key management:
                 . Ability to generate new serverdesc with old keys.
                         o Implement
@@ -84,8 +104,8 @@ For 0.0.4:
                         - Ability to delete PK.
                         - Trigger all of the above as timed events occur.
                         - Somehow test the whole business.
-                - Consider linewrap protection on server descriptors,
-                  if demand warrants.  (None yet.)
+                - Rudimentary directory automation (with trivial pinging)
+                - Automatic key generation 
 
 Deferred from 0.0.4:
         . UI
@@ -95,6 +115,8 @@ Deferred from 0.0.4:
            CLI'S AND MULTI-SERVER SITUATIONS.
         - Tests for packet addressed to server with bogus IP.
         - Finish port to Cygwin
+        - Full statistics
+                - Full statistics (ask Len what the list is.)
         - MMTP
                 - Make MMTP bursty
         - Configurability
@@ -106,7 +128,10 @@ Deferred from 0.0.4:
         	- Password-protect dirserver keys
                 - Client queues should be locked, and have
                   max-packets-to-send option.
-        
+        - Key mgt
+                - Consider linewrap protection on server descriptors,
+                  if demand warrants.  (None yet.)
+
 Required for "1.0":
          [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
@@ -188,12 +213,11 @@ Required for "1.0":
                 - Send message to user with known public key
                 - Real PKI for end-to-end encryption
         - MMTP / async
-                - "IP" belongs in the MMTP part of the server descriptor.
                 - Timeout connections more aggressively under higher load.
                 - Bandwidth throttling
-                - Session management and resumption (security issues?)  Is this
+                X Session management and resumption (security issues?)  Is this
                   really useful for performance?
-                        - Server code to find out if clients have renegotiated.
+                        X Server code to find out if clients have renegotiated.
                 - Tests for all cases:
                         - Junk
                         - Retry on bogus close.
