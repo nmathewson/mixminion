@@ -193,7 +193,7 @@ def getProtocolSupport():
     res = [0,0]
     for pos, familyname, loopback in ((0, "AF_INET", "127.0.0.1"),
                                       (1, "AF_INET6", "::1")):
-        family = getattr(socket, familyname)
+        family = getattr(socket, familyname, None)
         if family is None: continue
         s = None
         try:

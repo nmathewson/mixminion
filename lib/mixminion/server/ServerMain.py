@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.105 2003/12/03 23:18:53 nickm Exp $
+# $Id: ServerMain.py,v 1.106 2003/12/04 05:02:50 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -801,7 +801,9 @@ The original error message was '%s'."""%e)
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         global GOT_HUP
-        self.lockFile.replaceContents("%s\n"%os.getpid())
+        # See the win32 comment in replacecontents to learn why this is
+        # left-justified. :P
+        self.lockFile.replaceContents("%-10s\n"%os.getpid())
 
         self.cleanQueues()
 

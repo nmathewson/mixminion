@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.14 2003/11/28 04:14:04 nickm Exp $
+# $Id: Filestore.py,v 1.15 2003/12/04 05:02:50 nickm Exp $
 
 """mixminion.Filestore
 
@@ -20,12 +20,13 @@ import dumbdbm
 import errno
 import os
 import stat
+import sys
 import threading
 import time
 import whichdb
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
-     createPrivateDir, readFile, tryUnlink
+     createPrivateDir, readFile, replaceFile, tryUnlink
 from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ "StringStore", "StringMetadataStore",
@@ -274,10 +275,9 @@ class BaseStore:
         try:
             self._lock.acquire()
             try:
-                os.rename(os.path.join(self.dir, s1+"_"+handle),
-                          os.path.join(self.dir, s2+"_"+handle))
+                replaceFile(os.path.join(self.dir, s1+"_"+handle),
+                            os.path.join(self.dir, s2+"_"+handle))
             except OSError, e:
-                # WWWW On windows, replacing metdata can create an error!
                 contents = os.listdir(self.dir)
                 LOG.error("Error while trying to change %s from %s to %s: %s",
                           handle, s1, s2, e)

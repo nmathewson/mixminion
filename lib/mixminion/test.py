@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.170 2003/12/03 23:18:52 nickm Exp $
+# $Id: test.py,v 1.171 2003/12/04 05:02:50 nickm Exp $
 
 """mixminion.tests
 
@@ -554,32 +554,44 @@ class MiscTests(TestCase):
         self.assertEquals(fn, dX+".2")
 
     def test_lockfile(self):
+        #XXXX The 'locked' cases need to get tested on windows.  Right now
+        #XXXX that's hard, because they don't seem to block one another unless
+        #XXXX you try them from separate processes.
+
         fn = mix_mktemp()
         LF1 = Lockfile(fn)
         LF2 = Lockfile(fn)
         LF1.acquire("LF1")
         if not ON_WINDOWS:
             self.assertEquals("LF1", readFile(fn))
+        if not ON_WIN32:
+            self.assertRaises(LockfileLocked, LF2.acquire, blocking=0)
         LF1.replaceContents("new longer contents")
         if not ON_WINDOWS:
             self.assertEquals("new longer contents", readFile(fn))
         LF1.replaceContents("shorter")
         if not ON_WINDOWS:
             self.assertEquals("shorter", readFile(fn))
-
-        self.assertRaises(LockfileLocked, LF2.acquire, blocking=0)
+        if not ON_WIN32:
+            self.assertRaises(LockfileLocked, LF2.acquire, blocking=0)
         LF1.release()
         LF2.acquire("LF2",1)
-        if not ON_WINDOWS:
+        if not ON_WIN32:
             self.assertEquals("LF2", readFile(fn))
-        self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
+            self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
 
         # Now try recursivity.
         LF2.acquire()
-        self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
+        if not ON_WIN32:
+            self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
         LF2.release()
-        self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
+        if not ON_WIN32:
+            self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
         LF2.release()
+
+        if ON_WIN32:
+            return
+
         LF1.acquire(blocking=1)
 
         # Now try a blocking lock.  We need to block in another process
@@ -7478,7 +7490,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ServerInfoTests))
+        suite.addTest(tc(MiscTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

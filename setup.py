@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.82 2003/12/03 23:10:08 nickm Exp $
+# $Id: setup.py,v 1.83 2003/12/04 05:02:49 nickm Exp $
 import sys
 
 #
@@ -132,14 +132,19 @@ if USE_OPENSSL and sys.platform == 'win32':
     STATIC_LIBS = []
     LIBRARY_DIRS = []
 
-    if (not os.path.exists(".\\contrib\\openssl\\include") or
-        not os.path.exists(".\\contrib\\openssl\\lib\\vc")):
+    incd = ".\\contrib\\OpenSSL\\include"
+    libd = ".\\contrib\\OpenSSL\\lib\\VC"
+
+    if os.path.exists(incd): INCLUDE_DIRS.append(incd)
+    if os.path.exists(incd.lower()): INCLUDE_DIRS.append(incd.lower())
+    if os.path.exists(libd): LIBRARY_DIRS.append(libd)
+    if os.path.exists(libd.lower()): LIBRARY_DIRS.append(libd.lower())
+
+    if not (INCLUDE_DIRS and LIBRARY_DIRS):
         print ("Can't find openssl: make sure that a compiled openssl "
-               "distribution is stored \nat .\\contrib\\openssl")
+               "distribution is stored \nat .\\contrib\\OpenSSL")
         sys.exit(1)
 
-    INCLUDE_DIRS.append(".\\contrib\\openssl\\include")
-    LIBRARY_DIRS.append(".\\contrib\\openssl\\lib\\vc")
     LIBRARIES = [ "ssleay32", "libeay32", "advapi32" ]
 
 elif USE_OPENSSL:
@@ -318,6 +323,8 @@ else:
     pathextra = ""
 
 SCRIPT_PATH = os.path.join("build", "mixminion")
+if sys.platform == 'win32':
+    SCRIPT_PATH += ".py"
 if not os.path.exists("build"):
     os.mkdir("build")
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.121 2003/12/03 23:18:52 nickm Exp $
+# $Id: Common.py,v 1.122 2003/12/04 05:02:50 nickm Exp $
 
 """mixminion.Common
 
@@ -1383,9 +1383,7 @@ def _sigChldHandler(signal_num, _):
 
 def installSIGCHLDHandler():
     '''Register sigchld handler for this process.'''
-    #WWWWW
     if sys.platform == 'win32':
-        LOG.warn("Skipping installSIGCHLDHandler")
         return
     signal.signal(signal.SIGCHLD, _sigChldHandler)
 
@@ -1468,7 +1466,8 @@ class Lockfile:
             self._lock(self.fd, blocking)
             self.count += 1
             os.write(self.fd, contents)
-            os.fsync(self.fd)
+            if hasattr(os, "fsync"):
+                os.fsync(self.fd)
         except:
             os.close(self.fd)
             self.fd = None
@@ -1477,12 +1476,16 @@ class Lockfile:
     def replaceContents(self, contents):
         """Replace the current contents of the lockfile with 'contents',
            without releasing the lock.  Invokers must hold the lock."""
+        # XXXX Actually, on Win32, this actually replaces the first 
+        # XXXX len(contents) characters of the lockfile.  This is a bug.
         assert self.count > 0 and self.fd is not None
         SEEK_SET = 0
         os.lseek(self.fd, 0, SEEK_SET)
-        os.ftruncate(self.fd, 0)
+        if hasattr(os, 'ftruncate'): # Doesn't exist on windows.
+            os.ftruncate(self.fd, 0)
         os.write(self.fd, contents)
-        os.fsync(self.fd)
+        if hasattr(os, 'fsync'):
+            os.fsync(self.fd)
 
     def release(self):
         """Release the lock."""

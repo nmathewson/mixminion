@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.57 2003/11/28 04:14:04 nickm Exp $
+# $Id: Crypto.py,v 1.58 2003/12/04 05:02:50 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -722,7 +722,7 @@ def configure_trng(config):
         verbose = (file == requestedFile)
         if not os.path.exists(file):
             if verbose:
-                LOG.error("No such file as %s", file)
+                LOG.warn("No such file as %s", file)
         else:
             st = os.stat(file)
             if not (st[stat.ST_MODE] & stat.S_IFCHR):
@@ -734,6 +734,7 @@ def configure_trng(config):
                 break
 
     if randFile is None and _TRNG_FILENAME is None:
+        #XXXX006 on win32, we should do this first.
         if sys.platform == 'win32':
             # We have two entropy sources on windows: openssl's built-in
             # entropy generator that takes data from the screen, and
