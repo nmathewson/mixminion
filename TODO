@@ -103,72 +103,72 @@ For 0.0.5:
                 . Manually test all old functionality
                 . Test old servers with new client code
                 . Test old clients with new servers
+                - Update manual page
 
-For 0.0.6:
+For 0.0.6:  (The release for integrators, Windows users, senders of
+large replies, people with dynamically assigned IPs, people with high
+TCP latency, and me.)
         - Infrastructure -- low level
                 - Generic 'encrypted storage' abstraction for
-                  singleton pickled objects.
+                  possibly-encrypted singleton pickled objects.
         - Infrastructure -- high level
                 - Servers need to download and use directories
                 - Refactor ClientMain to use a standard ClientAPI module.
                         - Port ClientAPI from C API document.
+                        - Move other functionality into ClientSupport module.
+                        - ClientMain should only have CLI functionality.
                 - Rewrite ClientMain path generation to do the right
                   thing with multi-packet messages
-        . UI improvements:
-                - Notice when out of disk space, die more cleanly.
-                  (support max-disk-usage).
+                - Make processing thread and module thread general
+                  cases of a thread pool abstraction
+                - Have callers of Packet/BuildMessage/DeliveryPacket
+                  decide whether to look for a tag in the RI field.
+        - UI improvements:
+                - Add some convenient way to list arbitrary server features.
                 - Separate 'mixminiond' wrapper; 'mixminiond' confuses folk.
                 - List servers by nickname, not by IP.
+                - Support for sending multiple copies of a packet.
                 - RFC822 interface and maildir-style exit module to help
                   integrators.
                 - SSL's "Unexpected error: wrong version number"
                   message is confusing.
-        - Dummies and pinging
         - Large reply messages and efwd messages
                 - Relay non-FRAGMENT fragment messages
                 - Send logic for client
                 - Fragment-pool logic for client
-        - Full windows client-side support
+        - Full windows support
                 - Address everything on Itamar's non-blocking
                   incompatibility list.
                 - Installer
                 - Instructions
-        - Rudimentary MIME support (content-type, content-encoding only.)
+                - Py2EXE support
         - Dynamic IP support
                 - Change IPv4/IPv6 delivery methods to use DNS if desired.
                 - Servers redirect to latest IP if old IP is down.  (Dynamic
-                  IP support, after a fashion)
+                  IP support, after a fashion.)
         - Installer and distribution
                 - Re-do man page to be generated from common source
-                  on all platforms.
-        - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
-                - SIGHUP should reconfigure everything:
-                        - Logs
-                        - EventStats
-                        - securedelete
-                        - EntropySource (discard old entropy)
-                        - Configuration (as used by key)
-                        - File locations (????)
-                        - Network setup
-                        - Module setup
-                        - (What else?)
-                - SIGHUP should check whether serverinfo should be
-                  regenerated.
-                - Add SIGUSR1 to do rotate-and-dump only.
-        - Security improvements
-                - Add ability to mark nodes as having same
-                  administrative domain.
-                - Add jurisdictions to pathgen?
-                - Change pathgen to avoid two nodes with same domain
-                  in a row.
-                - Change pathgen to avoid using same node for entry
-                  and exit?
+                  on all platforms?
+                - The 'make install' target should install the man page
+                  when appropriate.
+                - Move the canonical documentation from the README into
+                  the manual page.
+                - Add pages for 'mixminiond' and 'mixminion.conf' and
+                  'mixminiond.conf'.
+                - Maybe add a page for Mixminion integration.
+        - Specification
+                - Clear up specification for payload versions.
+                - Clear up specification for NEWS
+                - Clear up specification for multiple addrs on MAIL
+                - Implement changes as needed, depending on migration
+                  plans.
+        - MMTP
+               - Make MMTP bursty
         - Delayed Tests
                 - Tests for online key rotation
                 - Tests for ServerInbox and Directory.py
                 - Tests for checkConsistency
                 - What happens when Overlap > Lifetime?
-
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
 [Release criteria: Workable replacement for type II.  At least as
@@ -177,12 +177,20 @@ not yet ready to replace type I.]
 
         - Full statistics
                 - Full statistics (ask Len what the list is.)
+        - Dummies and pinging
         - Key management
                 - Document "DELKEYS"
                 - Password-protected private identity keys
                 - Password-protected private link/packet keys
                 - Password-protected dirserver keys
         - Security
+                - Add ability to mark nodes as having same
+                  administrative domain.
+                - Change pathgen to avoid two nodes with same domain
+                  in a row.
+                - Change pathgen to avoid using same node for entry
+                  and exit?
+                - Add jurisdictions to pathgen?
                 - Make createPrivateDirs gripe about group-writable parent
                   dirs
         - Modules and module support
@@ -195,7 +203,6 @@ not yet ready to replace type I.]
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
         - End-to-end issues
-                - K-of-N fragmentation and reassembly
                 - MIME
         - Configurability
                 - Better, documented support for http proxies for
@@ -207,7 +214,7 @@ not yet ready to replace type I.]
                 . Freak out properly on missing/unpublishable IP.
                 . Full validation function for client
                 . Full validation function for server
-                - No support for non-clique topologies
+                - Support for non-clique topologies
         - Client support
                 - Automatically remove old messages from client queue.
                 - Flush messages to a single mix.   
@@ -222,17 +229,17 @@ not yet ready to replace type I.]
                 - A well-tested 'make uninstall'
                 - RPMS, debs, and so on
                 . Make sure we run on solaris and *BSD.
-                - Make the software run under cygwin
-                        - Handle weirdness with directory permissions
-                        - flock
+                . Make the software run under cygwin
+                        o Handle weirdness with directory permissions
+                        o flock
                         - Installing to relative path
-                - "Somebody" should do a native Windows port
-                        - Build process
+                . "Somebody" should do a native Windows port
+                        . Build process
                         o Any C porting as necessary
-                        - Signal code may need to change.
-                        - Process mgt code may need to change.
-                        - Some kind of substitute for /dev/urandom.
-                        - Resolve as-yet-unsuspected platform dependencies
+                        . Signal code may need to change.
+                        . Process mgt code may need to change.
+                        o Some kind of substitute for /dev/urandom.
+                        . Resolve as-yet-unsuspected platform dependencies
                 . An init.d script.
         - Testing
                 - Test on other (non-redhat, non-linux) systems
@@ -255,7 +262,20 @@ not yet ready to replace type I.]
                 - Complete all other docs
                 - History.
         - Dummy messages (as in batching-taxonomy)
-
+        - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
+                - SIGHUP should reconfigure everything:
+                        - Logs
+                        - EventStats
+                        - securedelete
+                        - EntropySource (discard old entropy)
+                        - Configuration (as used by key)
+                        - File locations (????)
+                        - Network setup
+                        - Module setup
+                        - (What else?)
+                - SIGHUP should check whether serverinfo should be
+                  regenerated.
+                - Add SIGUSR1 to do rotate-and-dump only.
         - DoS resistance strategy
                 - Bandwidth throttling
                 - Timeout connections more aggressively under heavy load
@@ -294,7 +314,6 @@ Other features for "1.0" (no research required):
         - Send/receive large messages without having to suck them all
           into RAM at once.
         - MMTP / async
-               - Make MMTP bursty
                - Tests for all cases:
                         - Packet to server with bogus IP
                         - Junk
@@ -322,6 +341,9 @@ Features for "1.0" (some research/specification required):
                   random servers.
                 - Notice Allow/Deny.
                 - Notice MMTP protocol versions.
+        - UI issues
+                - Notice when out of disk space, die more cleanly.
+                  (support max-disk-usage).
         - Fragment and unfragment large messages on disk.
         - Client support: other
                 - Send message to user with known public key
@@ -363,4 +385,5 @@ NEEDS TO BE BENCHMARKED
   Local Variables:
   mode:text
   indent-tabs-mode:nil
+  fill-column:77
   End:
