@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.65 2003/05/30 03:07:56 nickm Exp $
+# $Id: ServerMain.py,v 1.66 2003/06/02 17:54:57 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -40,6 +40,7 @@
 
 __all__ = [ 'MixminonServer' ]
 
+import errno
 import getopt
 import os
 import sys
@@ -77,10 +78,19 @@ def getHomedirVersion(config):
     versionFile = os.path.join(homeDir, "version")
     if not os.path.exists(homeDir):
         return None
-    elif not os.path.exists(versionFile):
-        dirVersion = "1000"
     else:
-        dirVersion = readFile(versionFile).strip()
+        try:
+            dirVersion = readFile(versionFile).strip()
+        except (OSError, IOError), e:
+            if e.errno == errno.ENOENT:
+                # The file doesn't exist; the version must be '1000'.
+                dirVersion = "1000"
+            elif e.errno == errnoe.EACCES:
+                raise UIError("You don't have permission to read %s"%
+                              versionFile)
+            else:
+                raise UIError("Unexpected error while reading %s: %s",
+                              versionFile, e)
 
     return dirVersion
 
