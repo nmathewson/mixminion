@@ -1,3 +1,9 @@
+mixminion (0.0.XXXXX) unreleased; urgency=low
+
+  * Update debian/copyright: Mixminion relicensed to MIT.
+
+ -- Peter Palfrader <weasel@debian.org>  Tue, 27 Jul 2004 21:39:32 +0200
+
 mixminion (0.0.7.1-1) experimental; urgency=low
 
   * New upstream release.

@@ -5,19 +5,24 @@ It was downloaded from http://www.mixminion.net/
 
 Upstream Authors: Nick Mathewson <nickm@freehaven.net>
 
-Copyright: 2002-2003 Nick Mathewson <nickm@freehaven.net>
-Modifications for Debian: Copyright (C) 2003 Peter Palfrader <weasel@debian.org>
+Copyright: 2002-2004 Nick Mathewson <nickm@freehaven.net>
+Modifications for Debian: Copyright (C) 2003, 2004 Peter Palfrader <weasel@debian.org>
 
-Mixminion is licensed under the GNU Lesser General Public License 2.1 with the
-ammendment given below.  On a Debian system the full text of the LGPL can be
-found in /usr/share/common-licenses/LGPL-2.1
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
 
-Because of the advertising clause of its license, OpenSSL is not
-compatible with the GPL.  Thus, we license Mixminion under an amended LGPL:
-we explicitly authorize you to treat OpenSSL as a "System Library" for the
-purposes of GPL/LGPL compliance.  You may also use Mixminion under an
-unamended LGPL; however, if you do so, you may not be able to link it with
-OpenSSL.
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
 
-Future versions of Mixminion may be able to run with NSS or GnuTLS instead of
-OpenSSL, thus making this amendment unnecessary.  Patches are welcome.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
