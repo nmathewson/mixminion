@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.191 2004/03/06 05:33:55 nickm Exp $
+# $Id: test.py,v 1.192 2004/03/23 00:24:31 nickm Exp $
 
 """mixminion.tests
 
@@ -4188,6 +4188,8 @@ IntRS=5
         failsR("[Sec1]\n\nFoo: Bar\n")
         failsR("\n[Sec1]\nFoo: Bar\n")
         failsR("\n[Sec1]\nFoo: Bar\n\n")
+        failsR("")
+        failsR("\n")
 
     def testValidationFns(self):
         import mixminion.Config as C

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.82 2004/03/23 00:13:55 nickm Exp $
+# $Id: Config.py,v 1.83 2004/03/23 00:24:31 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -538,6 +538,9 @@ def _readRestrictedConfigFile(contents):
     fileLines = contents.split("\n")
     if fileLines[-1] == '':
         del fileLines[-1]
+
+    if len(fileLines) == 1 and fileLines[0].strip() == '':
+        raise ConfigError("File is empty")
 
     for line in fileLines:
         lineno += 1

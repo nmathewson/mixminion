@@ -83,7 +83,7 @@ For 0.0.7rc2:
         - On invalid dir_new.gz, server falls back to old one, and
           client offers -D no.
         o Document bandwidth spikiness, maybe make configurable.
-        - Don't report empty directories as having a "blank line 1."
+        o Don't report empty directories as having a "blank line 1."
         o Rename ConnectionTimeout to Timeout in client MMTP.
         o Make everything that takes -i default to read-from-stdin.
 
