@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.23 2002/11/22 00:21:20 nickm Exp $
+# $Id: Crypto.py,v 1.24 2002/12/02 03:22:28 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -426,6 +426,10 @@ def lioness_keys_from_header(header2):
 #---------------------------------------------------------------------
 # Random number generators
 
+# The getInt code below assumes that ints are at least 32 bits long. Here
+# we assert it.
+assert sys.maxint >= 0x7fffffff
+
 class RNG:
     '''Base implementation class for random number generators.  Works
        by requesting a bunch of bytes via self._prng, and doling them
@@ -484,7 +488,8 @@ class RNG:
         # FFFF This implementation is about 2-4x as good as the last one, but
 	# FFFF still could be better.  It's faster than getFloat()*max.
 
-	# XXXX (This code assumes that integers are at least 32 bits.)
+	# FFFF (This code assumes that integers are at least 32 bits. Maybe
+	# FFFF  we could do better.)
 
         assert 0 < max < 0x3fffffff
 	_ord = ord
