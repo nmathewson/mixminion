@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.42 2003/01/04 20:42:17 nickm Exp $
+# $Id: Common.py,v 1.43 2003/01/05 01:28:11 nickm Exp $
 
 """mixminion.Common
 
@@ -367,7 +367,7 @@ class Log:
     def configure(self, config):
         """Set up this Log object based on a ServerConfig or ClientConfig
            object"""
-        # XXXX001 Don't EchoLogMessages when NoDaemon==0.
+
         self.handlers = []
         if config == None or not config.has_section("Server"):
             self.setMinSeverity("WARN")
