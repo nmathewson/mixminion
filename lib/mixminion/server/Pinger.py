@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.23 2004/12/27 00:15:57 nickm Exp $
+# $Id: Pinger.py,v 1.24 2005/01/01 21:25:28 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -421,7 +421,7 @@ class PingLog:
             self._db.createIndex("connectionAttemptServerAt",
                                  "connectionAttempt", ["server","at"])
 
-            # XXXX008 We should probably have indices on echolot*results,
+            # XXXX008 We should maybe have indices on echolot*results,
             # uptimes.
 
             self._setUptime = self._db.getInsertOrUpdateFn(
@@ -472,6 +472,7 @@ class PingLog:
         for s1, s2, b, i in res:
             if s1 == '<self>' or s2 == '<self>': continue
             p = "%s,%s"%(s1,s2)
+            assert p == p.lower()
             if b:
                 broken[p]=1
             if i:
@@ -945,6 +946,14 @@ class PingLog:
 
         isInteresting = ((nSent < 3 and nReceived == 0) or
                          (product and frac <= product*0.3))
+        if isInteresting:#XXXX008 this is too verbose for a release version.
+            if nSent < 3 and nReceived == 0:
+                LOG.trace("%s,%s is interesting because %d were sent and %d were received",
+                          s1,s2, nSent, nReceived)
+            elif product and frac <= product*0.3:
+                LOG.trace("%s,%s is interesting because its reliability is %s and we expected a reliability of %s", s1,s2,frac, product)
+            else:
+                LOG.trace("I have no idea why %s,%s is interesting.",s1,s2)
 
         return nSent, nReceived, isBroken, isInteresting
 
@@ -1159,7 +1168,7 @@ class PingGenerator:
            Return 1 if we are able to queue the ping, 0 otherwise.
         """
         assert path1 and path2
-        assert path2[-1].getNickname() == self.myNickname
+        assert path2[-1].getNickname().lower() == self.myNickname.lower()
         try:
             p1 = self.directory.getPath(path1)
             p2 = self.directory.getPath(path2)
@@ -1176,7 +1185,7 @@ class PingGenerator:
         obj = mixminion.server.PacketHandler.RelayedPacket(addr, packet)
         LOG.debug("Pinger queueing ping along path %s [%s]",verbose_path,
                   formatBase64(payloadHash))
-        self.pingLog.queuedPing(payloadHash, verbose_path)
+        self.pingLog.queuedPing(payloadHash, verbose_path.lower())
         self.outgoingQueue.queueDeliveryMessage(obj, addr)
         return 1
 
@@ -1210,9 +1219,8 @@ class _PingScheduler:
         # Subclasses should override this to call _schedulePing on all paths.
         raise NotImplemented()
     def _getPeriodStart(self, t):
-        """Abstract: Return the start of the period containing the time t."""
-        #XXXX008 should take _calcPeriodLen into account?
-        raise NotImplemented()
+        """Return the start of the period containing the time t."""
+        return floorDiv(t, self._period_length)*self._period_length
     def _getPingInterval(self, path):
         """Abstract: Return the interval of pings for the path 'path'."""
         raise NotImplemented()
@@ -1226,6 +1234,7 @@ class _PingScheduler:
         if now is None: now = int(time.time())
         periodStart = self._getPeriodStart(now)
         periodEnd = periodStart + self._period_length
+        path = tuple([ p.lower() for p in path ])
 
         interval = self._getPingInterval(path)
         t = periodStart + self._getPerturbation(path, periodStart, interval)
@@ -1276,16 +1285,13 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
         servers = self.directory.getAllServers()
         nicknames = {}
         for s in servers:
-            nicknames[s.getNickname()]=1
+            nicknames[s.getNickname().lower()]=1
         for (n,) in self.nextPingTime.keys():
             if not nicknames.has_key(n):
                 LOG.trace("Unscheduling 1-hop ping for %s", n)
                 del self.nextPingTime[(n,)]
         for n in nicknames.keys():
             self._schedulePing((n,), now)
-
-    def _getPeriodStart(self, t):
-        return previousMidnight(t)
 
     def _getPingInterval(self, path):
         return self._ping_interval
@@ -1295,7 +1301,7 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
         servers = self.directory.getAllServers()
         nicknames = {}
         for s in servers:
-            nicknames[s.getNickname()] = 1
+            nicknames[s.getNickname().lower()] = 1
         pingable = []
         for n in nicknames.keys():
             when = self.nextPingTime.get((n,))
@@ -1337,7 +1343,7 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
         servers = self.directory.getAllServers()
         nicknames = {}
         for s in servers:
-            nicknames[s.getNickname()]=1
+            nicknames[s.getNickname().lower()]=1
         for n1,n2 in self.nextPingTime.keys():
             if not (nicknames.has_key(n1) and nicknames.has_key(n2)):
                 LOG.trace("Unscheduling 2-hop ping for %s,%s",n1,n2)
@@ -1346,11 +1352,9 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
             for n2 in nicknames.keys():
                 self._schedulePing((n1,n2),now)
 
-    def _getPeriodStart(self, t):
-        return previousMidnight(t)
-
     def _getPingInterval(self, path):
-        if self.pingLog._interestingChains.get(path, 0):
+        p = "".join([ s.lower() for s in path])
+        if self.pingLog._interestingChains.get(p, 0):
             return self._interesting_interval
         else:
             return self._dull_interval
@@ -1360,7 +1364,7 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
         servers = self.directory.getAllServers()
         nicknames = {}
         for s in servers:
-            nicknames[s.getNickname()] = 1
+            nicknames[s.getNickname().lower()] = 1
         pingable = []
         for n1 in nicknames.keys():
             for n2 in nicknames.keys():
