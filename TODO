@@ -165,6 +165,10 @@ For 0.0.3:
                 - Resolve XXXX003's
                 - Bump version numbers
                 - Update README
+                        - What's new?
+                        - Document how to use new features
+                        - Installation insns for weird OpenSSL situations
+                        - Note that we break backward compatibility
 
 Originally scheduled for 0.0.3, but delayed:
         - Directories include an "allowable version" section.

@@ -1,9 +1,10 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.18 2003/01/08 08:09:09 nickm Exp $ */
+/* $Id: crypt.c,v 1.19 2003/02/12 01:23:24 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
 
+#ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/bn.h>
 #include <openssl/rsa.h>
 #include <openssl/aes.h>
@@ -12,6 +13,16 @@
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/evp.h>
+#else
+#include <bn.h>
+#include <rsa.h>
+#include <aes.h>
+#include <sha.h>
+#include <rand.h>
+#include <err.h>
+#include <pem.h>
+#include <evp.h>
+#endif
 #include <_minionlib.h>
 #include <assert.h>
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.13 2003/02/11 23:34:08 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.14 2003/02/12 01:23:24 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -11,8 +11,13 @@ make build-openssl'.  If you already have OpenSSL 0.9.7 installed, see \
 the README file for further instructions."
 #endif
 
+#ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/aes.h>
 #include <openssl/rsa.h>
+#else
+#include <aes.h>
+#include <rsa.h>
+#endif
 
 /* We provide our own implementation of counter mode; see aes_ctr.c
  */

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.11 2003/01/17 05:57:57 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.12 2003/02/12 01:23:24 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because
@@ -14,7 +14,11 @@
  *   a while before I decided to abandon it.
  */
 
+#ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/aes.h>
+#else
+#include <aes.h>
+#endif
 #include <string.h>
 #include <stdio.h>
 

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.42 2003/02/11 23:34:08 nickm Exp $
+# $Id: setup.py,v 1.43 2003/02/12 01:23:24 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -23,10 +23,11 @@ import os, re, shutil, string, struct
 os.umask(022)
 
 VERSION = '0.0.3alpha'
-# System: 0==alpha, 1==beta, 99==release candidate, 100==release
-VERSION_INFO = (0,0,3,'a',0)
+# System: 0==alpha, 50==beta, 99==release candidate, 100==release
+VERSION_INFO = (0,0,3,0,-1)
 
-# Function to pull openssl version number out of opensslv.h
+# Function to pull openssl version number out of an opensslv.h file.  This
+# isn't a real C preprocessor, but it seems to work well enough.
 _define_version_line = re.compile(
     r'\s*#\s*define\s+OPENSSL_VERSION_NUMBER\s+(\S+)$')
 def getOpenSSLVersion(filename):
@@ -49,15 +50,23 @@ def getOpenSSLVersion(filename):
         return string.atol(version, 0)
     except ValueError:
         print "Can't parse version from %s"%filename
+        return None
 
-USE_OPENSSL=1
+USE_OPENSSL = 1
+# Lowest allowable OpenSSL version; this corresponds to OpenSSL 0.9.7b3
 MIN_OPENSSL_VERSION = 0x00907003L
 
 OPENSSL_CFLAGS = []
 OPENSSL_LDFLAGS = []
+MACROS=[]
+MODULES=[]
 
 if USE_OPENSSL:
-    # For now, we assume that openssl-0.9.7 isn't generally deployed.
+    # For now, we assume that openssl-0.9.7 isn't generally deployed, so we
+    # need to look carefully.
+
+    # If the user has specified an OpenSSL installation, we trust the user.
+    # Anything else is loopy.
     if os.environ.get("OPENSSL_CFLAGS") or os.environ.get("OPENSSL_LDFLAGS"):
         OPENSSL_CFLAGS = os.environ.get("OPENSSL_CFLAGS", "").split()
         OPENSSL_LDFLAGS = os.environ.get("OPENSSL_LDFLAGS", "").split()
@@ -66,6 +75,8 @@ if USE_OPENSSL:
         STATIC_LIBS = []
         LIBRARY_DIRS = []
         LIBRARIES = []
+    # Otherwise, if the user has run 'make build-openssl', we have a good
+    # copy of OpenSSL sitting in ./contrib/openssl that they want us to use.
     elif os.path.exists("./contrib/openssl"):
         print "Using OpenSSL from ./contrib/openssl"
         openssl_inc = "./contrib/openssl/include"
@@ -80,20 +91,37 @@ if USE_OPENSSL:
             print "of OpenSSL.  Try removing ./contrib/openssl, then running"
             print "make download-openssl; make build-openssl again.\n"
             sys.exit(0)
+    # Otherwise, look in a bunch of standard places for a possible OpenSSL
+    # installation.  This logic is adapted from check_ssl.m4 from ac-archive;
+    # the list of locations is extended with locations from Python's setup.py.
     else:
         print "Searching for platform OpenSSL."
         found = 0
-        for prefix in ("/usr/local", "/usr", "/"):
+        PREFIXES = ("/usr/local/ssl", "/usr/contrib/ssl", "/usr/lib/ssl",
+                    "/usr/ssl", "/usr/pkg", "/usr/local", "/usr", "/")
+        if os.environ.get("OPENSSL_PREFIX"):
+            prefixes = (os.environ["OPENSSL_PREFIX"],)
+        for prefix in prefixes:
+            if found:
+                break
+            print "Looking in %s ..."%prefix
             incdir = os.path.join(prefix, "include")
-            opensslv_h = os.path.join(incdir, "openssl", "opensslv.h")
-            if os.path.exists(opensslv_h):
-                v = getOpenSSLVersion(opensslv_h)
-                if v and v >= MIN_OPENSSL_VERSION:
-                    INCLUDE_DIRS = [incdir]
-                    LIBRARY_DIRS = [os.path.join(prefix,"lib")]
-                    print "Using version of OpenSSL in %s"%prefix
-                    break
-                print "Skipping old version of OpenSSL in %s"%prefix
+            for trunc in 0,1:
+                if trunc:
+                    opensslv_h = os.path.join(incdir, "opensslv.h")
+                else:
+                    opensslv_h = os.path.join(incdir, "openssl", "opensslv.h")
+                if os.path.exists(opensslv_h):
+                    v = getOpenSSLVersion(opensslv_h)
+                    if v and v >= MIN_OPENSSL_VERSION:
+                        INCLUDE_DIRS = [incdir]
+                        LIBRARY_DIRS = [os.path.join(prefix,"lib")]
+                        if trunc:
+                            MACROS.append(('TRUNCATED_OPENSSL_INCLUDES', None))
+                        print "Using version of OpenSSL in %s"%prefix
+                        found = 1
+                        break
+                    print "Skipping old version of OpenSSL in %s"%prefix
         if not found:
             print "\nI couldn't find any version of OpenSSL > 0.9.7.  I'm"
             print "going to hope that your default C compiler knows something"
@@ -103,9 +131,6 @@ if USE_OPENSSL:
         
         STATIC_LIBS=[]
         LIBRARIES=['ssl','crypto']
-
-MACROS=[]
-MODULES=[]
 
 #======================================================================
 # Check the version of Mixminion as it's set in the source, and update

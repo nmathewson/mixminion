@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.10 2003/02/09 22:30:58 nickm Exp $ */
+/* $Id: main.c,v 1.11 2003/02/12 01:23:24 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -9,9 +9,15 @@
 
 #include <_minionlib.h>
 
+#ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/rsa.h>
+#else
+#include <ssl.h>
+#include <err.h>
+#include <rsa.h>
+#endif
 
 /* Macros to declare function tables for Python. */
 #define ENTRY_ND(fn) { #fn, (PyCFunction)mm_##fn, METH_VARARGS|METH_KEYWORDS,\

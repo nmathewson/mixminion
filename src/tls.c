@@ -1,9 +1,14 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.14 2003/01/12 04:27:19 nickm Exp $ */
+/* $Id: tls.c,v 1.15 2003/02/12 01:23:25 nickm Exp $ */
 #include "_minionlib.h"
 
+#ifndef TRUNCATED_OPENSSL_INCLUDES
 #include <openssl/ssl.h>
 #include <openssl/tls1.h>
+#else
+#include <ssl.h>
+#include <tls1.h>
+#endif
 
 char mm_TLSError__doc__[] =
   "mixminion._minionlib.TLSError\n\n"
@@ -541,7 +546,9 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 
 static char mm_TLSSock_renegotiate__doc__[] =
     "tlssock.renegotate()\n\n"
-        "DOCDOC";
+    "Mark this connection as requiring renegotiation.  No renegotiation is\n"
+    "performed until do_handshake is called.  Note that renegotiation only\n"
+    "works intuitively on the client side.\n";
 
 static PyObject*
 mm_TLSSock_renegotiate(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -565,8 +572,10 @@ mm_TLSSock_renegotiate(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static char mm_TLSSock_do_handshake__doc__[] =
-    "tlssock.renegotate()\n\n"
-        "DOCDOC";
+    "tlssock.do_handshake()\n\n"
+    "Perform handshake functions for renegotiating a TLS socket.\n"
+    "Raises TLSWantRead or TLSWantWrite if the underlying nonblocking socket\n"
+    "would block on a read or a write respectively.\n";
 
 static PyObject*
 mm_TLSSock_do_handshake(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -589,9 +598,9 @@ mm_TLSSock_do_handshake(PyObject *self, PyObject *args, PyObject *kwargs)
         return Py_None;
 }
 
+#if 0
 static char mm_TLSSock_get_num_renegotiations__doc__[] =
-    "tlssock.get_num_renegotiations()\n\n"
-    "DOCDOC";
+"tlssock.get_num_renegotiations()\n\n";
 
 static PyObject*
 mm_TLSSock_get_num_renegotiations(PyObject *self, PyObject *args, 
@@ -605,6 +614,7 @@ mm_TLSSock_get_num_renegotiations(PyObject *self, PyObject *args,
         
         return PyInt_FromLong(SSL_num_renegotiations(ssl));
 }
+#endif
 
 static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, accept),
@@ -617,7 +627,9 @@ static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, fileno),
         METHOD(mm_TLSSock, do_handshake),
         METHOD(mm_TLSSock, renegotiate),
+#if 0
         METHOD(mm_TLSSock, get_num_renegotiations),
+#endif
         { NULL, NULL }
 };
 
