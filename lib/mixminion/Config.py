@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.70 2003/12/04 05:50:36 nickm Exp $
+# $Id: Config.py,v 1.71 2003/12/04 05:52:20 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -55,6 +55,7 @@ import calendar
 import binascii
 import os
 import re
+import sys
 try:
     import pwd
 except ImportError:
