@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.195 2004/05/02 18:45:16 nickm Exp $
+# $Id: test.py,v 1.196 2004/05/05 02:04:48 nickm Exp $
 
 """mixminion.tests
 
@@ -3550,6 +3550,7 @@ class FileParanoiaTests(TestCase):
         os.mkdir(dir, 0700)
         subdir = os.path.join(dir, "subdir")
         os.mkdir(subdir, 0777)
+        os.chmod(subdir, 0777) # in case umask is set.
 
         # File doesn't exist.
         self.failUnlessRaises(MixFatalError,
