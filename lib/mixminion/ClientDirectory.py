@@ -718,7 +718,7 @@ class ClientDirectory:
         self._lock.read_in()
         try:
             nicknames = []
-            for desc,where in self.serverList:
+            for desc in self.allServers:
                 if addr in (desc.getIP(), desc.getHostname()):
                     if desc.getNickname() not in nicknames:
                         nicknames.append(desc.getNickname())
@@ -911,6 +911,7 @@ class ClientDirectory:
            as returned by __find.  If 'isEntry' or 'isExit' is true, return
            servers suitable as entries or exits.  Exclude servers in
            the not-recommended or blocked lists.
+           DOCDOC
         """
         if startAt is None:
             startAt = time.time()
