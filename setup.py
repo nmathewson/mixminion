@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.46 2003/02/13 23:10:25 nickm Exp $
+# $Id: setup.py,v 1.47 2003/02/17 15:50:19 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -61,6 +61,49 @@ OPENSSL_LDFLAGS = []
 MACROS=[]
 MODULES=[]
 
+BAD_OPENSSL_IN_CONTRIB = """
+=========================================================
+Bizarrely, ./contrib/openssl contains an obsolete version
+of OpenSSL.  Try removing ./contrib/openssl, then running
+make download-openssl; make build-openssl again.
+========================================================="""
+
+NO_OPENSSL_FOUND = """
+======================================================================
+I need OpenSSL 0.9.7 or greater, and I couldn't find it anywhere that
+I looked.  If you installed it somewhere unusual, try setting the
+variable OPENSSL_PREFIX as in:
+
+      make build OPENSSL_PREFIX=/opt/openssl-0.9.7
+
+If you have a nonstandard OpenSSL 0.9.7 installation, you may need to
+give compiler flags directly, as in:
+
+      make build \\
+           OPENSSL_CFLAGS='-I ~/openssl-include' \\
+           OPENSSL_LDFLAGS='-L ~/openssl-libs -lssl097 -lcrypto097'
+
+If your C compiler knows where to find OpenSSL 0.9.7, and I should
+just trust it, use the SKIP_OPENSSL_SEARCH option, as in:
+
+      make build SKIP_OPENSSL_SEARCH="y"
+
+Finally, if you don't have OpenSSL 0.9.7 and you don't want to install
+it, you can grab and build a local copy for Mixminion only by running:
+
+      make download-openssl
+      make build-openssl
+
+      (then)
+      make build
+
+      (Or, if you have the OpenSSL source somewhere else, use OPENSSL_SRC
+      as in:
+               make build-openssl OPENSSL_SRC=~/src/openssl-0.9.7
+               make build         OPENSSL_SRC=~/src/openssl-0.9.7
+      )
+======================================================================"""
+
 if USE_OPENSSL:
     # For now, we assume that openssl-0.9.7 isn't generally deployed, so we
     # need to look carefully.
@@ -77,19 +120,25 @@ if USE_OPENSSL:
         LIBRARIES = []
     # Otherwise, if the user has run 'make build-openssl', we have a good
     # copy of OpenSSL sitting in ./contrib/openssl that they want us to use.
-    elif os.path.exists("./contrib/openssl"):
-        print "Using OpenSSL from ./contrib/openssl"
-        openssl_inc = "./contrib/openssl/include"
+    elif os.environ.get("SKIP_OPENSSL_SEARCH"):
+        print "Assuming that the C compiler knows where to find OpenSSL."
+        INCLUDE_DIRS = []
+        STATIC_LIBS = []
+        LIBRARY_DIRS = []
+        LIBRARIES = [ 'ssl', 'crypto' ]
+    elif (os.path.exists(os.environ.get("OPENSSL_SRC", "./contrib/openssl"))
+          and not os.environ.get("OPENSSL_PREFIX")):
+        openssl_src = os.environ.get("OPENSSL_SRC", "./contrib/openssl")
+        print "Using OpenSSL from", openssl_src
+        openssl_inc = os.path.join(openssl_src, "include")
         INCLUDE_DIRS = [openssl_inc]
-        STATIC_LIBS=['./contrib/openssl/libssl.a',
-                     './contrib/openssl/libcrypto.a']
+        STATIC_LIBS=[ os.path.join(openssl_src, "libssl.a"),
+                      os.path.join(openssl_src, "libcrypto.a") ]
         LIBRARY_DIRS=[]
         LIBRARIES=[]
         v = getOpenSSLVersion("./contrib/openssl/include/openssl/opensslv.h")
         if not v or v < MIN_OPENSSL_VERSION:
-            print "\nBizarrely, ./contrib/openssl contains an obsolete version"
-            print "of OpenSSL.  Try removing ./contrib/openssl, then running"
-            print "make download-openssl; make build-openssl again.\n"
+            print BAD_OPENSSL_IN_CONTRIB
             sys.exit(0)
     # Otherwise, look in a bunch of standard places for a possible OpenSSL
     # installation.  This logic is adapted from check_ssl.m4 from ac-archive;
@@ -123,11 +172,8 @@ if USE_OPENSSL:
                         break
                     print "Skipping old version of OpenSSL in %s"%prefix
         if not found:
-            print "\nI couldn't find any version of OpenSSL > 0.9.7.  I'm"
-            print "going to hope that your default C compiler knows something"
-            print "that I don't.\n"
-            INCLUDE_DIRS=[]
-            LIBRARY_DIRS=[]
+            print NO_OPENSSL_FOUND
+            sys.exit(0)
         
         STATIC_LIBS=[]
         LIBRARIES=['ssl','crypto']

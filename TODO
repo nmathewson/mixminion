@@ -171,7 +171,7 @@ For 0.0.3:
                         o Note that we break backward compatibility
         - Release
                 . Resolve XXXX003's.
-                - Better (more prominent) error messages when missing
+                o Better (more prominent) error messages when missing
                   openssl.
                 - Better errors when missing pythondev.
                 . Figure out flock problem. at least say, "blocking on
