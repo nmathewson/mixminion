@@ -178,6 +178,9 @@ For 0.0.7:
                   decide whether to look for a tag in the RI field.
                 - Make processing thread and module thread general
                   cases of a thread pool abstraction.?
+        - Performance
+                - Do a setsockopt(IP_TOS, IPTOS_THROUGHPUT), unless on
+                  cygwin, dgux, sni-sysv.
         - UI improvements
                 - RFC822 interface and maildir-style exit module to help
                   integrators.

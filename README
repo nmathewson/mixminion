@@ -1,4 +1,4 @@
-$Id: README,v 1.66 2003/12/12 23:01:31 nickm Exp $
+$Id: README,v 1.67 2003/12/13 19:06:32 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.6rc2, from the Mixminion CVS repository.
 
@@ -154,6 +154,10 @@ Follow these steps:
 
         The 'IP' configuration entry is still required, too, in order to
         support older clients.
+
+        (If you control your own DNS, you may want to consider creating a
+        separate entry for your Mixminion server, so that you could move to a
+        different host in the future as needed.)
 
     2. Start your server as usual ('mixminion server-start') and try sending
        some messages through it.  Check your configuration log for warnings.
