@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.72 2004/01/07 02:50:08 nickm Exp $
+# $Id: ServerInfo.py,v 1.73 2004/01/07 20:44:52 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -377,7 +377,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
     def supportsPacketVersion(self):
         """Return true iff we can build packets in a format this server
            recognizes."""
-        formatStr = self['Server'].get("Packet-Versions", "0.3")
+        formatStr = self['Server'].get("Packet-Versions")
+        if formatStr == None: formatStr = "0.3"
         formats = [ s.strip() for s in formatStr.split(",") ]
         return mixminion.Packet.PACKET_VERSION in formats
 
