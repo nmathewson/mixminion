@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.14 2004/03/06 00:04:37 nickm Exp $
+# $Id: Fragments.py,v 1.15 2004/03/23 00:05:32 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -576,7 +576,7 @@ class MessageState:
             raise UnneededFragment
 
         if self.fragmentsByChunk[chunkNum].has_key(pos):
-            previous = self.fragmentsByChunk[chunkNum][pos]
+            previous = self.fragmentsByChunk[chunkNum][pos][1]
             if previous.digest is None or previous.digest == fm.digest:
                 raise UnneededFragment("already seen this fragment")
             else:
