@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.113 2003/10/19 03:12:01 nickm Exp $
+# $Id: Common.py,v 1.114 2003/11/07 06:45:22 nickm Exp $
 
 """mixminion.Common
 
@@ -91,7 +91,8 @@ class UIError(MixError):
     """Exception raised for an error that should be reported to the user,
        not dumped as a stack trace."""
     def dump(self):
-        if str(self): print >>sys.stderr, "ERROR:", str(self)
+        if str(self):
+            print >>sys.stderr, _logtime(), "[ERROR]", str(self)
     def dumpAndExit(self):
         self.dump()
         sys.exit(1)
