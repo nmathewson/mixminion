@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.20 2003/01/08 03:43:21 nickm Exp $
+# $Id: Modules.py,v 1.21 2003/01/08 07:58:10 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -757,10 +757,9 @@ class MixmasterSMTPModule(SMTPModule):
     """Implements SMTP by relaying messages via Mixmaster nodes.  This
        is kind of unreliable and kludgey, but it does allow us to
        test mixminion by usingg Mixmaster nodes as exits."""
-    # FFFF Mixmaster has tons of options.  Maybe we should use 'em...
-    # FFFF ... or maybe we should deliberately ignore them, since
-    # FFFF this is only a temporary workaround until enough people
-    # FFFF are running SMTP exit nodes
+    # (Mixmaster has tons of options, but we ignore them, since
+    #  this is only a temporary workaround until enough people
+    #  are running SMTP exit nodes.)
     ## Fields:
     # server: The path (usually a single server) to use for outgoing messages.
     #    Multiple servers should be separated by commas.
