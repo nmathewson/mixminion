@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.10 2002/12/02 03:45:56 nickm Exp $
+# $Id: setup.py,v 1.11 2002/12/11 05:57:04 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -14,7 +14,7 @@ if not hasattr(sys, 'version_info') or sys.version_info < (2, 0, 0):
 
 try:
     import zlib
-except ImportError, _:
+except ImportError:
     print "Zlib support seems to be missing; install python with zlib support."
     sys.exit(0)
 

@@ -16,58 +16,24 @@ FOR 0.0.1: (The first alpha)
          work.  There need not be an interface for replies.  Key rotation
          need not be automated.]
 
-	. Server
-		o Fix bug: delivering self->self.
-		o More explicit overview of queues.
-		- Unit tests for modulemanger built-in decoding and delivery.
-	o CLI client
-		o Send a message
-		o Linkage from command line to helper class
-		o Design directory layout
-		o Storage for serverinfo
-			o Make serverinfo pickleable
-				o Make RSA pickleable
-			o Test
-		o Test 'address'.
-		o Check whether exit host supports delivery method
-		o Make address support 0xhex:string
-		o Unit tests for MixminionClient
-		o Document it all
+	o Server
+		o Unit tests for modulemanger built-in decoding and delivery.
 	. Build
 		- Marginal 'make install'
 		- Marginal 'make dist'
 	. Integration testing
-		o Better log messages at all points throughout system.
-		o Fake delivery module for MBOX-less testing of core
-			o Test fake delivery module
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
-	o MBox module
-		o Implement
-		o Test
-		        o Unit tests
-			o Try it out
-	o SMTP-Via-Mixmaster module
-		o Implement
-		o Implement address validation so we don't get into trouble.
-		o Document
-		o Test
-		        o Unit tests
-			o Try it out
-	. Refactor.
-	        D Rename 'tag' -> 'decoding handle'.
-		o Make tag a separate field rather than a prefix of 'exitInfo'
-			o Implement.
-			o Tests for new members of subheader.
-		o Move decoding logic into ModuleManager from modules.
-		- Move exit types and addresses into Packet.py
-		- Disable 'non-state-carrying' reply blocks.  Rename 'stateful'
+	. Refactor
+		o Move exit types and addresses into Packet.py
+		o Disable 'non-state-carrying' reply blocks.  Rename 'stateful'
 		  (non-state-carrying) and 'stateless' (state-carrying) to
 		  something less contradictory
-		o Triage XXXX, FFFF, ???? for 0.0.1
-		- Fix all {XXXX/FFFF/????}001 
+		o Fix all {XXXX/FFFF/????}001 
 		- Separate package for server code.
-	- Final license
+	. Final license
+	        o Apply LGPL
+		- Mark all files with note?
 	- Documentation
 		- Contributor's guide
 		- Basic HOWTO
