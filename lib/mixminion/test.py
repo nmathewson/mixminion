@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.187 2004/03/02 05:40:14 nickm Exp $
+# $Id: test.py,v 1.188 2004/03/02 18:52:24 nickm Exp $
 
 """mixminion.tests
 
@@ -693,7 +693,7 @@ World!
         enc = enc.split("\n")
         enc[-10:-5] = [ "[...]" ]
         enc = "\n".join(enc)
-        self.assertRaises(ValueError, unarmorText, enc, ["MUNGED"], 1)
+        self.assertRaises(UIError, unarmorText, enc, ["MUNGED"], 1)
 
         # Test base64fn and concatenation.
         enc1 = armorText(inp2, "THIS THAT", [("H-64", "0")], 0)
