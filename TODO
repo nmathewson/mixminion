@@ -86,7 +86,22 @@ For 0.0.7rc2:
         o Don't report empty directories as having a "blank line 1."
         o Rename ConnectionTimeout to Timeout in client MMTP.
         o Make everything that takes -i default to read-from-stdin.
+        o Manual pages
+                o Re-do man page to be generated from common source
+                  on all platforms (George.)
+                o The 'make install' target should install the man page
+                  when appropriate
+                o Add pages for 'mixminiond' and 'mixminion.conf' and
+                  'mixminiond.conf'.
         o Disable -H/--hops; give good errors on PathLength, SURBPathLength
+        - Fix weasel's prepend-newline bug.
+
+
+For 0.0.7final:
+        . Manual pages
+                . Move the canonical documentation from the README into
+                  the manual page .
+
 
 Deferred from 0.0.7:
         - Specification
@@ -123,17 +138,6 @@ Deferred from 0.0.7:
                         - Text/binary modes
                         - With/without decoding handle
                         - Attach to any type.
-        - Manual pages
-                - Re-do man page to be generated from common source
-                  on all platforms (George.)
-                - The 'make install' target should install the man page
-                  when appropriate
-                - Move the canonical documentation from the README into
-                  the manual page .
-                - Add pages for 'mixminiond' and 'mixminion.conf' and
-                  'mixminiond.conf'.
-                - Maybe add a page for Mixminion integration.
-
 
 For 0.0.8:
         - For petmail:

@@ -1190,6 +1190,12 @@ def runClient(cmd, args):
                                       inReplyTo=h_irt, references=h_references)
     except MixError, e:
         raise UIError("Invalid headers: %s"%e)
+    if no_ss_fragments:
+        if headerStr != '\n':
+            raise UIError("Can't use --deliver-fragments with message headers")
+        else:
+            # suppress intial newline.
+            headerStr = ""
 
     if inFile == '-' and '-' in parser.replyBlockSources:
         raise UIError(
@@ -1203,6 +1209,8 @@ def runClient(cmd, args):
     client = parser.client
     parser.parsePath()
     address = parser.exitAddress
+    # Tell the address about the headers, so it knows to pick an exit
+    # that supports them.
     address.setHeaders(parseMessageAndHeaders(headerStr+"\n")[1])
 
     # Get our surb, if any.
