@@ -1,0 +1,110 @@
+This is Mixminion version 0.0.1.
+
+XXXX More Flavor text here.
+
+IN THIS VERSION: (XXXX Be more verbose)
+   - You can run a rudimentary server that uses Mixmaster to deliver SMTP, or
+     that sends SMTP directly to a preconfigured set of addresses.
+   - You can send anonymous email.
+
+NOT IN THIS VERSION: (XXXX Be more verbose)
+   - There is no client interface for sending replies or generating reply
+     blocks.
+   - There are some ways to DOS the server.
+   - IP-based restrictions don't work.
+   - There is no exit module for servers that want to send SMTP directly to
+     unrestricted addresses.
+   - There is no integrated directory support yet.
+   - No automatic key generation.
+   - No automatic path selection.
+   - MMTP is not exactly as specified.
+
+HOW TO BUILD, TEST, AND INSTALL MIXMINION: The quick version.
+  % cd Mixminion-0.0.1
+  % make download-openssl
+  % make build-openssl
+  % make
+  % make test
+  % su
+  Password:
+  # make install
+
+HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
+  1) You must have Python version 2.0 or later installed on your system.  The
+     binary may be called "python", "python2", "python2.X", or something else.
+     If you don't have Python >=v2.0, go install it.  You can find source and
+     binary distributions at http://www.python.org/.
+
+  2) If you have OpenSSL version 0.9.7beta3 or later, go to step 4.
+     Otherwise, continue.
+
+  3) Run "make download-openssl".
+
+  4) Run "make build-openssl".  If this step fails, OpenSSL didn't build
+     correctly on your system.  Go read contrib/openssl/INSTALL, and make
+     OpenSSL build.
+
+  5) Run "make build".  If you get any errors, please report them to 
+     <mixminion-devel@freehaven.net>.
+
+  6) Run "make test" to run Mixminion's unit tests.  If you get any errors,
+     please replort them to <mixminion-devel@freehaven.net>.
+
+  7) Run "make install" to install Mixminion.  You may need to be root to
+     execute this command.  By default, Mixminion will install itself relative
+     to your python distribution.  If you want to install somewhere else (e.g.
+     /home/mixminiond/), run "make install PREFIX=/home/mixminiond".
+
+     A script called "mixminion" will be created in the 'bin' directory
+     relative to your prefix, or in the same directory as the python
+     executable if no prefix is provided.  To make sure that everything was
+     installed correctly, you can run "mixminion unittests".
+
+HOW TO SEND AN EMAIL MESSAGE VIA MIXMINION:
+ [First time only. These steps won't be necessary once v0.0.2 is out.]
+   1) Download the latest directory from 
+         http://www.mixminion.net/miniondir.tar.gz
+   2) Unpack it into your homedir; it will create the directory 
+         "~/.mixminion/servers/".
+
+ [All subsequent times. The first two steps won't be necessary once v0.0.2 is
+    out.]
+   1) Check out your list of servers: run 'mixminon list-servers'.
+   2) Decide on a two-part path.  Each part of the path must be a comma-
+      separated list of servers.  The last server in the second part of the
+      path must support smtp.  All intermediate servers must support 'relay'.
+   3) Run (type this as a single line):
+         mixminion client -t <email address> 
+              --path1=<first part of your path>
+	      --path2=<second part of your path>
+	      -i <filename to send, or - to read from stdin>.
+
+      Example:
+         mixminion client -t nosuchuser@mixminion.org --path1=server1,server9 \
+              --path2=server5,server10 -i /etc/motd
+
+HOW TO RUN YOUR OWN MIXMINION SERVER:
+   1) Create your own mixminiond.conf based on "etc/mixminiond.conf" from the
+      mixminion distribution.
+   2) Edit mixminiond.conf to refer to your own setup.
+   3) Run your server for the first time:
+        "mixminion server -f <path to mixminiond.conf>"
+   4) {This step will change in future version once directories are supported.}
+
+      For clients to use your server, they'll need a copy of your server 
+      descriptor, which should be stored in $SERVER_HOME/keys/key_*/ServerDesc.
+      For example, if your mixminiond.conf contains the following line:
+           Homedir: /home/mixminion/spool
+      
+      Then your first server descriptor will be stored in 
+            "/home/mixminion/spool/keys/key_0001/ServerDesc".
+
+      Clients should place a copy of this file, named whatever you like,
+      in their "~/.mixminion/servers" directory.
+
+      To get your server advertised to the rest of the world, please
+      send it to XXXXemail.
+
+   5) OPTIONAL. XXXXHow to set up MBOX
+
+   6) OPTIONAL. XXXXHow to set up SMTP-via-Mixmaster.
