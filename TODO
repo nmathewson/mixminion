@@ -12,26 +12,33 @@ NEEDS TO BE WRITTEN
 For 0.0.2: [The 'desireable features' release.  This should contain
     user-visible improvements to address the most glaring defects in 0.0.1.]
 
-	- Real SMTP module
+	!- Real SMTP module
 	- Interface for reply blocks
-	. Minimal directory support
-		. Make everything resistant to newline corruption
+	!. Minimal directory support
+		o Make everything resistant to newline corruption
 		       o Signatures are independent of newline style
 		       o Config files are read independent of newline style.
 		       o Tests for above.
 		       o Directories are independent of nl style
-		       - Tests for above
-		- Test whether serverinfo is really pickleable.
-		- Client-side directory support
-		. Server-side directory generation (not automated;
+		       o Tests for above
+		o Test whether serverinfo is really pickleable.
+		. Client-side directory support
+			o Backend
+			o Integrated server list management
+			o Tests for backend
+			o CLI supprot
+			- Tests for new server lists
+			- Tests for CLI
+		o Server-side directory generation (not automated;
 	          still no automatic rotation.)	
 		  	o Backend
-			- CLI
-			. Tests for backend
-			- Tests for CLI
-	- Path selection
+			o CLI
+			o Tests for backend
+			o Test CLI
+	!- Path selection
 	. Minimal DOS prevention
-		- SMTP-address blacklisting (for SMTP module)
+		!- SMTP-address blacklisting (for SMTP module)
+		o Prevent bogus nicknames from bombing server.
 		o Prevent zlib bombing: minimal version.
 		        o Implement
 			o Tests for BuildMessage functionality
@@ -56,10 +63,13 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		o Tests for new validation functions.
 		o Add examples to mixminiond.conf
 	o Refactor main loop to be event based
-	- Balance =-signs on "==ANONYMOUS MESSAGE BEGINS"
-	- Acknowledgments
-	- History.
-	- Triage XXXX'S for 002.
+	o Balance =-signs on "==ANONYMOUS MESSAGE BEGINS"
+	!- Acknowledgments
+	!- History.
+	!- Triage XXXX'S for 002.
+	- Document everything
+	- Make __version__ get set automatically, from only one place.
+	- Write a "whatsnew".
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out
@@ -75,6 +85,7 @@ Required for "1.0":
 		- Automatic key rotation
 		- Password-protected private identity keys
 		- Password-protected private link/packet keys
+		- Password-protect dirserver keys
 	- Security
 		- Make createPrivateDirs gripe about group-writable parent
 		  dirs
@@ -184,14 +195,14 @@ SPEC		o Patch to address George's 15August attack
 		        - For client
 			- For server
 	- Directories
-		- ServerInfo: complete validation rules
-		- Implementation for directory servers
 		- Publishing to directory servers
 			- Support
 		 	- Automation
 		- Downloading from directory servers
 			- Support
 			- Automation
+		- Autonomous directory server
+		- Configurable dirserver fingerprints and URLs.
 	- Full documentation
 		- Complete docs for all code, with comments and examples.
 		- Write guide for module developers
@@ -206,6 +217,7 @@ Unspecified:
 	- Generate link padding
 	- Generate dummy messages
 	- IPv6 support.
+	- Support for multiple directory servers
 
 WHEN WE GET THE CHANCE:
 	[This stuff could be for any version 1.0 or later; it's not a

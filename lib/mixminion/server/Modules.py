@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.7 2002/12/20 23:51:23 nickm Exp $
+# $Id: Modules.py,v 1.8 2003/01/03 05:14:47 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -684,8 +684,9 @@ it, but it was compressed by more than a factor of 20, which makes me nervous.
         tag = ""
 
     return """\
-%s============ ANONYMOUS MESSAGE BEGINS
-%s%s============ ANONYMOUS MESSAGE ENDS\n""" %(junk_msg, tag, msg)
+%s============ ANONYMOUS MESSAGE BEGINS ============
+%s%s============= ANONYMOUS MESSAGE ENDS =============
+""" %(junk_msg, tag, msg)
 
 def _escapeMessage(message, tag, text=0):
     """Helper: given a decoded message (and possibly its tag), determine

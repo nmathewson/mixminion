@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.4 2002/12/29 20:28:39 nickm Exp $
+# $Id: ServerKeys.py,v 1.5 2003/01/03 05:14:47 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -381,7 +381,7 @@ class ServerKeyset:
 CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
 
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
-                                    hashdir, validAt=None):
+                                    hashdir, validAt=None, now=None):
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
 
@@ -415,8 +415,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         LOG.warn("No nickname given: defaulting to %r", nickname)
     contact = config['Server']['Contact-Email']
     comments = config['Server']['Comments']
+    if not now:
+        now = time.time()
     if not validAt:
-        validAt = time.time()
+        validAt = now
 
     # Calculate descriptor and X509 certificate lifetimes.
     # (Round validAt to previous mignight.)
@@ -438,7 +440,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "Nickname": nickname,
         "Identity":
            formatBase64(mixminion.Crypto.pk_encode_public_key(identityKey)),
-        "Published": formatTime(time.time()),
+        "Published": formatTime(now),
         "ValidAfter": formatDate(validAt),
         "ValidUntil": formatDate(validUntil),
         "PacketKey":

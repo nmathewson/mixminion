@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.28 2002/12/29 20:46:54 nickm Exp $
+# $Id: Config.py,v 1.29 2003/01/03 05:14:47 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -53,6 +53,7 @@ __all__ = [ 'ConfigError', 'ClientConfig' ]
 
 import calendar
 import binascii
+import gzip
 import os
 import re
 import socket # for inet_aton and error
@@ -60,7 +61,8 @@ from cStringIO import StringIO
 
 import mixminion.Common
 import mixminion.Crypto
-from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace
+from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace, \
+     _ALLCHARS
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -287,6 +289,25 @@ def _parseTime(s):
 
     return calendar.timegm((yyyy,MM,dd,hh,mm,ss,0,0,0))
 
+_NICKNAME_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
+                   "abcdefghijklmnopqrstuvwxyz"+
+                   "0123456789_.!@#-")
+MAX_NICKNAME = 128
+def _parseNickname(s):
+    """Validation function.  Returns true iff s contains a valoid
+       server nickname-- that is, a string of 1..128 characters,
+       containing only the characters [A-Za-z0-9_.!@#] and '-'.
+       """
+    s = s.strip()
+    bad = s.translate(_ALLCHARS, _NICKNAME_CHARS)
+    if len(bad):
+        raise ConfigError("Invalid characters %r in nickname %r" % (bad,s))
+    if len(s) > MAX_NICKNAME:
+        raise ConfigError("Nickname is too long")
+    elif len(s) == 0:
+        raise ConfigError("Nickname is too short")
+    return s
+
 #----------------------------------------------------------------------
 
 # Regular expression to match a section header.
@@ -454,6 +475,9 @@ class _ConfigFile:
         """Create a new _ConfigFile.  If <filename> is set, read from
            a corresponding file.  If <string> is set, parse its contents.
 
+           (If <filename> ends with ".gz", assume a file compressed
+           with gzip.)
+
            If <assumeValid> is true, skip all unnecessary validation
            steps.  (Use this to load a file that's already been checked as
            valid.)"""
@@ -482,7 +506,11 @@ class _ConfigFile:
            the contents of this object unchanged."""
         if not self.fname:
             return
-        f = open(self.fname, 'r')
+        if self.fname.endswith(".gz"):
+            #XXXX002 test!
+            f = gzip.GzipFile(self.fname, 'r')
+        else:
+            f = open(self.fname, 'r')
         try:
             self.__reload(f, None)
         finally:

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.31 2002/12/31 04:48:46 nickm Exp $
+# $Id: Crypto.py,v 1.32 2003/01/03 05:14:47 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -12,6 +12,7 @@ import copy_reg
 import os
 import stat
 import sys
+import binascii
 from types import StringType
 
 import mixminion._minionlib as _ml
@@ -22,11 +23,11 @@ __all__ = [ 'AESCounterPRNG', 'CryptoError', 'Keyset', 'bear_decrypt',
             'lioness_decrypt', 'lioness_encrypt', 'openssl_seed',
             'pk_check_signature', 'pk_decode_private_key',
             'pk_decode_public_key', 'pk_decrypt', 'pk_encode_private_key',
-            'pk_encode_public_key', 'pk_encrypt', 'pk_from_modulus',
-            'pk_generate', 'pk_get_modulus', 'pk_sign', 'prng', 'sha1',
-            'strxor', 'trng', 'AES_KEY_LEN', 'DIGEST_LEN',
-            'HEADER_SECRET_MODE', 'PRNG_MODE', 'RANDOM_JUNK_MODE',
-            'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
+            'pk_encode_public_key', 'pk_encrypt', 'pk_fingerprint',
+            'pk_from_modulus', 'pk_generate', 'pk_get_modulus',
+            'pk_same_public_key', 'pk_sign', 'prng', 'sha1', 'strxor', 'trng',
+            'AES_KEY_LEN', 'DIGEST_LEN', 'HEADER_SECRET_MODE', 'PRNG_MODE',
+            'RANDOM_JUNK_MODE', 'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
             'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
 
 # Expose _minionlib.CryptoError as Crypto.CryptoError
@@ -258,8 +259,13 @@ def pk_decode_public_key(s):
 
 def pk_same_public_key(key1, key2):
     """Return true iff key1 and key2 are the same key."""
-    #XXXX TEST
     return key1.encode_key(1) == key2.encode_key(1)
+
+def pk_fingerprint(key):
+    """Return the 40-character fingerprint of public key 'key'.  This
+       is computed as the hex encoding of the SHA-1 digest of the
+       ASN.1 encoding of the public portion of key."""
+    return binascii.b2a_hex(sha1(key.encode_key(1))).upper()
 
 def pk_PEM_save(rsa, filename, password=None):
     """Save a PEM-encoded private key to a file.  If <password> is provided,
@@ -487,6 +493,11 @@ class RNG:
             res = self.bytes[:n]
             self.bytes = self.bytes[n:]
             return res
+
+    def pick(self, lst):
+        "DOCDOC"
+        #XXXX002 test
+        return lst[self.getInt(len(lst))]
 
     def shuffle(self, lst, n=None):
         """Rearranges the elements of lst so that the first n elements

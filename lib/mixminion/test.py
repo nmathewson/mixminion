@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.52 2002/12/31 04:48:47 nickm Exp $
+# $Id: test.py,v 1.53 2003/01/03 05:14:47 nickm Exp $
 
 """mixminion.tests
 
@@ -548,6 +548,13 @@ class MinionlibCryptoTests(unittest.TestCase):
         # Fail if there is too much padding
         self.failUnlessRaises(_ml.CryptoError,p.crypt,x+"ZZZ",1,1)
 
+        ###
+        # Test key equality and fingerprinting.
+        self.assert_(pk_same_public_key(p, p))
+        self.assert_(not pk_same_public_key(p, getRSAKey(2,1024)))
+        self.assert_(len(pk_fingerprint(p))==40)
+        self.assertNotEquals(pk_fingerprint(p), 
+                             pk_fingerprint(getRSAKey(2,1024)))
         ####
         # Test key encoding
         padhello = _ml.add_oaep_padding("Hello", "B", 128)
@@ -560,6 +567,9 @@ class MinionlibCryptoTests(unittest.TestCase):
             # decode(encode(x)) encrypts the same as x.
             self.assertEquals(p.crypt(padhello,public,1),
                               p2.crypt(padhello,public,1))
+            self.assert_(pk_same_public_key(p, p2))
+            self.assertEquals(pk_fingerprint(p),
+                              pk_fingerprint(p2))
 
         # encoding public keys to/from their moduli.
         self.assertEquals(p.get_modulus_bytes(),1024 >> 3)
@@ -2949,6 +2959,8 @@ IntRS=5
         # Time
         tm = C._parseTime("2001/12/25 06:15:10")
         self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
+        # nicknames
+        self.assertEquals(C._parseNickname("Mrs.Premise"), "Mrs.Premise")
 
         SC = mixminion.server.ServerConfig
         # Fractions
@@ -2995,6 +3007,11 @@ IntRS=5
         fails(C._parseDate, "2000/50/01 12:12:12")
         fails(C._parseTime, "2000/50/01 12:12:12")
         fails(C._parseTime, "2000/50/01 12:12:99")
+        fails(C._parseNickname, "Mrs Premise")
+        fails(C._parseNickname, "../../../AllYourBase")
+        fails(C._parseNickname, "Z"*129)
+        fails(C._parseNickname, ""*129)
+        fails(C._parseNickname, "; rm -f /etc/important;")
 
         nonexistcmd = '/file/that/does/not/exist'
         if not os.path.exists(nonexistcmd):
@@ -3035,7 +3052,7 @@ PublicKeyLifetime: 10 days
 EncryptPrivateKey: no
 Homedir: %s
 Mode: relay
-Nickname: The Server
+Nickname: The_Server
 Contact-Email: a@b.c
 Comments: This is a test of the emergency
    broadcast system
@@ -3066,7 +3083,6 @@ Mode: relay
 Nickname: fred-the-bunny
 """
 
-
 class ServerInfoTests(unittest.TestCase):
     def testServerInfoGen(self):
         # Try generating a serverinfo and see if its values are as expected.
@@ -3089,7 +3105,7 @@ class ServerInfoTests(unittest.TestCase):
         eq = self.assertEquals
         eq(info['Server']['Descriptor-Version'], "0.1")
         eq(info['Server']['IP'], "192.168.0.1")
-        eq(info['Server']['Nickname'], "The Server")
+        eq(info['Server']['Nickname'], "The_Server")
         self.failUnless(0 <= time.time()-info['Server']['Published'] <= 120)
         self.failUnless(0 <= time.time()-info['Server']['Valid-After']
                           <= 24*60*60)
@@ -3150,6 +3166,8 @@ class ServerInfoTests(unittest.TestCase):
         eq(info['Server']['Digest'], loaded['Server']['Digest'])
         eq(info['Server']['Identity'].get_public_key(),
            loaded['Server']['Identity'].get_public_key())
+        eq(info['Server']['Published'], loaded['Server']['Published'])
+        eq(info.isValidated(), loaded.isValidated())
 
         # Now with a shorter configuration
         try:
@@ -3184,10 +3202,165 @@ IP: 192.168.0.99
                               mixminion.ServerInfo.ServerInfo,
                               None, badSig)
 
-# FFFF We *must* have tests for invalid server descriptors
+    def test_directory(self):
+        eq = self.assertEquals
+        examples = getExampleServerDescriptors()
+        ServerList = mixminion.directory.ServerList.ServerList
+        ServerDirectory = mixminion.ServerInfo.ServerDirectory
+        baseDir = mix_mktemp()
+        dirArchiveDir = os.path.join(baseDir, "dirArchive")
+        lst = ServerList(baseDir)
+        
+        identity = Crypto.pk_generate(2048)
+
+        now = time.time()
+        hourLater = now + 60*60
+        oneDay = 60*60*24
+        hours23 = 60*60*23
+        dayLater = now + 60*60*24
+        # Try a couple of simple inserts
+        lst.importServerInfo(examples["Fred"][1]) # from day -9 through day 0.
+        lst.importServerInfo(examples["Fred"][3]) # from day 11 through day 20
+        lst.importServerInfo(examples["Lola"][0]) # from day -2 through day 2
+        lst.importServerInfo(examples["Lola"][1]) # From day 0 through day 4.
+        # Now, check whether the guts of lst are correct.
+        eq(len(lst.servers), 4)
+        eq(len(lst.serversByNickname), 2)
+        eq(len(lst.serversByNickname['Fred']), 2)
+        eq(len(lst.serversByNickname['Lola']), 2)
+        eq(readFile(os.path.join(baseDir, "servers",
+                                 lst.serversByNickname['Fred'][0])),
+           examples["Fred"][1])
+        # Now generate a directory...
+        lst.generateDirectory(now, dayLater, 0,
+                              identity, now)
+        # (Fred1, and Lola0, and Lola1 should get included.)
+        d = readFile(lst.getDirectoryFilename())
+        self.assert_(d.startswith("[Directory]\n"))
+        eq(3, d.count("[Server]\n"))
+        self.assert_(stringContains(d, examples["Fred"][1]))
+        self.assert_(stringContains(d, examples["Lola"][0]))
+        self.assert_(stringContains(d, examples["Lola"][1]))
+
+        # Did a backup directory get made?
+        eq(1, len(os.listdir(dirArchiveDir)))
+        # Validate the directory, and check that values are as expected.
+        sd = ServerDirectory(d)
+        eq(len(sd.getServers()), 3)
+        eq(sd["Directory"]["Version"], "0.1")
+        eq(sd["Directory"]["Published"], int(now))
+        eq(sd["Directory"]["Valid-After"], previousMidnight(now))
+        eq(sd["Directory"]["Valid-Until"], previousMidnight(dayLater+1))
+        eq(sd["Signature"]["DirectoryIdentity"].get_public_key(),
+           identity.get_public_key())
+
+        # Try changing the directory, and verify that it doesn't check out
+        dBad = d.replace("Fred", "Dref")
+        self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
+        # Bad digest.
+        dBad = re.compile(r"^DirectoryDigest: ........", re.M).sub(
+            "DirectoryDigest: XXXXXXXX", d)
+        self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
+        # Bad signature.
+        dBad = re.compile(r"^DirectorySignature: ........", re.M).sub(
+            "Directory: XXXXXXXX", d)
+        self.failUnlessRaises(ConfigError, ServerDirectory, dBad)
+
+        # Can we use messed-up spaces and line-endings?
+        ServerDirectory(d.replace("\n", "\r\n"))
+        ServerDirectory(d.replace("\n", "\r"))
+        ServerDirectory(d.replace("Fred", "Fred  "))
+
+        ### Now, try rescanning the directory.
+        lst = ServerList(baseDir)
+        eq(len(lst.servers), 4)
+        eq(len(lst.serversByNickname), 2)
+        eq(len(lst.serversByNickname['Fred']), 2)
+        eq(len(lst.serversByNickname['Lola']), 2)
+        lst.generateDirectory(now, dayLater, 0,
+                              identity)
+        d2 = readFile(lst.getDirectoryFilename())
+        sd2 = ServerDirectory(d2)
+        self.assertEquals(3, len(sd2.getServers()))
+
+        # Now try cleaning servers.   First, make sure we can't insert
+        # an expired server.
+        self.failUnlessRaises(MixError, 
+                              lst.importServerInfo, examples["Fred"][0])
+        # Now, make sure we can't insert a superseded server.
+        lst.importServerInfo(examples["Bob"][3])
+        lst.importServerInfo(examples["Bob"][4])
+        self.failUnlessRaises(MixError, 
+                              lst.importServerInfo, examples["Bob"][1])
+        # Now, start with a fresh list, so we can try superceding bob later.
+        baseDir = mix_mktemp()
+        archiveDir = os.path.join(baseDir, "archive")
+        serverDir = os.path.join(baseDir, "servers")
+        lst = ServerList(baseDir)
+        # Make sure that we don't remove the last of a given server.
+        lst.importServerInfo(examples["Lisa"][1]) # Valid for 2 days.
+        lst.clean(now=now+60*60*24*100) # Very far in the future
+        eq(1, len(lst.servers))
+        eq(0, len(os.listdir(archiveDir)))
+        # But we _do_ remove expired servers if others exist.
+        lst.importServerInfo(examples["Lisa"][2]) # Valid from 5...7.
+        eq(2, len(lst.servers))
+        eq(2, len(lst.serversByNickname["Lisa"]))
+        lst.clean(now=now+60*60*24*100) # Very far in the future.
+        eq(1, len(lst.servers))
+        eq(1, len(lst.serversByNickname["Lisa"]))
+        eq(readFile(os.path.join(serverDir, lst.serversByNickname["Lisa"][0])),
+           examples["Lisa"][2])
+        eq(1, len(os.listdir(archiveDir)))
+        eq(1, len(os.listdir(serverDir)))
+        eq(readFile(os.path.join(archiveDir, os.listdir(archiveDir)[0])),
+           examples["Lisa"][1])
+
+        # (Make sure that knownOnly works: failing case.)
+        self.failUnlessRaises(MixError, lst.importServerInfo,
+                              examples["Bob"][0], 1)
+
+        ### Now test the removal of superceded servers.  
+        # Clean out archiveDir first so we can see what gets removed.
+        os.unlink(os.path.join(archiveDir, os.listdir(archiveDir)[0]))
+        # Add a bunch of unconflicting Bobs.
+        lst.importServerInfo(examples["Bob"][0]) # From -2 to 1
+        # (Make sure that knownOnly works: succeeding case.
+        lst.importServerInfo(examples["Bob"][1], 1) # From  2 to 5
+        lst.importServerInfo(examples["Bob"][2]) # From  6 to 9
+        lst.importServerInfo(examples["Bob"][3]) # Newer, from 0 to 3
+        eq(5, len(lst.servers))
+        # Right now, nothing is superceded or expired
+        lst.clean()
+        eq(5, len(os.listdir(serverDir)))
+        eq(4, len(lst.serversByNickname["Bob"]))
+        lst.importServerInfo(examples["Bob"][4]) # Newer, from 4 to 7.
+        # Now "Bob1" is superseded.
+        lst.clean()
+        eq(1, len(os.listdir(archiveDir)))
+        eq(4, len(lst.serversByNickname["Bob"]))
+        eq(5, len(os.listdir(serverDir)))
+        eq(5, len(lst.servers))
+        eq(4, len(lst.serversByNickname["Bob"]))
+        eq(readFile(os.path.join(archiveDir, os.listdir(archiveDir)[0])),
+           examples["Bob"][1])
+        for fn in lst.serversByNickname["Bob"]:
+            fn = os.path.join(serverDir, fn)
+            self.assertNotEquals(readFile(fn), examples["Bob"][1])
+        # Now try rescanning...
+        lst = ServerList(baseDir)
+        eq(5, len(lst.servers))
+        eq(4, len(lst.serversByNickname["Bob"]))
+        # ... adding a new bob...
+        lst.importServerInfo(examples["Bob"][5])
+        eq(6, len(lst.servers))
+        # ... and watching another old bob get bonked off.
+        lst.clean()
+        eq(5, len(lst.servers))
+        eq(2, len(os.listdir(archiveDir)))
 
 #----------------------------------------------------------------------
-# Modules annd ModuleManager
+# Modules and ModuleManager
 
 # Text of an example module that we load dynamically.
 EXAMPLE_MODULE_TEXT = \
@@ -3425,9 +3598,11 @@ Foo: 100
         ####
         # Tests escapeMessageForEmail
         self.assert_(stringContains(eme(message, None), message))
-        expect = "BEGINS\n"+base64.encodestring(binmessage)+"====="
+        expect = "BEGINS ============\n"+\
+                 base64.encodestring(binmessage)+"====="
         self.assert_(stringContains(eme(binmessage, None), expect))
-        expect = "BEGINS\nDecoding handle: "+base64.encodestring(tag)+\
+        expect = "BEGINS ============\nDecoding handle: "+\
+                 base64.encodestring(tag)+\
                  base64.encodestring(encoded)+"====="
         self.assert_(stringContains(eme(encoded, tag), expect))
 
@@ -3454,12 +3629,12 @@ and you will be removed.
 This message is not in plaintext.  It's either 1) a reply; 2) a forward
 message encrypted to you; or 3) junk.
 
-============ ANONYMOUS MESSAGE BEGINS
+============ ANONYMOUS MESSAGE BEGINS ============
 Decoding handle: eHh4eHh4eHh4eHh4eHh4eHh4eHg=
 7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v
 +s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3u/6
 zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3g==
-============ ANONYMOUS MESSAGE ENDS
+============= ANONYMOUS MESSAGE ENDS =============
 """
 
 class ModuleTests(unittest.TestCase):
@@ -3826,12 +4001,12 @@ _EXAMPLE_DESCRIPTORS_INP = [
     [ "Lola",     "5 days",  "10.0.0.7", (-2,0,5),      (MBOX_TYPE,) ],
     [ "Joe",      "20 days", "10.0.0.8", (-15,5,25),    (SMTP_TYPE,) ],
     [ "Alice",    "8 days",  "10.0.0.9", (-3,5,13),     () ],
-    [ "Bob",      "11 days", "10.0.0.10", (-10,-1,6),   () ],
+    [ "Bob",      "4 days",  "10.0.0.10", (-2, 2, 6, 'X', 0, 4, -3), () ],
     [ "Lisa",     "3 days",  "10.0.0.11", (-10,-1,5),   () ],
 ]
 
 def getExampleServerDescriptors():
-    """Helper function: generate a list of list of ServerInfo objects based
+    """Helper function: generate a map of list of ServerInfo objects based
        on the values of _EXAMPLE_DESCRIPTORS_INP"""
     if _EXAMPLE_DESCRIPTORS:
         return _EXAMPLE_DESCRIPTORS
@@ -3843,10 +4018,13 @@ def getExampleServerDescriptors():
     sys.stdout.flush()
 
     # For each server...
+    serveridx = 0
     for (nickname, lifetime, ip, starting, types) in _EXAMPLE_DESCRIPTORS_INP:
         # Generate a config file
         homedir = mix_mktemp()
         conf = EX_SERVER_CONF_TEMPLATE % locals()
+        identity = getRSAKey(serveridx%3,2048)
+        serveridx += 1
         for t in types:
             if t == MBOX_TYPE:
                 addrf = mix_mktemp()
@@ -3867,13 +4045,18 @@ def getExampleServerDescriptors():
             resumeLog()
             pass
 
-        # Now, for each starting time, generate a server desciprtor.x
+        # Now, for each starting time, generate a server desciprtor.
         _EXAMPLE_DESCRIPTORS[nickname] = []
+        publishing = now
         for n in xrange(len(starting)):
+            if starting[n] == 'X':
+                publishing += 60
+                continue
             k = "tst%d"%n
             validAt = previousMidnight(now + 24*60*60*starting[n])
-            gen(config=conf, identityKey=getRSAKey(n%3,2048), keyname=k,
-                keydir=tmpkeydir, hashdir=tmpkeydir, validAt=validAt)
+            gen(config=conf, identityKey=identity, keyname=k,
+                keydir=tmpkeydir, hashdir=tmpkeydir, validAt=validAt,
+                now=publishing)
 
             sd = os.path.join(tmpkeydir,"key_"+k,"ServerDesc")
             _EXAMPLE_DESCRIPTORS[nickname].append(readFile(sd))
@@ -3886,7 +4069,6 @@ def getExampleServerDescriptors():
 
 # variable to hold the latest instance of FakeBCC.
 BCC_INSTANCE = None
-
 
 class ClientMainTests(unittest.TestCase):
     def testTrivialKeystore(self):

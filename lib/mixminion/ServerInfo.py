@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.28 2002/12/31 04:48:46 nickm Exp $
+# $Id: ServerInfo.py,v 1.29 2003/01/03 05:14:47 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -8,22 +8,21 @@
    descriptors.
    """
 
-__all__ = [ 'ServerInfo' ]
+__all__ = [ 'ServerInfo', 'ServerDirectory' ]
 
+import gzip
 import re
 import time
 
 import mixminion.Config
 import mixminion.Crypto
 
-from mixminion.Common import LOG, MixError, createPrivateDir, formatBase64, \
-    formatDate, formatTime
+from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
+    formatBase64, formatDate, formatTime
 from mixminion.Config import ConfigError
 from mixminion.Packet import IPV4Info
-from mixminion.Crypto import DIGEST_LEN
+from mixminion.Crypto import CryptoError, DIGEST_LEN, pk_check_signature
 
-# Longest allowed Nickname
-MAX_NICKNAME = 128
 # Longest allowed Contact email
 MAX_CONTACT = 256
 # Longest allowed Comments field
@@ -38,15 +37,15 @@ PACKET_KEY_BYTES = 1024 >> 3
 # tmp alias to make this easier to spell.
 C = mixminion.Config
 class ServerInfo(mixminion.Config._ConfigFile):
-    ## Fields
-    # isValidated: DOCDOC
+    ## Fields: (as in ConfigFile, plus)
+    # _isValidated: flag.  Has this serverInfo been fully validated?
     """A ServerInfo object holds a parsed server descriptor."""
     _restrictFormat = 1
     _syntax = {
         "Server" : { "__SECTION__": ("REQUIRE", None, None),
                      "Descriptor-Version": ("REQUIRE", None, None),
                      "IP": ("REQUIRE", C._parseIP, None),
-                     "Nickname": ("REQUIRE", None, None),
+                     "Nickname": ("REQUIRE", C._parseNickname, None),
                      "Identity": ("REQUIRE", C._parsePublicKey, None),
                      "Digest": ("REQUIRE", C._parseBase64, None),
                      "Signature": ("REQUIRE", C._parseBase64, None),
@@ -93,8 +92,6 @@ class ServerInfo(mixminion.Config._ConfigFile):
         if server['Descriptor-Version'] != '0.1':
             raise ConfigError("Unrecognized descriptor version %r",
                               server['Descriptor-Version'])
-        if len(server['Nickname']) > MAX_NICKNAME:
-            raise ConfigError("Nickname too long")
         identityKey = server['Identity']
         identityBytes = identityKey.get_modulus_bytes()
         if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):
@@ -118,9 +115,13 @@ class ServerInfo(mixminion.Config._ConfigFile):
             raise ConfigError("Invalid digest")
 
         # Check signature
-        if digest != mixminion.Crypto.pk_check_signature(server['Signature'],
-                                                         identityKey):
+        try:
+            signedDigest = pk_check_signature(server['Signature'], identityKey)
+        except CryptoError:
             raise ConfigError("Invalid signature")
+        
+        if digest != signedDigest:
+            raise ConfigError("Signed digest is incorrect")
 
         ## Incoming/MMTP section
         inMMTP = sections['Incoming/MMTP']
@@ -169,9 +170,160 @@ class ServerInfo(mixminion.Config._ConfigFile):
            to this server."""
         return IPV4Info(self.getAddr(), self.getPort(), self.getKeyID())
 
+    def getIdentity(self):
+        return self['Server']['Identity']
+
+    def getCaps(self):
+        # FFFF refactor this once we have client addresses.
+        caps = []
+        if not self['Incoming/MMTP'].get('Version',None):
+            return caps
+        if self['Delivery/MBOX'].get('Version', None):
+            caps.append('mbox')
+        if self['Delivery/SMTP'].get('Version', None):
+            caps.append('smtp')
+        # XXXX This next check is highly bogus.
+        if self['Outgoing/MMTP'].get('Version',None):
+            caps.append('relay')
+        return caps
+
     def isValidated(self):
-        "DOCDOC"
+        """Return true iff this ServerInfo has been validated"""
         return self._isValidated
+
+    def getIntervalSet(self):
+        """Return an IntervalSet covering all the time at which this
+           ServerInfo is valid."""
+        #XXXX002 test
+        return IntervalSet([(self['Server']['Valid-After'],
+                             self['Server']['Valid-Until'])])
+
+    def isExpiredAt(self, when):
+        """Return true iff this ServerInfo expires before time 'when'."""
+        #XXXX002 test
+        return self['Server']['Valid-Until'] < when
+
+    def isValidAt(self, when):
+        """Return true iff this ServerInfo is valid at time 'when'."""
+        #XXXX002 test
+        return (self['Server']['Valid-After'] <= when <=
+                self['Server']['Valid-Until'])
+
+    def isValidFrom(self, startAt, endAt):
+        """Return true iff this ServerInfo is valid at all time from 'startAt'
+           to 'endAt'."""
+        #XXXX002 test
+        return (startAt <= self['Server']['Valid-After'] and
+                self['Server']['Valid-Until'] <= endAt)
+
+    def isValidAtPartOf(self, startAt, endAt):
+        """Return true iff this ServerInfo is valid at some time between
+           'startAt' and 'endAt'."""
+        #XXXX002 test
+        va = self['Server']['Valid-After']
+        vu = self['Server']['Valid-Until']
+        return ((startAt <= va and va <= endAt) or
+                (startAt <= vu and vu <= endAt) or
+                (va <= startAt and endAt <= vu))
+
+    def isNewerThan(self, other):
+        """Return true iff this ServerInfo was published after 'other',
+           where 'other' is either a time or a ServerInfo."""
+        #XXXX002 test
+        if isinstance(other, ServerInfo):
+            other = other['Server']['Published']
+        return self['Server']['Published'] > other
+
+#----------------------------------------------------------------------
+
+#DOCDOC 
+_server_header_re = re.compile(r'^\[\s*Server\s*\]\s*\n', re.M)
+class ServerDirectory:
+    #DOCDOC
+    """Minimal client-side implementation of directory parsing.  This will
+       become very inefficient when directories get big, but we won't have
+       that problem for a while."""
+   
+    def __init__(self, string=None, fname=None):
+        if string:
+            contents = string
+        elif fname.endswith(".gz"):
+            # XXXX test!
+            f = gzip.GzipFile(fname, 'r')
+            contents = f.read()
+            f.close()
+        else:
+            f = open(fname)
+            contents = f.read()
+            f.close()
+        
+        contents = _abnormal_line_ending_re.sub("\n", contents)
+
+        # First, get the digest.  Then we can break everything up.
+        digest = _getDirectoryDigestImpl(contents)
+        
+        # This isn't a good way to do this, but what the hey.
+        sections = _server_header_re.split(contents)
+        del contents
+        headercontents = sections[0]
+        servercontents = [ "[Server]\n%s"%s for s in sections[1:] ]
+
+        self.header = _DirectoryHeader(headercontents, digest)
+        self.servers = [ ServerInfo(string=s) for s in servercontents ]
+
+    def getServers(self):
+        return self.servers
+
+    def __getitem__(self, item):
+        return self.header[item]
+
+class _DirectoryHeader(mixminion.Config._ConfigFile):
+    "DOCDOC"
+    _restrictFormat = 1
+    _syntax = {
+        'Directory': { "__SECTION__": ("REQUIRE", None, None),
+                       "Version": ("REQUIRE", None, None),
+                       "Published": ("REQUIRE", C._parseTime, None),
+                       "Valid-After": ("REQUIRE", C._parseDate, None),
+                       "Valid-Until": ("REQUIRE", C._parseDate, None),
+                       },
+        'Signature': {"__SECTION__": ("REQUIRE", None, None),
+                 "DirectoryIdentity": ("REQUIRE", C._parsePublicKey, None),
+                 "DirectoryDigest": ("REQUIRE", C._parseBase64, None),
+                 "DirectorySignature": ("REQUIRE", C._parseBase64, None),
+                      }
+        }
+
+    def __init__(self, contents, expectedDigest):
+        self.expectedDigest = expectedDigest
+        mixminion.Config._ConfigFile.__init__(self, string=contents)
+
+    def validate(self, sections, entries, lines, contents):
+        direc = sections['Directory']
+        if direc['Version'] != "0.1":
+            raise ConfigError("Unrecognized directory version")
+        if direc['Published'] > time.time() + 600:
+            raise ConfigError("Directory published in the future")
+        if direc['Valid-Until'] <= direc['Valid-After']:
+            raise ConfigError("Directory is never valid")
+
+        sig = sections['Signature']
+        identityKey = sig['DirectoryIdentity']
+        identityBytes = identityKey.get_modulus_bytes()
+        if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):
+            raise ConfigError("Invalid length on identity key")
+        
+        # Now, at last, we check the digest
+        if self.expectedDigest != sig['DirectoryDigest']:
+            raise ConfigError("Invalid digest")
+
+        try:
+            signedDigest = pk_check_signature(sig['DirectorySignature'], 
+                                              identityKey)
+        except CryptoError:
+            raise ConfigError("Invalid signature")
+        if self.expectedDigest != signedDigest:
+            raise ConfigError("Signed digest was incorrect")
 
 #----------------------------------------------------------------------
 def getServerInfoDigest(info):
