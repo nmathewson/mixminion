@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.20 2003/01/06 22:09:24 nickm Exp $
+# $Id: ServerMain.py,v 1.21 2003/01/07 03:06:49 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -423,7 +423,6 @@ Options:
 """.strip()
 
 def usageAndExit(cmd):
-    executable = sys.argv[0]
     print >>sys.stderr, _SERVER_USAGE %cmd
     sys.exit(0)
 
@@ -431,7 +430,7 @@ def configFromServerArgs(cmd, args):
     options, args = getopt.getopt(args, "hf:", ["help", "config="])
     if args:
         usageAndExit(cmd)
-    configFile = "/etc/mixminiond.conf"
+    configFile = None
     for o,v in options:
         if o in ('-h', '--help'):
             usageAndExit(cmd)
@@ -441,6 +440,17 @@ def configFromServerArgs(cmd, args):
     return readConfigFile(configFile)
 
 def readConfigFile(configFile):
+    if configFile is None:
+        if os.path.exists(os.path.expanduser("~/.mixminiond.conf")):
+            configFile = os.path.expanduser("~/.mixminiond.conf")
+        elif os.path.exists(os.path.expanduser("~/etc/mixminiond.conf")):
+            configFile = os.path.expanduser("~/etc/mixminiond.conf")
+        elif os.path.exists("/etc/mixminiond.conf"):
+            configFile = "/etc/mixminiond.conf"
+        else:
+            print >>sys.stderr, "No config file found or specified."
+            sys.exit(1)
+
     try:
         return mixminion.server.ServerConfig.ServerConfig(fname=configFile)
     except (IOError, OSError), e:
@@ -512,7 +522,7 @@ def runKeygen(cmd, args):
     # FFFF Ability to generate keys with particular start/end intervals
     keys=1
     usage=0
-    configFile = '/etc/miniond.conf'
+    configFile = None
     for opt,val in options:
         if opt in ('-h', '--help'):
             usage=1
@@ -559,7 +569,7 @@ def removeKeys(cmd, args):
         args = options = ()
     usage = 0
     removeIdentity = 0
-    configFile = '/etc/miniond.conf'
+    configFile = None
     for opt,val in options:
         if opt in ('-h', '--help'):
             usage=1
