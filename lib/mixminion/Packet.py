@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.27 2003/02/05 06:30:53 nickm Exp $
+# $Id: Packet.py,v 1.28 2003/02/06 20:20:03 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -30,8 +30,9 @@ import struct
 import sys
 import zlib
 from socket import inet_ntoa, inet_aton
-from mixminion.Common import MixError, MixFatalError, floorDiv, isSMTPMailbox,\
-     LOG
+from mixminion.Common import MixError, MixFatalError, floorDiv, formatTime, \
+     isSMTPMailbox, LOG
+from mixminion.Crypto import sha1
 
 if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
@@ -427,8 +428,18 @@ def parseTextReplyBlocks(s):
         idx = m.end()
     return blocks
 
-def parseReplyBlock(s):
-    """Return a new ReplyBlock object for an encoded reply block."""        
+def parseReplyBlocks(s):
+    "DOCDOC"
+    blocks = []
+    while s:
+        block, length = parseReplyBlock(s, allowMore=1, returnLen=1)
+        blocks.append(block)
+        s = s[length:]
+    return blocks
+
+def parseReplyBlock(s, allowMore=0, returnLen=0):
+    """Return a new ReplyBlock object for an encoded reply block."""
+    # DOCDOC withIdx
     if len(s) < MIN_RB_LEN:
         raise ParseError("Reply block too short")
     try:
@@ -445,10 +456,17 @@ def parseReplyBlock(s):
                          major,minor)
 
     ri = s[MIN_RB_LEN:]
-    if len(ri) != rlen:
+    length = rlen + MIN_RB_LEN
+    if allowMore:
+        ri = ri[:rlen]
+    elif len(ri) != rlen:
         raise ParseError("Misformatted reply block")
 
-    return ReplyBlock(header, timestamp, rt, ri, key)
+    surb =  ReplyBlock(header, timestamp, rt, ri, key)
+    if returnLen:
+        return surb, length
+    else:
+        return surb
 
 class ReplyBlock:
     """A mixminion reply block, including the address of the first hop
@@ -461,6 +479,17 @@ class ReplyBlock:
         self.routingType = rt
         self.routingInfo = ri
         self.encryptionKey = key
+
+    def format(self):
+        hash = binascii.b2a_hex(sha1(self.pack()))
+        expiry = formatTime(self.timestamp)
+        if self.routingType == SWAP_FWD_TYPE:
+            server = parseIPV4Info(self.routingInfo).format()
+        else:
+            server = "????"
+        return """Reply block hash: %s
+Expires at: %s GMT
+First server is: %s""" % (hash, expiry, server)
 
     def pack(self):
         """Returns the external representation of this reply block"""
@@ -506,6 +535,10 @@ class IPV4Info:
         self.ip = ip
         self.port = port
         self.keyinfo = keyinfo
+
+    def format(self):
+        return "%s:%s (keyid=%s)"%(self.ip, self.port,
+                                   binascii.b2a_hex(self.keyinfo))
 
     def pack(self):
         """Return the routing info for this address"""

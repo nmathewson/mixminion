@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.19 2003/02/04 02:33:46 nickm Exp $
+# $Id: MMTPClient.py,v 1.20 2003/02/06 20:20:03 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -58,6 +58,8 @@ class BlockingClientConnection:
 
     def connect(self, connectTimeout=None):
         """Negotiate the handshake and protocol."""
+        #DOCDOC connectTimeout
+        # FFFF There should be a way to specify timeout for communication.
         def sigalarmHandler(sig, _):
             assert sig == signal.SIGALRM
         if connectTimeout:

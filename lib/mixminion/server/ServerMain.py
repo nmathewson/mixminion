@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.35 2003/02/05 06:45:51 nickm Exp $
+# $Id: ServerMain.py,v 1.36 2003/02/06 20:20:03 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -10,7 +10,6 @@
 
 __all__ = [ 'MixminonServer' ]
 
-import fcntl
 import getopt
 import os
 import sys
@@ -34,7 +33,7 @@ import mixminion.server.ServerKeys
 from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError, ceilDiv,\
      createPrivateDir, formatBase64, formatTime, installSIGCHLDHandler, \
-     secureDelete, waitForChildren
+     Lockfile, secureDelete, waitForChildren
 
 class IncomingQueue(mixminion.server.ServerQueue.Queue):
     """A DeliveryQueue to accept packets from incoming MMTP connections,
@@ -386,10 +385,9 @@ class MixminionServer:
 
         # Lock file.
         # FFFF Refactor this part into common?
-        self.lockFile = os.path.join(homeDir, "lock")
-        self.lockFD = os.open(self.lockFile, os.O_RDWR|os.O_CREAT, 0600)
+        self.lockFile = Lockfile(os.path.join(homeDir, "lock"))
         try:
-            fcntl.flock(self.lockFD, fcntl.LOCK_EX|fcntl.LOCK_NB)
+            self.lockFile.acquire()
         except IOError:
             raise MixFatalError("Another server seems to be running.")
 
@@ -568,9 +566,7 @@ class MixminionServer:
         
         self.packetHandler.close()
         try:
-            os.unlink(self.lockFile)
-            fcntl.flock(self.lockFD, fcntl.LOCK_UN)
-            os.close(self.lockFD)
+            self.lockFile.release()
             os.unlink(self.pidFile)
         except OSError:
             pass

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.54 2003/02/04 02:02:51 nickm Exp $
+# $Id: Common.py,v 1.55 2003/02/06 20:20:03 nickm Exp $
 
 """mixminion.Common
 
@@ -16,6 +16,7 @@ __all__ = [ 'IntervalSet', 'LOG', 'LogStream', 'MixError', 'MixFatalError',
 import base64
 import bisect
 import calendar
+import fcntl
 import gzip
 import os
 import re
@@ -572,6 +573,12 @@ def previousMidnight(when):
     yyyy,MM,dd = time.gmtime(when)[0:3]
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
+def succeedingMidnight(when):
+    "DOCDOC"
+    #XXXX003 test me
+    yyyy,MM,dd = time.gmtime(when)[0:3]
+    return calendar.timegm((yyyy,MM,dd+1,0,0,0,0,0,0))
+
 def formatTime(when,localtime=0):
     """Given a time in seconds since the epoch, returns a time value in the
        format used by server descriptors (YYYY/MM/DD HH:MM:SS) in GMT"""
@@ -853,3 +860,42 @@ def openUnique(fname, mode='w'):
             pass
         idx += 1
         fname = os.path.join(base, "%s.%s"%(rest,idx))
+
+#----------------------------------------------------------------------
+class Lockfile:
+    "DOCDOC"
+    def __init__(self, filename):
+        self.filename = filename
+        self.count = 0
+        self.fd = None
+
+    def acquire(self, contents="", blocking=0):
+        "Raises IOError DOCDOC"
+        assert self.fd is None
+        self.fd = os.open(self.filename, os.O_RDWR|os.O_CREAT, 0600)
+        try:
+            if blocking:
+                fcntl.flock(self.fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
+            else:
+                fcntl.flock(self.fd, fcntl.LOCK_EX)
+            self.count += 1
+        except:
+            os.close(self.fd)
+            self.fd = None
+            raise
+
+    def release(self):
+        assert self.fd is not None
+        self.count -= 1
+        if self.count > 0:
+            return
+        try:
+            os.unlink(self.filename)
+            fcntl.flock(self.fd, fcntl.LOCK_UN)
+            os.close(self.fd)
+            self.fd = None
+        except OSError:
+            pass
+    
+                
+        

@@ -99,12 +99,22 @@ For 0.0.3:
                   be random, and there should be no tag.
                         o Implement
                         o Test
+        o Make ServerInfo more forward-compatible.
+                o Support unrecognized keys
+        o SMTP
+                o Add an extra "this is anonymous" header.
+        o Build/install:
+                o Uninstall support? (Right now, we take a cowardly
+                  approach that may be good enough.)
+                o Perhaps 'make install' should nuke dead files. (Queue.py)
+                o Support people who _do_ have OpenSSL 0.9.7 installed.
         . Client
                 o Faster (adjustable?) timeout on client connect
                   failure.
                         o Implement client timeout (sigalrm?)
                         o Add configuration options and reasonable default.
                         o Unit tests
+                o Refactor the heck out of argument parsing.
                 . Add "don't use me for anonymity" boilerplate.
                 . Client support for reply blocks.
                         o Recheck spec on external reply block format
@@ -113,8 +123,9 @@ For 0.0.3:
                         o Generate a reply block
                         o Read message from reply block
                         o Send message to reply block
-                        - Remember used reply blocks??
-                        - Examine reply block
+                        o Remember used reply blocks
+                        o Examine reply block
+                        o Use first reply block in a file.
                         - Refactor and document
                 . Read Base64-encoded messages and zbomb messages.
                         o Implement backend
@@ -123,11 +134,17 @@ For 0.0.3:
                         . Test frontend
                         - Refactor until clean
                         - Document
-                - Client-side pooling.
-                	- Design
-                - Make client code multiprocess-safe: locking on
+                . Client-side pooling.
+                	o Design
+                        o Implement
+                        - Test
+                . Make client code multiprocess-safe: locking on
                   cache (if needed!); locking on pool.
-                        - Move lock functionality into Common.
+                        o Move lock functionality into Common.
+                        o Locking on cache
+                        o Locking on pool
+                        - Refactor locking; use only a single lock
+                          for all client functionality.
         . Directories include an "allowable version" section.
         . UI
                 o Make path parsing accept space around the commas and colon.
@@ -136,15 +153,6 @@ For 0.0.3:
                 - Better error message when path+routinginfo won't fit 
                   into header.
                 - Better concept of too-short paths.
-        . Build/install:
-                o Uninstall support? (Right now, we take a cowardly
-                  approach that may be good enough.)
-                o Perhaps 'make install' should nuke dead files. (Queue.py)
-                . Support people who _do_ have OpenSSL 0.9.7 installed.
-        o Make ServerInfo more forward-compatible.
-                o Support unrecognized keys
-        o SMTP
-                o Add an extra "this is anonymous" header.
         - Break backward compatibility :P
                 - Fix aes_ctr128 and bump packet version and write
                   unit tests for counter mode.
@@ -153,6 +161,14 @@ For 0.0.3:
                 - Add fields to serverinfo, server directory.
                 - Make client check 'Recommended-Software' against
                   current version.
+        - Release
+                - Note all places that need documentation comments or
+                  additional testing
+                - Check all usage messages
+                - Triage XXXX's
+                - Resolve XXXX's
+                - Bump version numbers
+                - Update README
 
 Originally scheduled for 0.0.3, but delayed:
         - UI

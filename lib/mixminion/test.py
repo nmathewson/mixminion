@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.79 2003/02/05 07:10:54 nickm Exp $
+# $Id: test.py,v 1.80 2003/02/06 20:20:03 nickm Exp $
 
 """mixminion.tests
 
@@ -1128,7 +1128,7 @@ ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA
         p = ptem(mt1.pack())[0]
         eq(p.pack(), mt1.pack())
         eq(p.getContents(), "Hello, whirled\n")
-        eq(p.isText(), 1)
+        self.assert_(p.isText())
         p = ptem("This message is a test of the emergent broadcast system?\n "
                  +mt2.pack())[0]
         eq(p.pack(), mt2.pack())
@@ -1138,16 +1138,16 @@ ANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA0eUP7R8c5QDR5Q/tHxzlANHlD+0fHOUA
         p, i = ptem(s)
         p2, _ = ptem(s, idx=i)
         eq(p.pack(), mb1.pack())
-        eq(p.isBinary(), 1)
+        self.assert_(p.isBinary())
         eq(p.getContents(), v)
         eq(p2.pack(), ml1.pack())
-        eq(p2.isOvercompressed(), 1)
+        self.assert_(p2.isOvercompressed())
         eq(p2.getContents(), v)
         # An encoded message
         p = ptem(menc1.pack())[0]
         eq(p.pack(), menc1.pack())
         eq(p.getContents(), v)
-        eq(p.isEncrypted(), 1)
+        self.assert_(p.isEncrypted())
         eq(p.getTag(), "9"*20)
 
 #----------------------------------------------------------------------
@@ -2874,28 +2874,35 @@ class MMTPTests(unittest.TestCase):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(("127.0.0.1", TEST_PORT))
+            #sock.listen(5)
+            #s, _ = sock.accept()
             while pausing[0] > 0:
                 time.sleep(.1)
                 pausing[0] -= .1
             time.sleep(2)
+            #s.close()
             sock.close()
-        pausing = [3]
+        pausing = [4]
         t = threading.Thread(None, threadfn, args=(pausing,))
         t.start()
         
         now = time.time()
+        timedout = 0
         try:
-            mixminion.MMTPClient.sendMessages("127.0.0.1",
-                                              #Is there a better IP????
-                                              TEST_PORT, "Z"*20, ["JUNK"],
-                                              connectTimeout=1)
-            self.fail("Expected the connection to time out")
-        except mixminion.MMTPClient.TimeoutError:
-            pass
-        passed = time.time() - now
+            try:
+                mixminion.MMTPClient.sendMessages("127.0.0.1",
+                                                  TEST_PORT, "Z"*20, ["JUNK"],
+                                                  connectTimeout=1)
+                timedout = 0
+            except mixminion.MMTPClient.TimeoutError:
+                timedout = 1
+        finally:
+            passed = time.time() - now
+            pausing[0] = 0
+            t.join()
+            
         self.assert_(passed < 2)
-        pausing[0] = 0
-        t.join()
+        self.assert_(timedout)
 
     def _testNonblockingTransmission(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
@@ -5266,7 +5273,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(PacketTests))
+        suite.addTest(tc(MMTPTests))
         return suite
 
     suite.addTest(tc(MiscTests))

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.26 2003/02/05 05:34:55 nickm Exp $
+# $Id: Main.py,v 1.27 2003/02/06 20:20:03 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -122,6 +122,9 @@ _COMMANDS = {
     "update-servers" : ( 'mixminion.ClientMain', 'updateServers' ),
     "decode" :         ( 'mixminion.ClientMain', 'clientDecode' ),
     "generate-surb" :  ( 'mixminion.ClientMain', 'generateSURB' ),
+    "inspect-surbs" :  ( 'mixminion.ClientMain', 'inspectSURBs' ),
+    "flush" :          ( 'mixminion.ClientMain', 'flushPool' ),
+    "inspect-pool" :   ( 'mixminion.ClientMain', 'listPool' ),
     "server" :         ( 'mixminion.server.ServerMain', 'runServer' ),
     "server-keygen" :  ( 'mixminion.server.ServerMain', 'runKeygen'),
     "server-DELKEYS" : ( 'mixminion.server.ServerMain', 'removeKeys'),
@@ -139,6 +142,7 @@ _USAGE = (
   "       update-servers [Download a fresh server directory]\n"+
   "       decode         [Decode or decrypt a received message]\n"+
   "       generate-surb  [Generate a single-use reply block]\n"+
+  "       inspect-surbs  [DOCDOC]\n"+
   "                               (For Servers)\n"+
   "       server         [Begin running a Mixminon server]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
@@ -151,7 +155,7 @@ _USAGE = (
   "For help on sending a message, run 'mixminion send --help'"
 )
 
-def printVersion(cmd,args):
+def printVersion():
     import mixminion
     print "Mixminion version %s" % mixminion.__version__
     print ("Copyright 2002-2003 Nick Mathewson.  "+
@@ -174,7 +178,6 @@ def main(args):
 
     # Check whether we have a recognized command.
     if len(args) == 1 or not _COMMANDS.has_key(args[1]):
-        printVersion(args[0],args[1:])
         printUsage()
         sys.exit(1)
 
@@ -185,7 +188,9 @@ def main(args):
 
     # Invoke the command.
     try:
-        commandStr = " ".join(args[0:2])
+        cmdFile = os.path.split(args[0])[1]
+        cmdName = args[1]
+        commandStr = "%s %s" % (cmdFile, cmdName)
         func(commandStr, args[2:])
     except getopt.GetoptError, e:
         sys.stderr.write(str(e)+"\n")
