@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.55 2003/05/30 03:07:56 nickm Exp $
+# $Id: setup.py,v 1.56 2003/05/30 03:53:22 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -143,7 +143,8 @@ if USE_OPENSSL:
                       os.path.join(openssl_src, "libcrypto.a") ]
         LIBRARY_DIRS=[]
         LIBRARIES=[]
-        v = getOpenSSLVersion("./contrib/openssl/include/openssl/opensslv.h")
+        v = getOpenSSLVersion(os.path.join(openssl_src,
+                                           "include", "openssl", "opensslv.h"))
         if not v or v < MIN_OPENSSL_VERSION:
             print BAD_OPENSSL_IN_CONTRIB
             sys.exit(1)
