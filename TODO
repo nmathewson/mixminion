@@ -35,7 +35,7 @@ For 0.0.8:
                 o Save stats to disk
                 o Make more ping parameters configurable.
                 o Fix how uptime is computed: handle edges of days correctly
-                o Performance/data examination: is disk usage too insanely high?
+                o Performance/data examination: is disk use too insanely high?
                 - Too many constants in Pinger.py; fix them.
                 - Document.  Describe how to replace sqlite with pg or mysql.
         . Distributed directories
@@ -74,6 +74,8 @@ For 0.0.8:
                   not in ServerList.py
                 o Make build process mention where to download openssl if
                   neither wget nor curl is found.
+                o Pinger crashes when servers leave the directory, or aren't
+                  live in the directory.
                 - Let server admins configure return addresses with default
                   real-names, even if users can override.
                 - Make client run and unittests not die when there is no

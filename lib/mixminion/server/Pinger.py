@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.21 2004/12/20 05:07:26 nickm Exp $
+# $Id: Pinger.py,v 1.22 2004/12/22 04:47:10 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -39,7 +39,7 @@ import mixminion.server.MMTPServer
 from mixminion.Common import MixError, AtomicFile, ceilDiv, createPrivateDir, \
      floorDiv, formatBase64, formatFnameDate, formatTime, IntervalSet, LOG, \
      parseFnameDate, previousMidnight, readPickled, secureDelete, \
-     succeedingMidnight, writePickled
+     succeedingMidnight, UIError, writePickled
 
 try:
     import sqlite
@@ -332,7 +332,6 @@ class PingLog:
         self._interestingChains = interesting
 
     def updateServers(self, names):
-        #XXXX008 call when a new directory arrives.
         self._lock.acquire()
         try:
             for n in names:
@@ -897,6 +896,9 @@ class PingGenerator:
     def connect(self, directory, outgoingQueue, pingLog, keyring):
         pass
 
+    def directoryUpdated(self):
+        pass
+
     def getFirstPingTime(self):
         return None
 
@@ -912,8 +914,12 @@ class PingGenerator:
     def _sendOnePing(self, path1, path2):
         assert path1 and path2
         assert path2[-1].getNickname() == self.myNickname
-        p1 = self.directory.getPath(path1)
-        p2 = self.directory.getPath(path2)
+        try:
+            p1 = self.directory.getPath(path1)
+            p2 = self.directory.getPath(path2)
+        except UIError, e:
+            LOG.info("Not sending scheduled ping: %s",e)
+            return 0
         verbose_path = ",".join([s.getNickname() for s in (p1+p2[:-1])])
         payload = mixminion.BuildMessage.buildRandomPayload()
         payloadHash = mixminion.Crypto.sha1(payload)
@@ -926,6 +932,7 @@ class PingGenerator:
                   formatBase64(payloadHash))
         self.pingLog.queuedPing(payloadHash, verbose_path)
         self.outgoingQueue.queueDeliveryMessage(obj, addr)
+        return 1
 
 class _PingScheduler:
     def __init__(self):
@@ -961,9 +968,11 @@ class _PingScheduler:
             t = periodEnd+self._getPerturbation(path,
                                                 periodEnd,
                                                 interval)
+        oldTime = self.nextPingTime.get(path, None)
         self.nextPingTime[path] = t
-        LOG.trace("Scheduling %d-hop ping for %s at %s", len(path),
-                  ",".join(path), formatTime(t,1))
+        if oldTime != t:
+            LOG.trace("Scheduling %d-hop ping for %s at %s", len(path),
+                      ",".join(path), formatTime(t,1))
         return t
     def _getPerturbation(self, path, periodStart, interval):
         sha = mixminion.Crypto.sha1("%s@@%s@@%s"%(",".join(path),
@@ -985,8 +994,12 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
     def __init__(self, config):
         PingGenerator.__init__(self, config)
         _PingScheduler.__init__(self)
-        self._ping_interval = config['Pinging']['ServerPingPeriod'].getSeconds()
+        sec = config['Pinging']
+        self._ping_interval = sec['ServerPingPeriod'].getSeconds()
         self._period_length = self._calcPeriodLen(self._ping_interval)
+
+    def directoryUpdated(self):
+        self.scheduleAllPings()
 
     def scheduleAllPings(self, now=None):
         if now is None: now = int(time.time())
@@ -994,6 +1007,10 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
         nicknames = {}
         for s in servers:
             nicknames[s.getNickname()]=1
+        for (n,) in self.nextPingTime.keys():
+            if not nicknames.has_key(n):
+                LOG.trace("Unscheduling 1-hop ping for %s", n)
+                del self.nextPingTime[(n,)]
         for n in nicknames.keys():
             self._schedulePing((n,), now)
 
@@ -1023,18 +1040,22 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
                 pingable.append(n)
         myDescriptor = self.keyring.getCurrentDescriptor()
         for n in pingable:
-            self._sendOnePing([n], [myDescriptor])
-            self._schedulePing((n,), now+60)
+            if self._sendOnePing([n], [myDescriptor]):
+                self._schedulePing((n,), now+60)
 
 class TwoHopPingGenerator(_PingScheduler, PingGenerator):
     """DOCDOC"""
     def __init__(self, config):
         PingGenerator.__init__(self, config)
         _PingScheduler.__init__(self)
-        self._dull_interval = config['Pinging']['DullChainPingPeriod'].getSeconds()
-        self._interesting_interval = config['Pinging']['ChainPingPeriod'].getSeconds()
+        sec = config['Pinging']
+        self._dull_interval = sec['DullChainPingPeriod'].getSeconds()
+        self._interesting_interval = sec['ChainPingPeriod'].getSeconds()
         self._period_length = self._calcPeriodLen(
             max(self._interesting_interval,self._dull_interval))
+
+    def directoryUpdated(self):
+        self.scheduleAllPings()
 
     def scheduleAllPings(self, now=None):
         if now is None: now = time.time()
@@ -1042,6 +1063,10 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
         nicknames = {}
         for s in servers:
             nicknames[s.getNickname()]=1
+        for n1,n2 in self.nextPingTime.keys():
+            if not (nicknames.has_key(n1) and nicknames.has_key(n2)):
+                LOG.trace("Unscheduling 2-hop ping for %s,%s",n1,n2)
+                del self.nextPingTime[(n1,n2)]
         for n1 in nicknames.keys():
             for n2 in nicknames.keys():
                 self._schedulePing((n1,n2),now)
@@ -1076,9 +1101,8 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
                     pingable.append((n1,n2))
         myDescriptor = self.keyring.getCurrentDescriptor()
         for n1, n2 in pingable:
-            self._sendOnePing([n1,n2], [myDescriptor])
-            self._schedulePing((n1,n2), now+60)
-            #XXXX008 we need to reschedule pings when a new directory arrives
+            if self._sendOnePing([n1,n2], [myDescriptor]):
+                self._schedulePing((n1,n2), now+60)
 
 class TestLinkPaddingGenerator(PingGenerator):
     """DOCDOC"""
@@ -1118,6 +1142,9 @@ class CompoundPingGenerator:
         assert keyring
         for g in self.gens:
             g.connect(directory, outgoingQueue, pingLog, keyring)
+    def directoryUpdated(self):
+        for g in self.gens:
+            g.directoryUpdated()
     def scheduleAllPings(self, now=None):
         for g in self.gens:
             g.scheduleAllPings(now)

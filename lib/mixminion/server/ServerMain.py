@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.143 2004/12/20 05:07:26 nickm Exp $
+# $Id: ServerMain.py,v 1.144 2004/12/22 04:47:11 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -922,7 +922,7 @@ class MixminionServer(_Scheduler):
         finally:
             self.keyring.unlock()
 
-    def updateDirectoryClient(self):
+    def updateDirectoryClient(self, reschedulePings=1):
         try:
             self.dirClient.update()
             nextUpdate = succeedingMidnight(time.time()+30)
@@ -935,11 +935,22 @@ class MixminionServer(_Scheduler):
             LOG.warn("    I'll try again in an hour.")
             nextUpdate = min(succeedingMidnight(time.time()+30),
                              time.time()+3600)
+            reschedulePings = 0
         except UIError, e:#XXXX008 This should really be a new exception
             LOG.warn(str(e))
             LOG.warn("    I'll try again in an hour.")
             nextUpdate = min(succeedingMidnight(time.time()+30),
                              time.time()+3600)
+            reschedulePings = 0
+
+        if reschedulePings:
+            if self.pingGenerator:
+                self.pingGenerator.directoryUpdated()
+            if self.pingLog:
+                serverNames = [ s.getNickname()
+                                for s in self.dirClient.getAllServers() ]
+                self.pingLog.updateServers(serverNames)
+
         return nextUpdate
 
     def run(self):
@@ -1008,12 +1019,13 @@ class MixminionServer(_Scheduler):
                 now+60,
                 lambda self=self: self.pingLog.calculateAll(
                   os.path.join(self.config.getWorkDir(), "pinger", "status")),
-                self.config['Pinging']['RecomputeInterval']))
+                self.config['Pinging']['RecomputeInterval'].getSeconds()))
 
         # Makes next update get scheduled.
-        nextUpdate = self.updateDirectoryClient()
+        nextUpdate = self.updateDirectoryClient(reschedulePings=0)
         self.scheduleEvent(RecurringComplexBackgroundEvent(
             nextUpdate,
+            time.time()+4*60,
             self.processingThread.addJob,
             self.updateDirectoryClient))
 
@@ -1262,7 +1274,6 @@ def configFromServerArgs(cmd, args, usage):
         config['Server']['LogLevel'] = severity
 
     return config
-
 
 def readConfigFile(configFile):
     """Given a filename from the command line (or None if the user didn't
