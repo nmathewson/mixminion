@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.12 2002/08/19 20:27:02 nickm Exp $
+# $Id: MMTPServer.py,v 1.13 2002/08/21 19:09:48 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -621,7 +621,7 @@ class MMTPServer(AsyncServer):
         self.context = config.getTLSContext(server=1)
 	# FFFF Don't always listen; don't always retransmit!
 	# FFFF Support listening on specific IPs
-        self.listener = ListenConnection("127.0.0.1",
+        self.listener = ListenConnection("0.0.0.0",
                                          config['Outgoing/MMTP']['Port'],
 					 LISTEN_BACKLOG,
                                          self._newMMTPConnection)
@@ -654,3 +654,4 @@ class MMTPServer(AsyncServer):
 
     def onMessageSent(self, msg, handle):
         pass
+

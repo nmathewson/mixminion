@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.7 2002/08/11 07:50:34 nickm Exp $
+# $Id: Packet.py,v 1.8 2002/08/21 19:09:48 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -15,6 +15,7 @@ __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'SECRET_LEN']
 
 import struct
+from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, floorDiv
 
 # Major and minor number for the understood packet format.
@@ -272,26 +273,6 @@ class ReplyBlock:
                            self.header, len(self.routingInfo),
                            self.routingType)+self.routingInfo
 
-def _packIP(s):
-    """Helper method: convert a dotted-decimal IPv4 address into a
-       four-byte encoding.  Raises ParseError if the input is not a
-       dotted quad of 0..255"""
-    addr = s.split(".")
-    if len(addr) != 4:
-        raise ParseError("Malformed IP address")
-    try:
-        addr = map(int, addr)
-    except ValueError:
-        raise ParseError("Malformed IP address")
-    for i in addr:
-        if not (0 <= i <= 255): raise ParseError("Malformed IP address")
-    return struct.pack("!BBBB", *addr)
-
-def _unpackIP(s):
-    """Helper method: convert a four-byte IPv4 address into a dotted quad."""
-    if len(s) != 4: raise ParseError("Malformed IP")
-    return ".".join(map(str, struct.unpack("!BBBB", s)))
-
 # An IPV4 address (Used by SWAP_FWD and FWD) is packed as: four bytes
 # of IP address, a short for the portnum, and DIGEST_LEN bytes of keyid.
 IPV4_PAT = "!4sH%ds" % DIGEST_LEN
@@ -305,7 +286,7 @@ def parseIPV4Info(s):
         ip, port, keyinfo = struct.unpack(IPV4_PAT, s)
     except struct.error:
         raise ParseError("Misformatted IPV4 routing info")
-    ip = _unpackIP(ip)
+    ip = inet_ntoa(ip)
     return IPV4Info(ip, port, keyinfo)
 
 class IPV4Info:
@@ -323,7 +304,8 @@ class IPV4Info:
     def pack(self):
         """Return the routing info for this address"""
         assert len(self.keyinfo) == DIGEST_LEN
-        return struct.pack(IPV4_PAT, _packIP(self.ip), self.port, self.keyinfo)
+        return struct.pack(IPV4_PAT, inet_aton(self.ip), 
+			   self.port, self.keyinfo)
     
     def __hash__(self):
 	return hash(self.pack())

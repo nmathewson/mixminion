@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.14 2002/08/19 20:27:02 nickm Exp $
+# $Id: Common.py,v 1.15 2002/08/21 19:09:48 nickm Exp $
 
 """mixminion.Common
 
@@ -14,6 +14,7 @@ import signal
 import sys
 import time
 import stat
+import traceback
 from types import StringType
 
 class MixError(Exception):
@@ -46,7 +47,6 @@ def floorDiv(a,b):
     "Compute floor(a / b). See comments for portability notes."
     return divmod(a,b)[0]
 
-
 def ceilDiv(a,b):
     "Compute ceil(a / b). See comments for portability notes."
     return divmod(a-1,b)[0]+1
@@ -57,39 +57,57 @@ def createPrivateDir(d, nocreate=0):
        as we go along.  All superdirectories must be owned by root or us."""
     if not os.path.exists(d):
 	if nocreate:
-	    raise MixFatalError("Nonexistant directory %s"%d)
+	    raise MixFatalError("Nonexistent directory %s" % d)
 	try:
 	    os.makedirs(d, 0700)
 	except OSError, e:
-	    getLog().fatal("Unable to create directory %s"%d)
-	    raise MixFatalError()
-    elif not os.path.isdir(d):
-        getLog().fatal("%s is not a directory"%d)
-        raise MixFatalError()
-    else:
-	m = os.stat(d)[stat.ST_MODE]
-	# check permissions
-	if m & 0077:
-	    getLog().fatal("Directory %s must be mode 0700" %d)
-	    raise MixFatalError()
+	    raise MixFatalError("Unable to create directory %s" % d)
+
+    checkPrivateDir(d)
+
+def checkPrivateDir(d, recurse=1):
+    """Return true iff d is a directory owned by this uid, set to mode
+       0700. All of d's parents must not be writable or owned by anybody but
+       this uid and uid 0.  If any of these conditions are unmet, raise 
+       MixFatalErrror.  Otherwise, return None."""
+    me = os.getuid()
+
+    if not os.path.exists(d):
+	raise MixFatalError("Directory %s does not exist" % d)
+    if not os.path.isdir(d):
+	raise MixFatalError("%s is not a directory" % d)
+
+    st = os.stat(d)
+    # check permissions
+    if st[stat.ST_MODE] & 0777 != 0700:
+	raise MixFatalError("Directory %s must be mode 0700" % d)
+
+    if st[stat.ST_UID] != me:
+	raise MixFatalError("Directory %s has must have owner %s" %(d, me))
+
+    if not recurse:
+	return
 
     # Check permissions on parents.
-    me = os.getuid()
     while 1:
+	parent = os.path.split(d)[0]
+	if parent == d:
+	    return
+	d = parent
+
 	st = os.stat(d)
 	mode = st[stat.ST_MODE]
 	owner = st[stat.ST_UID]
 	if owner not in (0, me):
-	    getLog().fatal("Bad owner (uid=%s) on directory %s", owner, d)
-	    raise MixFatalError()
-	# FFFF Check group permissions
+	    raise MixFatalError("Bad owner (uid=%s) on directory %s" 
+				% (owner, d))
 	if (mode & 02) and not (mode & stat.S_ISVTX):
-	    getLog().fatal("Bad mode (%o) on directory %s", mode, d)
+	    raise MixFatalError("Bad mode (%o) on directory %s" %(mode, d))
 
-	parent, _ = os.path.split(d)
-	if parent == d:
-	    return
-	d = parent
+	if (mode & 020) and not (mode & stat.S_ISVTX):
+	    # FFFF We may want to give an even stronger error here.
+	    getLog().warn("Iffy mode %o on directory %s (Writable by gid %s)",
+			  mode, d, st[stat.ST_GID])
 
 #----------------------------------------------------------------------
 # Secure filesystem operations.
@@ -276,6 +294,9 @@ class Log:
             h.close()
         
     def log(self, severity, message, *args):
+	self._log(severity, message, args)
+
+    def _log(self, severity, message, args):
         if _SEVERITIES.get(severity, 100) < self.severity:
             return
         m = message % args
@@ -294,6 +315,21 @@ class Log:
         self.log("ERROR", message, *args)
     def fatal(self, message, *args):
         self.log("FATAL", message, *args)
+    def error_exc(self, (exclass, ex, tb), message=None, *args):
+	if message is not None:
+	    self.log("ERROR", message, *args)
+	elif tb is not None:
+	    filename = tb.tb_frame.f_code.co_filename
+	    self.log("ERROR", "Unexpected exception in %s", filename)
+	else:
+	    self.log("ERROR", "Unexpected exception")
+	
+	formatted = traceback.format_exception(exclass, ex, tb)
+	formatted[1:] = [ "  %s" % line for line in formatted[1:] ]
+	indented = "".join(formatted)
+	if indented.endswith('\n'):
+	    indented = indented[:-1]
+	self._log("ERROR", indented, ())
 
 _THE_LOG = None
 def getLog():

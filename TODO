@@ -16,8 +16,8 @@ FOR 0.0.1: (The first alpha)
          work.  There need not be an interface for replies.  Key rotation
          need not be automated.]
 
-	- MMTP
-		- Is it okay to just bind 127.0.0.1?
+	o MMTP
+		o Is it okay to just bind 127.0.0.1?
 	*. MBox module
 		o Implement
 		*- Test
@@ -28,14 +28,15 @@ FOR 0.0.1: (The first alpha)
 		- Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
-	- Add traceback-dumping functionality to Log class. 
-	  (When did traceback.py get added to Python?)
+	o Add traceback-dumping functionality to Log class. 
+		o Write
+		o Test
 	- Better log messages at all points throughout system.
-	- createPrivateDir
-	       	- Warn about group-writable parent dirs
-		- Refactor 'create' and 'check' code.
-		- Test normal cases
-		- Test failing cases
+	o createPrivateDir
+	       	o Warn about group-writable parent dirs
+		o Refactor 'create' and 'check' code.
+		o Test normal cases
+		o Test failing cases
 	*- CLI for server
 		*- Run server
 		*- Generate future key/publish to dirserver
@@ -49,11 +50,12 @@ FOR 0.0.1: (The first alpha)
 		- Stub validation function for server		
 		- Example config
 		- Warn about unimplemented allow/deny
+		- Warn about all unimplemented features
 	- Build
 		- Ability to pull and build ssl.
 		- Marginal 'make install'
 	- Integration testing
-		- Fake delivery module for MBOX-less testing of core
+		*- Fake delivery module for MBOX-less testing of core
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
 	- Rename versions to 0.1.
@@ -91,7 +93,7 @@ Required for "1.0":
 			- Full boilerplate
 		- Move boilerplate into outside files.  Add a generic 
 		  'Boilerplate' functionality.
-		- Tell ModuleManager about asyncore
+		- Tell ModuleManager about async code
 		- Support for forking delivery
 		- SMTP module
 		- Incoming email gateway
@@ -99,6 +101,9 @@ Required for "1.0":
 	  	- Support for one-side-only MMTP configurations.
 		- Make Mix algorithm configurable
 		- Infer server IP
+		- Make listening configurable for multiple ports/ips, not
+		  all of which need be published.  Perhaps allow different
+		  rules for each listener.
 		- Full validation function for client
 		- Full validation function for server
 		- Make 'push' and 'retry' delivery rates independant and
@@ -136,6 +141,7 @@ SPEC!!		- Timeout old connections
 SPEC		- Patch to address George's 15August attack
 	- Test on other (non-redhat, non-linux) systems
 	- Directories
+		- ServerInfo: complete validation rules
 		- Implementation for directory servers
 		- Publishing to directory servers
 			- Support
@@ -172,11 +178,6 @@ WHEN WE GET THE CHANCE:
 		- Server running on windows.
 	- Time the rest of the system
 	- Make DB module choice configurable?
-
-	- ServerInfo: complete validate rules
-	- Password-protected key storage
-	- ModuleManager knows about async code.
-	- Configurable mix times.
 
 NEED TO BE TESTED
 - Signals

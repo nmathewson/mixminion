@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.10 2002/08/19 20:27:02 nickm Exp $
+# $Id: Config.py,v 1.11 2002/08/21 19:09:48 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -53,38 +53,13 @@ import re
 import binascii
 import time
 import copy
+import socket # for inet_aton and error
 from cStringIO import StringIO
 
 import mixminion.Common
 from mixminion.Common import MixError, getLog
 import mixminion.Packet
 import mixminion.Crypto
-
-#----------------------------------------------------------------------
-
-# global variable to hold the configuration object for this process.
-_theConfiguration = None
-
-def loadConfig(fname,server=0):
-    """Load the configuration file for this process.  Takes a
-       filename, and a flag to determine whether we're running as a
-       client or a server.
-
-       Registers the configuration object to be reloaded on SIGHUP."""
-    global _theConfiguration
-    assert _theConfiguration is None
-
-    if server:
-        _theConfiguration = ServerConfig(fname)
-    else:
-        assert fname is not None
-        _theConfiguration = ClientConfig(fname)
-
-def getConfig():
-    """Return the configuration object for this process, or None if we haven't
-       been configured yet."""
-    return _theConfiguration
-#----------------------------------------------------------------------
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -156,13 +131,21 @@ def _parseInt(integer):
     except ValueError, e:
         raise ConfigError("Expected an integer but got %r" % (integer))
 
+_ip_re = re.compile(r'\d+\.\d+\.\d+\.\d+')
+
 def _parseIP(ip):
     """Validation function.  Converts a config value to an IP address.
        Raises ConfigError on failure."""
-    i = ip.strip().lower()
+    i = ip.strip()
+
+    # inet_aton is a bit more permissive about spaces and incomplete
+    # IP's than we want to be.  Thus we use a regex to catch the cases
+    # it doesn't.
+    if not _ip_re.match(i):
+	raise ConfigError("Invalid IP %r" % i)
     try:
-        f = mixminion.Packet._packIP(i)
-    except mixminion.Packet.ParseError, p:
+        f = socket.inet_aton(i)
+    except socket.error, ex:
         raise ConfigError("Invalid IP %r" % i)
 
     return i
@@ -213,7 +196,7 @@ def _parseAddressSet_deny(s):
 def _parseCommand(command):
     """Validation function.  Converts a config value to a shell command of
        the form (fname, optionslist). Raises ConfigError on failure."""
-    c = command.strip().lower().split()
+    c = command.strip().split()
     if not c:
         raise ConfigError("Invalid command %r" %command)
     cmd, opts = c[0], c[1:]
@@ -675,6 +658,7 @@ SERVER_SYNTAX =  {
                                'Publish' : ('ALLOW', _parseBoolean, "no"),
                                'MaxSkew' : ('ALLOW', _parseInterval,
                                             "10 minutes",) },
+	# FFFF Generic multi-port listen/publish options.
         'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
 			    'IP' : ('ALLOW', _parseIP, None),
                             'Port' : ('ALLOW', _parseInt, "48099"),

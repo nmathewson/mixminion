@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.15 2002/08/19 20:27:02 nickm Exp $
+# $Id: Crypto.py,v 1.16 2002/08/21 19:09:48 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -452,7 +452,7 @@ class RNG:
     def _prng(self, n):
         """Abstract method: Must be overridden to return n bytes of fresh
            entropy."""
-        raise MixFatalError()
+        raise NotImplementedError("_prng")
 
 class AESCounterPRNG(RNG):
     '''Pseudorandom number generator that yields an AES counter-mode cipher'''

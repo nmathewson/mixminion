@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.6 2002/08/19 20:27:02 nickm Exp $
+# $Id: Modules.py,v 1.7 2002/08/21 19:09:48 nickm Exp $
 
 """mixminion.Modules
 
@@ -55,7 +55,7 @@ class DeliveryModule:
     def getConfigSyntax(self):
 	"""Return a map from section names to section syntax, as described
 	   in Config.py"""
-        pass
+        raise NotImplementedError("getConfigSyntax")
 
     def validateConfig(self, sections, entries, lines, contents):
 	"""See mixminion.Config.validate"""
@@ -64,21 +64,21 @@ class DeliveryModule:
     def configure(self, config, manager):
 	"""Configure this object using a given Config object, and (if
 	   required) register it with the module manager."""
-        pass
+        raise NotImplementedError("configure")
 
     def getServerInfoBlock(self):
 	"""Return a block for inclusion in a server descriptor."""
-        pass
+        raise NotImplementedError("getServerInfoBlock")
 
     def getName(self):
 	"""Return the name of this module.  This name may be used to construct
 	   directory paths, so it shouldn't contain any funny characters."""
-        pass
+        raise NotImplementedError("getName")
 
     def getExitTypes(self):
 	"""Return a sequence of numeric exit types that this module can
            handle."""
-        pass
+        raise NotImplementedError("getExitTypes")
 
     def createDeliveryQueue(self, queueDir):
 	"""Return a DeliveryQueue object suitable for delivering messages
@@ -94,7 +94,7 @@ class DeliveryModule:
 	    DELIVER_FAIL_RETRY (if the message wasn't delivered, but might be 
               deliverable later), or
 	    DELIVER_FAIL_NORETRY (if the message shouldn't be tried later)."""
-        pass
+        raise NotImplementedError("processMessage")
 
 class _ImmediateDeliveryQueue:
     """Helper class usable as delivery queue for modules that don't
@@ -113,12 +113,11 @@ class _ImmediateDeliveryQueue:
 	    else:
 		getLog().error("Unable to deliver message")
 	except:
-	    _, e, tb = sys.exc_info()    
-	    getLog().error(
-		"Exception delivering message: %s at line %s of %s", 
-		e, tb.tb_lineno, tb.tb_frame.f_code.co_name)
+	    getLog().error_exc(sys.exc_info(),
+			       "Exception delivering message")
 
     def sendReadyMessages(self):
+	# We do nothing here; we already delivered the messages
 	pass
 
 class _SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
@@ -142,10 +141,8 @@ class _SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
 		    getLog().error("Unable to deliver message")
 		    self.deliveryFailed(handle, 0)
 	    except:
-		_, e, tb = sys.exc_info()
-		getLog().error(
-		    "Exception delivering message: %s at line %s of %s", 
-		    e, tb.tb_lineno, tb.tb_frame.f_code.co_name)
+		getLog().error_exc(sys.exc_info(),
+				   "Exception delivering message")
 		self.deliveryFailed(handle, 0)
 
 class ModuleManager:

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.12 2002/08/19 20:27:02 nickm Exp $
+# $Id: Queue.py,v 1.13 2002/08/21 19:09:48 nickm Exp $
 
 """mixminion.Queue
 
@@ -325,7 +325,8 @@ class DeliveryQueue(Queue):
         # We could implement this as a single deliverMessage(h,addr,m,n)
 	# method, but that wouldn't allow implementations to batch
 	# messages being sent to the same address.
-	assert 0
+
+	raise NotImplementedError("deliverMessages")
 
     def deliverySucceeded(self, handle):
 	"""Removes a message from the outgoing queue.  This method

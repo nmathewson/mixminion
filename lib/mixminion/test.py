@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.20 2002/08/19 20:27:02 nickm Exp $
+# $Id: test.py,v 1.21 2002/08/21 19:09:48 nickm Exp $
 
 """mixminion.tests
 
@@ -497,7 +497,7 @@ class CryptoTests(unittest.TestCase):
 import mixminion.Packet
 from mixminion.Packet import *
 
-class FormatTests(unittest.TestCase):
+class PacketTests(unittest.TestCase):
     def test_subheader(self):
         s = Subheader(3,0,"abcdeabcdeabcdef",
                       "ABCDEFGHIJABCDEFGHIJ",
@@ -1302,7 +1302,7 @@ class QueueTests(unittest.TestCase):
         self.d3 = mix_mktemp("q3")
         
     def testCreateQueue(self):
-        # Nonexistant dir.
+        # Nonexistent dir.
         self.failUnlessRaises(MixFatalError, Queue, self.d1)
         # File in place of dir
         f = open(self.d1, 'w')
@@ -1536,6 +1536,19 @@ class LogTests(unittest.TestCase):
         self.failUnless(buf.getvalue().endswith(
             "[ERROR] All your anonymity are belong to us\n"))
         
+	buf.truncate(0)
+	try:
+	    1/0
+	except:
+	    inf = sys.exc_info()
+	log.error_exc(inf)
+	log.error_exc(inf, "And so on")
+	log.error_exc(inf, "And so %s", "on")
+
+	# print buf.getvalue()
+	# FFFF We should examine the value of the above, but inspection
+	# FFFF show that we're fine.
+
         t = mix_mktemp("log")
         t1 = t+"1"
 
@@ -1549,7 +1562,110 @@ class LogTests(unittest.TestCase):
         log.close()
         self.assertEquals(open(t).read().count("\n") , 1)
         self.assertEquals(open(t1).read().count("\n"), 3)
-        
+
+#----------------------------------------------------------------------
+# File paranoia
+from mixminion.Common import createPrivateDir, checkPrivateDir
+
+class FileParanoiaTests(unittest.TestCase):
+    def testPrivateDirs(self):
+	noia = mix_mktemp("noia")
+	try:
+	    checkPrivateDir(_MM_TESTING_TEMPDIR)
+	except MixFatalError, e:
+	    self.fail("Can't test directory paranoia, because something's\n"
+		      +" wrong with %s: %s"%(_MM_TESTING_TEMPDIR,str(e)))
+	
+	# Nonexistant directory.
+	self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
+	# Bad permissions.
+	os.mkdir(noia)
+	os.chmod(noia, 0777)
+	self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
+	# Bad permissions on parent
+	subdir = os.path.join(noia, "subdir")
+	os.mkdir(subdir, 0700)
+	self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+	os.chmod(noia, 0755)
+	checkPrivateDir(subdir)
+	os.chmod(noia, 0700)
+	checkPrivateDir(subdir)
+	# Not writable by self
+	os.chmod(subdir, 0600)
+	self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+	# Not a directory
+	os.rmdir(subdir)
+	f = open(subdir,'w')
+	f.write("x")
+	f.close()
+	os.chmod(subdir, 0700)
+	self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+	os.unlink(subdir)
+	os.mkdir(subdir, 0700)
+
+	# Now we test a directory we don't own...
+	if os.getuid() == 0: # If we're root, we can play with chown!
+	    # We don't own the directory
+	    os.chown(subdir, 1, 1)
+	    self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+	    os.chown(subdir, 0, os.getgid())
+	    # We don't own the parent
+	    os.chown(noia, 1, 1)
+	    self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+	    os.chown(noia, 0, os.getgid())
+	else:
+	    # We're not root.  We can't reliably find or make a directory 
+	    # that's non-root and non-us.  Let's just make sure we don't
+	    # own temp.
+	    if os.path.exists("/tmp"):
+		self.failUnlessRaises(MixFatalError, checkPrivateDir, "/tmp")
+
+	# Helper fn: return mode,uid,isdir
+	def mud(f):
+	    st = os.stat(f)
+	    return st[stat.ST_MODE]&0777, st[stat.ST_UID], os.path.isdir(f)
+
+	# Okay.  Now we try createPrivateDir a couple of times...
+	old_mask = None
+	try:
+	    # Make sure umask is lenient, so we can tell whether c-p-d is
+	    # strict.
+	    old_mask = os.umask(022)
+	    # 1. Create the world.
+	    os.rmdir(subdir)
+	    os.rmdir(noia)
+	    createPrivateDir(subdir)
+	    self.assertEquals((0700,os.getuid(),1), mud(subdir))
+	    self.assertEquals((0700,os.getuid(),1), mud(noia))
+	    # 2. Just create one dir.
+	    os.rmdir(subdir)
+	    os.chmod(noia, 0755)
+	    createPrivateDir(subdir)
+	    self.assertEquals((0700,os.getuid(),1), mud(subdir))
+	    self.assertEquals((0755,os.getuid(),1), mud(noia))
+	    # 3. Fail to create because of bad permissions
+	    os.rmdir(subdir)
+	    os.chmod(noia, 0777)
+	    self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+	    # 4. Fail to create because of OSError
+	    os.rmdir(subdir)
+	    f = open(subdir, 'w')
+	    f.write('W')
+	    f.close()
+	    self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+	    os.unlink(subdir)
+	    # 5. Succeed: it's already there.
+	    os.chmod(noia, 0700)
+	    os.mkdir(subdir, 0700)
+	    createPrivateDir(subdir)
+	    # 6. Fail: it's already there, but has bad permissions
+	    os.chmod(subdir, 0777)
+	    self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+	    os.chmod(subdir, 0700)
+	finally:
+	    if old_mask is not None:
+		os.umask(old_mask)
+	
 #----------------------------------------------------------------------
 # SIGHANDLERS
 # FFFF Write tests here
@@ -2260,24 +2376,31 @@ def testSuite():
 
     suite.addTest(tc(MinionlibCryptoTests))
     suite.addTest(tc(CryptoTests))
-    suite.addTest(tc(FormatTests))
+    suite.addTest(tc(PacketTests))
     suite.addTest(tc(LogTests))
+    suite.addTest(tc(FileParanoiaTests))
     suite.addTest(tc(ConfigFileTests))
-    suite.addTest(tc(ServerInfoTests))
-    suite.addTest(tc(ModuleManagerTests))
     suite.addTest(tc(HashLogTests))
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))
     suite.addTest(tc(QueueTests))
+
+    # These tests are slowest, so we do them last.
+    suite.addTest(tc(ModuleManagerTests))
+    suite.addTest(tc(ServerInfoTests))
     suite.addTest(tc(MMTPTests))
     return suite
 
 def testAll():
+    # Suppress 'files-can't-be-securely-deleted message while testing'
+    getLog().setMinSeverity("FATAL")
+    mixminion.Common.secureDelete([],1)
+
     # Disable TRACE and DEBUG log messages, unless somebody overrides from
     # the environment.
     getLog().setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "WARN"))
 
-    unittest.TextTestRunner().run(testSuite())
+    unittest.TextTestRunner(verbosity=1).run(testSuite())
 
 if __name__ == '__main__':
     init_crypto()
