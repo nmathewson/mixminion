@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.61 2003/02/17 14:40:34 nickm Exp $
+# $Id: ClientMain.py,v 1.62 2003/02/17 15:02:25 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -48,8 +48,13 @@ _CLIENT_LOCKFILE = None
 def clientLock():
     """Acquire the client lock."""
     assert _CLIENT_LOCKFILE is not None
-    _CLIENT_LOCKFILE.acquire(blocking=1)
-
+    pidStr = str(os.getpid())
+    try:
+        _CLIENT_LOCKFILE.acquire(blocking=0, contents=pidStr)
+    except IOError:
+        LOG.info("Waiting for pid %s", _CLIENT_LOCKFILE.getContents())
+        _CLIENT_LOCKFILE.acquire(blocking=1, contents=pidStr)
+    
 def clientUnlock():
     """Release the client lock."""    
     _CLIENT_LOCKFILE.release()
@@ -1207,22 +1212,28 @@ class ClientPool:
         """Insert the 32K packet 'message' (to be delivered to 'routing')
            into the pool.  Return the handle of the newly inserted packet."""
         clientLock()
-        f, handle = self.prng.openNewFile(self.dir, "pkt_", 1)
-        cPickle.dump(("PACKET-0", message, routing,
-                      previousMidnight(time.time())), f, 1)
-        f.close()
-        return handle
+        try:
+            f, handle = self.prng.openNewFile(self.dir, "pkt_", 1)
+            cPickle.dump(("PACKET-0", message, routing,
+                          previousMidnight(time.time())), f, 1)
+            f.close()
+            return handle
+        finally:
+            clientUnlock()
     
     def getHandles(self):
         """Return a list of the handles of all messages currently in the
            pool."""
         clientLock()
-        fnames = os.listdir(self.dir)
-        handles = []
-        for fname in fnames:
-            if fname.startswith("pkt_"):
-                handles.append(fname[4:])
-        return handles
+        try:
+            fnames = os.listdir(self.dir)
+            handles = []
+            for fname in fnames:
+                if fname.startswith("pkt_"):
+                    handles.append(fname[4:])
+                return handles
+        finally:
+            clientUnlock()
 
     def getPacket(self, handle):
         """Given a handle, return a 3-tuple of the corresponding
@@ -1389,8 +1400,7 @@ class MixminionClient:
         #XXXX004 write unit tests
         if now is None:
             now = time.time()
-        clientLock()
-        surbLog = self.openSURBLog()
+        surbLog = self.openSURBLog() # implies lock
         try:
             surb = surbLog.findUnusedSURB(surbList, verbose=1, now=now)
             if surb is None:
@@ -1403,8 +1413,7 @@ class MixminionClient:
             surbLog.markSURBUsed(surb)
             return msg, servers[0]
         finally:
-            surbLog.close()
-            clientUnlock()
+            surbLog.close() #implies unlock
 
     def openSURBLog(self):
         """Return a new, open SURBLog object for this client; it must be closed

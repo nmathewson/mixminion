@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.62 2003/02/16 04:50:55 nickm Exp $
+# $Id: Common.py,v 1.63 2003/02/17 15:02:25 nickm Exp $
 
 """mixminion.Common
 
@@ -918,6 +918,14 @@ class Lockfile:
         self.filename = filename
         self.count = 0
         self.fd = None
+
+    def getContents(self):
+        """Return the contents of the lock file."""
+        try:
+            f = open(self.filename, 'r')
+            return f.read()
+        finally:
+            f.close()
 
     def acquire(self, contents="", blocking=0):
         """Acquire this lock.  If we're acquiring the lock for the first time,

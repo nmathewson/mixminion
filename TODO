@@ -174,7 +174,10 @@ For 0.0.3:
                 - Better (more prominent) error messages when missing
                   openssl.
                 - Better errors when missing pythondev.
+                . Figure out flock problem. at least say, "blocking on
+                  pid #x".
                 o Add 'stop-server', 'reload-server' functions.
+                - Rename 'reload-server'
                 - Come up with way to deal with servers as they
                   upgrade.
                 - Go over CVS commit logs for all contents of 'what's
@@ -281,6 +284,7 @@ Required for "1.0":
                   check-dir, gen-path, read-from-stdin: only download
                   directory *AFTER* reading?  Strongly recommend a cron job?
                   Write the whole thing off as not-really-an-attack?
+                - Some way to read a reply block *and* a message from stdin?
                 - Path selection
                         - Watch out for servers that are really the
                           same server
