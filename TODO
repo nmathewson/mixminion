@@ -19,12 +19,16 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		       o Signatures are independent of newline style
 		       o Config files are read independent of newline style.
 		       o Tests for above.
-		       - Directories are independent of nl style
+		       o Directories are independent of nl style
 		       - Tests for above
 		- Test whether serverinfo is really pickleable.
 		- Client-side directory support
-		- Server-side directory generation (not automated;
+		. Server-side directory generation (not automated;
 	          still no automatic rotation.)	
+		  	o Backend
+			- CLI
+			. Tests for backend
+			- Tests for CLI
 	- Path selection
 	. Minimal DOS prevention
 		- SMTP-address blacklisting (for SMTP module)
@@ -33,8 +37,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Tests for BuildMessage functionality
 			o Tests for ModuleManager functionality
 			o Mention in the spec.
-			- Check whether Zooko's memory-bounding
-		          uncompress code is right for us.
+			- Arg! Make space-bound zlib work under Python <2.2.
 		o Timeout connections.
 			o Implement timeout logic in MMTPServer
 			o Implement in ServerMain
@@ -43,8 +46,9 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Test server
 	- Add another level of CLI commands. (E.g., mixminion server
 	  keygen)?
-	- Correct README to mention: gmake, no 'make build',
-	 ~mixminion must be mode 0700.
+	o Correct README to mention: no 'make build'.
+	o Correct mixminiond.conf to mention that ~ must be mode 0700.
+	o Fix Makefile to work on FreeBSD.
 	o Configurable mix algorithm, defaulting to cottrell-style
 	  mixing with a medium-long interval.
 	  	o Implement
@@ -52,6 +56,10 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		o Tests for new validation functions.
 		o Add examples to mixminiond.conf
 	o Refactor main loop to be event based
+	- Balance =-signs on "==ANONYMOUS MESSAGE BEGINS"
+	- Acknowledgments
+	- History.
+	- Triage XXXX'S for 002.
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out
@@ -127,6 +135,7 @@ Required for "1.0":
 			- Notice servers that don't support MMTP, or
 			  don't relay.
 			- Notice Allow/Deny.
+			- Ability to specify only last hop.
 		- Reply to reply block
 		- Examine reply block
 		- Send message to user with known key
@@ -150,6 +159,7 @@ Required for "1.0":
 			- Bad recipients
 			- Hunt down leaks
 	- Build and install process
+	  	- The version string should be given in only one place
 		- Use sane arguments when testing with multiple python versions
 		o Get SSL as needed
 		- Well-tested 'make install'
