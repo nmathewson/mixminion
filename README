@@ -1,4 +1,4 @@
-$Id: README,v 1.74 2004/03/07 06:33:56 nickm Exp $
+$Id: README,v 1.75 2004/03/08 03:27:31 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.7rc1, from the Mixminion CVS repository.
 
@@ -467,6 +467,14 @@ http_proxy environment variable:
       export http_proxy=http://proxy:3128/
       mixminion send -D yes
 
+If you have a very large message to send, and the recipient also has
+mixminion software, you can use the "--deliver-fragments" option to prevent
+the last server in the chain from trying to reassemble the message.  (This is
+automatic when sending a reply.)  Later, when the recipient runs "mixminion
+decode" to retrieve the fragment contents, the fragments will be stored in an
+internal pool until enough have been retrieved to reassemble the message.
+Clients can manipulate this fragment pool with "mixminion list-fragments",
+"mixminion purge-fragments", and "mixminion reassemble".
 
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER
 ========================================
