@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.36 2002/11/21 16:55:49 nickm Exp $
+# $Id: test.py,v 1.37 2002/11/22 00:21:20 nickm Exp $
 
 """mixminion.tests
 
@@ -353,7 +353,6 @@ class MinionlibCryptoTests(unittest.TestCase):
 
 
 #----------------------------------------------------------------------
-import mixminion.Crypto
 from mixminion.Crypto import *
 
 class CryptoTests(unittest.TestCase):
@@ -403,7 +402,7 @@ class CryptoTests(unittest.TestCase):
         # Make sure that CH_OAEP(RSA()) inverts pk_encrypt.
         eq(msg, _ml.check_oaep_padding(
                     k512.crypt(pk_encrypt(msg,k512), 0, 0),
-                    mixminion.Crypto.OAEP_PARAMETER, 64))
+                    Crypto.OAEP_PARAMETER, 64))
 
 	# test signing
 	eq(pk_check_signature(pk_sign(msg, k1024),pub1024), msg)
@@ -436,7 +435,7 @@ class CryptoTests(unittest.TestCase):
         dec = lioness_decrypt
 
         # Check basic cipher properties.
-        key = ("ABCDE"*4,) *4
+        key = ("ABCDE"*4, "ABCDF"*4, "DECBA"*4, "VWXYZ"*4)
         plain = "The more it snows the more it goes on snowing"*10
         self.assertNotEquals(plain, enc(plain,key))
         self.assertNotEquals(plain, dec(plain,key))
@@ -463,6 +462,36 @@ class CryptoTests(unittest.TestCase):
         key = (key1,key2,key3,key4)
         self.assertEquals(left+right, lioness_encrypt(plain,key))
         self.assertEquals(key, Keyset("ABCDE"*4).getLionessKeys("foo"))
+
+    def test_bear(self):
+        enc = bear_encrypt
+        dec = bear_decrypt
+
+        # Check basic cipher properties.
+        key = ("ABCDE"*4, "QRSTU"*4)
+        plain = "The more it snows the more it goes on snowing"*10
+        self.assertNotEquals(plain, enc(plain,key))
+        self.assertNotEquals(plain, dec(plain,key))
+        self.assertEquals(len(plain), len(enc(plain,key)))
+        self.assertEquals(len(plain), len(dec(plain,key)))
+        self.assertEquals(plain, dec(enc(plain,key),key))
+        self.assertEquals(plain, enc(dec(plain,key),key))
+
+        # Walk through a LIONESS encryption to check for correct values.
+        # Check getLionessKeys too.
+        s = "ABCDE"*4
+        key1 = sha1(s+"foo")
+        key2 = key1[:-1]+strxor(key1[-1], chr(1))
+
+        left = plain[:20]
+        right = plain[20:]
+        left = strxor(left, sha1(key1+right+key1))
+        right = ctr_crypt(right, sha1(left)[:16])
+        left = strxor(left, sha1(key2+right+key2))
+
+        key = (key1,key2)
+        self.assertEquals(left+right, bear_encrypt(plain,key))
+        self.assertEquals(key, Keyset("ABCDE"*4).getBearKeys("foo"))
 
     def test_keyset(self):
         s = sha1
@@ -861,7 +890,7 @@ class BuildMessageTests(unittest.TestCase):
 
     def test_compression(self):
 	p = AESCounterPRNG()
-	longMsg = p.getBytes(100)*2 + str(dir(mixminion.Crypto))
+	longMsg = p.getBytes(100)*2 + str(dir(Crypto))
 
 	# Make sure compression is reversible.
 	for m in ("", "a", "\000", "xyzzy"*10, ("glossy glossolalia.."*2)[32],
@@ -883,7 +912,7 @@ class BuildMessageTests(unittest.TestCase):
     def test_payload_helpers(self):
 	"test helpers for payload encoding"
 	p = AESCounterPRNG()
-	for i in xrange(10):
+	for _ in xrange(10):
 	    t = BuildMessage._getRandomTag(p)
 	    self.assertEquals(20, len(t))
 	    self.assertEquals(0, ord(t[0])&0x80)
@@ -1098,10 +1127,10 @@ class BuildMessageTests(unittest.TestCase):
                 payload = lioness_decrypt(payload, pkey)
 
             if path is secrets1:
-		swapkey = mixminion.Crypto.lioness_keys_from_header(head2)
+		swapkey = Crypto.lioness_keys_from_header(head2)
 		payload = lioness_decrypt(payload, swapkey)
 
-                swapkey = mixminion.Crypto.lioness_keys_from_payload(payload)
+                swapkey = Crypto.lioness_keys_from_payload(payload)
                 head2 = lioness_decrypt(head2, swapkey)
 
         self.assert_(head2 == h2)
@@ -1122,10 +1151,10 @@ class BuildMessageTests(unittest.TestCase):
             head2 = lioness_decrypt(head2, hkey)
             payload = lioness_decrypt(payload, pkey)
 
-        swapkey = mixminion.Crypto.lioness_keys_from_header(head2)
+        swapkey = Crypto.lioness_keys_from_header(head2)
         payload = lioness_decrypt(payload, swapkey)
 
-        swapkey = mixminion.Crypto.lioness_keys_from_payload(payload)
+        swapkey = Crypto.lioness_keys_from_payload(payload)
         head2 = lioness_decrypt(head2, swapkey)
 
         self.assert_(head2 == h2)
@@ -1156,8 +1185,8 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
             h2 = lioness_decrypt(h2,ks.getLionessKeys(HEADER_ENCRYPT_MODE))
-	p = lioness_decrypt(p,mixminion.Crypto.lioness_keys_from_header(h2))
-        h2 = lioness_decrypt(h2,mixminion.Crypto.lioness_keys_from_payload(p))
+	p = lioness_decrypt(p,Crypto.lioness_keys_from_header(h2))
+        h2 = lioness_decrypt(h2,Crypto.lioness_keys_from_payload(p))
 
         sec, tag = self.do_header_test(h2, withTag=1, *header_info_2)
         for s in sec:
@@ -1348,7 +1377,7 @@ class BuildMessageTests(unittest.TestCase):
 	for s in secrets_1:
 	    ks = Keyset(s)
 	    p = lioness_encrypt(p, ks.getLionessKeys(
- 	 	               mixminion.Crypto.PAYLOAD_ENCRYPT_MODE))
+ 	 	               Crypto.PAYLOAD_ENCRYPT_MODE))
 	comp = BuildMessage.compressData('Information???')
 	self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
 	self.assert_(p[22:].startswith(comp))
@@ -1361,7 +1390,7 @@ class BuildMessageTests(unittest.TestCase):
 	    s = prng.getBytes(16)
 	    ks = Keyset(s)
 	    p = lioness_encrypt(p, ks.getLionessKeys(
-		                      mixminion.Crypto.PAYLOAD_ENCRYPT_MODE))
+		                      Crypto.PAYLOAD_ENCRYPT_MODE))
 	comp = BuildMessage.compressData(payload)
 	self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
 	self.assert_(p[22:].startswith(comp))
@@ -2273,7 +2302,6 @@ class MMTPTests(unittest.TestCase):
             while not clientcon.isShutdown():
                 async.process(2)
 
-        severity = getLog().getMinSeverity()
         try:
 	    suspendLog() # suppress warning
             server.process(0.1)
@@ -2623,13 +2651,13 @@ class ServerInfoTests(unittest.TestCase):
         keydir = os.path.join(d, "key_key1")
         eq(inf, open(os.path.join(keydir, "ServerDesc")).read())
 	mixminion.ServerInfo.ServerKeyset(d, "key1", d) # Can we load?
-        packetKey = mixminion.Crypto.pk_PEM_load(
+        packetKey = Crypto.pk_PEM_load(
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
            info['Server']['Packet-Key'].get_public_key())
-        mmtpKey = mixminion.Crypto.pk_PEM_load(
+        mmtpKey = Crypto.pk_PEM_load(
             os.path.join(keydir, "mmtp.key"))
-        eq(mixminion.Crypto.sha1(mmtpKey.encode_key(1)),
+        eq(Crypto.sha1(mmtpKey.encode_key(1)),
            info['Incoming/MMTP']['Key-Digest'])
 
         # Now check the digest and signature
@@ -2638,7 +2666,7 @@ class ServerInfoTests(unittest.TestCase):
         x = sha1(pat.sub(r'\1', inf))
 
         eq(info['Server']['Digest'], x)
-        eq(x, mixminion.Crypto.pk_check_signature(info['Server']['Signature'],
+        eq(x, Crypto.pk_check_signature(info['Server']['Signature'],
                                                   identityPK))
 
         # Now with a shorter configuration
@@ -2657,7 +2685,7 @@ IP: 192.168.0.99
 							     "key2",
 							     d)
         # Now with a bad signature
-        sig2 = mixminion.Crypto.pk_sign(sha1("Hello"), identity)
+        sig2 = Crypto.pk_sign(sha1("Hello"), identity)
         sig2 = base64.encodestring(sig2).replace("\n", "")
         sigpat = re.compile('^Signature:.*$', re.M)
         badSig = sigpat.sub("Signature: %s" % sig2, inf)
@@ -2677,7 +2705,6 @@ IP: 192.168.0.99
 
 #----------------------------------------------------------------------
 # Modules annd ModuleManager
-from mixminion.Modules import *
 
 # test of an example module that we load dynamically from
 EXAMPLE_MODULE_TEXT = \
@@ -2922,17 +2949,17 @@ class ServerMainTests(unittest.TestCase):
 	# Test creating identity key
 	identity = keyring.getIdentityKey()
 	fn = os.path.join(home, "keys", "identity.key")
-	identity2 = mixminion.Crypto.pk_PEM_load(fn)
-	self.assertEquals(mixminion.Crypto.pk_get_modulus(identity),
-			  mixminion.Crypto.pk_get_modulus(identity2))
+	identity2 = Crypto.pk_PEM_load(fn)
+	self.assertEquals(Crypto.pk_get_modulus(identity),
+			  Crypto.pk_get_modulus(identity2))
 	# (Make sure warning case can occur.)
 	pk = getRSAKey(0,128)
-	mixminion.Crypto.pk_PEM_save(pk, fn)
+	Crypto.pk_PEM_save(pk, fn)
 	suspendLog()
 	keyring.getIdentityKey()
 	msg = resumeLog()
 	self.failUnless(len(msg))
-	mixminion.Crypto.pk_PEM_save(identity, fn)
+	Crypto.pk_PEM_save(identity, fn)
 
 	# Now create a keyset
 	keyring.createKeys(1)
@@ -2980,7 +3007,7 @@ class ServerMainTests(unittest.TestCase):
 	    keyring.getTLSContext()
 
 	# Test getPacketHandler
-	ph = keyring.getPacketHandler()
+	_ = keyring.getPacketHandler()
 
     def testIncomingQueue(self):
 	# Test deliverMessage.
@@ -3022,6 +3049,7 @@ _EXAMPLE_DESCRIPTORS_INP = [
     [ "Lisa",	  "3 days",  "10.0.0.11", (-10,-1,5) ],
 ]
 
+_EXAMPLE_DESCRIPTORS_TIME = 0
 def getExampleServerDescriptors():
     if _EXAMPLE_DESCRIPTORS:
  	return _EXAMPLE_DESCRIPTORS

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.10 2002/10/13 18:44:51 nickm Exp $
+# $Id: benchmark.py,v 1.11 2002/11/22 00:21:20 nickm Exp $
 
 """mixminion.benchmark
 
@@ -186,6 +186,28 @@ def cryptoTiming():
     print "lioness D (32K)", timeit((
         lambda lkey=lkey: lioness_decrypt(s32K, lkey)), 100)
 
+    bkey = Keyset("keymaterial foo bar baz").getBearKeys("T")
+    print "bear E (1K)", timeit((
+        lambda bkey=bkey: bear_encrypt(s1K, bkey)), 1000)
+    print "bear E (2K)", timeit((
+        lambda bkey=bkey: bear_encrypt(s1K, bkey)), 1000)
+    print "bear E (4K)", timeit((
+        lambda bkey=bkey: bear_encrypt(s4K, bkey)), 1000)
+    print "bear E (28K)", timeit((
+        lambda bkey=bkey: bear_encrypt(s28K, bkey)), 100)
+    print "bear E (32K)", timeit((
+        lambda bkey=bkey: bear_encrypt(s32K, bkey)), 100)
+    print "bear D (1K)", timeit((
+        lambda bkey=bkey: bear_decrypt(s1K, bkey)), 1000)
+    print "bear D (2K)", timeit((
+        lambda bkey=bkey: bear_decrypt(s1K, bkey)), 1000)
+    print "bear D (4K)", timeit((
+        lambda bkey=bkey: bear_decrypt(s4K, bkey)), 1000)
+    print "bear D (28K)", timeit((
+        lambda bkey=bkey: bear_decrypt(s28K, bkey)), 100)
+    print "bear D (32K)", timeit((
+        lambda bkey=bkey: bear_decrypt(s32K, bkey)), 100)
+
     if hasattr(_ml, 'add_oaep_padding'):
         print "OAEP_add (70->128B) (C)",
         print timeit((lambda: _ml.add_oaep_padding(s70b,OAEP_PARAMETER,128)),
@@ -231,8 +253,7 @@ def cryptoTiming():
     print "Pad+RSA private decrypt", \
           timeit((lambda enc=enc,rsa=rsa: pk_decrypt(enc, rsa)),100)
 
-
-    for (bits,it) in ((2048,10),(4096,10)):
+    for (bits,it) in ((1536,15), (2048,10),(4096,10)):
         t = time()
 	print "[generating key...]"
         rsa2 = pk_generate(bits)

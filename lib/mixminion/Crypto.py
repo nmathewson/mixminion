@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.22 2002/10/14 03:03:42 nickm Exp $
+# $Id: Crypto.py,v 1.23 2002/11/22 00:21:20 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -18,7 +18,8 @@ import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, getLog
 
 __all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
-            'strxor', 'lioness_encrypt', 'lioness_decrypt', 'trng',
+            'strxor', 'lioness_encrypt', 'lioness_decrypt',
+            'bear_encrypt', 'bear_decrypt', 'trng',
             'pk_encrypt', 'pk_decrypt', 'pk_sign', 'pk_check_signature',
 	    'pk_generate', 'openssl_seed',
             'pk_get_modulus', 'pk_from_modulus',
@@ -78,8 +79,8 @@ def prng(key,count,idx=0):
     return _ml.aes_ctr128_crypt(key,"",idx,count)
 
 def lioness_encrypt(s,(key1,key2,key3,key4)):
-    """Given a 16-byte key2 and key4, and a 20-byte key1 and key3, encrypts
-       s using the LIONESS super-pseudorandom permutation.
+    """Given four 20-byte keys, encrypts s using the LIONESS
+       super-pseudorandom permutation.
     """
 
     assert len(key1) == len(key3) == DIGEST_LEN
@@ -119,6 +120,38 @@ def lioness_decrypt(s,(key1,key2,key3,key4)):
     right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:AES_KEY_LEN])
     left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
     right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:AES_KEY_LEN])
+    return left + right
+
+def bear_encrypt(s,(key1,key2)):
+    """Given four 20-byte keys, encrypts s using the BEAR
+       pseudorandom permutation.
+    """
+
+    assert len(key1) == len(key2) == DIGEST_LEN
+    assert len(s) > DIGEST_LEN
+
+    left = s[:DIGEST_LEN]
+    right = s[DIGEST_LEN:]
+    del s
+    left = _ml.strxor(left, _ml.sha1("".join((key1,right,key1))))
+    right = ctr_crypt(right, _ml.sha1(left)[:AES_KEY_LEN])
+    left = _ml.strxor(left, _ml.sha1("".join((key2,right,key2))))
+    return left + right
+
+def bear_decrypt(s,(key1,key2)):
+    """Given four 20-byte keys, decrypts s using the BEAR
+       pseudorandom permutation.
+    """
+
+    assert len(key1) == len(key2) == DIGEST_LEN
+    assert len(s) > DIGEST_LEN
+
+    left = s[:DIGEST_LEN]
+    right = s[DIGEST_LEN:]
+    del s
+    left = _ml.strxor(left, _ml.sha1("".join((key2,right,key2))))
+    right = ctr_crypt(right, _ml.sha1(left)[:AES_KEY_LEN])
+    left = _ml.strxor(left, _ml.sha1("".join((key1,right,key1))))
     return left + right
 
 def openssl_seed(count):
@@ -366,11 +399,17 @@ class Keyset:
            specification."""
         z19 = "\x00"*19
         key1 = sha1(self.master+mode)
-        key2 = _ml.strxor(sha1(self.master+mode), z19+"\x01")
-        key3 = _ml.strxor(sha1(self.master+mode), z19+"\x02")
-        key4 = _ml.strxor(sha1(self.master+mode), z19+"\x03")
-
+        key2 = _ml.strxor(key1, z19+"\x01")
+        key3 = _ml.strxor(key1, z19+"\x02")
+        key4 = _ml.strxor(key1, z19+"\x03")
+        
         return (key1, key2, key3, key4)
+
+    def getBearKeys(self,mode):
+        z19 = "\x00"*19
+        key1 = sha1(self.master+mode)
+        key2 = _ml.strxor(key1, z19+"\x01")
+        return (key1, key2)
 
 def lioness_keys_from_payload(payload):
     '''Given a payload, returns the LIONESS keys to encrypt the off-header
