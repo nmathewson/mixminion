@@ -500,6 +500,12 @@ class MixminionClient:
                     self.queue.removePacket(handles[idx])
                 elif hasattr(pktList[idx], 'remove'):
                     pktList[idx].remove()
+            if nGood:
+                try:
+                    self.queue.cleanQueue()
+                except:
+                    e2 = sys.exc_info()
+                    LOG.error("Error while cleaning queue: %s",e2[1])
 
             if nBad and warnIfLost:
                 LOG.error("Error with queueing disabled: %s/%s lost",
