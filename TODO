@@ -98,7 +98,7 @@ For 0.0.3:
                   if demand warrants.
         - Build/install:
                 . Uninstall support?
-                - Perhaps 'make install' should nuke dead files. (Queue.py)
+                o Perhaps 'make install' should nuke dead files. (Queue.py)
                 - Support people who _do_ have OpenSSL 0.9.7 installed.
         - Security:
         	- Password-protect dirserver keys
@@ -108,13 +108,31 @@ For 0.0.3:
                   places; coalesce pid and lock.
                 - Make all filenames in server config relative to
                   server home, if not absolute.
-        - MMTP
-                - Code to send junk (connection padding)
-                  [Do current servers even handle this right?  Should
-                   we bump the MMTP version up?]
-                - Renegotiate connections
-                - Session managment and resumption (security issues?)
-                - Pick a logical value for listen backlog.
+        . MMTP
+                . Code to send junk (connection padding)
+                        o Implement for client
+                        o Implement for nonblocking client
+                        o Debug server
+                        o Bump protocol version to 0.2
+                        o Implement protocol negotiation. 
+                        - Tests
+                . Renegotiate connections
+                        . Implement
+                                o Renegotiate from blocking client
+                                o Renegotiate from nonblocking
+                                - Server code to find out if clients
+                                  have renegotiated.
+                        - Test
+                D Don't check KEYID if KEYID=Z(20).  (Really?  The
+                  spec says so, but I don't think this is a good idea.)
+                D Session management and resumption (security
+                  issues?)   Is this really useful for performance?
+                o Pick a logical value for listen backlog.
+        . Core
+        	. When generating a DROP packet, the payload should
+                  be random, and there should be no tag.
+                        o Implement
+                        - Test
         - SMTP
                 - Add an extra "this is anonymous" header.
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
@@ -155,7 +173,8 @@ Required for "1.0":
                 - Real SMTP module
                         - Abuse prevention of some undetermined kind.
                         X Support for setting 'Subject' and 'From' lines.
-                        X Support for setting 'Subject' line.
+                        - Support for setting 'Subject' line.  (Maybe 
+                          content-type, too?)
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
                 - Incoming email gateway

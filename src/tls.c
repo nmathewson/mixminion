@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.13 2003/01/10 16:51:04 nickm Exp $ */
+/* $Id: tls.c,v 1.14 2003/01/12 04:27:19 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -539,6 +539,73 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
         return (PyObject*) result;
 }
 
+static char mm_TLSSock_renegotiate__doc__[] =
+    "tlssock.renegotate()\n\n"
+        "DOCDOC";
+
+static PyObject*
+mm_TLSSock_renegotiate(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+        SSL *ssl;
+        int r;
+
+        assert(mm_TLSSock_Check(self));
+        FAIL_IF_ARGS();
+        ssl = ((mm_TLSSock*)self)->ssl;
+        
+        Py_BEGIN_ALLOW_THREADS
+        r = SSL_renegotiate(ssl);
+        Py_END_ALLOW_THREADS
+        if (!r) {
+                tls_error(ssl, r, 0);
+                return NULL;
+        }
+        Py_INCREF(Py_None);
+        return Py_None;
+}
+
+static char mm_TLSSock_do_handshake__doc__[] =
+    "tlssock.renegotate()\n\n"
+        "DOCDOC";
+
+static PyObject*
+mm_TLSSock_do_handshake(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+        SSL *ssl;
+        int r;
+
+        assert(mm_TLSSock_Check(self));
+        FAIL_IF_ARGS();
+        ssl = ((mm_TLSSock*)self)->ssl;
+        
+        Py_BEGIN_ALLOW_THREADS
+        r = SSL_do_handshake(ssl);
+        Py_END_ALLOW_THREADS
+        if (!r) {
+                tls_error(ssl, r, 0);
+                return NULL;
+        }
+        Py_INCREF(Py_None);
+        return Py_None;
+}
+
+static char mm_TLSSock_get_num_renegotiations__doc__[] =
+    "tlssock.get_num_renegotiations()\n\n"
+    "DOCDOC";
+
+static PyObject*
+mm_TLSSock_get_num_renegotiations(PyObject *self, PyObject *args, 
+                                  PyObject *kwargs)
+{
+        SSL *ssl;
+
+        assert(mm_TLSSock_Check(self));
+        FAIL_IF_ARGS();
+        ssl = ((mm_TLSSock*)self)->ssl;
+        
+        return PyInt_FromLong(SSL_num_renegotiations(ssl));
+}
+
 static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, accept),
         METHOD(mm_TLSSock, connect),
@@ -548,6 +615,9 @@ static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, shutdown),
         METHOD(mm_TLSSock, get_peer_cert_pk),
         METHOD(mm_TLSSock, fileno),
+        METHOD(mm_TLSSock, do_handshake),
+        METHOD(mm_TLSSock, renegotiate),
+        METHOD(mm_TLSSock, get_num_renegotiations),
         { NULL, NULL }
 };
 

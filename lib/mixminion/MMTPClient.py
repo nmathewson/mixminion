@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.14 2002/12/16 02:40:11 nickm Exp $
+# $Id: MMTPClient.py,v 1.15 2003/01/12 04:27:19 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -19,7 +19,7 @@ __all__ = [ "BlockingClientConnection", "sendMessages" ]
 
 import socket
 import mixminion._minionlib as _ml
-from mixminion.Crypto import sha1
+from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Common import MixProtocolError, LOG
 
 class BlockingClientConnection:
@@ -34,6 +34,8 @@ class BlockingClientConnection:
     # context: a TLSContext object; used to create connections.
     # sock: a TCP socket, open to the server.
     # tls: a TLS socket, wrapping sock.
+    #DOCDOC protocol
+    PROTOCOL_VERSIONS = ['0.2', '0.1']
     def __init__(self, targetIP, targetPort, targetKeyID):
         """Open a new connection."""
         self.targetIP = targetIP
@@ -72,31 +74,53 @@ class BlockingClientConnection:
         # change our mind between now and a release candidate, and so we
         # can obsolete betas come release time.
         LOG.debug("Negotiatiating MMTP protocol")
-        self.tls.write("MMTP 0.1\r\n")
-        inp = self.tls.read(len("MMTP 0.1\r\n"))
-        if inp != "MMTP 0.1\r\n":
+        self.tls.write("MMTP %s\r\n" % ",".join(self.PROTOCOL_VERSIONS))
+        # This is ugly, but we have no choice if we want to read up to the
+        # first newline.
+        # we don't really want 100; we just want up to the newline.
+        inp = self.tls.read(100) 
+        while "\n" not in inp and len(inp) < 100:
+            inp += self.tls.read(100)
+        self.protocol = None
+        for p in self.PROTOCOL_VERSIONS:
+            if inp == 'MMTP %s\r\n'%p:
+                self.protocol = p
+                break
+        if not self.protocol:
             raise MixProtocolError("Protocol negotiation failed")
-        LOG.debug("MMTP protocol negotated: version 0.1")
+        LOG.debug("MMTP protocol negotated: version %s", self.protocol)
 
-    def sendPacket(self, packet):
+    def renegotiate(self):
+        self.tls.renegotiate()
+        self.tls.do_handshake()
+
+    def sendPacket(self, packet,
+                   control="SEND\r\n", serverControl="RECEIVED\r\n",
+                   hashExtra="SEND",serverHashExtra="RECEIVED"):
         """Send a single packet to a server."""
         assert len(packet) == 1<<15
         LOG.debug("Sending packet")
         ##
         # We write: "SEND\r\n", 28KB of data, and sha1(packet|"SEND").
-        self.tls.write("SEND\r\n")
+        self.tls.write(control)
         self.tls.write(packet)
-        self.tls.write(sha1(packet+"SEND"))
+        self.tls.write(sha1(packet+hashExtra))
         LOG.debug("Packet sent; waiting for ACK")
 
         # And we expect, "RECEIVED\r\n", and sha1(packet|"RECEIVED")
-        inp = self.tls.read(len("RECEIVED\r\n")+20)
-        if inp != "RECEIVED\r\n"+sha1(packet+"RECEIVED"):
+        inp = self.tls.read(len(serverControl)+20)
+        if inp != serverControl+sha1(packet+serverHashExtra):
             raise MixProtocolError("Bad ACK received")
         LOG.debug("ACK received; packet successfully delivered")
 
-    # FFFF we need a sendJunkPacket method.
-
+    def sendJunkPacket(self, packet):
+        if self.protocol == '0.1':
+            LOG.debug("Not sending junk to a v0.1 server")
+            return
+        self.sendPacket(packet,
+                        control="JUNK\r\n", serverControl="RECEIVED\r\n",
+                        hashExtra="JUNK", serverHashExtra="RECEIVED JUNK")
+        
     def shutdown(self):
         """Close this connection."""
         LOG.debug("Shutting down connection to %s:%s",
@@ -108,11 +132,29 @@ class BlockingClientConnection:
         LOG.debug("Connection closed")
 
 def sendMessages(targetIP, targetPort, targetKeyID, packetList):
-    """Sends a list of messages to a server."""
+    """Sends a list of messages to a server.
+        DOCDOC arguments
+        DOCDOC "JUNK", "RENEGOTIATE"
+    """
+    # Generate junk before opening connection to avoid timing attacks
+    packets = []
+    for p in packetList:
+        if p == 'JUNK':
+            packets.append(("JUNK", getCommonPRNG().getBytes(1<<15)))
+        elif p == 'RENEGOTIATE':
+            packets.append(("RENEGOTIATE", None))
+        else:
+            packets.append(("MSG", p))
+    
     con = BlockingClientConnection(targetIP, targetPort, targetKeyID)
     try:
         con.connect()
-        for p in packetList:
-            con.sendPacket(p)
+        for t,p in packets:
+            if t == "JUNK":
+                con.sendJunkPacket(p)
+            elif t == "RENEGOTIATE":
+                con.renegotiate()
+            else:
+                con.sendPacket(p)
     finally:
         con.shutdown()

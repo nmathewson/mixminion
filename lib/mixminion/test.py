@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.71 2003/01/10 20:12:05 nickm Exp $
+# $Id: test.py,v 1.72 2003/01/12 04:27:19 nickm Exp $
 
 """mixminion.tests
 
@@ -2352,7 +2352,6 @@ class QueueTests(unittest.TestCase):
         # (Fails less than once in 2 **30 tests.)
         self.assert_(messageLens[0] <= 30)
         self.assert_(messageLens[-1] >= 30)
-        #print messageLens
 
         bcmq.removeAll()
         bcmq.cleanQueue()
@@ -2644,7 +2643,6 @@ class MMTPTests(unittest.TestCase):
             server.process(0.1)
         t.join()
 
-
     def _testNonblockingTransmission(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
         self.listener = listener
@@ -2654,7 +2652,8 @@ class MMTPTests(unittest.TestCase):
         messages = ["helloxxx"*4096, "helloyyy"*4096]
         async = mixminion.server.MMTPServer.AsyncServer()
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
-           _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid, messages[:],
+           _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid,
+           messages[:]+["JUNK","RENEGOTIATE","JUNK"],
            [None, None], None)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
@@ -2710,43 +2709,33 @@ class MMTPTests(unittest.TestCase):
         self.listener = listener
         self.server = server
 
-        # This is a little tricky.  We want to test connection timeouts, so we
-        # concoct a fake list object that blocks before returning its second
-        # element so that we can make MMTPClient.sendMessages pause for a
-        # while.
-        class SlowMessageList:
-            def __init__(self):
-                self.pausing = 50
-            def __getitem__(self, i):
-                if i == 0:
-                    return "helloxxx"*4096
-                elif i == 1:
-                    # We use a counter here so that we can make the thread
-                    # holding this list end quickly when we want it to.
-                    while self.pausing > 0:
-                        time.sleep(0.1)
-                        self.pausing -= 0.1
-                    return "helloyyy"*4096
-                else:
-                    raise IndexError
-
         # This function wraps MMTPClient.sendMessages, but catches exceptions.
         # Since we're going to run this function in a thread, we pass the
         # exception back through a list argument.
-        def sendAndCaptureException(lst, *args):
+        def sendSlowlyAndCaptureException(exlst, pausing, targetIP, targetPort,
+                                          targetKeyID, msgFast, msgSlow):
             try:
-                mixminion.MMTPClient.sendMessages(*args)
+                con = mixminion.MMTPClient.BlockingClientConnection(
+                    targetIP,targetPort,targetKeyID)
+                con.connect()
+                con.sendPacket(msgFast)
+                while pausing[0] > 0:
+                    time.sleep(.1)
+                    pausing[0] -= .1
+                con.sendPacket(msgSlow)
+                con.close()
             except:
-                lst.append(sys.exc_info())
+                exlst.append(sys.exc_info())
 
         # Manually set the server's timeout threshold to 600 msec.
         server._timeout = 0.6
         server.process(0.1)
         excList = []
-        msgList = SlowMessageList()
+        pausing = [10]
         t = threading.Thread(None,
-              sendAndCaptureException,
-              args=(excList, "127.0.0.1", TEST_PORT, keyid, msgList))
+              sendSlowlyAndCaptureException,
+              args=(excList, pausing, "127.0.0.1", TEST_PORT, keyid,
+                    "helloxxx"*4096, "helloyyy"*4096))
         t.start()
         timedOut = 0 # flag: have we really timed out?
         try:
@@ -2764,14 +2753,14 @@ class MMTPTests(unittest.TestCase):
             self.assert_(timedOut)
         finally:
             logMessage = resumeLog()
-            # Did we log the timeout?
-            self.assert_(stringContains(logMessage, "timed out"))
+        # Did we log the timeout?
+        self.assert_(stringContains(logMessage, "timed out"))#XXXX
         # Was the one message we expected in fact transmitted?
         self.assertEquals([messagesIn[0]], ["helloxxx"*4096])
 
         # Now stop the transmitting thread.  It will notice that its
         # connection has been forcibly closed.
-        msgList.pausing = 0
+        pausing[0] = 0
         t.join()
         # Was an exception raised?
         self.assertEquals(1, len(excList))
@@ -4030,7 +4019,7 @@ Free to hide no more.
             self.assert_(not os.path.exists(os.path.join(dir, "2")))
         finally:
             m = resumeLog()
-            self.assert_(m.endswith("Unable to deliver message\n"))
+        self.assert_(m.endswith("Unable to deliver message\n"))
 
         try:
             suspendLog()
@@ -4071,7 +4060,7 @@ Free to hide no more.
             queue.sendReadyMessages()
         finally:
             m = resumeLog()
-            self.assert_(m.endswith("[ERROR] Unable to deliver message\n"))
+        self.assert_(m.endswith("[ERROR] Unable to deliver message\n"))
         # After delivery: 91 and 92 go through, 93 stays, and 94 gets dropped.
         self.assertEquals(1, queue.count())
         self.assertEquals(5, len(os.listdir(dir)))
@@ -4304,7 +4293,6 @@ def getExampleServerDescriptors():
             conf.getModuleManager().configure(conf)
         finally:
             resumeLog()
-            pass
 
         # Now, for each starting time, generate a server desciprtor.
         _EXAMPLE_DESCRIPTORS[nickname] = []
@@ -4413,7 +4401,7 @@ class ClientMainTests(unittest.TestCase):
             self.assert_(ks.getServerInfo(si) is None)
         finally:
             s = resumeLog()
-            self.assert_(stringContains(s, "Server is not currently"))
+        self.assert_(stringContains(s, "Server is not currently"))
 
         ##
         # Now try out the directory.  This is tricky; we add the other
@@ -4860,7 +4848,7 @@ class ClientMainTests(unittest.TestCase):
         ##  Test generateForwardMessage.
         # We replace 'buildForwardMessage' to make this easier to test.
         replaceFunction(mixminion.BuildMessage, "buildForwardMessage",
-                        lambda *a:"X")
+                        lambda *a, **k:"X")
         try:
             getCalls = getReplacedFunctionCallLog
             clearCalls = clearReplacedFunctionCallLog
@@ -4980,8 +4968,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientMainTests))
-        suite.addTest(tc(ModuleTests))
+        suite.addTest(tc(MMTPTests))
         return suite
 
     suite.addTest(tc(MiscTests))
