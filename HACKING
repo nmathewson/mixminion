@@ -1,4 +1,4 @@
-Hacking Mixminion                                  -*- Text -*-
+Hacking Mixminion
 
 Requirements:
         Python >= 2.0 (see PORTING NOTES below)
@@ -8,15 +8,191 @@ Requirements:
 
         A working /dev/urandom (see PORTING NOTES below)
 
-Things to hack:
-        See the TODO list.
+THINGS TO HACK:  (Good introductory projects that I won't get to myself for 
+  at least a version or two.)
+
+- We need a windows port!  (A client-only port would be a good start.)  Most
+  of the code is in Python, and what C we have is pretty standard, so I don't
+  anticipate too many problems.  Some known issues in the source are marked
+  with comments labeled WIN32.  Other areas of potential difficulty are:
+      - The build process.  (I don't know the first thing about how to build
+        Python modules under windows.  Python distutils should work, but I
+        don't know what compiler is appropriate.  Studying the Python
+        webpages may be useful.)
+      - Binaries and installer.  (We should provide two versions: one that
+        comes with a Python interpreter, and one that doesn't. They should
+        both be easy to generate.)
+      - The signal code may not be correct; Windows signals may work
+        differently in subtle ways.  [This is mostly a server issue, but the
+        client code uses SIGALRM to timeout dead connections.]
+      - The 'daemonize' code in ServerMain.py is almost certainly not
+        write on windows.
+      - We assume the existence of /dev/urandom or some other similar entropy
+        source; these do not exist on windows.  OpenSSL's RAND_* functions
+        may be helpful, but coming up with good seed information may be
+        tricky. Clients can use RAND_event, but servers will need to get
+        entropy from somewhere else.
+      - There will be other, as-yet-unexpected issues. :)
+  (Difficulty: moderate.  Invasiveness: moderate)
+
+- We need some distributed stress-test code.  Ideally, it should use SSH to
+  build Mixminion on a number of machines and start servers on those
+  machines, then run a bunch of clients to send messages through the system.
+  It should be possible to run the code with different network and server
+  configurations.  (Difficulty: moderate.  Invasiveness: none.)
+
+- The current implementations for the MBOX and SMTP modules open a new
+  connection to the local MTA for each outgoing message.  This is
+  inefficient; they should batch as much as possible.  (Difficulty: easy.
+  Invasiveness: slight.)
+
+- The current implementation for the MBOX and SMTP modules do not support
+  ESMTP (over TLS).  They should.  (Difficulty: easy.  Invasiveness: slight.)
+
+- In addition to the stress-test code above, we should have some automated
+  integration test code to start many servers with different configurations
+  on the same server, and test them with calls to the client code.  This can
+  probably share a good deal of logic with the stress-test code.  A nice
+  extra would be to allow testing multiple versions of Mixminion with
+  multiple versions of the client, and have multihost support. (Difficulty:
+  moderate. Invasiveness: none.)
+
+- It would be neat if all the boilerplate that servers spit out were
+  configurable via some kind of generic boilerplate mechanism, and stored in
+  separate files.  (Difficulty: easy.  Invasiveness: slight.)
+
+- We should throttle bandwidth under high load.  To implement this, every
+  connection needs to keep track of how many bytes it's sent or received,
+  and stop trying to read or write after a certain threshold is passed.
+  Every timeslice (say, 1 or 2 seconds), we reset the quota and restart the
+  connections.  A good implementation would support:
+      - Per-connection limits
+      - Total-bandwidth limits
+      - Noticing multiple connections from the same IP.
+      - Throttling delivery as well as MMTP
+      - Throttling CPU usage in the processing thread.
+  (Difficulty: moderate.  Invasiveness: moderate.)
+
+- TLS sessions might be beneficial, especially for server->server
+  connections.  The spec allows them, but only under specific circumstances.
+  If you're doing this, you should benchmark the code thoroughly to be sure
+  that you're actually improving performance. (Difficulty: easy/moderate,
+  depending on how much OpenSSL you know.  Invasiveness: moderate.)
+
+- Write us an init.d script.  (Difficulty: easy. Invasiveness: none.)
+
+- If you have access to a multiprocessor machine, it would be nice to make
+  good use of more than one CPU.  Right now, the network code runs in
+  parallel with the processing code, but the processing thread accounts (I
+  think) for most of the CPU use.  It would be nice to support multiple
+  processing threads and multiple network threads (round-robin, not
+  one-per-connection). (Difficulty: easy/moderate, depending on your 
+  knowledge of writing multithreaded code. Invasiveness: slight.)
+
+THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
+  specification work.  Please, get your spec discussed on mixminion-dev and
+  checked into CVS *before* you submit an implementation for any of these!)
+
+- There should be a way for clients to set some (but not all) RFC822 email
+  headers.  Likely candidates are 'Subject' and 'Content-Type'.  Maybe there
+  should be *limited* support for setting 'From'.  [For example, if the user
+  wants to set 'From' to "xyzzy", the From line would appear as "From:
+  "Anonymous user claiming to be xyzzy" <nobody@your-remailer>".  Maybe.]
+  Whatever you choose, be sure to justify it.  (Spec difficulty: easy, but
+  you're likely to start a holy war and end up pleasing nobody.
+  Implementation difficulty: easy.  Invasiveness: slight.)
+
+- Maybe, there should be support for multiple exit addresses (cc, bcc, etc.)
+  This is prone to abuse... (Spec difficulty: easy, once you've figured out
+  how to limit abuse.  Implementation difficulty: easy.  Invasiveness:
+  slight.)
+
+- We should have an incoming email gateway for users to use reply blocks to
+  send messages anonymously without using Mixminion software.  (Spec
+  difficulty: easy. Implementation difficulty: moderate.  Invasiveness:
+  slight.)
+
+- Want a real challenge?  We have an allusive description for how to do
+  K-of-N fragmentation in our E2E-spec documentation.  Go flesh out the
+  description and implement it.  (Spec difficulty: moderate.  Implementation
+  difficulty: hard.  Invasiveness: some.)
+
+- Right now, we never generate link padding or dummy messages.  The code is
+  there, but it never gets triggered.  Specify when it gets triggered (and
+  justify why this improves anonymity).  (Spec difficulty: ????.
+  Implementation difficulty: easy once you know how.  Invasiveness: some.)
+
+- We could use IPv6 support.  The big specification problem here is routing:
+  an IPv4-only server simply cannot deliver to a server without an IPv4
+  address.  Any path-generation algorithm I can come up with has troublesome
+  anonymity implications.  If you can come up with an algorithm that
+  doesn't, the code should be pretty easy to do.  (Spec difficulty: ????. 
+  Implementation difficulty: easy.  Invasiveness: some.)
+
+NON-HACKING PROJECTS:
+
+- We need documentation.
+
+- We need a man page.
+
+- See the spec for open issues.
+
+- We need a better web page.
+
+- We need a logo.  (An alien with an eggbeater or an alien at a DJ's mixer
+  are two ideas.)
+
+- We need a bugtracker.
+
+HARD HACKING:
+
+- Do you want to dive into Python and OpenSSL internals?  Right now, we allow
+  all our data to get swapped out to disk.  That's no good!  Now, you _could_
+  install an OS that encrypts your swap, but that's not an option for
+  everybody.  Write code to use memlock to protect sensitive data structures
+  (keys, packets, etc) as necessary.  [If you're feeling unsubtle, use
+  memlockall to keep *all* data from getting swapped out... but watch out for
+  ticked-off admins!]  (Difficulty: easy/hard depending on whether you take
+  the easy way out with memlockall, or whether you actually do the right
+  thing.  Invasiveness: all over the place.)
+
+- Want a real challenge?  Right now, we store sensitive files right on the
+  file system, and do our best to overwrite them when they need to be
+  deleted... but go read the comment in Common.py to see why this doesn't
+  really work.  We *could* have people use encrypted filesystems.... but
+  that's not an option for everyone.  Here's what you do:  Write code for a
+  generic encrypted filestore, and have Mixminion use that as appropriate
+  instead of the filesystem directly.  This will be easier than writing a
+  real encrypted filesystem, since:
+      - All of the files are the same size (within a few K).
+      - There are no hard or soft links
+      - There are no attributes: no ownership, no modes, no special files, no
+        atime/mtime/ctime... just name and size.
+      - There is no arbitrary nesting of directories; the set of directories
+        is very small.
+      - No more than one process needs to be able to access the filestore at
+        a time.  (Though multiple threads might need to.)
+  Your code should probably be generic enough for other Python projects to
+  use. :)  (Difficulty: hard.  Invasiveness: moderate.)
+
+- Port the code to use NSS or libgcrypt/GNUTLS instead of/in addition to
+  OpenSSL.  (The OpenSSL license conflicts with the GPL, and makes us
+  unlinkable with GPL'd code under some circumstances.)  Note that NSS does
+  not, today, have any support for server-side DHE;  if you're going to go
+  down the NSS route, you should contribute an implementation for server-side
+  DHE.  (Difficulty: hard.  Invasiveness: moderate.)
+
+- We need automatic key rotation and key generation.  (Difficulty:
+  hard. Invasiveness: moderate.)
+
+- We could use a nymserver.
 
 DESIGN PRINCIPLES:
     - It's not done till it's documented.
     - It's not done till it's tested.
     - Don't build general-purpose functionality.  Only build the
       operations you need.
-    - "Premature optimization is the route of all evil." -Knuth
+    - "Premature optimization is the root of all evil." -Knuth
       Resist the temptation to optimize until it becomes a necessity.
 
 CODING STYLE:
@@ -90,3 +266,10 @@ CONTRIBUTING PATCHES:
       (nickm@freehaven.net).
 
 --Nick
+
+(for emacs)
+  Local Variables:
+  mode:text
+  indent-tabs-mode:nil
+  fill-column:77
+  End:
