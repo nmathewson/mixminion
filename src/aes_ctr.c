@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.8 2002/12/12 19:56:47 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.9 2002/12/16 02:40:11 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because
@@ -57,49 +57,50 @@ typedef unsigned char u8;
 static inline void
 mm_incr(u32 const* ctr32)
 {
-	u32 i;
+        u32 i;
 
-	INCR_U32(ctr32+3,i);
-	if (i) return;
+        INCR_U32(ctr32+3,i);
+        if (i) return;
 
-	INCR_U32(ctr32+2,i);
-	if (i) return;
+        INCR_U32(ctr32+2,i);
+        if (i) return;
 
-	INCR_U32(ctr32+1,i);
-	if (i) return;
+        INCR_U32(ctr32+1,i);
+        if (i) return;
 
-	INCR_U32(ctr32,  i);
+        INCR_U32(ctr32,  i);
 }
 
 void
 mm_aes_counter128(const char *in, char *out, unsigned int len, AES_KEY *key,
                   unsigned long count)
 {
-	unsigned char counter[16];
-	unsigned char tmp[16];
-	/* making this a variable can hurt register pressure, and we'd
-	   really like the compiler to be able to inline mm_incr above. */
-	#define CTR32 ((u32*)counter)
+        unsigned char counter[16];
+        unsigned char tmp[16];
+        /* making this a variable can hurt register pressure, and we'd
+           really like the compiler to be able to inline mm_incr above. */
+        #define CTR32 ((u32*)counter)
 
-	if (!len) return;
-	memset(counter, 0, 12);
-	SET_U32(CTR32+3, count >> 4);
-	count &= 0x0f;
+        if (!len) return;
+        memset(counter, 0, 12);
+        SET_U32(CTR32+3, count >> 4);
+        count &= 0x0f;
 
-	while (1) {
-		AES_encrypt(counter, tmp, key);
-		do {
-			*(out++) = *(in++) ^ tmp[count];
-			if (--len == 0) return;
-		} while (++count != 16);
-		mm_incr(CTR32);
-		count = 0;
-	}
+        while (1) {
+                AES_encrypt(counter, tmp, key);
+                do {
+                        *(out++) = *(in++) ^ tmp[count];
+                        if (--len == 0) return;
+                } while (++count != 16);
+                mm_incr(CTR32);
+                count = 0;
+        }
 }
 
 /*
   Local Variables:
   mode:c
+  indent-tabs-mode:nil
   c-basic-offset:8
   End:
 */

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.18 2002/12/12 19:56:46 nickm Exp $
+# $Id: benchmark.py,v 1.19 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.benchmark
 
@@ -168,11 +168,11 @@ def cryptoTiming():
     L10 = [ "x" ] * 10
     L1000 = [ "x" ] * 1000
     print "aesprng.shuffle (10/10)", \
-	  timeit((lambda c=c,L=L10: c.shuffle(L)), 1000)
+          timeit((lambda c=c,L=L10: c.shuffle(L)), 1000)
     print "aesprng.shuffle (1000/1000)", \
-	  timeit((lambda c=c,L=L1000: c.shuffle(L)), 30)
+          timeit((lambda c=c,L=L1000: c.shuffle(L)), 30)
     print "aesprng.shuffle (10/1000)", \
-	  timeit((lambda c=c,L=L1000: c.shuffle(L,10)), 1000)
+          timeit((lambda c=c,L=L1000: c.shuffle(L,10)), 1000)
 
     lkey = Keyset("keymaterial foo bar baz").getLionessKeys("T")
     print "lioness E (1K)", timeit((
@@ -265,7 +265,7 @@ def cryptoTiming():
 
     for (bits,it) in ((1536,15), (2048,10),(4096,10)):
         t = time()
-	print "[generating key...]"
+        print "[generating key...]"
         rsa2 = pk_generate(bits)
         t = time()-t
         print "RSA genrate (%d bit)"%bits, timestr(t)
@@ -300,7 +300,7 @@ def _hashlogTiming(fname, load):
 
     print "Testing hash log (%s entries)"%load
     if load > 20000:
-	print "This may take a few minutes..."
+        print "This may take a few minutes..."
     h = HashLog(fname, "A")
     hashes = [ prng.getBytes(20) for _ in xrange(load) ]
 
@@ -508,9 +508,9 @@ def fileOpsTiming():
 
     os.mkdir(dname)
     for i in xrange(200):
-	f = open(os.path.join(dname, str(i)), 'wb')
-	f.write(s32K)
-	f.close()
+        f = open(os.path.join(dname, str(i)), 'wb')
+        f.write(s32K)
+        f.close()
     lst = [os.path.join(dname,str(i)) for i in range(100) ]
     t1 = time()
     secureDelete(lst)
@@ -524,7 +524,7 @@ def fileOpsTiming():
     lst = [ os.path.join(dname,str(i)) for i in range(100,200) ]
     t1 = time()
     for file in lst:
-	secureDelete(file)
+        secureDelete(file)
     t = time()-t1
     print "secureDelete (1)", timestr(t/100)
 
@@ -540,36 +540,36 @@ def testLeaks1():
     keytxt="a"*16
     key = _ml.aes_key(keytxt)
     while 1:
-	_ml.sha1(s20k)
-	_ml.aes_ctr128_crypt(key,s20k,0)
-	_ml.aes_ctr128_crypt(key,s20k,2000)
-	_ml.aes_ctr128_crypt(key,"",2000,20000)
-	_ml.aes_ctr128_crypt(key,"",0,20000)
-	_ml.aes_ctr128_crypt(key,s20k,0,2000)
-	try:
-	    _ml.aes_ctr128_crypt("abc",s20k,0,2000)
-	except:
-	    pass
-	_ml.strxor(s20k,s20k)
-	try:
-	    _ml.strxor(s20k,keytxt)
-	except:
-	    pass
-	_ml.openssl_seed(s20k)
-	r = _ml.add_oaep_padding("Hello",OAEP_PARAMETER,128)
-	_ml.check_oaep_padding(r,OAEP_PARAMETER,128)
-	try:
-	    _ml.check_oaep_padding("hello",OAEP_PARAMETER,128)
-	except:
-	    pass
-	try:
-	    _ml.add_oaep_padding(s20k,OAEP_PARAMETER,128)
-	except:
-	    pass
-	try:
-	    _ml.add_oaep_padding("a"*127,OAEP_PARAMETER,128)
-	except:
-	    pass
+        _ml.sha1(s20k)
+        _ml.aes_ctr128_crypt(key,s20k,0)
+        _ml.aes_ctr128_crypt(key,s20k,2000)
+        _ml.aes_ctr128_crypt(key,"",2000,20000)
+        _ml.aes_ctr128_crypt(key,"",0,20000)
+        _ml.aes_ctr128_crypt(key,s20k,0,2000)
+        try:
+            _ml.aes_ctr128_crypt("abc",s20k,0,2000)
+        except:
+            pass
+        _ml.strxor(s20k,s20k)
+        try:
+            _ml.strxor(s20k,keytxt)
+        except:
+            pass
+        _ml.openssl_seed(s20k)
+        r = _ml.add_oaep_padding("Hello",OAEP_PARAMETER,128)
+        _ml.check_oaep_padding(r,OAEP_PARAMETER,128)
+        try:
+            _ml.check_oaep_padding("hello",OAEP_PARAMETER,128)
+        except:
+            pass
+        try:
+            _ml.add_oaep_padding(s20k,OAEP_PARAMETER,128)
+        except:
+            pass
+        try:
+            _ml.add_oaep_padding("a"*127,OAEP_PARAMETER,128)
+        except:
+            pass
 
 def testLeaks2():
     print "Trying to leak (rsa)"

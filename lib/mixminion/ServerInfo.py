@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.25 2002/12/12 19:56:46 nickm Exp $
+# $Id: ServerInfo.py,v 1.26 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -38,121 +38,121 @@ class ServerInfo(mixminion.Config._ConfigFile):
     """A ServerInfo object holds a parsed server descriptor."""
     _restrictFormat = 1
     _syntax = {
-	"Server" : { "__SECTION__": ("REQUIRE", None, None),
+        "Server" : { "__SECTION__": ("REQUIRE", None, None),
                      "Descriptor-Version": ("REQUIRE", None, None),
-		     "IP": ("REQUIRE", C._parseIP, None),
-		     "Nickname": ("REQUIRE", None, None),
-		     "Identity": ("REQUIRE", C._parsePublicKey, None),
-		     "Digest": ("REQUIRE", C._parseBase64, None),
-		     "Signature": ("REQUIRE", C._parseBase64, None),
-		     "Published": ("REQUIRE", C._parseTime, None),
-		     "Valid-After": ("REQUIRE", C._parseDate, None),
-		     "Valid-Until": ("REQUIRE", C._parseDate, None),
-		     "Contact": ("ALLOW", None, None),
-		     "Comments": ("ALLOW", None, None),
-		     "Packet-Key": ("REQUIRE", C._parsePublicKey, None),
-		     },
-	"Incoming/MMTP" : {
- 	             "Version": ("REQUIRE", None, None),
-		     "Port": ("REQUIRE", C._parseInt, None),
-		     "Key-Digest": ("REQUIRE", C._parseBase64, None),
-		     "Protocols": ("REQUIRE", None, None),
+                     "IP": ("REQUIRE", C._parseIP, None),
+                     "Nickname": ("REQUIRE", None, None),
+                     "Identity": ("REQUIRE", C._parsePublicKey, None),
+                     "Digest": ("REQUIRE", C._parseBase64, None),
+                     "Signature": ("REQUIRE", C._parseBase64, None),
+                     "Published": ("REQUIRE", C._parseTime, None),
+                     "Valid-After": ("REQUIRE", C._parseDate, None),
+                     "Valid-Until": ("REQUIRE", C._parseDate, None),
+                     "Contact": ("ALLOW", None, None),
+                     "Comments": ("ALLOW", None, None),
+                     "Packet-Key": ("REQUIRE", C._parsePublicKey, None),
+                     },
+        "Incoming/MMTP" : {
+                     "Version": ("REQUIRE", None, None),
+                     "Port": ("REQUIRE", C._parseInt, None),
+                     "Key-Digest": ("REQUIRE", C._parseBase64, None),
+                     "Protocols": ("REQUIRE", None, None),
                      "Allow": ("ALLOW*", C._parseAddressSet_allow, None),
                      "Deny": ("ALLOW*", C._parseAddressSet_deny, None),
-		     },
-	"Outgoing/MMTP" : {
- 	             "Version": ("REQUIRE", None, None),
-		     "Protocols": ("REQUIRE", None, None),
+                     },
+        "Outgoing/MMTP" : {
+                     "Version": ("REQUIRE", None, None),
+                     "Protocols": ("REQUIRE", None, None),
                      "Allow": ("ALLOW*", C._parseAddressSet_allow, None),
                      "Deny": ("ALLOW*", C._parseAddressSet_deny, None),
-		     },
-	"Delivery/MBOX" : {
-   	             "Version": ("REQUIRE", None, None),
-		     },
-	"Delivery/SMTP" : {
-           	     "Version": ("REQUIRE", None, None),
-		     }
-	}
+                     },
+        "Delivery/MBOX" : {
+                     "Version": ("REQUIRE", None, None),
+                     },
+        "Delivery/SMTP" : {
+                     "Version": ("REQUIRE", None, None),
+                     }
+        }
 
     def __init__(self, fname=None, string=None, assumeValid=0):
-	mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
-	LOG.trace("Reading server descriptor %s from %s",
-		       self['Server']['Nickname'],
-		       fname or "<string>")
+        mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
+        LOG.trace("Reading server descriptor %s from %s",
+                       self['Server']['Nickname'],
+                       fname or "<string>")
 
     def validate(self, sections, entries, lines, contents):
-	####
-	# Check 'Server' section.
-	server = sections['Server']
-	if server['Descriptor-Version'] != '0.1':
-	    raise ConfigError("Unrecognized descriptor version %r",
-			      server['Descriptor-Version'])
-	if len(server['Nickname']) > MAX_NICKNAME:
-	    raise ConfigError("Nickname too long")
-	identityKey = server['Identity']
-	identityBytes = identityKey.get_modulus_bytes()
-	if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):
-	    raise ConfigError("Invalid length on identity key")
-	if server['Valid-Until'] <= server['Valid-After']:
-	    raise ConfigError("Server is never valid")
-	if server['Contact'] and len(server['Contact']) > MAX_CONTACT:
-	    raise ConfigError("Contact too long")
+        ####
+        # Check 'Server' section.
+        server = sections['Server']
+        if server['Descriptor-Version'] != '0.1':
+            raise ConfigError("Unrecognized descriptor version %r",
+                              server['Descriptor-Version'])
+        if len(server['Nickname']) > MAX_NICKNAME:
+            raise ConfigError("Nickname too long")
+        identityKey = server['Identity']
+        identityBytes = identityKey.get_modulus_bytes()
+        if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):
+            raise ConfigError("Invalid length on identity key")
+        if server['Valid-Until'] <= server['Valid-After']:
+            raise ConfigError("Server is never valid")
+        if server['Contact'] and len(server['Contact']) > MAX_CONTACT:
+            raise ConfigError("Contact too long")
         if server['Comments'] and len(server['Comments']) > MAX_COMMENTS:
-	    raise ConfigError("Comments too long")
-	packetKeyBytes = server['Packet-Key'].get_modulus_bytes()
-	if packetKeyBytes != PACKET_KEY_BYTES:
-	    raise ConfigError("Invalid length on packet key")
+            raise ConfigError("Comments too long")
+        packetKeyBytes = server['Packet-Key'].get_modulus_bytes()
+        if packetKeyBytes != PACKET_KEY_BYTES:
+            raise ConfigError("Invalid length on packet key")
 
-	####
-	# Check Digest of file
-	digest = getServerInfoDigest(contents)
-	if digest != server['Digest']:
-	    raise ConfigError("Invalid digest")
+        ####
+        # Check Digest of file
+        digest = getServerInfoDigest(contents)
+        if digest != server['Digest']:
+            raise ConfigError("Invalid digest")
 
-	# Check signature
-	if digest != mixminion.Crypto.pk_check_signature(server['Signature'],
-							 identityKey):
-	    raise ConfigError("Invalid signature")
+        # Check signature
+        if digest != mixminion.Crypto.pk_check_signature(server['Signature'],
+                                                         identityKey):
+            raise ConfigError("Invalid signature")
 
-	## Incoming/MMTP section
-	inMMTP = sections['Incoming/MMTP']
-	if inMMTP:
-	    if inMMTP['Version'] != '0.1':
-		raise ConfigError("Unrecognized MMTP descriptor version %s"%
-				  inMMTP['Version'])
-	    if len(inMMTP['Key-Digest']) != DIGEST_LEN:
-		raise ConfigError("Invalid key digest %s"%
-				  formatBase64(inMMTP['Key-Digest']))
+        ## Incoming/MMTP section
+        inMMTP = sections['Incoming/MMTP']
+        if inMMTP:
+            if inMMTP['Version'] != '0.1':
+                raise ConfigError("Unrecognized MMTP descriptor version %s"%
+                                  inMMTP['Version'])
+            if len(inMMTP['Key-Digest']) != DIGEST_LEN:
+                raise ConfigError("Invalid key digest %s"%
+                                  formatBase64(inMMTP['Key-Digest']))
 
-	## Outgoing/MMTP section
-	outMMTP = sections['Outgoing/MMTP']
-	if outMMTP:
-	    if outMMTP['Version'] != '0.1':
-		raise ConfigError("Unrecognized MMTP descriptor version %s"%
-				  inMMTP['Version'])
+        ## Outgoing/MMTP section
+        outMMTP = sections['Outgoing/MMTP']
+        if outMMTP:
+            if outMMTP['Version'] != '0.1':
+                raise ConfigError("Unrecognized MMTP descriptor version %s"%
+                                  inMMTP['Version'])
 
-	# FFFF When a better client module system exists, check the
-	# FFFF module descriptors.
+        # FFFF When a better client module system exists, check the
+        # FFFF module descriptors.
 
     def getNickname(self):
-	"""Returns this server's nickname"""
-	return self['Server']['Nickname']
+        """Returns this server's nickname"""
+        return self['Server']['Nickname']
 
     def getAddr(self):
-	"""Returns this server's IP address"""
-	return self['Server']['IP']
+        """Returns this server's IP address"""
+        return self['Server']['IP']
 
     def getPort(self):
-	"""Returns this server's IP port"""
-	return self['Incoming/MMTP']['Port']
+        """Returns this server's IP port"""
+        return self['Incoming/MMTP']['Port']
 
     def getPacketKey(self):
-	"""Returns the RSA key this server uses to decrypt messages"""
-	return self['Server']['Packet-Key']
+        """Returns the RSA key this server uses to decrypt messages"""
+        return self['Server']['Packet-Key']
 
     def getKeyID(self):
-	"""Returns a hash of this server's MMTP key"""
-	return self['Incoming/MMTP']['Key-Digest']
+        """Returns a hash of this server's MMTP key"""
+        return self['Incoming/MMTP']['Key-Digest']
 
     def getRoutingInfo(self):
         """Returns a mixminion.Packet.IPV4Info object for routing messages
@@ -184,11 +184,11 @@ def _getServerInfoDigestImpl(info, rsa=None):
     signatureLine = None
     infoLines = info.split("\n")
     for lineNo in range(len(infoLines)):
-	line = infoLines[lineNo]
-	if line.startswith("Digest:") and digestLine is None:
-	    digestLine = lineNo
-	elif line.startswith("Signature:") and signatureLine is None:
-	    signatureLine = lineNo
+        line = infoLines[lineNo]
+        if line.startswith("Digest:") and digestLine is None:
+            digestLine = lineNo
+        elif line.startswith("Signature:") and signatureLine is None:
+            signatureLine = lineNo
 
     assert digestLine is not None and signatureLine is not None
 
@@ -199,7 +199,7 @@ def _getServerInfoDigestImpl(info, rsa=None):
     digest = mixminion.Crypto.sha1(info)
 
     if rsa is None:
-	return digest
+        return digest
     # If we got an RSA key, we need to add the digest and signature.
 
     signature = mixminion.Crypto.pk_sign(digest,rsa)

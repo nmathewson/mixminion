@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.26 2002/12/12 19:56:46 nickm Exp $
+# $Id: Config.py,v 1.27 2002/12/16 02:42:31 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -144,7 +144,7 @@ def _parseIP(ip):
     # IP's than we want to be.  Thus we use a regex to catch the cases
     # it doesn't.
     if not _ip_re.match(i):
-	raise ConfigError("Invalid IP %r" % i)
+        raise ConfigError("Invalid IP %r" % i)
     try:
         socket.inet_aton(i)
     except socket.error:
@@ -224,12 +224,12 @@ def _parseBase64(s,_hexmode=0):
        its original. Raises ConfigError on failure."""
     s = stripSpace(s)
     try:
-	if _hexmode:
-	    return binascii.a2b_hex(s)
-	else:
-	    return binascii.a2b_base64(s)
+        if _hexmode:
+            return binascii.a2b_hex(s)
+        else:
+            return binascii.a2b_base64(s)
     except (TypeError, binascii.Error, binascii.Incomplete):
-	raise ConfigError("Invalid Base64 data")
+        raise ConfigError("Invalid Base64 data")
 
 def _parseHex(s):
     """Validation function.  Converts a hex-64 encoded config value into
@@ -242,13 +242,13 @@ def _parsePublicKey(s):
        object."""
     asn1 = _parseBase64(s)
     if len(asn1) > 550:
-	raise ConfigError("Overlong public key")
+        raise ConfigError("Overlong public key")
     try:
-	key = mixminion.Crypto.pk_decode_public_key(asn1)
+        key = mixminion.Crypto.pk_decode_public_key(asn1)
     except mixminion.Crypto.CryptoError:
-	raise ConfigError("Invalid public key")
+        raise ConfigError("Invalid public key")
     if key.get_public_key()[1] != 65537:
-	raise ConfigError("Invalid exponent on public key")
+        raise ConfigError("Invalid exponent on public key")
     return key
 
 # Regular expression to match YYYY/MM/DD
@@ -263,17 +263,17 @@ def _parseDate(s,_timeMode=0):
     r = (_date_re, _time_re)[_timeMode]
     m = r.match(s)
     if not m:
-	raise ConfigError("Invalid %s %r" % (("date", "time")[_timeMode],s))
+        raise ConfigError("Invalid %s %r" % (("date", "time")[_timeMode],s))
     if _timeMode:
-	yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
+        yyyy, MM, dd, hh, mm, ss = map(int, m.groups())
     else:
-	yyyy, MM, dd = map(int, m.groups())
-	hh, mm, ss = 0, 0, 0
+        yyyy, MM, dd = map(int, m.groups())
+        hh, mm, ss = 0, 0, 0
 
     if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
-	    (1970 <= yyyy)  and (0 <= hh < 24) and
-	    (0 <= mm < 60)  and (0 <= ss <= 61)):
-	raise ConfigError("Invalid %s %r" % (("date","time")[_timeMode],s))
+            (1970 <= yyyy)  and (0 <= hh < 24) and
+            (0 <= mm < 60)  and (0 <= ss <= 61)):
+        raise ConfigError("Invalid %s %r" % (("date","time")[_timeMode],s))
 
     return mixminion.Common.mkgmtime(yyyy, MM, dd, hh, mm, ss)
 
@@ -322,11 +322,11 @@ def _readConfigLine(line, restrict=0):
             return "ERR", "Bad section declaration"
         return 'SEC', m.group(1).strip()
     else:
-	# Now try to parse the line.
-	if restrict:
-	    m = _restricted_entry_re.match(line)
-	else:
-	    m = _entry_re.match(line)
+        # Now try to parse the line.
+        if restrict:
+            m = _restricted_entry_re.match(line)
+        else:
+            m = _entry_re.match(line)
         if not m:
             return "ERR", "Bad entry"
         return "ENT", (m.group(1), m.group(2))
@@ -347,12 +347,12 @@ def _readConfigFile(contents, restrict=0):
 
     # Make sure all characters in the file are ASCII.
     if not isPrintingAscii(contents):
-	raise ConfigError("Invalid characters in file")
+        raise ConfigError("Invalid characters in file")
 
     #FFFF We should really use xreadlines or something if we have a file.
     fileLines = contents.split("\n")
     if fileLines[-1] == '':
-	del fileLines[-1]
+        del fileLines[-1]
 
     for line in fileLines:
         lineno += 1
@@ -368,17 +368,17 @@ def _readConfigFile(contents, restrict=0):
                 raise ConfigError("Unknown section at line %s" %lineno)
             curSection.append( (key, val, lineno) )
         elif type == 'MORE':
-	    if restrict:
-		raise ConfigError("Continuation not allowed at line %s"%lineno)
-	    if not curSection:
+            if restrict:
+                raise ConfigError("Continuation not allowed at line %s"%lineno)
+            if not curSection:
                 raise ConfigError("Unexpected indentation at line %s" %lineno)
-	    lastLine = curSection[-1]
+            lastLine = curSection[-1]
             curSection[-1] = (lastLine[0],
-			      "%s %s" % (lastLine[1], val),lastLine[2])
-	else:
-	    assert type is None
-	    if restrict:
-		raise ConfigError("Empty line not allowed at line %s"%lineno)
+                              "%s %s" % (lastLine[1], val),lastLine[2])
+        else:
+            assert type is None
+            if restrict:
+                raise ConfigError("Empty line not allowed at line %s"%lineno)
     return sections
 
 def _formatEntry(key,val,w=79,ind=4):
@@ -397,11 +397,11 @@ def _formatEntry(key,val,w=79,ind=4):
     for v in val.split(" "):
         if linelength+1+len(v) <= w:
             linecontents.append(v)
-	    linelength += 1+len(v)
+            linelength += 1+len(v)
         else:
-	    lines.append(" ".join(linecontents))
-	    linecontents = [ ind_s, v ]
-	    linelength = ind+len(v)
+            lines.append(" ".join(linecontents))
+            linecontents = [ ind_s, v ]
+            linelength = ind+len(v)
     lines.append(" ".join(linecontents))
     lines.append("") # so the last line ends with \n
     return "\n".join(lines)
@@ -486,7 +486,7 @@ class _ConfigFile:
 
     def __reload(self, file):
         """As in .reload(), but takes an open file object."""
-	fileContents = file.read()
+        fileContents = file.read()
         sections = _readConfigFile(fileContents, self._restrictFormat)
 
         # These will become self.(_sections,_sectionEntries,_sectionNames)
@@ -593,13 +593,13 @@ class _ConfigFile:
         self._sectionNames = self_sectionNames
 
     def _addCallback(self, section, cb):
-	"""For use by subclasses.  Adds a callback for a section"""
+        """For use by subclasses.  Adds a callback for a section"""
         if not hasattr(self, '_callbacks'):
             self._callbacks = {}
         self._callbacks[section] = cb
 
     def validate(self, sections, sectionEntries, entryLines,
-		 fileContents):
+                 fileContents):
         """Check additional semantic properties of a set of configuration
            data before overwriting old data.  Subclasses should override."""
         pass
@@ -647,21 +647,21 @@ class ClientConfig(_ConfigFile):
         'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
                        'SURBAddress' : ('ALLOW', None, None),
                        'SURBPathLength' : ('ALLOW', _parseInt, "8"),
-		       'SURBLifetime' : ('ALLOW', _parseInterval, "7 days") },
+                       'SURBLifetime' : ('ALLOW', _parseInterval, "7 days") },
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
-	_validateHostSection(sections.get('Host', {}))
+        _validateHostSection(sections.get('Host', {}))
 
-	security = sections.get('Security', {})
-	p = security.get('PathLength', 8)
-	if not 0 < p <= 16:
-	    raise ConfigError("Path length must be between 1 and 16")
-	if p < 4:
-	    LOG.warn("Your default path length is frighteningly low."
-			  "  I'll trust that you know what you're doing.")
+        security = sections.get('Security', {})
+        p = security.get('PathLength', 8)
+        if not 0 < p <= 16:
+            raise ConfigError("Path length must be between 1 and 16")
+        if p < 4:
+            LOG.warn("Your default path length is frighteningly low."
+                          "  I'll trust that you know what you're doing.")
 
 def _validateHostSection(sec):
     """Helper function: Makes sure that the shared [Host] section is correct;
@@ -669,5 +669,3 @@ def _validateHostSection(sec):
     # For now, we do nothing here.  EntropySource and ShredCommand are checked
     # in configure_trng and configureShredCommand, respectively.
     pass
-
-

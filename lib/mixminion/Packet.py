@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.21 2002/12/12 19:56:46 nickm Exp $
+# $Id: Packet.py,v 1.22 2002/12/16 02:40:11 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -17,10 +17,10 @@ __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseSMTPInfo', 'parseMBOXInfo', 'ReplyBlock',
             'parseReplyBlock', 'ENC_SUBHEADER_LEN', 'HEADER_LEN',
             'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO', 'SECRET_LEN', 'TAG_LEN',
-	    'SINGLETON_PAYLOAD_OVERHEAD', 'OAEP_OVERHEAD',
-	    'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD',
-	    'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
-	    'SMTP_TYPE', 'MBOX_TYPE', 'MIN_EXIT_TYPE'
+            'SINGLETON_PAYLOAD_OVERHEAD', 'OAEP_OVERHEAD',
+            'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD',
+            'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
+            'SMTP_TYPE', 'MBOX_TYPE', 'MIN_EXIT_TYPE'
 ]
 
 import struct
@@ -159,7 +159,7 @@ def parseSubheader(s):
     if rlen < len(ri):
         ri = ri[:rlen]
     if rt >= MIN_EXIT_TYPE and rlen < 20:
-	raise ParseError("Subheader missing tag")
+        raise ParseError("Subheader missing tag")
     return Subheader(major,minor,secret,digest,rt,ri,rlen)
 
 def getTotalBlocksForRoutingInfoLen(bytes):
@@ -203,18 +203,18 @@ class Subheader:
                 "routinglen=%(routinglen)r)")% self.__dict__
 
     def getExitAddress(self):
-	"""Return the part of the routingInfo that contains the delivery
-	   address.  (Requires that routingType is an exit type.)"""
-	assert self.routingtype >= MIN_EXIT_TYPE
-	assert len(self.routinginfo) >= TAG_LEN
-	return self.routinginfo[TAG_LEN:]
+        """Return the part of the routingInfo that contains the delivery
+           address.  (Requires that routingType is an exit type.)"""
+        assert self.routingtype >= MIN_EXIT_TYPE
+        assert len(self.routinginfo) >= TAG_LEN
+        return self.routinginfo[TAG_LEN:]
 
     def getTag(self):
-	"""Return the part of the routingInfo that contains the decoding
-	   tag. (Requires that routingType is an exit type.)"""
-	assert self.routingtype >= MIN_EXIT_TYPE
-	assert len(self.routinginfo) >= TAG_LEN
-	return self.routinginfo[:TAG_LEN]
+        """Return the part of the routingInfo that contains the decoding
+           tag. (Requires that routingType is an exit type.)"""
+        assert self.routingtype >= MIN_EXIT_TYPE
+        assert len(self.routinginfo) >= TAG_LEN
+        return self.routinginfo[:TAG_LEN]
 
     def setRoutingInfo(self, info):
         """Change the routinginfo, and the routinglength to correspond."""
@@ -295,25 +295,25 @@ def parsePayload(payload):
        FragmentPayload object.  Raise ParseError on failure or data
        corruption."""
     if len(payload) not in (PAYLOAD_LEN, PAYLOAD_LEN-ENC_FWD_OVERHEAD):
-	raise ParseError("Payload has bad length")
+        raise ParseError("Payload has bad length")
     bit0 = ord(payload[0]) & 0x80
     if bit0:
-	# We have a fragment
-	idx, hash, msgID, msgLen = struct.unpack(FRAGMENT_UNPACK_PATTERN,
-					 payload[:FRAGMENT_PAYLOAD_OVERHEAD])
-	idx &= 0x7f
-	contents = payload[FRAGMENT_PAYLOAD_OVERHEAD:]
-	if msgLen <= len(contents):
-	    raise ParseError("Payload has an invalid size field")
-	return FragmentPayload(idx,hash,msgID,msgLen,contents)
+        # We have a fragment
+        idx, hash, msgID, msgLen = struct.unpack(FRAGMENT_UNPACK_PATTERN,
+                                         payload[:FRAGMENT_PAYLOAD_OVERHEAD])
+        idx &= 0x7f
+        contents = payload[FRAGMENT_PAYLOAD_OVERHEAD:]
+        if msgLen <= len(contents):
+            raise ParseError("Payload has an invalid size field")
+        return FragmentPayload(idx,hash,msgID,msgLen,contents)
     else:
-	# We have a singleton
-	size, hash = struct.unpack(SINGLETON_UNPACK_PATTERN,
-				   payload[:SINGLETON_PAYLOAD_OVERHEAD])
-	contents = payload[SINGLETON_PAYLOAD_OVERHEAD:]
-	if size > len(contents):
-	    raise ParseError("Payload has invalid size field")
-	return SingletonPayload(size,hash,contents)
+        # We have a singleton
+        size, hash = struct.unpack(SINGLETON_UNPACK_PATTERN,
+                                   payload[:SINGLETON_PAYLOAD_OVERHEAD])
+        contents = payload[SINGLETON_PAYLOAD_OVERHEAD:]
+        if size > len(contents):
+            raise ParseError("Payload has invalid size field")
+        return SingletonPayload(size,hash,contents)
 
 # A singleton payload starts with a 0 bit, 15 bits of size, and a 20-byte hash
 SINGLETON_UNPACK_PATTERN = "!H%ds" % (DIGEST_LEN)
@@ -329,28 +329,28 @@ class SingletonPayload(_Payload):
     """Represents the payload for a standalone mixminion message.
        Fields:  size, hash, data.  (Note that data is padded.)"""
     def __init__(self, size, hash, data):
-	self.size = size
-	self.hash = hash
-	self.data = data
+        self.size = size
+        self.hash = hash
+        self.data = data
 
     def isSingleton(self):
-	"""Returns true; this is a singleton payload."""
-	return 1
+        """Returns true; this is a singleton payload."""
+        return 1
 
     def getContents(self):
-	"""Returns the non-padding portion of this payload's data"""
-	return self.data[:self.size]
+        """Returns the non-padding portion of this payload's data"""
+        return self.data[:self.size]
 
     def pack(self):
-	"""Check for reasonable values of fields, and return a packed payload.
+        """Check for reasonable values of fields, and return a packed payload.
         """
-	assert (0x8000 & self.size) == 0
-	assert 0 <= self.size <= len(self.data)
-	assert len(self.hash) == DIGEST_LEN
-	assert (PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - len(self.data)) in \
-	       (0, ENC_FWD_OVERHEAD)
-	header = struct.pack(SINGLETON_UNPACK_PATTERN, self.size, self.hash)
-	return "%s%s" % (header, self.data)
+        assert (0x8000 & self.size) == 0
+        assert 0 <= self.size <= len(self.data)
+        assert len(self.hash) == DIGEST_LEN
+        assert (PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - len(self.data)) in \
+               (0, ENC_FWD_OVERHEAD)
+        header = struct.pack(SINGLETON_UNPACK_PATTERN, self.size, self.hash)
+        return "%s%s" % (header, self.data)
 
 class FragmentPayload(_Payload):
     """Represents the fields of a decoded fragment payload.
@@ -359,28 +359,28 @@ class FragmentPayload(_Payload):
             or decode them.
     """
     def __init__(self, index, hash, msgID, msgLen, data):
-	self.index = index
-	self.hash = hash
-	self.msgID = msgID
-	self.msgLen = msgLen
-	self.data = data
+        self.index = index
+        self.hash = hash
+        self.msgID = msgID
+        self.msgLen = msgLen
+        self.data = data
 
     def isSingleton(self):
-	"""Return false; not a singleton"""
-	return 0
+        """Return false; not a singleton"""
+        return 0
 
     def pack(self):
-	"""Returns the string value of this payload."""
-	assert 0 <= self.index <= MAX_N_FRAGMENTS
-	assert len(self.hash) == DIGEST_LEN
-	assert len(self.msgID) == FRAGMENT_MESSAGEID_LEN
-	assert len(self.data) < self.msgLen < 0x100000000L
-	assert (PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)) in \
-	       (0, ENC_FWD_OVERHEAD)
-	idx = self.index | 0x8000
-	header = struct.pack(FRAGMENT_UNPACK_PATTERN, idx, self.hash,
-			     self.msgID, self.msgLen)
-	return "%s%s" % (header, self.data)
+        """Returns the string value of this payload."""
+        assert 0 <= self.index <= MAX_N_FRAGMENTS
+        assert len(self.hash) == DIGEST_LEN
+        assert len(self.msgID) == FRAGMENT_MESSAGEID_LEN
+        assert len(self.data) < self.msgLen < 0x100000000L
+        assert (PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)) in \
+               (0, ENC_FWD_OVERHEAD)
+        idx = self.index | 0x8000
+        header = struct.pack(FRAGMENT_UNPACK_PATTERN, idx, self.hash,
+                             self.msgID, self.msgLen)
+        return "%s%s" % (header, self.data)
 
 #----------------------------------------------------------------------
 # REPLY BLOCKS
@@ -408,7 +408,7 @@ def parseReplyBlock(s):
 
     if major != 0x00 or minor != 0x01:
         raise ParseError("Unrecognized version on reply block %s.%s",
-			 major,minor)
+                         major,minor)
 
     ri = s[MIN_RB_LEN:]
     if len(ri) != rlen:
@@ -426,14 +426,14 @@ class ReplyBlock:
         self.timestamp = useBy
         self.routingType = rt
         self.routingInfo = ri
-	self.encryptionKey = key
+        self.encryptionKey = key
 
     def pack(self):
         """Returns the external representation of this reply block"""
         return struct.pack(RB_UNPACK_PATTERN,
                            "SURB", 0x00, 0x01, self.timestamp, self.header,
                            len(self.routingInfo), self.routingType,
-			   self.encryptionKey) + self.routingInfo
+                           self.encryptionKey) + self.routingInfo
 
 #----------------------------------------------------------------------
 # Routing info
@@ -471,19 +471,19 @@ class IPV4Info:
         """Return the routing info for this address"""
         assert len(self.keyinfo) == DIGEST_LEN
         return struct.pack(IPV4_PAT, inet_aton(self.ip),
-			   self.port, self.keyinfo)
+                           self.port, self.keyinfo)
 
     def __hash__(self):
-	return hash(self.pack())
+        return hash(self.pack())
 
     def __eq__(self, other):
-	return (type(self) == type(other) and self.ip == other.ip and
-		self.port == other.port and self.keyinfo == other.keyinfo)
+        return (type(self) == type(other) and self.ip == other.ip and
+                self.port == other.port and self.keyinfo == other.keyinfo)
 
 def parseSMTPInfo(s):
     """Convert the encoding of an SMTP exitinfo into an SMTPInfo object."""
     if not isSMTPMailbox(s):
-	raise ParseError("Invalid rfc822 mailbox %r" % s)
+        raise ParseError("Invalid rfc822 mailbox %r" % s)
     return SMTPInfo(s)
 
 class SMTPInfo:
@@ -495,7 +495,7 @@ class SMTPInfo:
 
     def pack(self):
         """Returns the wire representation of this SMTPInfo"""
-	return self.email
+        return self.email
 
 def parseMBOXInfo(s):
     """Convert the encoding of an MBOX exitinfo into an MBOXInfo address"""
@@ -512,4 +512,4 @@ class MBOXInfo:
 
     def pack(self):
         """Return the external representation of this routing info."""
-	return self.user
+        return self.user

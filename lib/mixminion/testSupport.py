@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.11 2002/12/12 19:56:46 nickm Exp $
+# $Id: testSupport.py,v 1.12 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.testSupport
 
@@ -41,70 +41,70 @@ class DirectoryStoreModule(DeliveryModule):
     #    all existing numbers.
     # next -- the number of the next file.
     def getConfigSyntax(self):
-	return { 'Testing/DirectoryDump':
-		 { 'Location' : ('REQUIRE', None, None),
-		   'UseQueue': ('REQUIRE', _parseBoolean, None) } }
+        return { 'Testing/DirectoryDump':
+                 { 'Location' : ('REQUIRE', None, None),
+                   'UseQueue': ('REQUIRE', _parseBoolean, None) } }
 
     def validateConfig(self, sections, entries, lines, contents):
-	# loc = sections['Testing/DirectoryDump'].get('Location')
-	pass
+        # loc = sections['Testing/DirectoryDump'].get('Location')
+        pass
 
     def configure(self, config, manager):
-	self.loc = config['Testing/DirectoryDump'].get('Location')
-	if not self.loc:
-	    return
-	self.useQueue = config['Testing/DirectoryDump']['UseQueue']
-	manager.enableModule(self)
+        self.loc = config['Testing/DirectoryDump'].get('Location')
+        if not self.loc:
+            return
+        self.useQueue = config['Testing/DirectoryDump']['UseQueue']
+        manager.enableModule(self)
 
-	if not os.path.exists(self.loc):
-	    createPrivateDir(self.loc)
+        if not os.path.exists(self.loc):
+            createPrivateDir(self.loc)
 
-	max = -1
-	for f in os.listdir(self.loc):
-	    if int(f) > max:
-		max = int(f)
-	self.next = max+1
+        max = -1
+        for f in os.listdir(self.loc):
+            if int(f) > max:
+                max = int(f)
+        self.next = max+1
 
     def getServerInfoBlock(self):
-	return ""
+        return ""
 
     def getName(self):
-	return "Testing_DirectoryDump"
+        return "Testing_DirectoryDump"
 
     def getExitTypes(self):
-	return [ 0xFFFE ]
+        return [ 0xFFFE ]
 
     def createDeliveryQueue(self, queueDir):
-	if self.useQueue:
-	    return SimpleModuleDeliveryQueue(self, queueDir)
-	else:
-	    return ImmediateDeliveryQueue(self)
+        if self.useQueue:
+            return SimpleModuleDeliveryQueue(self, queueDir)
+        else:
+            return ImmediateDeliveryQueue(self)
 
     def processMessage(self, message, tag, exitType, exitInfo):
-	assert exitType == 0xFFFE
+        assert exitType == 0xFFFE
 
-	if exitInfo == 'fail':
-	    return DELIVER_FAIL_RETRY
-	elif exitInfo == 'FAIL!':
-	    return DELIVER_FAIL_NORETRY
+        if exitInfo == 'fail':
+            return DELIVER_FAIL_RETRY
+        elif exitInfo == 'FAIL!':
+            return DELIVER_FAIL_NORETRY
 
-	LOG.debug("Delivering test message")
+        LOG.debug("Delivering test message")
 
-	m = _escapeMessageForEmail(message, tag)
-	if m is None:
-	    # Ordinarily, we'd drop corrupt messages, but this module is
-	    # meant for debugging.
-	    m = """\
+        m = _escapeMessageForEmail(message, tag)
+        if m is None:
+            # Ordinarily, we'd drop corrupt messages, but this module is
+            # meant for debugging.
+            m = """\
 ==========CORRUPT OR UNDECODABLE MESSAGE
 Decoding handle: %s%s==========MESSAGE ENDS""" % (
                       base64.encodestring(tag),
                       base64.encodestring(message))
 
-	f = open(os.path.join(self.loc, str(self.next)), 'w')
-	self.next += 1
-	f.write(m)
-	f.close()
-	return DELIVER_OK
+        f = open(os.path.join(self.loc, str(self.next)), 'w')
+        self.next += 1
+        f.write(m)
+        f.close()
+        return DELIVER_OK
 
 #----------------------------------------------------------------------
 # mix_mktemp: A secure, paranoid mktemp replacement.  (May be overkill
@@ -127,12 +127,12 @@ def mix_mktemp(extra=""):
     global _MM_TESTING_TEMPDIR
     global _MM_TESTING_TEMPDIR_COUNTER
     if _MM_TESTING_TEMPDIR is None:
-	# We haven't configured our temporary directory yet.
-	import tempfile
+        # We haven't configured our temporary directory yet.
+        import tempfile
         paranoia = _MM_TESTING_TEMPDIR_PARANOIA
 
-	# If tempfile.mkdtemp exists, use it.  This avoids warnings, and
-	# is harder for people to exploit.
+        # If tempfile.mkdtemp exists, use it.  This avoids warnings, and
+        # is harder for people to exploit.
         if hasattr(tempfile, 'mkdtemp'):
             try:
                 temp = tempfile.mkdtemp()
@@ -140,8 +140,8 @@ def mix_mktemp(extra=""):
                 print "mkdtemp failure: %s" % e
                 sys.exit(1)
         else:
-	# Otherwise, pick a dirname, make sure it doesn't exist, and try to
-	# create it.
+        # Otherwise, pick a dirname, make sure it doesn't exist, and try to
+        # create it.
             temp = tempfile.mktemp()
             if paranoia and os.path.exists(temp):
                 print "I think somebody's trying to exploit mktemp."
@@ -152,49 +152,49 @@ def mix_mktemp(extra=""):
                 print "Something's up with mktemp: %s" % e
                 sys.exit(1)
 
-	# The directory must exist....
-	if not os.path.exists(temp):
-	    print "Couldn't create temp dir %r" %temp
-	    sys.exit(1)
-	st = os.stat(temp)
-	if paranoia:
-	    # And be writeable only by us...
-	    if st[stat.ST_MODE] & 077:
-		print "Couldn't make temp dir %r with secure permissions" %temp
-		sys.exit(1)
-	    # And be owned by us...
-	    if st[stat.ST_UID] != os.getuid():
-		print "The wrong user owns temp dir %r"%temp
-		sys.exit(1)
-	    parent = temp
-	    # And if, and all of its parents, must not be group-writeable
-	    # unless their sticky bit is set, and must not be owned by
-	    # anybody except us and root.
-	    while 1:
-		p = os.path.split(parent)[0]
-		if parent == p:
-		    break
-		parent = p
-		st = os.stat(parent)
-		m = st[stat.ST_MODE]
-		if m & 02 and not (m & stat.S_ISVTX):
-		    print "Directory %s has fishy permissions %o" %(parent,m)
-		    sys.exit(1)
-		if st[stat.ST_UID] not in (0, os.getuid()):
-		    print "Directory %s has bad owner %s" % (parent,
-							     st[stat.ST_UID])
-		    sys.exit(1)
+        # The directory must exist....
+        if not os.path.exists(temp):
+            print "Couldn't create temp dir %r" %temp
+            sys.exit(1)
+        st = os.stat(temp)
+        if paranoia:
+            # And be writeable only by us...
+            if st[stat.ST_MODE] & 077:
+                print "Couldn't make temp dir %r with secure permissions" %temp
+                sys.exit(1)
+            # And be owned by us...
+            if st[stat.ST_UID] != os.getuid():
+                print "The wrong user owns temp dir %r"%temp
+                sys.exit(1)
+            parent = temp
+            # And if, and all of its parents, must not be group-writeable
+            # unless their sticky bit is set, and must not be owned by
+            # anybody except us and root.
+            while 1:
+                p = os.path.split(parent)[0]
+                if parent == p:
+                    break
+                parent = p
+                st = os.stat(parent)
+                m = st[stat.ST_MODE]
+                if m & 02 and not (m & stat.S_ISVTX):
+                    print "Directory %s has fishy permissions %o" %(parent,m)
+                    sys.exit(1)
+                if st[stat.ST_UID] not in (0, os.getuid()):
+                    print "Directory %s has bad owner %s" % (parent,
+                                                             st[stat.ST_UID])
+                    sys.exit(1)
 
-	_MM_TESTING_TEMPDIR = temp
-	if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:
-	    import atexit
-	    atexit.register(deltree, temp)
+        _MM_TESTING_TEMPDIR = temp
+        if _MM_TESTING_TEMPDIR_REMOVE_ON_EXIT:
+            import atexit
+            atexit.register(deltree, temp)
 
     # So now we have a temporary directory; return the name of a new
     # file there.
     _MM_TESTING_TEMPDIR_COUNTER += 1
     return os.path.join(_MM_TESTING_TEMPDIR,
-			"tmp%05d%s" % (_MM_TESTING_TEMPDIR_COUNTER,extra))
+                        "tmp%05d%s" % (_MM_TESTING_TEMPDIR_COUNTER,extra))
 
 _WAIT_FOR_KIDS = 1
 def deltree(*dirs):
@@ -202,17 +202,17 @@ def deltree(*dirs):
        contents."""
     global _WAIT_FOR_KIDS
     if _WAIT_FOR_KIDS:
-	print "Waiting for shred processes to finish."
-	waitForChildren()
-	_WAIT_FOR_KIDS = 0
+        print "Waiting for shred processes to finish."
+        waitForChildren()
+        _WAIT_FOR_KIDS = 0
     for d in dirs:
         if os.path.isdir(d):
             for fn in os.listdir(d):
-		loc = os.path.join(d,fn)
-		if os.path.isdir(loc):
-		    deltree(loc)
-		else:
-		    os.unlink(loc)
+                loc = os.path.join(d,fn)
+                if os.path.isdir(loc):
+                    deltree(loc)
+                else:
+                    os.unlink(loc)
             os.rmdir(d)
         elif os.path.exists(d):
             os.unlink(d)
@@ -224,7 +224,7 @@ def suspendLog(severity=None):
     """Temporarily suppress logging output"""
     log = LOG
     if hasattr(log, '_storedHandlers'):
-	resumeLog()
+        resumeLog()
     buf = cStringIO.StringIO()
     h = mixminion.Common._ConsoleLogHandler(buf)
     log._storedHandlers = log.handlers
@@ -232,7 +232,7 @@ def suspendLog(severity=None):
     log._testBuf = buf
     log.handlers = []
     if severity is not None:
-	log.setMinSeverity(severity)
+        log.setMinSeverity(severity)
     log.addHandler(h)
 
 def resumeLog():
@@ -240,7 +240,7 @@ def resumeLog():
        suspend."""
     log = LOG
     if not hasattr(log, '_storedHandlers'):
-	return None
+        return None
     buf = log._testBuf
     del log._testBuf
     log.handlers = log._storedHandlers
@@ -259,9 +259,9 @@ def replaceAttribute(object, attribute, value):
     """Temporarily replace <object.attribute> with value.  When
        undoReplacedAttributes() is called, the old value is restored."""
     if hasattr(object, attribute):
-	tup = (object, attribute, getattr(object, attribute))
+        tup = (object, attribute, getattr(object, attribute))
     else:
-	tup = (object, attribute)
+        tup = (object, attribute)
     _REPLACED_OBJECT_STACK.append(tup)
     setattr(object, attribute, value)
 
@@ -273,14 +273,14 @@ class _ReplacementFunc:
     """Helper object: callable stub that logs its invocations to _CALL_LOG
        and delegates to an internal function."""
     def __init__(self, name, fn=None):
-	self.name = name
-	self.fn = fn
+        self.name = name
+        self.fn = fn
     def __call__(self, *args, **kwargs):
-	_CALL_LOG.append((self.name, args, kwargs))
-	if self.fn:
-	    return self.fn(*args, **kwargs)
-	else:
-	    return None
+        _CALL_LOG.append((self.name, args, kwargs))
+        if self.fn:
+            return self.fn(*args, **kwargs)
+        else:
+            return None
 
 def replaceFunction(object, attribute, fn=None):
     """Temporarily replace the function or method <object.attribute>.
@@ -305,12 +305,12 @@ def undoReplacedAttributes():
     r.reverse()
     del _REPLACED_OBJECT_STACK[:]
     for item in r:
-	if len(item) == 2:
-	    o,a = item
-	    delattr(o,a)
-	else:
-	    o,a,v = item
-	    setattr(o,a,v)
+        if len(item) == 2:
+            o,a = item
+            delattr(o,a)
+        else:
+            o,a,v = item
+            setattr(o,a,v)
 
 #----------------------------------------------------------------------
 # Long keypairs: stored here to avoid regenerating them every time we need

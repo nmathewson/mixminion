@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.2 2002/12/15 04:35:55 nickm Exp $
+# $Id: ServerKeys.py,v 1.3 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -65,105 +65,105 @@ class ServerKeyring:
     # FFFF Support to put keys/queues in separate directories.
 
     def __init__(self, config):
-	"Create a ServerKeyring from a config object"
-	self.configure(config)
+        "Create a ServerKeyring from a config object"
+        self.configure(config)
 
     def configure(self, config):
-	"Set up a SeverKeyring from a config object"
-	self.config = config
-	self.homeDir = config['Server']['Homedir']
-	self.keyDir = os.path.join(self.homeDir, 'keys')
-	self.hashDir = os.path.join(self.homeDir, 'work', 'hashlogs')
-	self.keySloppiness = config['Server']['PublicKeySloppiness'][2]
-	self.checkKeys()
+        "Set up a SeverKeyring from a config object"
+        self.config = config
+        self.homeDir = config['Server']['Homedir']
+        self.keyDir = os.path.join(self.homeDir, 'keys')
+        self.hashDir = os.path.join(self.homeDir, 'work', 'hashlogs')
+        self.keySloppiness = config['Server']['PublicKeySloppiness'][2]
+        self.checkKeys()
 
     def checkKeys(self):
-	"""Internal method: read information about all this server's
-	   currently-prepared keys from disk."""
+        """Internal method: read information about all this server's
+           currently-prepared keys from disk."""
         self.keyIntervals = []
-	firstKey = sys.maxint
-	lastKey = 0
+        firstKey = sys.maxint
+        lastKey = 0
 
-	LOG.debug("Scanning server keystore at %s", self.keyDir)
+        LOG.debug("Scanning server keystore at %s", self.keyDir)
 
-	if not os.path.exists(self.keyDir):
-	    LOG.info("Creating server keystore at %s", self.keyDir)
-	    createPrivateDir(self.keyDir)
+        if not os.path.exists(self.keyDir):
+            LOG.info("Creating server keystore at %s", self.keyDir)
+            createPrivateDir(self.keyDir)
 
-	# Iterate over the entires in HOME/keys
+        # Iterate over the entires in HOME/keys
         for dirname in os.listdir(self.keyDir):
-	    # Skip any that aren't directories named "key_INT"
-	    if not os.path.isdir(os.path.join(self.keyDir,dirname)):
-		continue
+            # Skip any that aren't directories named "key_INT"
+            if not os.path.isdir(os.path.join(self.keyDir,dirname)):
+                continue
             if not dirname.startswith('key_'):
-		LOG.warn("Unexpected directory %s under %s",
-			      dirname, self.keyDir)
+                LOG.warn("Unexpected directory %s under %s",
+                              dirname, self.keyDir)
                 continue
             keysetname = dirname[4:]
-	    try:
-		setNum = int(keysetname)
-		# keep trace of the first and last used key number
-		if setNum < firstKey: firstKey = setNum
-		if setNum > lastKey: lastKey = setNum
-	    except ValueError:
-		LOG.warn("Unexpected directory %s under %s",
-			      dirname, self.keyDir)
-		continue
+            try:
+                setNum = int(keysetname)
+                # keep trace of the first and last used key number
+                if setNum < firstKey: firstKey = setNum
+                if setNum > lastKey: lastKey = setNum
+            except ValueError:
+                LOG.warn("Unexpected directory %s under %s",
+                              dirname, self.keyDir)
+                continue
 
-	    # Find the server descriptor...
+            # Find the server descriptor...
             d = os.path.join(self.keyDir, dirname)
             si = os.path.join(d, "ServerDesc")
             if os.path.exists(si):
                 inf = ServerInfo(fname=si, assumeValid=1)
-		# And find out when it's valid.
+                # And find out when it's valid.
                 t1 = inf['Server']['Valid-After']
                 t2 = inf['Server']['Valid-Until']
                 self.keyIntervals.append( (t1, t2, keysetname) )
-		LOG.debug("Found key %s (valid from %s to %s)",
-			       dirname, formatDate(t1), formatDate(t2))
-	    else:
-		LOG.warn("No server descriptor found for key %s"%dirname)
+                LOG.debug("Found key %s (valid from %s to %s)",
+                               dirname, formatDate(t1), formatDate(t2))
+            else:
+                LOG.warn("No server descriptor found for key %s"%dirname)
 
-	# Now, sort the key intervals by starting time.
+        # Now, sort the key intervals by starting time.
         self.keyIntervals.sort()
-	self.keyRange = (firstKey, lastKey)
+        self.keyRange = (firstKey, lastKey)
 
-	# Now we try to see whether we have more or less than 1 key in effect
-	# for a given time.
-	for idx in xrange(len(self.keyIntervals)-1):
-	    end = self.keyIntervals[idx][1]
-	    start = self.keyIntervals[idx+1][0]
-	    if start < end:
-		LOG.warn("Multiple keys for %s.  That's unsupported.",
-			      formatDate(end))
-	    elif start > end:
-		LOG.warn("Gap in key schedule: no key from %s to %s",
-			      formatDate(end), formatDate(start))
+        # Now we try to see whether we have more or less than 1 key in effect
+        # for a given time.
+        for idx in xrange(len(self.keyIntervals)-1):
+            end = self.keyIntervals[idx][1]
+            start = self.keyIntervals[idx+1][0]
+            if start < end:
+                LOG.warn("Multiple keys for %s.  That's unsupported.",
+                              formatDate(end))
+            elif start > end:
+                LOG.warn("Gap in key schedule: no key from %s to %s",
+                              formatDate(end), formatDate(start))
 
-	self.nextKeyRotation = 0 # Make sure that now > nextKeyRotation before
-	                         # we call _getLiveKey()
-	self._getLiveKey()       # Set up liveKey, nextKeyRotation.
+        self.nextKeyRotation = 0 # Make sure that now > nextKeyRotation before
+                                 # we call _getLiveKey()
+        self._getLiveKey()       # Set up liveKey, nextKeyRotation.
 
     def getIdentityKey(self):
-	"""Return this server's identity key.  Generate one if it doesn't
-	   exist."""
-	password = None # FFFF Use this, somehow.
-	fn = os.path.join(self.keyDir, "identity.key")
-	bits = self.config['Server']['IdentityKeyBits']
-	if os.path.exists(fn):
-	    key = mixminion.Crypto.pk_PEM_load(fn, password)
-	    keylen = key.get_modulus_bytes()*8
-	    if keylen != bits:
-		LOG.warn(
-		    "Stored identity key has %s bits, but you asked for %s.",
-		    keylen, bits)
-	else:
-	    LOG.info("Generating identity key. (This may take a while.)")
-	    key = mixminion.Crypto.pk_generate(bits)
-	    mixminion.Crypto.pk_PEM_save(key, fn, password)
-	    LOG.info("Generated %s-bit identity key.", bits)
+        """Return this server's identity key.  Generate one if it doesn't
+           exist."""
+        password = None # FFFF Use this, somehow.
+        fn = os.path.join(self.keyDir, "identity.key")
+        bits = self.config['Server']['IdentityKeyBits']
+        if os.path.exists(fn):
+            key = mixminion.Crypto.pk_PEM_load(fn, password)
+            keylen = key.get_modulus_bytes()*8
+            if keylen != bits:
+                LOG.warn(
+                    "Stored identity key has %s bits, but you asked for %s.",
+                    keylen, bits)
+        else:
+            LOG.info("Generating identity key. (This may take a while.)")
+            key = mixminion.Crypto.pk_generate(bits)
+            mixminion.Crypto.pk_PEM_save(key, fn, password)
+            LOG.info("Generated %s-bit identity key.", bits)
 
-	return key
+        return key
 
     def removeIdentityKey(self):
         """Remove this server's identity key."""
@@ -176,58 +176,58 @@ class ServerKeyring:
             LOG.warn("Removing identity key")
             secureDelete([fn], blocking=1)
 
-	dhfile = os.path.join(self.homeDir, 'work', 'tls', 'dhparam')
+        dhfile = os.path.join(self.homeDir, 'work', 'tls', 'dhparam')
         if os.path.exists('dhfile'):
             LOG.info("Removing diffie-helman parameters file")
             secureDelete([dhfile], blocking=1)
 
     def createKeys(self, num=1, startAt=None):
-	"""Generate 'num' public keys for this server. If startAt is provided,
+        """Generate 'num' public keys for this server. If startAt is provided,
            make the first key become valid at'startAt'.  Otherwise, make the
-	   first key become valid right after the last key we currently have
-	   expires.  If we have no keys now, make the first key start now."""
+           first key become valid right after the last key we currently have
+           expires.  If we have no keys now, make the first key start now."""
         # FFFF Use this.
-	#password = None
+        #password = None
 
-	if startAt is None:
-	    if self.keyIntervals:
-		startAt = self.keyIntervals[-1][1]+60
-	    else:
-		startAt = time.time()+60
+        if startAt is None:
+            if self.keyIntervals:
+                startAt = self.keyIntervals[-1][1]+60
+            else:
+                startAt = time.time()+60
 
-	startAt = previousMidnight(startAt)
+        startAt = previousMidnight(startAt)
 
-	firstKey, lastKey = self.keyRange
+        firstKey, lastKey = self.keyRange
 
-	for _ in xrange(num):
-	    if firstKey == sys.maxint:
-		keynum = firstKey = lastKey = 1
-	    elif firstKey > 1:
-		firstKey -= 1
-		keynum = firstKey
-	    else:
-		lastKey += 1
-		keynum = lastKey
+        for _ in xrange(num):
+            if firstKey == sys.maxint:
+                keynum = firstKey = lastKey = 1
+            elif firstKey > 1:
+                firstKey -= 1
+                keynum = firstKey
+            else:
+                lastKey += 1
+                keynum = lastKey
 
-	    keyname = "%04d" % keynum
+            keyname = "%04d" % keynum
 
-	    nextStart = startAt + self.config['Server']['PublicKeyLifetime'][2]
+            nextStart = startAt + self.config['Server']['PublicKeyLifetime'][2]
 
-	    LOG.info("Generating key %s to run from %s through %s (GMT)",
-		     keyname, formatDate(startAt),
-		     formatDate(nextStart-3600))
- 	    generateServerDescriptorAndKeys(config=self.config,
-					    identityKey=self.getIdentityKey(),
-					    keyname=keyname,
-					    keydir=self.keyDir,
-					    hashdir=self.hashDir,
-					    validAt=startAt)
-	    startAt = nextStart
+            LOG.info("Generating key %s to run from %s through %s (GMT)",
+                     keyname, formatDate(startAt),
+                     formatDate(nextStart-3600))
+            generateServerDescriptorAndKeys(config=self.config,
+                                            identityKey=self.getIdentityKey(),
+                                            keyname=keyname,
+                                            keydir=self.keyDir,
+                                            hashdir=self.hashDir,
+                                            validAt=startAt)
+            startAt = nextStart
 
         self.checkKeys()
 
     def removeDeadKeys(self, now=None):
-	"""Remove all keys that have expired"""
+        """Remove all keys that have expired"""
         self.checkKeys()
 
         if now is None:
@@ -237,84 +237,84 @@ class ServerKeyring:
             expiryStr = ""
 
         cutoff = now - self.keySloppiness
-	dirs = [ os.path.join(self.keyDir,"key_"+name)
+        dirs = [ os.path.join(self.keyDir,"key_"+name)
                   for va, vu, name in self.keyIntervals if vu < cutoff ]
 
-	for dirname, (va, vu, name) in zip(dirs, self.keyIntervals):
+        for dirname, (va, vu, name) in zip(dirs, self.keyIntervals):
             LOG.info("Removing%s key %s (valid from %s through %s)",
                         expiryStr, name, formatDate(va), formatDate(vu-3600))
-	    files = [ os.path.join(dirname,f)
+            files = [ os.path.join(dirname,f)
                                  for f in os.listdir(dirname) ]
-	    secureDelete(files, blocking=1)
-	    os.rmdir(dirname)
+            secureDelete(files, blocking=1)
+            os.rmdir(dirname)
 
-	self.checkKeys()
+        self.checkKeys()
 
     def _getLiveKey(self, when=None):
-	"""Find the first key that is now valid.  Return (Valid-after,
-	   valid-util, name)."""
+        """Find the first key that is now valid.  Return (Valid-after,
+           valid-util, name)."""
         if not self.keyIntervals:
-	    self.liveKey = None
-	    self.nextKeyRotation = 0
-	    return None
+            self.liveKey = None
+            self.nextKeyRotation = 0
+            return None
 
-	w = when
-	if when is None:
-	    when = time.time()
-	    if when < self.nextKeyRotation:
-		return self.liveKey
+        w = when
+        if when is None:
+            when = time.time()
+            if when < self.nextKeyRotation:
+                return self.liveKey
 
-	idx = bisect.bisect(self.keyIntervals, (when, None, None))-1
-	k = self.keyIntervals[idx]
-	if w is None:
-	    self.liveKey = k
-	    self.nextKeyRotation = k[1]
+        idx = bisect.bisect(self.keyIntervals, (when, None, None))-1
+        k = self.keyIntervals[idx]
+        if w is None:
+            self.liveKey = k
+            self.nextKeyRotation = k[1]
 
-	return k
+        return k
 
     def getNextKeyRotation(self):
-	"""Return the expiration time of the current key"""
+        """Return the expiration time of the current key"""
         return self.nextKeyRotation
 
     def getServerKeyset(self):
-	"""Return a ServerKeyset object for the currently live key."""
-	# FFFF Support passwords on keys
-	_, _, name = self._getLiveKey()
-	keyset = ServerKeyset(self.keyDir, name, self.hashDir)
-	keyset.load()
-	return keyset
+        """Return a ServerKeyset object for the currently live key."""
+        # FFFF Support passwords on keys
+        _, _, name = self._getLiveKey()
+        keyset = ServerKeyset(self.keyDir, name, self.hashDir)
+        keyset.load()
+        return keyset
 
     def getDHFile(self):
-	"""Return the filename for the diffie-helman parameters for the
-	   server.  Creates the file if it doesn't yet exist."""
-	dhdir = os.path.join(self.homeDir, 'work', 'tls')
-	createPrivateDir(dhdir)
-	dhfile = os.path.join(dhdir, 'dhparam')
+        """Return the filename for the diffie-helman parameters for the
+           server.  Creates the file if it doesn't yet exist."""
+        dhdir = os.path.join(self.homeDir, 'work', 'tls')
+        createPrivateDir(dhdir)
+        dhfile = os.path.join(dhdir, 'dhparam')
         if not os.path.exists(dhfile):
             LOG.info("Generating Diffie-Helman parameters for TLS...")
             mixminion._minionlib.generate_dh_parameters(dhfile, verbose=0)
             LOG.info("...done")
-	else:
-	    LOG.debug("Using existing Diffie-Helman parameter from %s",
-			   dhfile)
+        else:
+            LOG.debug("Using existing Diffie-Helman parameter from %s",
+                           dhfile)
 
         return dhfile
 
     def getTLSContext(self):
-	"""Create and return a TLS context from the currently live key."""
+        """Create and return a TLS context from the currently live key."""
         keys = self.getServerKeyset()
         return mixminion._minionlib.TLSContext_new(keys.getCertFileName(),
-						   keys.getMMTPKey(),
-						   self.getDHFile())
+                                                   keys.getMMTPKey(),
+                                                   self.getDHFile())
 
     def getPacketHandler(self):
-	"""Create and return a PacketHandler from the currently live key."""
+        """Create and return a PacketHandler from the currently live key."""
         keys = self.getServerKeyset()
-	packetKey = keys.getPacketKey()
-	hashlog = mixminion.server.HashLog.HashLog(keys.getHashLogFileName(),
-						 keys.getMMTPKeyID())
+        packetKey = keys.getPacketKey()
+        hashlog = mixminion.server.HashLog.HashLog(keys.getHashLogFileName(),
+                                                 keys.getMMTPKeyID())
         return mixminion.server.PacketHandler.PacketHandler(packetKey,
-						     hashlog)
+                                                     hashlog)
 
 
 #----------------------------------------------------------------------
@@ -339,21 +339,21 @@ class ServerKeyset:
     #
     # packetKey, mmtpKey: This server's actual short-term keys.
     def __init__(self, keyroot, keyname, hashroot):
-	"""Load a set of keys named "keyname" on a server where all keys
-	   are stored under the directory "keyroot" and hashlogs are stored
-	   under "hashroot". """
-	keydir  = os.path.join(keyroot, "key_"+keyname)
-	self.hashlogFile = os.path.join(hashroot, "hash_"+keyname)
-	self.packetKeyFile = os.path.join(keydir, "mix.key")
-	self.mmtpKeyFile = os.path.join(keydir, "mmtp.key")
-	self.certFile = os.path.join(keydir, "mmtp.cert")
+        """Load a set of keys named "keyname" on a server where all keys
+           are stored under the directory "keyroot" and hashlogs are stored
+           under "hashroot". """
+        keydir  = os.path.join(keyroot, "key_"+keyname)
+        self.hashlogFile = os.path.join(hashroot, "hash_"+keyname)
+        self.packetKeyFile = os.path.join(keydir, "mix.key")
+        self.mmtpKeyFile = os.path.join(keydir, "mmtp.key")
+        self.certFile = os.path.join(keydir, "mmtp.cert")
         self.descFile = os.path.join(keydir, "ServerDesc")
         if not os.path.exists(keydir):
-	    createPrivateDir(keydir)
+            createPrivateDir(keydir)
 
     def load(self, password=None):
         """Read the short-term keys from disk.  Must be called before
-	   getPacketKey or getMMTPKey."""
+           getPacketKey or getMMTPKey."""
         self.packetKey = mixminion.Crypto.pk_PEM_load(self.packetKeyFile,
                                                       password)
         self.mmtpKey = mixminion.Crypto.pk_PEM_load(self.mmtpKeyFile,
@@ -371,7 +371,7 @@ class ServerKeyset:
     def getMMTPKey(self): return self.mmtpKey
     def getMMTPKeyID(self):
         "Return the sha1 hash of the asn1 encoding of the MMTP public key"
-	return mixminion.Crypto.sha1(self.mmtpKey.encode_key(1))
+        return mixminion.Crypto.sha1(self.mmtpKey.encode_key(1))
 
 #----------------------------------------------------------------------
 # Functionality to generate keys and server descriptors
@@ -390,7 +390,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           identityKey -- This server's private identity key
           keydir -- The root directory for storing key sets.
           keyname -- The name of this new key set within keydir
-	  hashdir -- The root directory for storing hash logs.
+          hashdir -- The root directory for storing hash logs.
           validAt -- The starting time (in seconds) for this key's lifetime."""
 
     # First, we generate both of our short-term keys...
@@ -413,7 +413,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         nickname = socket.gethostname()
         if not nickname or nickname.lower().startswith("localhost"):
             nickname = config['Incoming/MMTP'].get('IP', "<Unknown host>")
-	LOG.warn("No nickname given: defaulting to %r", nickname)
+        LOG.warn("No nickname given: defaulting to %r", nickname)
     contact = config['Server']['Contact-Email']
     comments = config['Server']['Comments']
     if not validAt:
@@ -429,62 +429,62 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 
     # Create the X509 certificate.
     mixminion.Crypto.generate_cert(serverKeys.getCertFileName(),
-				   mmtpKey,
-				   "MMTP certificate for %s" %nickname,
+                                   mmtpKey,
+                                   "MMTP certificate for %s" %nickname,
                                    certStarts, certEnds)
 
     fields = {
-	"IP": config['Incoming/MMTP'].get('IP', "0.0.0.0"),
-	"Port": config['Incoming/MMTP'].get('Port', 0),
-	"Nickname": nickname,
-	"Identity":
-	   formatBase64(mixminion.Crypto.pk_encode_public_key(identityKey)),
-	"Published": formatTime(time.time()),
-	"ValidAfter": formatDate(validAt),
-	"ValidUntil": formatDate(validUntil),
-	"PacketKey":
-  	   formatBase64(mixminion.Crypto.pk_encode_public_key(packetKey)),
-	"KeyID":
-	   formatBase64(serverKeys.getMMTPKeyID()),
-	}
+        "IP": config['Incoming/MMTP'].get('IP', "0.0.0.0"),
+        "Port": config['Incoming/MMTP'].get('Port', 0),
+        "Nickname": nickname,
+        "Identity":
+           formatBase64(mixminion.Crypto.pk_encode_public_key(identityKey)),
+        "Published": formatTime(time.time()),
+        "ValidAfter": formatDate(validAt),
+        "ValidUntil": formatDate(validUntil),
+        "PacketKey":
+           formatBase64(mixminion.Crypto.pk_encode_public_key(packetKey)),
+        "KeyID":
+           formatBase64(serverKeys.getMMTPKeyID()),
+        }
 
     # If we don't know our IP address, try to guess
     if fields['IP'] == '0.0.0.0':
-	try:
-	    fields['IP'] = _guessLocalIP()
-	    LOG.warn("No IP configured; guessing %s",fields['IP'])
-	except IPGuessError, e:
-	    LOG.error("Can't guess IP: %s", str(e))
-	    raise MixError("Can't guess IP: %s" % str(e))
+        try:
+            fields['IP'] = _guessLocalIP()
+            LOG.warn("No IP configured; guessing %s",fields['IP'])
+        except IPGuessError, e:
+            LOG.error("Can't guess IP: %s", str(e))
+            raise MixError("Can't guess IP: %s" % str(e))
 
     # Fill in a stock server descriptor.  Note the empty Digest: and
     # Signature: lines.
     info = """\
         [Server]
-	Descriptor-Version: 0.1
+        Descriptor-Version: 0.1
         IP: %(IP)s
         Nickname: %(Nickname)s
-	Identity: %(Identity)s
-	Digest:
+        Identity: %(Identity)s
+        Digest:
         Signature:
         Published: %(Published)s
         Valid-After: %(ValidAfter)s
-	Valid-Until: %(ValidUntil)s
-	Packet-Key: %(PacketKey)s
+        Valid-Until: %(ValidUntil)s
+        Packet-Key: %(PacketKey)s
         """ % fields
     if contact:
-	info += "Contact: %s\n"%contact
+        info += "Contact: %s\n"%contact
     if comments:
-	info += "Comments: %s\n"%comments
+        info += "Comments: %s\n"%comments
 
     # Only advertise incoming MMTP if we support it.
     if config["Incoming/MMTP"].get("Enabled", 0):
-	info += """\
+        info += """\
             [Incoming/MMTP]
             Version: 0.1
             Port: %(Port)s
-	    Key-Digest: %(KeyID)s
-	    Protocols: 0.1
+            Key-Digest: %(KeyID)s
+            Protocols: 0.1
             """ % fields
         for k,v in config.getSectionItems("Incoming/MMTP"):
             if k not in ("Allow", "Deny"):
@@ -493,9 +493,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 
     # Only advertise outgoing MMTP if we support it.
     if config["Outgoing/MMTP"].get("Enabled", 0):
-	info += """\
+        info += """\
             [Outgoing/MMTP]
-	    Version: 0.1
+            Version: 0.1
             Protocols: 0.1
             """
         for k,v in config.getSectionItems("Outgoing/MMTP"):
@@ -567,43 +567,43 @@ def _guessLocalIP():
     "Try to find a reasonable IP for this host."
     global _GUESSED_IP
     if _GUESSED_IP is not None:
-	return _GUESSED_IP
+        return _GUESSED_IP
 
     # First, let's see what our name resolving subsystem says our
     # name is.
     ip_set = {}
     try:
-	ip_set[ socket.gethostbyname(socket.gethostname()) ] = 1
+        ip_set[ socket.gethostbyname(socket.gethostname()) ] = 1
     except socket.error:
-	try:
-	    ip_set[ socket.gethostbyname(socket.getfqdn()) ] = 1
-	except socket.error:
-	    pass
+        try:
+            ip_set[ socket.gethostbyname(socket.getfqdn()) ] = 1
+        except socket.error:
+            pass
 
     # And in case that doesn't work, let's see what other addresses we might
     # think we have by using 'getsockname'.
     for target_addr in ('18.0.0.1', '10.0.0.1', '192.168.0.1',
-			'172.16.0.1')+tuple(ip_set.keys()):
-	# open a datagram socket so that we don't actually send any packets
-	# by connecting.
-	try:
-	    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	    s.connect((target_addr, 9)) #discard port
-	    ip_set[ s.getsockname()[0] ] = 1
-	except socket.error:
-	    pass
+                        '172.16.0.1')+tuple(ip_set.keys()):
+        # open a datagram socket so that we don't actually send any packets
+        # by connecting.
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect((target_addr, 9)) #discard port
+            ip_set[ s.getsockname()[0] ] = 1
+        except socket.error:
+            pass
 
     for ip in ip_set.keys():
-	if ip.startswith("127.") or ip.startswith("0."):
-	    del ip_set[ip]
+        if ip.startswith("127.") or ip.startswith("0."):
+            del ip_set[ip]
 
     # FFFF reject 192.168, 10., 176.16.x
 
     if len(ip_set) == 0:
-	raise IPGuessError("No address found")
+        raise IPGuessError("No address found")
 
     if len(ip_set) > 1:
-	raise IPGuessError("Multiple addresses found: %s" % (
-	            ", ".join(ip_set.keys())))
+        raise IPGuessError("Multiple addresses found: %s" % (
+                    ", ".join(ip_set.keys())))
 
     return ip_set.keys()[0]

@@ -1,16 +1,16 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.35 2002/12/16 01:37:19 nickm Exp $
+# $Id: Common.py,v 1.36 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.Common
 
    Common functionality and utility code for Mixminion"""
 
 __all__ = [ 'LOG', 'LogStream', 'MixError', 'MixFatalError',
-	    'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
-	    'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
-	    'formatTime', 'installSignalHandlers', 'isSMTPMailbox', 'mkgmtime',
-	    'onReset', 'onTerminate', 'previousMidnight', 'secureDelete',
-	    'stringContains', 'waitForChildren' ]
+            'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
+            'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
+            'formatTime', 'installSignalHandlers', 'isSMTPMailbox', 'mkgmtime',
+            'onReset', 'onTerminate', 'previousMidnight', 'secureDelete',
+            'stringContains', 'waitForChildren' ]
 
 import base64
 import calendar
@@ -80,15 +80,15 @@ _P_ASCII_CHARS = "\t\n\v\r"+"".join(map(chr, range(0x20, 0x7F)))
 # String containing all printing ascii characters, and all characters that
 # may be used in an extended charset.
 _P_ASCII_CHARS_HIGH = "\t\n\v\r"+"".join(map(chr, range(0x20, 0x7F)+
-					          range(0x80, 0xFF)))
+                                                  range(0x80, 0xFF)))
 
 def isPrintingAscii(s,allowISO=0):
     """Return true iff every character in s is a printing ascii character.
        If allowISO is true, also permit characters between 0x80 and 0xFF."""
     if allowISO:
-	return len(s.translate(_ALLCHARS, _P_ASCII_CHARS_HIGH)) == 0
+        return len(s.translate(_ALLCHARS, _P_ASCII_CHARS_HIGH)) == 0
     else:
-	return len(s.translate(_ALLCHARS, _P_ASCII_CHARS)) == 0
+        return len(s.translate(_ALLCHARS, _P_ASCII_CHARS)) == 0
 
 def stripSpace(s, space=" \t\v\n"):
     """Remove all whitespace from s."""
@@ -103,12 +103,12 @@ def createPrivateDir(d, nocreate=0):
     """Create a directory, and all parent directories, checking permissions
        as we go along.  All superdirectories must be owned by root or us."""
     if not os.path.exists(d):
-	if nocreate:
-	    raise MixFatalError("Nonexistent directory %s" % d)
-	try:
-	    os.makedirs(d, 0700)
-	except OSError:
-	    raise MixFatalError("Unable to create directory %s" % d)
+        if nocreate:
+            raise MixFatalError("Nonexistent directory %s" % d)
+        try:
+            os.makedirs(d, 0700)
+        except OSError:
+            raise MixFatalError("Unable to create directory %s" % d)
 
     checkPrivateDir(d)
 
@@ -120,41 +120,41 @@ def checkPrivateDir(d, recurse=1):
     me = os.getuid()
 
     if not os.path.exists(d):
-	raise MixFatalError("Directory %s does not exist" % d)
+        raise MixFatalError("Directory %s does not exist" % d)
     if not os.path.isdir(d):
-	raise MixFatalError("%s is not a directory" % d)
+        raise MixFatalError("%s is not a directory" % d)
 
     st = os.stat(d)
     # check permissions
     if st[stat.ST_MODE] & 0777 != 0700:
-	raise MixFatalError("Directory %s must be mode 0700" % d)
+        raise MixFatalError("Directory %s must be mode 0700" % d)
 
     if st[stat.ST_UID] != me:
-	raise MixFatalError("Directory %s has must have owner %s" %(d, me))
+        raise MixFatalError("Directory %s has must have owner %s" %(d, me))
 
     if not recurse:
-	return
+        return
 
     # Check permissions on parents.
     while 1:
-	parent = os.path.split(d)[0]
-	if parent == d:
-	    return
-	d = parent
+        parent = os.path.split(d)[0]
+        if parent == d:
+            return
+        d = parent
 
-	st = os.stat(d)
-	mode = st[stat.ST_MODE]
-	owner = st[stat.ST_UID]
-	if owner not in (0, me):
-	    raise MixFatalError("Bad owner (uid=%s) on directory %s"
-				% (owner, d))
-	if (mode & 02) and not (mode & stat.S_ISVTX):
-	    raise MixFatalError("Bad mode (%o) on directory %s" %(mode, d))
+        st = os.stat(d)
+        mode = st[stat.ST_MODE]
+        owner = st[stat.ST_UID]
+        if owner not in (0, me):
+            raise MixFatalError("Bad owner (uid=%s) on directory %s"
+                                % (owner, d))
+        if (mode & 02) and not (mode & stat.S_ISVTX):
+            raise MixFatalError("Bad mode (%o) on directory %s" %(mode, d))
 
-	if (mode & 020) and not (mode & stat.S_ISVTX):
-	    # FFFF We may want to give an even stronger error here.
-	    LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
-		     mode, d, st[stat.ST_GID])
+        if (mode & 020) and not (mode & stat.S_ISVTX):
+            # FFFF We may want to give an even stronger error here.
+            LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
+                     mode, d, st[stat.ST_GID])
 
 #----------------------------------------------------------------------
 # Secure filesystem operations.
@@ -181,7 +181,7 @@ def configureShredCommand(conf):
         if os.path.exists("/usr/bin/shred"):
             cmd, opts = "/usr/bin/shred", ["-uz", "-n0"]
         else:
-	    # Use built-in _overwriteFile
+            # Use built-in _overwriteFile
             cmd, opts = None, None
 
     _SHRED_CMD, _SHRED_OPTS = cmd, opts
@@ -198,21 +198,21 @@ def _overwriteFile(f):
     global _BLKSIZE
     global _NILSTR
     if not _BLKSIZE:
-	#???? this assumes that all filesystems we are using have the same
-	#???? block size.
-	if hasattr(os, 'statvfs'):
-	    _BLKSIZE = os.statvfs(f)[statvfs.F_BSIZE]
-	else:
-	    _BLKSIZE = 8192 # ???? Safe guess?
-	_NILSTR = '\x00' * _BLKSIZE
+        #???? this assumes that all filesystems we are using have the same
+        #???? block size.
+        if hasattr(os, 'statvfs'):
+            _BLKSIZE = os.statvfs(f)[statvfs.F_BSIZE]
+        else:
+            _BLKSIZE = 8192 # ???? Safe guess?
+        _NILSTR = '\x00' * _BLKSIZE
     fd = os.open(f, os.O_WRONLY)
     try:
-	size = os.fstat(fd)[stat.ST_SIZE]
-	blocks = ceilDiv(size, _BLKSIZE)
-	for _ in xrange(blocks):
-	    os.write(fd, _NILSTR)
+        size = os.fstat(fd)[stat.ST_SIZE]
+        blocks = ceilDiv(size, _BLKSIZE)
+        for _ in xrange(blocks):
+            os.write(fd, _NILSTR)
     finally:
-	os.close(fd)
+        os.close(fd)
 
 def secureDelete(fnames, blocking=0):
     """Given a list of filenames, removes the contents of all of those
@@ -256,7 +256,7 @@ def secureDelete(fnames, blocking=0):
 
     if not _SHRED_CMD:
         for f in fnames:
-	    _overwriteFile(f)
+            _overwriteFile(f)
             os.unlink(f)
         return None
 
@@ -267,8 +267,8 @@ def secureDelete(fnames, blocking=0):
 
     # Some systems are unhappy when you call them with too many options.
     for i in xrange(0, len(fnames), 250-len(_SHRED_OPTS)):
-	files = fnames[i:i+250-len(_SHRED_OPTS)]
-	os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
+        files = fnames[i:i+250-len(_SHRED_OPTS)]
+        os.spawnl(mode, _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
 
 #----------------------------------------------------------------------
 # Logging
@@ -287,30 +287,30 @@ class _FileLogHandler:
      #     file -- a file object, or None if the file is closed.
      #     fname -- this log's associated filename
     def __init__(self, fname):
-	"Create a new FileLogHandler to append messages to fname"
+        "Create a new FileLogHandler to append messages to fname"
         self.file = None
         self.fname = fname
         self.reset()
     def reset(self):
-	"""Close and reopen our underlying file.  This behavior is needed
-	   to implement log rotation."""
+        """Close and reopen our underlying file.  This behavior is needed
+           to implement log rotation."""
         if self.file is not None:
             self.file.close()
-	try:
-	    parent = os.path.split(self.fname)[0]
-	    if not os.path.exists(parent):
-		createPrivateDir(parent)
-	    self.file = open(self.fname, 'a')
-	except OSError:
-	    self.file = None
-	    raise MixError("Unable to open log file %r"%self.fname)
+        try:
+            parent = os.path.split(self.fname)[0]
+            if not os.path.exists(parent):
+                createPrivateDir(parent)
+            self.file = open(self.fname, 'a')
+        except OSError:
+            self.file = None
+            raise MixError("Unable to open log file %r"%self.fname)
     def close(self):
-	"Close the underlying file"
+        "Close the underlying file"
         self.file.close()
     def write(self, severity, message):
-	"""(Used by Log: write a message to this log handler.)"""
-	if self.file is None:
-	    return
+        """(Used by Log: write a message to this log handler.)"""
+        if self.file is None:
+            return
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
         self.file.flush()
 
@@ -318,12 +318,12 @@ class _ConsoleLogHandler:
     """Helper class for logging: directs all log messages to a stderr-like
        file object"""
     def __init__(self, file):
-	"Create a new _ConsoleLogHandler attached to a given file."""
+        "Create a new _ConsoleLogHandler attached to a given file."""
         self.file = file
     def reset(self): pass
     def close(self): pass
     def write(self, severity, message):
-	"""(Used by Log: write a message to this log handler.)"""
+        """(Used by Log: write a message to this log handler.)"""
         print >> self.file, "%s [%s] %s" % (_logtime(), severity, message)
 
 # Map from log severity name to numeric values
@@ -343,12 +343,12 @@ class Log:
               TRACE: hyperverbose mode; used for debugging fiddly
                  little details.  This is a security risk.
               DEBUG: very verbose mode; used for tracing connections
-	         and messages through the system.  This is a security risk.
+                 and messages through the system.  This is a security risk.
               INFO: non-critical events.
-	      WARN: recoverable errors
-	      ERROR: nonrecoverable errors that affect only a single
+              WARN: recoverable errors
+              ERROR: nonrecoverable errors that affect only a single
                  message or a connection.
-	      FATAL: nonrecoverable errors that affect the entire system.
+              FATAL: nonrecoverable errors that affect the entire system.
 
        In practise, we instantiate only a single instance of this class,
        accessed as mixminion.Common.LOG."""
@@ -356,14 +356,14 @@ class Log:
     # handlers: a list of logHandler objects.
     # severity: a severity below which log messages are ignored.
     def __init__(self, minSeverity):
-	"""Create a new Log object that ignores all message less severe than
-	   minSeverity, and sends its output to stderr."""
-	self.configure(None)
-	self.setMinSeverity(minSeverity)
+        """Create a new Log object that ignores all message less severe than
+           minSeverity, and sends its output to stderr."""
+        self.configure(None)
+        self.setMinSeverity(minSeverity)
 
     def configure(self, config):
-	"""Set up this Log object based on a ServerConfig or ClientConfig
-	   object"""
+        """Set up this Log object based on a ServerConfig or ClientConfig
+           object"""
         # XXXX001 Don't EchoLogMessages when NoDaemon==0.
         self.handlers = []
         if config == None or not config.has_section("Server"):
@@ -376,66 +376,66 @@ class Log:
                 homedir = config['Server']['Homedir']
                 if homedir:
                     logfile = os.path.join(homedir, "log")
-	    self.addHandler(_ConsoleLogHandler(sys.stderr))
+            self.addHandler(_ConsoleLogHandler(sys.stderr))
             if logfile:
-		try:
-		    self.addHandler(_FileLogHandler(logfile))
-		except MixError, e:
-		    self.error(str(e))
+                try:
+                    self.addHandler(_FileLogHandler(logfile))
+                except MixError, e:
+                    self.error(str(e))
             if logfile and not (config['Server'].get('EchoMessages',0) and
-				config['Server'].get('NoDaemon',0)):
-		del self.handlers[0]
+                                config['Server'].get('NoDaemon',0)):
+                del self.handlers[0]
 
     def setMinSeverity(self, minSeverity):
-	"""Sets the minimum severity of messages to be logged.
-	      minSeverity -- the string representation of a severity level."""
+        """Sets the minimum severity of messages to be logged.
+              minSeverity -- the string representation of a severity level."""
         self.severity = _SEVERITIES.get(minSeverity, 1)
 
     def getMinSeverity(self):
-	"""Return a string representation of this log's minimum severity
-	   level."""
+        """Return a string representation of this log's minimum severity
+           level."""
         for k,v in _SEVERITIES.items():
             if v == self.severity:
                 return k
-	return "INFO"
+        return "INFO"
 
     def addHandler(self, handler):
-	"""Add a LogHandler object to the list of objects that receive
-	   messages from this log."""
+        """Add a LogHandler object to the list of objects that receive
+           messages from this log."""
         self.handlers.append(handler)
 
     def reset(self):
-	"""Flush and re-open all logs."""
+        """Flush and re-open all logs."""
         for h in self.handlers:
-	    try:
-		h.reset()
-	    except MixError, e:
-		if len(self.handlers) > 1:
-		    self.error(str(e))
-		else:
-		    print >>sys.stderr, "Unable to reset log system"
+            try:
+                h.reset()
+            except MixError, e:
+                if len(self.handlers) > 1:
+                    self.error(str(e))
+                else:
+                    print >>sys.stderr, "Unable to reset log system"
 
     def close(self):
-	"""Close all logs"""
+        """Close all logs"""
         for h in self.handlers:
             h.close()
 
     def log(self, severity, message, *args):
-	"""Send a message of a given severity to the log.  If additional
-	   arguments are provided, write 'message % args'. """
-	self._log(severity, message, args)
+        """Send a message of a given severity to the log.  If additional
+           arguments are provided, write 'message % args'. """
+        self._log(severity, message, args)
 
     def _log(self, severity, message, args):
-	"""Helper method: If we aren't ignoring messages of level 'severity',
-	   then send message%args to all the underlying log handlers."""
+        """Helper method: If we aren't ignoring messages of level 'severity',
+           then send message%args to all the underlying log handlers."""
 
         # Enable this block to bail early in production versions
         #if _SEVERITIES.get(severity, 100) < self.severity:
         #    return
-	if args is None:
-	    m = message
-	else:
-	    m = message % args
+        if args is None:
+            m = message
+        else:
+            m = message % args
 
         # Enable this block to debug message formats.
         if _SEVERITIES.get(severity, 100) < self.severity:
@@ -445,53 +445,53 @@ class Log:
             h.write(severity, m)
 
     def trace(self, message, *args):
-	"Write a trace (hyperverbose) message to the log"
+        "Write a trace (hyperverbose) message to the log"
         self.log("TRACE", message, *args)
     def debug(self, message, *args):
-	"Write a debug (verbose) message to the log"
+        "Write a debug (verbose) message to the log"
         self.log("DEBUG", message, *args)
     def info(self, message, *args):
-	"Write an info (non-error) message to the log"
+        "Write an info (non-error) message to the log"
         self.log("INFO", message, *args)
     def warn(self, message, *args):
-	"Write a warn (recoverable error) message to the log"
+        "Write a warn (recoverable error) message to the log"
         self.log("WARN", message, *args)
     def error(self, message, *args):
-	"Write an error (message loss error) message to the log"
+        "Write an error (message loss error) message to the log"
         self.log("ERROR", message, *args)
     def fatal(self, message, *args):
-	"Write a fatal (unrecoverable system error) message to the log"
+        "Write a fatal (unrecoverable system error) message to the log"
         self.log("FATAL", message, *args)
     def log_exc(self, severity, (exclass, ex, tb), message=None, *args):
-	"""Write an exception and stack trace to the log.  If message and
-	   args are provided, use them as an explanitory message; otherwise,
-	   introduce the message as "Unexpected exception".
+        """Write an exception and stack trace to the log.  If message and
+           args are provided, use them as an explanitory message; otherwise,
+           introduce the message as "Unexpected exception".
 
-	   This should usually be called as
-	       LOG.log_exc('ERROR', sys.exc_info(), message, args...)
-	   """
-	if message is not None:
-	    self.log(severity, message, *args)
-	elif tb is not None:
-	    filename = tb.tb_frame.f_code.co_filename
-	    self.log(severity, "Unexpected exception in %s", filename)
-	else:
-	    self.log(severity, "Unexpected exception")
+           This should usually be called as
+               LOG.log_exc('ERROR', sys.exc_info(), message, args...)
+           """
+        if message is not None:
+            self.log(severity, message, *args)
+        elif tb is not None:
+            filename = tb.tb_frame.f_code.co_filename
+            self.log(severity, "Unexpected exception in %s", filename)
+        else:
+            self.log(severity, "Unexpected exception")
 
-	formatted = traceback.format_exception(exclass, ex, tb)
-	formatted[1:] = [ "  %s" % line for line in formatted[1:] ]
-	indented = "".join(formatted)
-	if indented.endswith('\n'):
-	    indented = indented[:-1]
-	self._log(severity, indented, None)
+        formatted = traceback.format_exception(exclass, ex, tb)
+        formatted[1:] = [ "  %s" % line for line in formatted[1:] ]
+        indented = "".join(formatted)
+        if indented.endswith('\n'):
+            indented = indented[:-1]
+        self._log(severity, indented, None)
 
     def error_exc(self, (exclass, ex, tb), message=None, *args):
-	"Same as log_exc, but logs an error message."
-	self.log_exc("ERROR", (exclass, ex, tb), message, *args)
+        "Same as log_exc, but logs an error message."
+        self.log_exc("ERROR", (exclass, ex, tb), message, *args)
 
     def fatal_exc(self, (exclass, ex, tb), message=None, *args):
-	"Same as log_exc, but logs a fatal message."
-	self.log_exc("FATAL", (exclass, ex, tb), message, *args)
+        "Same as log_exc, but logs a fatal message."
+        self.log_exc("FATAL", (exclass, ex, tb), message, *args)
 
 # The global 'Log' instance for the mixminion client or server.
 LOG = Log('WARN')
@@ -504,10 +504,10 @@ class LogStream:
        prints on the floor.
        """
     def __init__(self, name, severity):
-	self.name = name
-	self.severity = severity
+        self.name = name
+        self.severity = severity
     def write(self, s):
-	LOG.log(self.severity, "->%s: %s", self.name, s)
+        LOG.log(self.severity, "->%s: %s", self.name, s)
     def flush(self): pass
     def close(self): pass
 
@@ -532,11 +532,11 @@ def formatTime(when,localtime=0):
     """Given a time in seconds since the epoch, returns a time value in the
        format used by server descriptors (YYYY/MM/DD HH:MM:SS) in GMT"""
     if localtime:
-	gmt = time.localtime(when)
+        gmt = time.localtime(when)
     else:
-	gmt = time.gmtime(when)
+        gmt = time.gmtime(when)
     return "%04d/%02d/%02d %02d:%02d:%02d" % (
-	gmt[0],gmt[1],gmt[2],  gmt[3],gmt[4],gmt[5])
+        gmt[0],gmt[1],gmt[2],  gmt[3],gmt[4],gmt[5])
 
 def formatDate(when):
     """Given a time in seconds since the epoch, returns a date value in the

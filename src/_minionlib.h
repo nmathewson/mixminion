@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.10 2002/12/12 19:56:47 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.11 2002/12/16 02:40:11 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -16,7 +16,7 @@ but you can get snapshots from openssl.org)."
 /* We provide our own implementation of counter mode; see aes_ctr.c
  */
 void mm_aes_counter128(const char *in, char *out, unsigned int len,
-		       AES_KEY *key, unsigned long count);
+                       AES_KEY *key, unsigned long count);
 
 /* Propagate an error from OpenSSL.  If 'crypto', it's a cryptography
  * error.  Else, it's a TLS error.
@@ -25,8 +25,8 @@ void mm_SSL_ERR(int crypto);
 
 extern PyTypeObject mm_RSA_Type;
 typedef struct mm_RSA {
-	PyObject_HEAD
-	RSA* rsa;
+        PyObject_HEAD
+        RSA* rsa;
 } mm_RSA;
 #define mm_RSA_Check(v) ((v)->ob_type == &mm_RSA_Type)
 
@@ -86,6 +86,7 @@ extern char mm_TLSClosed__doc__[];
 /*
   Local Variables:
   mode:c
+  indent-tabs-mode:nil
   c-basic-offset:8
   End:
 */

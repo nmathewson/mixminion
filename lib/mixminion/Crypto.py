@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.27 2002/12/12 19:56:46 nickm Exp $
+# $Id: Crypto.py,v 1.28 2002/12/16 02:40:11 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -23,7 +23,7 @@ __all__ = [ 'AESCounterPRNG', 'CryptoError', 'Keyset', 'bear_decrypt',
             'pk_decode_private_key', 'pk_decrypt', 'pk_encode_private_key',
             'pk_encrypt', 'pk_from_modulus', 'pk_generate', 'pk_get_modulus',
             'pk_sign', 'prng', 'sha1', 'strxor', 'trng',
-	    'AES_KEY_LEN', 'DIGEST_LEN', 'HEADER_SECRET_MODE', 'PRNG_MODE',
+            'AES_KEY_LEN', 'DIGEST_LEN', 'HEADER_SECRET_MODE', 'PRNG_MODE',
             'RANDOM_JUNK_MODE', 'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
             'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
 
@@ -44,7 +44,7 @@ def init_crypto(config=None):
         # Try to read /dev/urandom
         trng(1)
     except MixFatalError:
-	raise
+        raise
     except:
         raise MixFatalError("Error initializing entropy source")
     openssl_seed(40)
@@ -94,12 +94,12 @@ def lioness_encrypt(s,(key1,key2,key3,key4)):
     # may look slow, but it contributes only .7% to the total time for
     # LIONESS.
     right = _ml.aes_ctr128_crypt(
- 	_ml.aes_key(_ml.sha1("".join((key1,left,key1)))[:AES_KEY_LEN]),
- 	right, 0)
+        _ml.aes_key(_ml.sha1("".join((key1,left,key1)))[:AES_KEY_LEN]),
+        right, 0)
     left = _ml.strxor(left,  _ml.sha1("".join((key2,right,key2))))
     right = _ml.aes_ctr128_crypt(
-	_ml.aes_key(_ml.sha1("".join((key3,left,key3)))[:AES_KEY_LEN]),
- 	right, 0)
+        _ml.aes_key(_ml.sha1("".join((key3,left,key3)))[:AES_KEY_LEN]),
+        right, 0)
     left = _ml.strxor(left,  _ml.sha1("".join((key4,right,key4))))
 
     # You could write the above as:
@@ -134,12 +134,12 @@ def lioness_decrypt(s,(key1,key2,key3,key4)):
     # Equivalent-but-faster version:
     left = _ml.strxor(left, _ml.sha1("".join((key4,right,key4))))
     right = _ml.aes_ctr128_crypt(
-	_ml.aes_key(_ml.sha1("".join((key3,left, key3)))[:AES_KEY_LEN]),
-	right, 0)
+        _ml.aes_key(_ml.sha1("".join((key3,left, key3)))[:AES_KEY_LEN]),
+        right, 0)
     left = _ml.strxor(left, _ml.sha1("".join((key2,right,key2))))
     right = _ml.aes_ctr128_crypt(
-	_ml.aes_key(_ml.sha1("".join((key1,left, key1)))[:AES_KEY_LEN]),
-	right, 0)
+        _ml.aes_key(_ml.sha1("".join((key1,left, key1)))[:AES_KEY_LEN]),
+        right, 0)
 
     return left + right
 
@@ -482,29 +482,29 @@ class RNG:
             return res
 
     def shuffle(self, lst, n=None):
-	"""Rearranges the elements of lst so that the first n elements
-	   are randomly chosen from lst.  Returns the first n elements.
-	   (Other elements are still in lst, but may be in a nonrandom
-	   order.)  If n is None, shuffles and returns the entire list"""
+        """Rearranges the elements of lst so that the first n elements
+           are randomly chosen from lst.  Returns the first n elements.
+           (Other elements are still in lst, but may be in a nonrandom
+           order.)  If n is None, shuffles and returns the entire list"""
         size = len(lst)
-	if n is None:
-	    n = size
-	else:
-	    n = min(n, size)
+        if n is None:
+            n = size
+        else:
+            n = min(n, size)
 
-	if n == size:
-	    series = xrange(n-1)
-	else:
-	    series = xrange(n)
+        if n == size:
+            series = xrange(n-1)
+        else:
+            series = xrange(n)
 
         # This permutation algorithm yields all permutation with equal
         # probability (assuming a good rng); others do not.
-	getInt = self.getInt
+        getInt = self.getInt
         for i in series:
             swap = i+getInt(size-i)
-	    lst[swap],lst[i] = lst[i],lst[swap]
+            lst[swap],lst[i] = lst[i],lst[swap]
 
-	return lst[:n]
+        return lst[:n]
 
     def getInt(self, max):
         """Returns a random integer i s.t. 0 <= i < max.
@@ -512,33 +512,33 @@ class RNG:
            The value of max must be less than 2**30."""
 
         # FFFF This implementation is about 2-4x as good as the last one, but
-	# FFFF still could be better.  It's faster than getFloat()*max.
+        # FFFF still could be better.  It's faster than getFloat()*max.
 
-	# FFFF (This code assumes that integers are at least 32 bits. Maybe
-	# FFFF  we could do better.)
+        # FFFF (This code assumes that integers are at least 32 bits. Maybe
+        # FFFF  we could do better.)
 
         assert 0 < max < 0x3fffffff
-	_ord = ord
-	while 1:
-	    # Get a random positive int between 0 and 0x7fffffff.
-	    b = self.getBytes(4)
-	    o = (((((((_ord(b[0])&0x7f)<<8) +
- 		       _ord(b[1]))<<8) +
-	 	       _ord(b[2]))<<8) +
-	               _ord(b[3]))
-	    # Retry if we got a value that would fall in an incomplete
-	    # run of 'max' elements.
-	    if 0x7fffffff - max >= o:
-		return o % max
+        _ord = ord
+        while 1:
+            # Get a random positive int between 0 and 0x7fffffff.
+            b = self.getBytes(4)
+            o = (((((((_ord(b[0])&0x7f)<<8) +
+                       _ord(b[1]))<<8) +
+                       _ord(b[2]))<<8) +
+                       _ord(b[3]))
+            # Retry if we got a value that would fall in an incomplete
+            # run of 'max' elements.
+            if 0x7fffffff - max >= o:
+                return o % max
 
     def getFloat(self):
-	"""Return a floating-point number between 0 and 1."""
-	b = self.getBytes(4)
-	_ord = ord
-	o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) +
-	      _ord(b[2]))<<8) + _ord(b[3])
-	#return o / float(0x7fffffff)
-	return o / 2147483647.0
+        """Return a floating-point number between 0 and 1."""
+        b = self.getBytes(4)
+        _ord = ord
+        o = ((((((_ord(b[0])&0x7f)<<8) + _ord(b[1]))<<8) +
+              _ord(b[2]))<<8) + _ord(b[3])
+        #return o / float(0x7fffffff)
+        return o / 2147483647.0
 
     def _prng(self, n):
         """Abstract method: Must be overridden to return n bytes of fresh
@@ -601,42 +601,42 @@ def configure_trng(config):
     if config is not None:
         requestedFile = config['Host'].get('EntropySource', None)
     else:
-	requestedFile = None
+        requestedFile = None
 
     # Build a list of candidates
-    defaults = 	PLATFORM_TRNG_DEFAULTS.get(sys.platform,
-			   PLATFORM_TRNG_DEFAULTS['***'])
+    defaults =  PLATFORM_TRNG_DEFAULTS.get(sys.platform,
+                           PLATFORM_TRNG_DEFAULTS['***'])
     files = [ requestedFile ] + defaults
 
     # Now find the first of our candidates that exists and is a character
     # device.
     randFile = None
     for file in files:
-	if file is None:
-	    continue
+        if file is None:
+            continue
 
-	verbose = 1#(file == requestedFile)
-	if not os.path.exists(file):
-	    if verbose:
-		LOG.error("No such file as %s", file)
-	else:
-	    st = os.stat(file)
-	    if not (st[stat.ST_MODE] & stat.S_IFCHR):
-		if verbose:
-		    LOG.error("Entropy source %s isn't a character device",
-				   file)
-	    else:
-		randFile = file
-		break
+        verbose = 1#(file == requestedFile)
+        if not os.path.exists(file):
+            if verbose:
+                LOG.error("No such file as %s", file)
+        else:
+            st = os.stat(file)
+            if not (st[stat.ST_MODE] & stat.S_IFCHR):
+                if verbose:
+                    LOG.error("Entropy source %s isn't a character device",
+                                   file)
+            else:
+                randFile = file
+                break
 
     if randFile is None and _TRNG_FILENAME is None:
         LOG.fatal("No entropy source available")
         raise MixFatalError("No entropy source available")
     elif randFile is None:
         LOG.warn("Falling back to previous entropy source %s",
-		 _TRNG_FILENAME)
+                 _TRNG_FILENAME)
     else:
-	LOG.info("Setting entropy source to %r", randFile)
+        LOG.info("Setting entropy source to %r", randFile)
         _TRNG_FILENAME = randFile
 
 class _TrueRNG(RNG):
@@ -648,13 +648,13 @@ class _TrueRNG(RNG):
         RNG.__init__(self,n)
     def _prng(self,n):
         "Returns n fresh bytes from our true RNG."
-	if _TRNG_FILENAME is None:
-	    configure_trng(None)
+        if _TRNG_FILENAME is None:
+            configure_trng(None)
 
-	f = open(_TRNG_FILENAME, 'rb')
-	d = f.read(n)
-	f.close()
-	return d
+        f = open(_TRNG_FILENAME, 'rb')
+        d = f.read(n)
+        f.close()
+        return d
 
 # Global _TrueRNG instance, for use by trng().
 _theTrueRNG = _TrueRNG(1024)

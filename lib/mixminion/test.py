@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.48 2002/12/15 04:35:54 nickm Exp $
+# $Id: test.py,v 1.49 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.tests
 
@@ -88,11 +88,11 @@ def findFirstDiff(s1, s2):
     """Helper function.  Returns the first index i for which s1[i] != s2[i],
        or -1 s1 == s2."""
     if s1 == s2:
-	return -1
+        return -1
     last = min(len(s1), len(s2))
     for i in xrange(last):
-	if s1[i] != s2[i]:
-	    return i
+        if s1[i] != s2[i]:
+            return i
     return last
 
 def floatEq(f1,f2):
@@ -104,18 +104,18 @@ def readFile(fname):
        'open(fname).read()' instead, but that isn't as clean."""
     f = open(fname, 'r')
     try:
-	return f.read()
+        return f.read()
     finally:
-	f.close()
+        f.close()
 
 def writeFile(fname, contents):
     """Create a new file named fname, replacing any such file that exists,
        with the contents 'contents'."""
     f = open(fname, 'w')
     try:
-	f.write(contents)
+        f.write(contents)
     finally:
-	f.close()
+        f.close()
 
 #----------------------------------------------------------------------
 # RSA key caching functionality
@@ -130,17 +130,17 @@ def getRSAKey(n,bits):
     """Return the n'th of an arbitrary number of cached 'bits'-bit RSA keys,
        generating them as necessary."""
     try:
-	return _generated_rsa_keys[(n,bits)]
+        return _generated_rsa_keys[(n,bits)]
     except KeyError:
-	if bits > 1024:
-	    print "[generating %d-bit key #%d..."%(bits,n),
-	    sys.stdout.flush()
-	k = _pk_generate_orig(bits)
-	if bits > 1024:
-	    print "done]",
-	    sys.stdout.flush()
-	_generated_rsa_keys[(n,bits)] = k
-	return k
+        if bits > 1024:
+            print "[generating %d-bit key #%d..."%(bits,n),
+            sys.stdout.flush()
+        k = _pk_generate_orig(bits)
+        if bits > 1024:
+            print "done]",
+            sys.stdout.flush()
+        _generated_rsa_keys[(n,bits)] = k
+        return k
 
 # Functions to override Crypto.pk_generate to avoid generating a zillion RSA
 # keys.
@@ -148,11 +148,11 @@ _pk_generate_orig = Crypto.pk_generate
 _pk_generate_idx = 0
 def _pk_generate_replacement(bits=1024,e=65537):
     if bits == 1024:
-	global _pk_generate_idx
-	_pk_generate_idx = (_pk_generate_idx + 1) % 4
-	return getRSAKey(_pk_generate_idx, bits)
+        global _pk_generate_idx
+        _pk_generate_idx = (_pk_generate_idx + 1) % 4
+        return getRSAKey(_pk_generate_idx, bits)
     else:
-	return getRSAKey(0, bits)
+        return getRSAKey(0, bits)
 
 if not USE_SLOW_MODE:
     Crypto.pk_generate = _pk_generate_replacement
@@ -162,57 +162,57 @@ if not USE_SLOW_MODE:
 
 class MiscTests(unittest.TestCase):
     def testDiv(self):
-	self.assertEquals(floorDiv(10,1), 10)
-	self.assertEquals(floorDiv(10,2), 5)
-	self.assertEquals(floorDiv(10,3), 3)
-	self.assertEquals(floorDiv(10,11), 0)
-	self.assertEquals(floorDiv(0,11), 0)
-	self.assertEquals(floorDiv(-1,1), -1)
-	self.assertEquals(floorDiv(-1,2), -1)
-	self.assertEquals(floorDiv(-10,3), -4)
-	self.assertEquals(floorDiv(-10,-3), 3)
+        self.assertEquals(floorDiv(10,1), 10)
+        self.assertEquals(floorDiv(10,2), 5)
+        self.assertEquals(floorDiv(10,3), 3)
+        self.assertEquals(floorDiv(10,11), 0)
+        self.assertEquals(floorDiv(0,11), 0)
+        self.assertEquals(floorDiv(-1,1), -1)
+        self.assertEquals(floorDiv(-1,2), -1)
+        self.assertEquals(floorDiv(-10,3), -4)
+        self.assertEquals(floorDiv(-10,-3), 3)
 
-	self.assertEquals(ceilDiv(10,1), 10)
-	self.assertEquals(ceilDiv(10,2), 5)
-	self.assertEquals(ceilDiv(10,3), 4)
-	self.assertEquals(ceilDiv(10,11), 1)
-	self.assertEquals(ceilDiv(0,11), 0)
-	self.assertEquals(ceilDiv(-1,1), -1)
-	self.assertEquals(ceilDiv(-1,2), 0)
-	self.assertEquals(ceilDiv(-10,3), -3)
-	self.assertEquals(ceilDiv(-10,-3), 4)
+        self.assertEquals(ceilDiv(10,1), 10)
+        self.assertEquals(ceilDiv(10,2), 5)
+        self.assertEquals(ceilDiv(10,3), 4)
+        self.assertEquals(ceilDiv(10,11), 1)
+        self.assertEquals(ceilDiv(0,11), 0)
+        self.assertEquals(ceilDiv(-1,1), -1)
+        self.assertEquals(ceilDiv(-1,2), 0)
+        self.assertEquals(ceilDiv(-10,3), -3)
+        self.assertEquals(ceilDiv(-10,-3), 4)
 
     def testTimeFns(self):
-	# This isn't a very good test.
-	now = int(time.time())
-	max_sec_per_day = 24*60*60+ 1
-	# Sample 1000 evenly spaced points, making sure...
-	for t in xrange(10, now, floorDiv(now, 1000)):
-	    yyyy,MM,dd,hh,mm,ss = time.gmtime(t)[:6]
-	    # 1. That mkgmtime inverts time.gmtime.
-	    self.assertEquals(t, mkgmtime(yyyy,MM,dd,hh,mm,ss))
-	    # 2. That previousMidnight returns the same day, at midnight.
-	    pm = previousMidnight(t)
-	    yyyy2,MM2,dd2,hh2,mm2,ss2 = time.gmtime(pm)[:6]
-	    self.assertEquals((yyyy2,MM2,dd2), (yyyy,MM,dd))
-	    self.assertEquals((0,0,0), (hh2,mm2,ss2))
-	    self.failUnless(pm <= t and 0 <= (t-pm) <= max_sec_per_day)
-	    # 3. That previousMidnight is repeatable
-	    self.assertEquals(previousMidnight(t), pm)
-	    # 4. That previousMidnight is idempotent
-	    self.assertEquals(previousMidnight(pm), pm)
+        # This isn't a very good test.
+        now = int(time.time())
+        max_sec_per_day = 24*60*60+ 1
+        # Sample 1000 evenly spaced points, making sure...
+        for t in xrange(10, now, floorDiv(now, 1000)):
+            yyyy,MM,dd,hh,mm,ss = time.gmtime(t)[:6]
+            # 1. That mkgmtime inverts time.gmtime.
+            self.assertEquals(t, mkgmtime(yyyy,MM,dd,hh,mm,ss))
+            # 2. That previousMidnight returns the same day, at midnight.
+            pm = previousMidnight(t)
+            yyyy2,MM2,dd2,hh2,mm2,ss2 = time.gmtime(pm)[:6]
+            self.assertEquals((yyyy2,MM2,dd2), (yyyy,MM,dd))
+            self.assertEquals((0,0,0), (hh2,mm2,ss2))
+            self.failUnless(pm <= t and 0 <= (t-pm) <= max_sec_per_day)
+            # 3. That previousMidnight is repeatable
+            self.assertEquals(previousMidnight(t), pm)
+            # 4. That previousMidnight is idempotent
+            self.assertEquals(previousMidnight(pm), pm)
 
     def test_isSMTPMailbox(self):
-	# Do we accept good addresses?
-	for addr in "Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z":
-	    self.assert_(isSMTPMailbox(addr))
+        # Do we accept good addresses?
+        for addr in "Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z":
+            self.assert_(isSMTPMailbox(addr))
 
-	# Do we reject bad addresses?
-	for addr in ("(foo)@bar.com", "z.d" "z@", "@z", "@foo.com", "aaa",
-		     "foo.bar@", "foo\177@bar.com", "foo@bar\177.com",
-		     "foo@bar;cat /etc/shadow;echo ","foo bar@baz.com",
-		     "a@b@c"):
-	    self.assert_(not isSMTPMailbox(addr))
+        # Do we reject bad addresses?
+        for addr in ("(foo)@bar.com", "z.d" "z@", "@z", "@foo.com", "aaa",
+                     "foo.bar@", "foo\177@bar.com", "foo@bar\177.com",
+                     "foo@bar;cat /etc/shadow;echo ","foo bar@baz.com",
+                     "a@b@c"):
+            self.assert_(not isSMTPMailbox(addr))
 
 #----------------------------------------------------------------------
 
@@ -303,13 +303,13 @@ class MinionlibCryptoTests(unittest.TestCase):
     def test_oaep(self):
         _add = Crypto._add_oaep_padding
         _check = Crypto._check_oaep_padding
-	# Perform OAEP tests with C implementation of OAEP and Python
-	# implementation too.
+        # Perform OAEP tests with C implementation of OAEP and Python
+        # implementation too.
         for add,check in ((_ml.add_oaep_padding, _ml.check_oaep_padding),
                           (_add, _check)):
             self.do_test_oaep(add, check)
 
-	# Make sure they can invert one another.
+        # Make sure they can invert one another.
         self.assertEquals("a",_check(_ml.add_oaep_padding("a", "b", 128),
                                          "b",128))
         self.assertEquals("a",_ml.check_oaep_padding(_add("a","b",128),
@@ -376,14 +376,14 @@ class MinionlibCryptoTests(unittest.TestCase):
         # encoding public keys to/from their moduli.
         self.assertEquals(p.get_modulus_bytes(),1024 >> 3)
         n,e = p.get_public_key()
-	# Let p2 be the public portion of p.
+        # Let p2 be the public portion of p.
         p2 = _ml.rsa_make_public_key(n,e)
         self.assertEquals((n,e), p2.get_public_key())
         self.assertEquals(65537,e)
         self.assertEquals(p.encode_key(1), p.encode_key(1))
 
         # Let P3 be the public key component of p.  Encrypt some messages
-	# using p...
+        # using p...
         p3 = _ml.rsa_decode_key(p.encode_key(1),1)
         msg1 = p.crypt(padhello, 1,1)
         msg2 = p.crypt(padhello, 1,1)
@@ -391,15 +391,15 @@ class MinionlibCryptoTests(unittest.TestCase):
         self.assertEquals(padhello, p.crypt(msg1,0,0))
         self.assertEquals(padhello, p.crypt(msg2,0,0))
         self.assertEquals(padhello, p.crypt(msg3,0,0))
-	# And make sure that neihter p2 nor p3 can decode them.
+        # And make sure that neihter p2 nor p3 can decode them.
         self.failUnlessRaises(TypeError, p2.crypt, msg1, 0, 0)
         self.failUnlessRaises(TypeError, p3.crypt, msg1, 0, 0)
-	# And make sure that we can't encode either as a private key
+        # And make sure that we can't encode either as a private key
         self.failUnlessRaises(TypeError, p2.encode_key, 0)
         self.failUnlessRaises(TypeError, p3.encode_key, 0)
 
-	# Test PEM encoding (we need this encoding because it's the
-	# most widely used way to store encrypted private keys.(
+        # Test PEM encoding (we need this encoding because it's the
+        # most widely used way to store encrypted private keys.(
         tf = mix_mktemp()
         tf_pub = tf + "1"
         tf_prv = tf + "2"
@@ -472,15 +472,15 @@ class CryptoTests(unittest.TestCase):
                     k512.crypt(pk_encrypt(msg,k512), 0, 0),
                     Crypto.OAEP_PARAMETER, 64))
 
-	# test signing
-	eq(pk_check_signature(pk_sign(msg, k1024),pub1024), msg)
-	eq(pk_check_signature(pk_sign(msg, k1024),k1024), msg)
-	self.failUnlessRaises(TypeError,
-			      pk_sign, msg, pub1024)
-	self.failUnlessRaises(CryptoError,
-			      pk_check_signature,
-			      pk_sign(msg, k1024)+"X",
-			      pub1024)
+        # test signing
+        eq(pk_check_signature(pk_sign(msg, k1024),pub1024), msg)
+        eq(pk_check_signature(pk_sign(msg, k1024),k1024), msg)
+        self.failUnlessRaises(TypeError,
+                              pk_sign, msg, pub1024)
+        self.failUnlessRaises(CryptoError,
+                              pk_check_signature,
+                              pk_sign(msg, k1024)+"X",
+                              pub1024)
 
         # Make sure we can still encrypt after we've encoded/decoded a
         # key.
@@ -488,11 +488,11 @@ class CryptoTests(unittest.TestCase):
         decoded = pk_decode_private_key(encoded)
         eq(msg, pk_decrypt(pk_encrypt(msg, pub512),decoded))
 
-	# Test pickling
-	init_crypto()
-	s = cPickle.dumps(k512)
-	self.assertEquals(cPickle.loads(s).get_public_key(),
-			  k512.get_public_key())
+        # Test pickling
+        init_crypto()
+        s = cPickle.dumps(k512)
+        self.assertEquals(cPickle.loads(s).get_public_key(),
+                          k512.get_public_key())
 
     def test_trng(self):
         # Make sure that the true rng is at least superficially ok.
@@ -564,13 +564,13 @@ class CryptoTests(unittest.TestCase):
     def test_keyset(self):
         s = sha1
         x = _ml.strxor
-	# Make sure that keyset.get expected
+        # Make sure that keyset.get expected
         k = Keyset("a")
         eq = self.assertEquals
         eq(s("aFoo")[:10], k.get("Foo",10))
         eq(s("aBar")[:16], k.get("Bar"))
 
-	# Make sure that keyset.getLionessKeys works as expected.
+        # Make sure that keyset.getLionessKeys works as expected.
         z19 = "\x00"*19
         eq((s("aBaz"),               x(s("aBaz"), z19+"\x01"),
             x(s("aBaz"),z19+"\x02"), x(s("aBaz"), z19+"\x03")),
@@ -587,55 +587,55 @@ class CryptoTests(unittest.TestCase):
                           PRNG.getBytes(15)+PRNG.getBytes(16000)+
                           PRNG.getBytes(34764)))
 
-	# Check getInt, getFloat.
+        # Check getInt, getFloat.
         for i in xrange(1,10000,17):
             self.failUnless(0 <= PRNG.getInt(10) < 10)
             self.failUnless(0 <= PRNG.getInt(i) < i)
 
-##  	itot=ftot=0
-##  	for i in xrange(1000000):
-##  	    itot += PRNG.getInt(10)
-##  	    ftot += PRNG.getFloat()
+##      itot=ftot=0
+##      for i in xrange(1000000):
+##          itot += PRNG.getInt(10)
+##          ftot += PRNG.getFloat()
 
-##  	print "AVG INT", itot/1000000.0
-##  	print "AVG FLT", ftot/1000000.0
+##      print "AVG INT", itot/1000000.0
+##      print "AVG FLT", ftot/1000000.0
 
-	for i in xrange(100):
-	    self.failUnless(0 <= PRNG.getFloat() < 1)
+        for i in xrange(100):
+            self.failUnless(0 <= PRNG.getFloat() < 1)
 
-	lst = range(100)
-	# Test shuffle(0)
-	self.assertEquals(PRNG.shuffle(lst,0), [])
-	self.assertEquals(lst, range(100))
-	# Make sure shuffle only shuffles the last n.
-	PRNG.shuffle(lst,10)
-	later = [ item for item in lst[10:] if item >= 10 ]
-	s = later[:]
-	s.sort()
-	self.failUnless(later == s)
+        lst = range(100)
+        # Test shuffle(0)
+        self.assertEquals(PRNG.shuffle(lst,0), [])
+        self.assertEquals(lst, range(100))
+        # Make sure shuffle only shuffles the last n.
+        PRNG.shuffle(lst,10)
+        later = [ item for item in lst[10:] if item >= 10 ]
+        s = later[:]
+        s.sort()
+        self.failUnless(later == s)
 
-	# Make sure shuffle actually shuffles all positions.
-	lists = [  ]
-	for i in xrange(6):
-	    lists.append(PRNG.shuffle(lst)[:])
-	# This will fail accidentally once in 10,000,000,000 attempts.
-	for crossSection in zip(*lists):
-	    allEq = 1
-	    for z in crossSection:
-		if z != crossSection[0]: allEq = 0
-	    self.failIf(allEq)
-	foundUnmoved = 0
-	for lst in lists:
-	    for inorder, shuffled in zip(lst, range(100)):
-		if inorder == shuffled:
-		    foundUnmoved = 1
-		    break
-	    if foundUnmoved: break
-	self.failUnless(foundUnmoved)
-	for lst in lists:
-	    s = lst[:]
-	    s.sort()
-	    self.assertEquals(s, range(100))
+        # Make sure shuffle actually shuffles all positions.
+        lists = [  ]
+        for i in xrange(6):
+            lists.append(PRNG.shuffle(lst)[:])
+        # This will fail accidentally once in 10,000,000,000 attempts.
+        for crossSection in zip(*lists):
+            allEq = 1
+            for z in crossSection:
+                if z != crossSection[0]: allEq = 0
+            self.failIf(allEq)
+        foundUnmoved = 0
+        for lst in lists:
+            for inorder, shuffled in zip(lst, range(100)):
+                if inorder == shuffled:
+                    foundUnmoved = 1
+                    break
+            if foundUnmoved: break
+        self.failUnless(foundUnmoved)
+        for lst in lists:
+            s = lst[:]
+            s.sort()
+            self.assertEquals(s, range(100))
 
 #----------------------------------------------------------------------
 
@@ -666,9 +666,9 @@ class PacketTests(unittest.TestCase):
         self.assertEquals(s.pack(), expected)
 
         ts_eliot = ("Who is the third who walks always beside you? / "+
-		    "When I count, there are only you and I together / "+
-		    "But when I look ahead up the white road / "+
-		    "There is always another one walking beside you")
+                    "When I count, there are only you and I together / "+
+                    "But when I look ahead up the white road / "+
+                    "There is always another one walking beside you")
 
         s = Subheader(3,9,"abcdeabcdeabcdef",
                       "ABCDEFGHIJABCDEFGHIJ",
@@ -678,17 +678,17 @@ class PacketTests(unittest.TestCase):
 
         # test extended subeaders
         expected = ("\003\011abcdeabcdeabcdefABCDEFGHIJABCDEFGHIJ"+
-		    "\000\272\001\054Who is the third who walks always"+
-		    " beside you")
+                    "\000\272\001\054Who is the third who walks always"+
+                    " beside you")
         self.assertEquals(len(expected), mixminion.Packet.MAX_SUBHEADER_LEN)
         self.assertEquals(s.pack(), expected)
 
         extra = s.getExtraBlocks()
         self.assertEquals(len(extra), 2)
         self.assertEquals(extra[0],
-		 ("? / When I count, there are only you "+
-		  "and I together / But when I look ahead up the white "+
-		  "road / There is always another one walk"))
+                 ("? / When I count, there are only you "+
+                  "and I together / But when I look ahead up the white "+
+                  "road / There is always another one walk"))
         self.assertEquals(extra[1], "ing beside you"+(114*'\000'))
 
         # test parsing extended subheaders
@@ -704,8 +704,8 @@ class PacketTests(unittest.TestCase):
 
         s.appendExtraBlocks("".join(extra))
         self.assertEquals(s.routinginfo, ts_eliot)
-	self.assertEquals(s.getExitAddress(), ts_eliot[20:])
-	self.assertEquals(s.getTag(), ts_eliot[:20])
+        self.assertEquals(s.getExitAddress(), ts_eliot[20:])
+        self.assertEquals(s.getTag(), ts_eliot[:20])
         self.assertEquals(s.pack(), expected)
         self.assertEquals(s.getExtraBlocks(), extra)
 
@@ -717,8 +717,8 @@ class PacketTests(unittest.TestCase):
                               parseSubheader, "a"*(99))
 
     def test_headers(self):
-	# Make sure we extract the subheaders from a header correctly.
-	# (Generate a nice random string to make sure we're slicing right.)
+        # Make sure we extract the subheaders from a header correctly.
+        # (Generate a nice random string to make sure we're slicing right.)
         header = Crypto.prng("onefish, twofish", 2048)
         h = parseHeader(header)
         self.failUnless(h[0] == header[:128])
@@ -731,9 +731,9 @@ class PacketTests(unittest.TestCase):
         self.failUnless(h[14:] == h[-2:])
 
     def test_message(self):
-	# Make sure we can pull the headers and payload of a message apart
-	# correctly.
-	# (Generate a nice random string to make sure we're slicing right.)
+        # Make sure we can pull the headers and payload of a message apart
+        # correctly.
+        # (Generate a nice random string to make sure we're slicing right.)
         m = Crypto.prng("HappyFunAESKey!!", 32768)
         msg = parseMessage(m)
         self.assert_(msg.pack() == m)
@@ -744,8 +744,8 @@ class PacketTests(unittest.TestCase):
         self.failUnlessRaises(ParseError, parseMessage, m+"x")
 
     def test_ipv4info(self):
-	# Check the IPV4Info structure used to hold the addresses for the
-	# FWD and SWAP_FWD routing types.
+        # Check the IPV4Info structure used to hold the addresses for the
+        # FWD and SWAP_FWD routing types.
         ri = hexread("12F400BCBBE30011223344556677889900112233445566778899")
         inf = parseIPV4Info(ri)
         self.assertEquals(inf.ip, "18.244.0.188")
@@ -760,10 +760,10 @@ class PacketTests(unittest.TestCase):
         self.failUnlessRaises(ParseError, parseIPV4Info, ri+"x")
 
     def test_replyblock(self):
-	# Try parsing an example 'reply block' object
-	key = "\x99"*16
+        # Try parsing an example 'reply block' object
+        key = "\x99"*16
         r = ("SURB\x00\x01"+"\x00\x00\x00\x00"+("Z"*2048)+"\x00\x0A"+"\x00\x01"
-	     +key+("F"*10))
+             +key+("F"*10))
         rb = parseReplyBlock(r)
         self.assertEquals(rb.timestamp, 0)
         self.assertEquals(rb.header, "Z"*2048)
@@ -771,145 +771,145 @@ class PacketTests(unittest.TestCase):
         self.assertEquals(rb.routingInfo, "F"*10)
         self.assertEquals(rb.encryptionKey, key)
         self.assertEquals(r, rb.pack())
-	# Now try regenerating it.
-	rb = ReplyBlock(header="Z"*2048,useBy=0,rt=1,ri="F"*10,key=key)
-	self.assertEquals(r, rb.pack())
+        # Now try regenerating it.
+        rb = ReplyBlock(header="Z"*2048,useBy=0,rt=1,ri="F"*10,key=key)
+        self.assertEquals(r, rb.pack())
 
     def test_payloads(self):
-	# Checks for payload structure functions.
+        # Checks for payload structure functions.
 
-	# First, generate some plausible singleton payloads.
-	contents = ("payload"*(4*1024))[:28*1024 - 22]
-	hash = "HASH"*5
-	singleton_payload_1 = "\x00\xff"+hash+contents
-	singleton_payload_2 = singleton_payload_1[:-38] #efwd overhead
-	# Make sure that parsePayload works as expected.
-	p1 = parsePayload(singleton_payload_1)
-	p2 = parsePayload(singleton_payload_2)
-	self.failUnless(p1.isSingleton() and p2.isSingleton())
- 	self.assertEquals(p1.size,255)
-	self.assertEquals(p2.size,255)
-	self.assertEquals(p1.hash,hash)
-	self.assertEquals(p2.hash,hash)
-	self.assertEquals(p1.data,contents)
-	self.assertEquals(p2.data,contents[:-38])
-	self.assertEquals(p1.getContents(), contents[:255])
-	self.assertEquals(p2.getContents(), contents[:255])
-	self.assertEquals(p1.pack(),singleton_payload_1)
-	self.assertEquals(p2.pack(),singleton_payload_2)
+        # First, generate some plausible singleton payloads.
+        contents = ("payload"*(4*1024))[:28*1024 - 22]
+        hash = "HASH"*5
+        singleton_payload_1 = "\x00\xff"+hash+contents
+        singleton_payload_2 = singleton_payload_1[:-38] #efwd overhead
+        # Make sure that parsePayload works as expected.
+        p1 = parsePayload(singleton_payload_1)
+        p2 = parsePayload(singleton_payload_2)
+        self.failUnless(p1.isSingleton() and p2.isSingleton())
+        self.assertEquals(p1.size,255)
+        self.assertEquals(p2.size,255)
+        self.assertEquals(p1.hash,hash)
+        self.assertEquals(p2.hash,hash)
+        self.assertEquals(p1.data,contents)
+        self.assertEquals(p2.data,contents[:-38])
+        self.assertEquals(p1.getContents(), contents[:255])
+        self.assertEquals(p2.getContents(), contents[:255])
+        self.assertEquals(p1.pack(),singleton_payload_1)
+        self.assertEquals(p2.pack(),singleton_payload_2)
 
-	# Try SingletonPayload constructor and pack functions
-	self.assertEquals(singleton_payload_1,
-			  SingletonPayload(255, hash, contents).pack())
-	self.assertEquals(singleton_payload_2,
-			  SingletonPayload(255, hash, contents[:-38]).pack())
+        # Try SingletonPayload constructor and pack functions
+        self.assertEquals(singleton_payload_1,
+                          SingletonPayload(255, hash, contents).pack())
+        self.assertEquals(singleton_payload_2,
+                          SingletonPayload(255, hash, contents[:-38]).pack())
 
-	# Impossible payload lengths
-	self.failUnlessRaises(ParseError,parsePayload,singleton_payload_1+"a")
-	self.failUnlessRaises(ParseError,parsePayload,singleton_payload_2+"a")
-	self.failUnlessRaises(ParseError,parsePayload,singleton_payload_2[:-1])
-	# Impossible value for size field
-	bad = "\x7fff" + singleton_payload_1[2:]
-	self.failUnlessRaises(ParseError,parsePayload,bad)
+        # Impossible payload lengths
+        self.failUnlessRaises(ParseError,parsePayload,singleton_payload_1+"a")
+        self.failUnlessRaises(ParseError,parsePayload,singleton_payload_2+"a")
+        self.failUnlessRaises(ParseError,parsePayload,singleton_payload_2[:-1])
+        # Impossible value for size field
+        bad = "\x7fff" + singleton_payload_1[2:]
+        self.failUnlessRaises(ParseError,parsePayload,bad)
 
-	## Now, for the fragment payloads.
-	msgID = "This is a message123"
-	assert len(msgID) == 20
-	contents = contents[:28*1024 - 46]
-	frag_payload_1 = "\x80\x02"+hash+msgID+"\x00\x01\x00\x00"+contents
-	frag_payload_2 = frag_payload_1[:-38] # efwd overhead
-	p1 = parsePayload(frag_payload_1)
-	p2 = parsePayload(frag_payload_2)
-	self.failUnless(not p1.isSingleton() and not p2.isSingleton())
- 	self.assertEquals(p1.index,2)
-	self.assertEquals(p2.index,2)
-	self.assertEquals(p1.hash,hash)
-	self.assertEquals(p2.hash,hash)
-	self.assertEquals(p1.msgID,msgID)
-	self.assertEquals(p2.msgID,msgID)
-	self.assertEquals(p1.msgLen,64*1024)
-	self.assertEquals(p2.msgLen,64*1024)
-	self.assertEquals(p1.data,contents)
-	self.assertEquals(p2.data,contents[:-38])
-	self.assertEquals(p1.pack(),frag_payload_1)
-	self.assertEquals(p2.pack(),frag_payload_2)
+        ## Now, for the fragment payloads.
+        msgID = "This is a message123"
+        assert len(msgID) == 20
+        contents = contents[:28*1024 - 46]
+        frag_payload_1 = "\x80\x02"+hash+msgID+"\x00\x01\x00\x00"+contents
+        frag_payload_2 = frag_payload_1[:-38] # efwd overhead
+        p1 = parsePayload(frag_payload_1)
+        p2 = parsePayload(frag_payload_2)
+        self.failUnless(not p1.isSingleton() and not p2.isSingleton())
+        self.assertEquals(p1.index,2)
+        self.assertEquals(p2.index,2)
+        self.assertEquals(p1.hash,hash)
+        self.assertEquals(p2.hash,hash)
+        self.assertEquals(p1.msgID,msgID)
+        self.assertEquals(p2.msgID,msgID)
+        self.assertEquals(p1.msgLen,64*1024)
+        self.assertEquals(p2.msgLen,64*1024)
+        self.assertEquals(p1.data,contents)
+        self.assertEquals(p2.data,contents[:-38])
+        self.assertEquals(p1.pack(),frag_payload_1)
+        self.assertEquals(p2.pack(),frag_payload_2)
 
-	self.assertEquals(frag_payload_1,
-		  FragmentPayload(2,hash,msgID,64*1024,contents).pack())
-	self.assertEquals(frag_payload_2,
-		  FragmentPayload(2,hash,msgID,64*1024,contents[:-38]).pack())
+        self.assertEquals(frag_payload_1,
+                  FragmentPayload(2,hash,msgID,64*1024,contents).pack())
+        self.assertEquals(frag_payload_2,
+                  FragmentPayload(2,hash,msgID,64*1024,contents[:-38]).pack())
 
-	# Impossible payload lengths
-	self.failUnlessRaises(ParseError,parsePayload,frag_payload_1+"a")
-	self.failUnlessRaises(ParseError,parsePayload,frag_payload_2+"a")
-	self.failUnlessRaises(ParseError,parsePayload,frag_payload_2[:-1])
+        # Impossible payload lengths
+        self.failUnlessRaises(ParseError,parsePayload,frag_payload_1+"a")
+        self.failUnlessRaises(ParseError,parsePayload,frag_payload_2+"a")
+        self.failUnlessRaises(ParseError,parsePayload,frag_payload_2[:-1])
 
-	# Impossible message sizes
-	min_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD3"+contents
-	bad_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents
-	min_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAD"+contents[:-38]
-	bad_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAC"+contents[:-38]
-	min_payload_3 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents[:-38]
-	parsePayload(min_payload_1)
-	parsePayload(min_payload_2)
-	parsePayload(min_payload_3)
-	self.failUnlessRaises(ParseError,parsePayload,bad_payload_1)
-	self.failUnlessRaises(ParseError,parsePayload,bad_payload_2)
+        # Impossible message sizes
+        min_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD3"+contents
+        bad_payload_1 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents
+        min_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAD"+contents[:-38]
+        bad_payload_2 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xAC"+contents[:-38]
+        min_payload_3 = "\x80\x02"+hash+msgID+"\x00\x00\x6F\xD2"+contents[:-38]
+        parsePayload(min_payload_1)
+        parsePayload(min_payload_2)
+        parsePayload(min_payload_3)
+        self.failUnlessRaises(ParseError,parsePayload,bad_payload_1)
+        self.failUnlessRaises(ParseError,parsePayload,bad_payload_2)
 
 
 #----------------------------------------------------------------------
 class HashLogTests(unittest.TestCase):
     def test_hashlog(self):
-	# Create a new,empty hashlog.
+        # Create a new,empty hashlog.
         fname = mix_mktemp(".db")
 
-	# (We put the hashlog in a list so that we can pass the list to our
-	#  internal helper functions, and change its contents later on.  If
-	#  only we could rely on nested scopes (added to Python 2.1), this
-	#  would be easier.)
+        # (We put the hashlog in a list so that we can pass the list to our
+        #  internal helper functions, and change its contents later on.  If
+        #  only we could rely on nested scopes (added to Python 2.1), this
+        #  would be easier.)
         h = [HashLog(fname, "Xyzzy")]
 
         notseen=lambda hash,self=self,h=h:self.assert_(not h[0].seenHash(hash))
         seen = lambda hash,self=self,h=h: self.assert_(h[0].seenHash(hash))
         log = lambda hash,h=h: h[0].logHash(hash)
 
-	# Make sure that an empty hash contains nothing, including NUL strings
-	# and high-ascii strings.
+        # Make sure that an empty hash contains nothing, including NUL strings
+        # and high-ascii strings.
         notseen("a")
         notseen("a*20")
         notseen("\000"*10)
         notseen("\000")
         notseen("\277"*10)
-	# Log a value, and make sure that only that value is now in the log
+        # Log a value, and make sure that only that value is now in the log
         log("a"*20)
         notseen("a*10")
         notseen("\000"*10)
         notseen("b")
         seen("a"*20)
 
-	# Try a second value; make sure both values are now there.
+        # Try a second value; make sure both values are now there.
         log("b"*20)
         seen("b"*20)
         seen("a"*20)
 
-	# Try logging a string of NULs
+        # Try logging a string of NULs
         log("\000"*20)
         seen("\000"*20)
         notseen("\000"*10)
 
-	# Try double-logging.
+        # Try double-logging.
         log("\000"*20)
         seen("\000"*20)
 
-	# Try logging a string of ESCs
+        # Try logging a string of ESCs
         log("\277"*20)
         seen("\277"*20)
 
-	# And a nice plain ascii string
+        # And a nice plain ascii string
         log("abcde"*4)
         seen("abcde"*4)
 
-	# Now reopen the log, and make sure it has all its original contents.
+        # Now reopen the log, and make sure it has all its original contents.
         h[0].close()
         h[0] = HashLog(fname, "Xyzzy")
         seen("a"*20)
@@ -917,34 +917,34 @@ class HashLogTests(unittest.TestCase):
         seen("\277"*20)
         seen("abcde"*4)
         seen("\000"*20)
-	# (and no other contents)
+        # (and no other contents)
         notseen(" ")
         notseen("\000"*5)
         notseen("\001"*20)
 
-	# Now add more, close again, and see if our latest adddition went in.
+        # Now add more, close again, and see if our latest adddition went in.
         notseen("ddddd"*4)
         log("ddddd"*4)
         seen("ddddd"*4)
 
-	h[0].sync()
+        h[0].sync()
         h[0].close()
         h[0] = HashLog(fname, "Xyzzy")
         seen("ddddd"*4)
 
-	# Make sure that hashlog still works when we sync.
-	log("Abcd"*5)
-	log("Defg"*5)
-	seen("Abcd"*5)
-	seen("Defg"*5)
-	h[0].sync()
-	#   (This violates HashLog's encapsulation, but let's make double-sure
-	#    that we've really flushed the journal to disk.)
-	self.assertEquals(0, len(h[0].journal))
-	seen("Abcd"*5)
-	seen("Defg"*5)
-	log("Ghij"*5)
-	seen("Ghij"*5)
+        # Make sure that hashlog still works when we sync.
+        log("Abcd"*5)
+        log("Defg"*5)
+        seen("Abcd"*5)
+        seen("Defg"*5)
+        h[0].sync()
+        #   (This violates HashLog's encapsulation, but let's make double-sure
+        #    that we've really flushed the journal to disk.)
+        self.assertEquals(0, len(h[0].journal))
+        seen("Abcd"*5)
+        seen("Defg"*5)
+        log("Ghij"*5)
+        seen("Ghij"*5)
 
         h[0].close()
 
@@ -981,67 +981,67 @@ class BuildMessageTests(unittest.TestCase):
         self.pk1 = getRSAKey(0,1024)
         self.pk2 = getRSAKey(1,1024)
         self.pk3 = getRSAKey(2,1024)
-	self.pk512 = getRSAKey(0,512)
+        self.pk512 = getRSAKey(0,512)
         self.server1 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
         self.server2 = FakeServerInfo("127.0.0.2", 3, self.pk2, "Z"*20)
         self.server3 = FakeServerInfo("127.0.0.3", 5, self.pk3, "Q"*20)
 
     def test_compression(self):
-	# Make sure that our compression helper functions work properly.
+        # Make sure that our compression helper functions work properly.
 
-	p = AESCounterPRNG()
-	longMsg = p.getBytes(100)*2 + str(dir(Crypto))
+        p = AESCounterPRNG()
+        longMsg = p.getBytes(100)*2 + str(dir(Crypto))
 
-	# Make sure compression is reversible.
-	for m in ("", "a", "\000", "xyzzy"*10, ("glossy glossolalia.."*2)[32],
-		  longMsg):
-	    c = BuildMessage.compressData(m)
-	    self.assertEquals(m, BuildMessage.uncompressData(c))
+        # Make sure compression is reversible.
+        for m in ("", "a", "\000", "xyzzy"*10, ("glossy glossolalia.."*2)[32],
+                  longMsg):
+            c = BuildMessage.compressData(m)
+            self.assertEquals(m, BuildMessage.uncompressData(c))
 
-	self.failUnlessRaises(ParseError, BuildMessage.uncompressData, "3")
+        self.failUnlessRaises(ParseError, BuildMessage.uncompressData, "3")
 
-	for _ in xrange(20):
-	    for _ in xrange(20):
-		m = p.getBytes(p.getInt(1000))
-		try:
-		    BuildMessage.uncompressData(m)
-		except ParseError:
-		    pass
-	#FFFF Find a decent test vector.
+        for _ in xrange(20):
+            for _ in xrange(20):
+                m = p.getBytes(p.getInt(1000))
+                try:
+                    BuildMessage.uncompressData(m)
+                except ParseError:
+                    pass
+        #FFFF Find a decent test vector.
 
     def test_payload_helpers(self):
-	"test helpers for payload encoding"
-	p = AESCounterPRNG()
-	for _ in xrange(10):
-	    t = BuildMessage._getRandomTag(p)
-	    self.assertEquals(20, len(t))
-	    self.assertEquals(0, ord(t[0])&0x80)
+        "test helpers for payload encoding"
+        p = AESCounterPRNG()
+        for _ in xrange(10):
+            t = BuildMessage._getRandomTag(p)
+            self.assertEquals(20, len(t))
+            self.assertEquals(0, ord(t[0])&0x80)
 
-	b = p.getBytes(28*1024)
-	self.assert_(not BuildMessage._checkPayload(b))
+        b = p.getBytes(28*1024)
+        self.assert_(not BuildMessage._checkPayload(b))
 
-	for m in (p.getBytes(3000), p.getBytes(10000), "", "q", "blznerty"):
-	    for ov in 0, 42-20+16: # encrypted forward overhead
-		pld = BuildMessage._encodePayload(m,ov,p)
-		self.assertEquals(28*1024, len(pld)+ov)
-		comp = BuildMessage.compressData(m)
-		self.assert_(pld[22:].startswith(comp))
-		self.assertEquals(sha1(pld[22:]),pld[2:22])
-		self.assert_(BuildMessage._checkPayload(pld))
-		self.assertEquals(len(comp), ord(pld[0])*256+ord(pld[1]))
-		self.assertEquals(0, ord(pld[0])&0x80)
-		self.assertEquals(m, BuildMessage._decodePayloadImpl(pld))
+        for m in (p.getBytes(3000), p.getBytes(10000), "", "q", "blznerty"):
+            for ov in 0, 42-20+16: # encrypted forward overhead
+                pld = BuildMessage._encodePayload(m,ov,p)
+                self.assertEquals(28*1024, len(pld)+ov)
+                comp = BuildMessage.compressData(m)
+                self.assert_(pld[22:].startswith(comp))
+                self.assertEquals(sha1(pld[22:]),pld[2:22])
+                self.assert_(BuildMessage._checkPayload(pld))
+                self.assertEquals(len(comp), ord(pld[0])*256+ord(pld[1]))
+                self.assertEquals(0, ord(pld[0])&0x80)
+                self.assertEquals(m, BuildMessage._decodePayloadImpl(pld))
 
-	self.failUnlessRaises(MixError, BuildMessage._decodePayloadImpl, b)
+        self.failUnlessRaises(MixError, BuildMessage._decodePayloadImpl, b)
 
-	# Check fragments (not yet supported)
-	pldFrag = chr(ord(pld[0])|0x80)+pld[1:]
-	self.failUnlessRaises(MixError,BuildMessage._decodePayloadImpl,pldFrag)
+        # Check fragments (not yet supported)
+        pldFrag = chr(ord(pld[0])|0x80)+pld[1:]
+        self.failUnlessRaises(MixError,BuildMessage._decodePayloadImpl,pldFrag)
 
-	# Check impossibly long messages
-	pldSize = "\x7f\xff"+pld[2:] #sha1(pld[22:])+pld[22:]
-	self.failUnlessRaises(ParseError,
-			      BuildMessage._decodePayloadImpl,pldSize)
+        # Check impossibly long messages
+        pldSize = "\x7f\xff"+pld[2:] #sha1(pld[22:])+pld[22:]
+        self.failUnlessRaises(ParseError,
+                              BuildMessage._decodePayloadImpl,pldSize)
 
     def test_buildheader_1hop(self):
         bhead = BuildMessage._buildHeader
@@ -1093,49 +1093,49 @@ class BuildMessageTests(unittest.TestCase):
 
            Returns a tuple of (a list of the secrets encountered,
                                a list of routinginfo strings,
-			       the tag from the last routinginfo)
+                               the tag from the last routinginfo)
         """
         tag = None
         retsecrets = []
         retinfo = []
         if secrets is None:
             secrets = [None] * len(pks)
-	# Is the header the right length?
+        # Is the header the right length?
         self.assertEquals(len(head), mixminion.Packet.HEADER_LEN)
-	# Go through the hops one by one, simulating the decoding process.
+        # Go through the hops one by one, simulating the decoding process.
         for pk, secret, rt, ri in zip(pks, secrets,rtypes,rinfo):
-	    # Decrypt the first subheader.
+            # Decrypt the first subheader.
             subh = mixminion.Packet.parseSubheader(pk_decrypt(head[:128], pk))
-	    # If we're expecting a given secret in this subheader, check it.
+            # If we're expecting a given secret in this subheader, check it.
             if secret:
                 self.assertEquals(subh.secret, secret)
             else:
                 secret = subh.secret
-	    retsecrets.append(secret)
-	    # Check the version, the digest, and the routing type.
+            retsecrets.append(secret)
+            # Check the version, the digest, and the routing type.
             self.assertEquals(subh.major, mixminion.Packet.MAJOR_NO)
             self.assertEquals(subh.minor, mixminion.Packet.MINOR_NO)
             self.assertEquals(subh.digest, sha1(head[128:]))
             self.assertEquals(subh.routingtype, rt)
 
-	    # Key to decrypt the rest of the header
+            # Key to decrypt the rest of the header
             ks = Keyset(secret)
             key = ks.get(HEADER_SECRET_MODE)
 
-	    # If we have an exit type, the first 20 bytes of the routinginfo
-	    # are a decoding tag; extract it.
-	    if rt < 0x100: # extra bytes for tag
-		ext = 0
-	    else:
-		ext = 20
-		if ri:
-		    tag = subh.routinginfo[:20]
+            # If we have an exit type, the first 20 bytes of the routinginfo
+            # are a decoding tag; extract it.
+            if rt < 0x100: # extra bytes for tag
+                ext = 0
+            else:
+                ext = 20
+                if ri:
+                    tag = subh.routinginfo[:20]
 
-	    # Check the routinginfo.  This is a little different for regular
-	    # and extended subheaders...
+            # Check the routinginfo.  This is a little different for regular
+            # and extended subheaders...
             if not subh.isExtended():
                 if ri:
-		    self.assertEquals(subh.routinginfo[ext:], ri)
+                    self.assertEquals(subh.routinginfo[ext:], ri)
                     self.assertEquals(subh.routinglen, len(ri)+ext)
                 else:
                     retinfo.append(subh.routinginfo)
@@ -1148,16 +1148,16 @@ class BuildMessageTests(unittest.TestCase):
                 more = ctr_crypt(head[128:128+128*n], key)
                 subh.appendExtraBlocks(more)
                 if ri:
-		    self.assertEquals(subh.routinginfo[ext:], ri)
+                    self.assertEquals(subh.routinginfo[ext:], ri)
                     self.assertEquals(subh.routinglen, len(ri)+ext)
                 else:
                     retinfo.append(subh.routinginfo)
 
-	    # Decrypt and pad the rest of the header.
+            # Decrypt and pad the rest of the header.
             prngkey = ks.get(RANDOM_JUNK_MODE)
             head = ctr_crypt(head[size:]+prng(prngkey,size), key, 128*n)
 
-	return retsecrets, retinfo, tag
+        return retsecrets, retinfo, tag
 
     def test_extended_routinginfo(self):
         bhead = BuildMessage._buildHeader
@@ -1173,7 +1173,7 @@ class BuildMessageTests(unittest.TestCase):
 
         # Now try a header with extended **intermediate** routing info.
         # Since this never happens in the wild, we fake it.
-	tag = "dref"*5
+        tag = "dref"*5
         longStr2 = longStr * 2
 
         def getLongRoutingInfo(longStr2=longStr2,tag=tag):
@@ -1184,7 +1184,7 @@ class BuildMessageTests(unittest.TestCase):
 
         secrets.append("1"*16)
         head = bhead([self.server2, server4], secrets, 99,
-		     longStr,
+                     longStr,
                      AESCounterPRNG())
         pks = (self.pk2,self.pk1)
         rtypes = (FWD_TYPE,99)
@@ -1231,8 +1231,8 @@ class BuildMessageTests(unittest.TestCase):
                 payload = lioness_decrypt(payload, pkey)
 
             if path is secrets1:
-		swapkey = Crypto.lioness_keys_from_header(head2)
-		payload = lioness_decrypt(payload, swapkey)
+                swapkey = Crypto.lioness_keys_from_header(head2)
+                payload = lioness_decrypt(payload, swapkey)
 
                 swapkey = Crypto.lioness_keys_from_payload(payload)
                 head2 = lioness_decrypt(head2, swapkey)
@@ -1276,9 +1276,9 @@ class BuildMessageTests(unittest.TestCase):
                       header_info_2: a tuple of (pks,secrets,rtypes,rinfo)
                             as used by do_header_test for the second header.
                       payload: The beginning of the expected decrypted payload.
-		      decoder: A function to call on the exit payload before
-		            comparing it to 'payload'.  Takes payload,tag;
-			    returns string.
+                      decoder: A function to call on the exit payload before
+                            comparing it to 'payload'.  Takes payload,tag;
+                            returns string.
            """
         # Check header 1, and get secrets
         sec, _, _ = self.do_header_test(msg[:2048], *header_info_1)
@@ -1289,7 +1289,7 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
             h2 = lioness_decrypt(h2,ks.getLionessKeys(HEADER_ENCRYPT_MODE))
-	p = lioness_decrypt(p,Crypto.lioness_keys_from_header(h2))
+        p = lioness_decrypt(p,Crypto.lioness_keys_from_header(h2))
         h2 = lioness_decrypt(h2,Crypto.lioness_keys_from_payload(p))
 
         sec, _, tag = self.do_header_test(h2, *header_info_2)
@@ -1297,10 +1297,10 @@ class BuildMessageTests(unittest.TestCase):
             ks = Keyset(s)
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
 
-	if decoder is None:
-	    p = BuildMessage._decodeForwardPayload(p)
-	else:
-	    p = decoder(p, tag)
+        if decoder is None:
+            p = BuildMessage._decodeForwardPayload(p)
+        else:
+            p = decoder(p, tag)
 
         self.assertEquals(payload, p[:len(payload)])
 
@@ -1328,11 +1328,11 @@ class BuildMessageTests(unittest.TestCase):
                 [self.server1,],
                 [self.server3,])
 
-	messages = {}
+        messages = {}
 
-	def decoder0(p,t,messages=messages):
-	    messages['fwd'] = (p,t)
-	    return BuildMessage._decodeForwardPayload(p)
+        def decoder0(p,t,messages=messages):
+            messages['fwd'] = (p,t)
+            return BuildMessage._decodeForwardPayload(p)
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
@@ -1342,55 +1342,55 @@ class BuildMessageTests(unittest.TestCase):
                                (500,),
                                ("Goodbye",) ),
                              "Hello!!!!",
-			     decoder=decoder0)
+                             decoder=decoder0)
 
-	# Encrypted forward message
-	rsa1, rsa2 = self.pk1, self.pk512
-	payload = "<<<<Hello>>>>" * 100
-	for rsakey in rsa1,rsa2:
-	    m = befm(payload, 500, "Phello",
-		     [self.server1, self.server2],
-		     [self.server3, self.server2],
-		     rsakey)
-	    def decoder(p,t,key=rsakey,messages=messages):
-		messages['efwd'+str(key.get_modulus_bytes())] = (p,t)
-		return BuildMessage._decodeEncryptedForwardPayload(p,t,key)
+        # Encrypted forward message
+        rsa1, rsa2 = self.pk1, self.pk512
+        payload = "<<<<Hello>>>>" * 100
+        for rsakey in rsa1,rsa2:
+            m = befm(payload, 500, "Phello",
+                     [self.server1, self.server2],
+                     [self.server3, self.server2],
+                     rsakey)
+            def decoder(p,t,key=rsakey,messages=messages):
+                messages['efwd'+str(key.get_modulus_bytes())] = (p,t)
+                return BuildMessage._decodeEncryptedForwardPayload(p,t,key)
 
-	    self.do_message_test(m,
-				 ( (self.pk1, self.pk2), None,
-				   (FWD_TYPE, SWAP_FWD_TYPE),
-				   (self.server2.getRoutingInfo().pack(),
-				    self.server3.getRoutingInfo().pack()) ),
-				 ( (self.pk3, self.pk2), None,
-				   (FWD_TYPE, 500),
-				   (self.server2.getRoutingInfo().pack(),
-				    "Phello") ),
-				 payload,
-				 decoder=decoder)
+            self.do_message_test(m,
+                                 ( (self.pk1, self.pk2), None,
+                                   (FWD_TYPE, SWAP_FWD_TYPE),
+                                   (self.server2.getRoutingInfo().pack(),
+                                    self.server3.getRoutingInfo().pack()) ),
+                                 ( (self.pk3, self.pk2), None,
+                                   (FWD_TYPE, 500),
+                                   (self.server2.getRoutingInfo().pack(),
+                                    "Phello") ),
+                                 payload,
+                                 decoder=decoder)
 
-	# Now do more tests on final messages: is the format as expected?
-	p,t = messages['fwd']
-	self.assertEquals(20, len(t))
-	self.assertEquals(28*1024,len(p))
-	self.assertEquals(0, ord(t[0]) & 0x80)
-	comp = BuildMessage.compressData("Hello!!!!")
-	self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
-	self.assert_(p[22:].startswith(comp))
-	self.assertEquals(sha1(p[22:]), p[2:22])
+        # Now do more tests on final messages: is the format as expected?
+        p,t = messages['fwd']
+        self.assertEquals(20, len(t))
+        self.assertEquals(28*1024,len(p))
+        self.assertEquals(0, ord(t[0]) & 0x80)
+        comp = BuildMessage.compressData("Hello!!!!")
+        self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
+        self.assert_(p[22:].startswith(comp))
+        self.assertEquals(sha1(p[22:]), p[2:22])
 
-	for rsakey in (rsa1, rsa2):
-	    n = rsakey.get_modulus_bytes()
-	    p,t = messages['efwd'+str(n)]
-	    mrsa, mrest = t+p[:n-20], p[n-20:]
-	    mrsa = pk_decrypt(mrsa, rsakey)
-	    sessionkey, rsa_rest = mrsa[:16], mrsa[16:]
-	    ks = Keyset(sessionkey)
-	    msg = rsa_rest + lioness_decrypt(mrest,
-			      ks.getLionessKeys("END-TO-END ENCRYPT"))
-	    comp = BuildMessage.compressData(payload)
-	    self.assert_(len(comp), ord(msg[0])*256 + ord(msg[1]))
-	    self.assertEquals(sha1(msg[22:]), msg[2:22])
-	    self.assert_(msg[22:].startswith(comp))
+        for rsakey in (rsa1, rsa2):
+            n = rsakey.get_modulus_bytes()
+            p,t = messages['efwd'+str(n)]
+            mrsa, mrest = t+p[:n-20], p[n-20:]
+            mrsa = pk_decrypt(mrsa, rsakey)
+            sessionkey, rsa_rest = mrsa[:16], mrsa[16:]
+            ks = Keyset(sessionkey)
+            msg = rsa_rest + lioness_decrypt(mrest,
+                              ks.getLionessKeys("END-TO-END ENCRYPT"))
+            comp = BuildMessage.compressData(payload)
+            self.assert_(len(comp), ord(msg[0])*256 + ord(msg[1]))
+            self.assertEquals(sha1(msg[22:]), msg[2:22])
+            self.assert_(msg[22:].startswith(comp))
 
     def test_buildreply(self):
         brbi = BuildMessage._buildReplyBlockImpl
@@ -1402,9 +1402,9 @@ class BuildMessageTests(unittest.TestCase):
              brbi([self.server3, self.server1, self.server2,
                   self.server1, self.server3],
                  SMTP_TYPE,
-		 "no-such-user@invalid", tag=("+"*20))
-	hsecrets = secrets_1[:-1]
-	hsecrets.reverse()
+                 "no-such-user@invalid", tag=("+"*20))
+        hsecrets = secrets_1[:-1]
+        hsecrets.reverse()
 
         pks_1 = (self.pk3, self.pk1, self.pk2, self.pk1, self.pk3)
         infos = (self.server1.getRoutingInfo().pack(),
@@ -1418,10 +1418,10 @@ class BuildMessageTests(unittest.TestCase):
                 [self.server3, self.server1],
                 reply)
 
-	messages = {}
-	def decoder(p,t,secrets=secrets_1,messages=messages):
-	    messages['repl'] = p,t
-	    return BuildMessage._decodeReplyPayload(p,secrets)
+        messages = {}
+        def decoder(p,t,secrets=secrets_1,messages=messages):
+            messages['repl'] = p,t
+            return BuildMessage._decodeReplyPayload(p,secrets)
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
@@ -1432,7 +1432,7 @@ class BuildMessageTests(unittest.TestCase):
                               (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,SMTP_TYPE),
                               infos+("no-such-user@invalid",)),
                              "Information???",
-			     decoder=decoder)
+                             decoder=decoder)
         ## Stateless replies
         reply = brb([self.server3, self.server1, self.server2,
                       self.server1, self.server3], MBOX_TYPE,
@@ -1442,28 +1442,28 @@ class BuildMessageTests(unittest.TestCase):
                             (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
                             infos+(None,))
 
-	self.assertEquals(loc[20:], "fred")
+        self.assertEquals(loc[20:], "fred")
 
-	seed = loc[:20]
-	prng = AESCounterPRNG(sha1(seed+"Tyrone SlothropGenerate")[:16])
-	sec.reverse()
-	self.assertEquals(sec, [ prng.getBytes(16) for _ in range(len(sec)) ])
+        seed = loc[:20]
+        prng = AESCounterPRNG(sha1(seed+"Tyrone SlothropGenerate")[:16])
+        sec.reverse()
+        self.assertEquals(sec, [ prng.getBytes(16) for _ in range(len(sec)) ])
 
-	# _Gravity's Rainbow_, page 258.
-	payload = '''
+        # _Gravity's Rainbow_, page 258.
+        payload = '''
               "...Is it any wonder the world's gone insane, with information
-	    come to the be the only medium of exchange?"
-	      "I thought it was cigarettes."
-	      "You dream."
-	          -- Gravity's Rainbow, p.258 ''' # " <- for emacs python-mode
+            come to the be the only medium of exchange?"
+              "I thought it was cigarettes."
+              "You dream."
+                  -- Gravity's Rainbow, p.258 ''' # " <- for emacs python-mode
         m = brm(payload,
                 [self.server3, self.server1],
                 reply)
 
-	def decoder2(p,t,messages=messages):
-	    messages['srepl'] = p,t
-	    return BuildMessage._decodeStatelessReplyPayload(p,t,
-							 "Tyrone Slothrop")
+        def decoder2(p,t,messages=messages):
+            messages['srepl'] = p,t
+            return BuildMessage._decodeStatelessReplyPayload(p,t,
+                                                         "Tyrone Slothrop")
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
                               (FWD_TYPE,SWAP_FWD_TYPE),
@@ -1472,171 +1472,171 @@ class BuildMessageTests(unittest.TestCase):
                              (pks_1, None,
                               (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,MBOX_TYPE),
                               infos+("fred",)),
-			     payload,
-			     decoder=decoder2)
+                             payload,
+                             decoder=decoder2)
 
-	# Now test format of generated messages.
-	p,t = messages['repl']
-	self.assertEquals(t, tag_1)
-	for s in secrets_1:
-	    ks = Keyset(s)
-	    p = lioness_encrypt(p, ks.getLionessKeys(
- 	 	               Crypto.PAYLOAD_ENCRYPT_MODE))
-	comp = BuildMessage.compressData('Information???')
-	self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
-	self.assert_(p[22:].startswith(comp))
-	self.assertEquals(sha1(p[22:]), p[2:22])
+        # Now test format of generated messages.
+        p,t = messages['repl']
+        self.assertEquals(t, tag_1)
+        for s in secrets_1:
+            ks = Keyset(s)
+            p = lioness_encrypt(p, ks.getLionessKeys(
+                               Crypto.PAYLOAD_ENCRYPT_MODE))
+        comp = BuildMessage.compressData('Information???')
+        self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
+        self.assert_(p[22:].startswith(comp))
+        self.assertEquals(sha1(p[22:]), p[2:22])
 
-	p,t = messages['srepl']
-	self.assertEquals('\000', sha1(t+"Tyrone SlothropValidate")[-1])
-	prng = AESCounterPRNG(sha1(t+"Tyrone SlothropGenerate")[:16])
-	for _ in xrange(6): # 5 hops plus end-to-end
-	    s = prng.getBytes(16)
-	    ks = Keyset(s)
-	    p = lioness_encrypt(p, ks.getLionessKeys(
-		                      Crypto.PAYLOAD_ENCRYPT_MODE))
-	comp = BuildMessage.compressData(payload)
-	self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
-	self.assert_(p[22:].startswith(comp))
-	self.assertEquals(sha1(p[22:]), p[2:22])
+        p,t = messages['srepl']
+        self.assertEquals('\000', sha1(t+"Tyrone SlothropValidate")[-1])
+        prng = AESCounterPRNG(sha1(t+"Tyrone SlothropGenerate")[:16])
+        for _ in xrange(6): # 5 hops plus end-to-end
+            s = prng.getBytes(16)
+            ks = Keyset(s)
+            p = lioness_encrypt(p, ks.getLionessKeys(
+                                      Crypto.PAYLOAD_ENCRYPT_MODE))
+        comp = BuildMessage.compressData(payload)
+        self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
+        self.assert_(p[22:].startswith(comp))
+        self.assertEquals(sha1(p[22:]), p[2:22])
 
     def test_decoding(self):
-	# Now we create a bunch of fake payloads and try to decode them.
+        # Now we create a bunch of fake payloads and try to decode them.
 
-	# Successful messages:
-	payload = "All dreamers and sleepwalkers must pay the price, and "+\
-	  "even the invisible victim is responsible for the fate of all.\n"+\
-	  "   -- _Invisible Man_"
+        # Successful messages:
+        payload = "All dreamers and sleepwalkers must pay the price, and "+\
+          "even the invisible victim is responsible for the fate of all.\n"+\
+          "   -- _Invisible Man_"
 
-	comp = BuildMessage.compressData(payload)
-	self.assertEquals(len(comp), 109)
-	encoded1 = (comp+ "RWE/HGW"*4096)[:28*1024-22]
-	encoded1 = '\x00\x6D'+sha1(encoded1)+encoded1
-	# Forward message.
-	self.assertEquals(payload, BuildMessage._decodeForwardPayload(encoded1))
+        comp = BuildMessage.compressData(payload)
+        self.assertEquals(len(comp), 109)
+        encoded1 = (comp+ "RWE/HGW"*4096)[:28*1024-22]
+        encoded1 = '\x00\x6D'+sha1(encoded1)+encoded1
+        # Forward message.
+        self.assertEquals(payload, BuildMessage._decodeForwardPayload(encoded1))
 
-	# Encoded forward message
-	efwd = (comp+"RWE/HGW"*4096)[:28*1024-22-38]
-	efwd = '\x00\x6D'+sha1(efwd)+efwd
-	rsa1 = self.pk1
-	key1 = Keyset("RWE "*4).getLionessKeys("END-TO-END ENCRYPT")
-	efwd_rsa = pk_encrypt(("RWE "*4)+efwd[:70], rsa1)
-	efwd_lioness = lioness_encrypt(efwd[70:], key1)
-	efwd_t = efwd_rsa[:20]
-	efwd_p = efwd_rsa[20:]+efwd_lioness
-	self.assertEquals(payload,
-	     BuildMessage._decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1))
+        # Encoded forward message
+        efwd = (comp+"RWE/HGW"*4096)[:28*1024-22-38]
+        efwd = '\x00\x6D'+sha1(efwd)+efwd
+        rsa1 = self.pk1
+        key1 = Keyset("RWE "*4).getLionessKeys("END-TO-END ENCRYPT")
+        efwd_rsa = pk_encrypt(("RWE "*4)+efwd[:70], rsa1)
+        efwd_lioness = lioness_encrypt(efwd[70:], key1)
+        efwd_t = efwd_rsa[:20]
+        efwd_p = efwd_rsa[20:]+efwd_lioness
+        self.assertEquals(payload,
+             BuildMessage._decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1))
 
-## 	# Stateful reply
-## 	secrets = [ "Is that you, Des","troyer?Rinehart?" ]
-## 	sdict = { 'tag1'*5 : secrets }
-## 	ks = Keyset(secrets[1])
-## 	m = lioness_decrypt(encoded1, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
-## 	ks = Keyset(secrets[0])
-## 	m = lioness_decrypt(m, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
-## 	self.assertEquals(payload, BuildMessage._decodeReplyPayload(m,secrets))
-## 	repl1 = m
+##      # Stateful reply
+##      secrets = [ "Is that you, Des","troyer?Rinehart?" ]
+##      sdict = { 'tag1'*5 : secrets }
+##      ks = Keyset(secrets[1])
+##      m = lioness_decrypt(encoded1, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
+##      ks = Keyset(secrets[0])
+##      m = lioness_decrypt(m, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
+##      self.assertEquals(payload, BuildMessage._decodeReplyPayload(m,secrets))
+##      repl1 = m
 
-	# Stateless reply
-	tag = "To light my way out\xBE"
-	passwd = "out I would have to burn every paper in the briefcase"
-	self.assertEquals('\000', sha1(tag+passwd+"Validate")[-1])
-	prng = AESCounterPRNG(sha1(tag+passwd+"Generate")[:16])
-	secrets2 = [ prng.getBytes(16) for _ in xrange(5) ]
-	m = encoded1
-	s = secrets2[:]
-	s.reverse()
-	for k in s:
-	    key = Keyset(k).getLionessKeys(PAYLOAD_ENCRYPT_MODE)
-	    m = lioness_decrypt(m,key)
-	self.assertEquals(payload,
-		     BuildMessage._decodeStatelessReplyPayload(m,tag,passwd))
-	repl2, repl2tag = m, tag
+        # Stateless reply
+        tag = "To light my way out\xBE"
+        passwd = "out I would have to burn every paper in the briefcase"
+        self.assertEquals('\000', sha1(tag+passwd+"Validate")[-1])
+        prng = AESCounterPRNG(sha1(tag+passwd+"Generate")[:16])
+        secrets2 = [ prng.getBytes(16) for _ in xrange(5) ]
+        m = encoded1
+        s = secrets2[:]
+        s.reverse()
+        for k in s:
+            key = Keyset(k).getLionessKeys(PAYLOAD_ENCRYPT_MODE)
+            m = lioness_decrypt(m,key)
+        self.assertEquals(payload,
+                     BuildMessage._decodeStatelessReplyPayload(m,tag,passwd))
+        repl2, repl2tag = m, tag
 
-	#
-	# Okay, now let's try out 'decodePayload' (and thereby test its
-	# children).  First, we test all the cases that succeed; or that
-	# fail and return None to indicate that another key might decrypt
-	# the message.
-	decodePayload = BuildMessage.decodePayload
-	# fwd
-	for pk in (self.pk1, None):
-	    ##for d in (sdict, None): # stateful replies disabled.
-		for p in (passwd, None):
-		    for tag in ("zzzz"*5, "pzzz"*5):
-			self.assertEquals(payload,
-					  decodePayload(encoded1, tag, pk, p))
+        #
+        # Okay, now let's try out 'decodePayload' (and thereby test its
+        # children).  First, we test all the cases that succeed; or that
+        # fail and return None to indicate that another key might decrypt
+        # the message.
+        decodePayload = BuildMessage.decodePayload
+        # fwd
+        for pk in (self.pk1, None):
+            ##for d in (sdict, None): # stateful replies disabled.
+                for p in (passwd, None):
+                    for tag in ("zzzz"*5, "pzzz"*5):
+                        self.assertEquals(payload,
+                                          decodePayload(encoded1, tag, pk, p))
 
-	# efwd
-	##for d in (sdict, None): # stateful replies disabled
-	if 1:
-	    for p in (passwd, None):
-		self.assertEquals(payload,
-		        decodePayload(efwd_p, efwd_t, self.pk1, p))
-		self.assertEquals(None,
-		        decodePayload(efwd_p, efwd_t, None, p))
-		self.assertEquals(None,
-		        decodePayload(efwd_p, efwd_t, self.pk2, p))
+        # efwd
+        ##for d in (sdict, None): # stateful replies disabled
+        if 1:
+            for p in (passwd, None):
+                self.assertEquals(payload,
+                        decodePayload(efwd_p, efwd_t, self.pk1, p))
+                self.assertEquals(None,
+                        decodePayload(efwd_p, efwd_t, None, p))
+                self.assertEquals(None,
+                        decodePayload(efwd_p, efwd_t, self.pk2, p))
 
-	# Stateful replies are disabled.
+        # Stateful replies are disabled.
 
-## 	# repl (stateful)
-## 	sdict2 = { 'tag2'*5 : [secrets] + [ '\x00\xFF'*8] }
-## 	for pk in (self.pk1, None):
-## 	    for p in (passwd, None):
-## 		sd = sdict.copy()
-## 		self.assertEquals(payload,
-## 		       decodePayload(repl1, "tag1"*5, pk, sd, p))
-## 		self.assert_(not sd)
-## 		self.assertEquals(None,
-## 		       decodePayload(repl1, "tag1"*5, pk, None, p))
-## 		self.assertEquals(None,
-## 		       decodePayload(repl1, "tag1"*5, pk, sdict2, p))
+##      # repl (stateful)
+##      sdict2 = { 'tag2'*5 : [secrets] + [ '\x00\xFF'*8] }
+##      for pk in (self.pk1, None):
+##          for p in (passwd, None):
+##              sd = sdict.copy()
+##              self.assertEquals(payload,
+##                     decodePayload(repl1, "tag1"*5, pk, sd, p))
+##              self.assert_(not sd)
+##              self.assertEquals(None,
+##                     decodePayload(repl1, "tag1"*5, pk, None, p))
+##              self.assertEquals(None,
+##                     decodePayload(repl1, "tag1"*5, pk, sdict2, p))
 
-	# repl (stateless)
-	for pk in (self.pk1, None):
-	    #for sd in (sdict, None): #Stateful replies are disabled
-		self.assertEquals(payload,
-			    decodePayload(repl2, repl2tag, pk, passwd))
-		self.assertEquals(None,
-			    decodePayload(repl2, repl2tag, pk, "Bliznerty"))
-		self.assertEquals(None,
-			    decodePayload(repl2, repl2tag, pk, None))
+        # repl (stateless)
+        for pk in (self.pk1, None):
+            #for sd in (sdict, None): #Stateful replies are disabled
+                self.assertEquals(payload,
+                            decodePayload(repl2, repl2tag, pk, passwd))
+                self.assertEquals(None,
+                            decodePayload(repl2, repl2tag, pk, "Bliznerty"))
+                self.assertEquals(None,
+                            decodePayload(repl2, repl2tag, pk, None))
 
-	# And now the cases that fail hard.  This can only happen on:
-	#   1) *: Hash checks out, but zlib or size is wrong.  Already tested.
-	#   2) EFWD: OAEP checks out, but hash is wrong.
-	#   3) REPLY: Tag matches; hash doesn't.
-	#   4) SREPLY: ---.
+        # And now the cases that fail hard.  This can only happen on:
+        #   1) *: Hash checks out, but zlib or size is wrong.  Already tested.
+        #   2) EFWD: OAEP checks out, but hash is wrong.
+        #   3) REPLY: Tag matches; hash doesn't.
+        #   4) SREPLY: ---.
 
-	# Bad efwd
-	efwd_pbad = efwd_p[:-1] + chr(ord(efwd_p[-1])^0xaa)
-	self.failUnlessRaises(MixError,
-			      BuildMessage._decodeEncryptedForwardPayload,
-			      efwd_pbad, efwd_t, self.pk1)
-	#for d in (sdict, None):
-	if 1:
-	    for p in (passwd, None):
-		self.failUnlessRaises(MixError, decodePayload,
-				      efwd_pbad, efwd_t, self.pk1, p)
-		self.assertEquals(None,
-			  decodePayload(efwd_pbad, efwd_t, self.pk2, p))
+        # Bad efwd
+        efwd_pbad = efwd_p[:-1] + chr(ord(efwd_p[-1])^0xaa)
+        self.failUnlessRaises(MixError,
+                              BuildMessage._decodeEncryptedForwardPayload,
+                              efwd_pbad, efwd_t, self.pk1)
+        #for d in (sdict, None):
+        if 1:
+            for p in (passwd, None):
+                self.failUnlessRaises(MixError, decodePayload,
+                                      efwd_pbad, efwd_t, self.pk1, p)
+                self.assertEquals(None,
+                          decodePayload(efwd_pbad, efwd_t, self.pk2, p))
 
-## 	# Bad repl
-## 	repl2_bad = repl2[:-1] + chr(ord(repl1[-1])^0xaa)
-## 	for pk in (self.pk1, None):
-## 	    for p in (passwd, None):
-## 		#sd = sdict.copy()
-## 		self.failUnlessRaises(MixError,
-## 			 decodePayload, repl1_bad, "tag1"*5, pk, p)
-## 		#sd = sdict.copy()
-## 		self.failUnlessRaises(MixError,
-## 			 BuildMessage._decodeReplyPayload, repl1_bad,
-## 				      sd["tag1"*5])
-	# Bad srepl
-	repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
-	self.assertEquals(None,
-		  decodePayload(repl2_bad, repl2tag, None, passwd))
+##      # Bad repl
+##      repl2_bad = repl2[:-1] + chr(ord(repl1[-1])^0xaa)
+##      for pk in (self.pk1, None):
+##          for p in (passwd, None):
+##              #sd = sdict.copy()
+##              self.failUnlessRaises(MixError,
+##                       decodePayload, repl1_bad, "tag1"*5, pk, p)
+##              #sd = sdict.copy()
+##              self.failUnlessRaises(MixError,
+##                       BuildMessage._decodeReplyPayload, repl1_bad,
+##                                    sd["tag1"*5])
+        # Bad srepl
+        repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
+        self.assertEquals(None,
+                  decodePayload(repl2_bad, repl2tag, None, passwd))
 
 #----------------------------------------------------------------------
 # Having tested BuildMessage without using PacketHandler, we can now use
@@ -1664,7 +1664,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.hlog.close()
 
     def do_test_chain(self, m, sps, routingtypes, routinginfo, payload,
-		      appkey=None):
+                      appkey=None):
         """Routes a message through a series of servers, making sure that
            each one decrypts it properly and routes it correctly to the
            next.
@@ -1684,13 +1684,13 @@ class PacketHandlerTests(unittest.TestCase):
             else:
                 self.assertEquals(res[0], "EXIT")
                 self.assertEquals(res[1][0], rt)
-		self.assertEquals(res[1][1], ri)
+                self.assertEquals(res[1][1], ri)
                 if appkey:
                     self.assertEquals(appkey, res[1][2])
 
-		#tag = res[1][3]
-		p = res[1][4]
-		p = BuildMessage._decodeForwardPayload(p)
+                #tag = res[1][3]
+                p = res[1][4]
+                p = BuildMessage._decodeForwardPayload(p)
                 self.assert_(p.startswith(payload))
                 break
 
@@ -1808,15 +1808,15 @@ class PacketHandlerTests(unittest.TestCase):
         self.failUnlessRaises(ParseError, self.sp1.processMessage, m_x)
 
         # Bad internal type
-	try:
-	    # (We temporarily override the setting from 'BuildMessage',
-	    #  not Packet; BuildMessage has already imported a copy of this
-	    #  constant.)
-	    save = mixminion.BuildMessage.SWAP_FWD_TYPE
-	    mixminion.BuildMessage.SWAP_FWD_TYPE = 50
-	    m_x = bfm("Z", 500, "", [self.server1], [self.server2])
-	finally:
-	    mixminion.BuildMessage.SWAP_FWD_TYPE = save
+        try:
+            # (We temporarily override the setting from 'BuildMessage',
+            #  not Packet; BuildMessage has already imported a copy of this
+            #  constant.)
+            save = mixminion.BuildMessage.SWAP_FWD_TYPE
+            mixminion.BuildMessage.SWAP_FWD_TYPE = 50
+            m_x = bfm("Z", 500, "", [self.server1], [self.server2])
+        finally:
+            mixminion.BuildMessage.SWAP_FWD_TYPE = save
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
 
         # Subhead we can't parse
@@ -1871,10 +1871,10 @@ class PacketHandlerTests(unittest.TestCase):
 
 class TestDeliveryQueue(DeliveryQueue):
     def __init__(self,d):
-	DeliveryQueue.__init__(self,d)
-	self._msgs = None
+        DeliveryQueue.__init__(self,d)
+        self._msgs = None
     def _deliverMessages(self, msgList):
-	self._msgs = msgList
+        self._msgs = msgList
 
 class QueueTests(unittest.TestCase):
     def setUp(self):
@@ -1994,13 +1994,13 @@ class QueueTests(unittest.TestCase):
         self.assertEquals(queue1.count(), 41)
         self.assert_(not os.path.exists(os.path.join(self.d2, "msg_"+h)))
 
-	# Test object functionality
-	obj = [ ("A pair of strings", "in a tuple in a list") ]
-	h1 = queue1.queueObject(obj)
-	h2 = queue1.queueObject(6060842)
-	self.assertEquals(obj, queue1.getObject(h1))
-	self.assertEquals(6060842, queue1.getObject(h2))
-	self.assertEquals(obj, cPickle.loads(queue1.messageContents(h1)))
+        # Test object functionality
+        obj = [ ("A pair of strings", "in a tuple in a list") ]
+        h1 = queue1.queueObject(obj)
+        h2 = queue1.queueObject(6060842)
+        self.assertEquals(obj, queue1.getObject(h1))
+        self.assertEquals(6060842, queue1.getObject(h2))
+        self.assertEquals(obj, cPickle.loads(queue1.messageContents(h1)))
 
         # Scrub both queues.
         queue1.removeAll()
@@ -2009,123 +2009,123 @@ class QueueTests(unittest.TestCase):
         queue2.cleanQueue()
 
     def testDeliveryQueues(self):
-	d_d = mix_mktemp("qd")
+        d_d = mix_mktemp("qd")
 
-	queue = TestDeliveryQueue(d_d)
+        queue = TestDeliveryQueue(d_d)
 
-	# First, make sure the queue stores messages correctly.
-	h1 = queue.queueDeliveryMessage("Address 1", "Message 1")
-	h2 = queue.queueDeliveryMessage("Address 2", "Message 2")
-	self.assertEquals((0, "Address 1", "Message 1"), queue.get(h1))
+        # First, make sure the queue stores messages correctly.
+        h1 = queue.queueDeliveryMessage("Address 1", "Message 1")
+        h2 = queue.queueDeliveryMessage("Address 2", "Message 2")
+        self.assertEquals((0, "Address 1", "Message 1"), queue.get(h1))
 
-	# Call sendReadyMessages to begin 'sending' msg1 and msg2.
-	queue.sendReadyMessages()
-	msgs = queue._msgs
-	self.assertEquals(2, len(msgs))
-	# _deliverMessages should have gotten them both.
-	self.failUnless((h1, "Address 1", "Message 1", 0) in msgs)
-	self.failUnless((h2, "Address 2", "Message 2", 0) in msgs)
-	# Add msg3, and acknowledge that msg1 succeeded.  msg2 is now in limbo
-	h3 = queue.queueDeliveryMessage("Address 3", "Message 3")
-	queue.deliverySucceeded(h1)
-	# Only msg3 should get sent out, since msg2 is still in progress.
-	queue.sendReadyMessages()
-	msgs = queue._msgs
-	self.assertEquals([(h3, "Address 3", "Message 3", 0)], msgs)
+        # Call sendReadyMessages to begin 'sending' msg1 and msg2.
+        queue.sendReadyMessages()
+        msgs = queue._msgs
+        self.assertEquals(2, len(msgs))
+        # _deliverMessages should have gotten them both.
+        self.failUnless((h1, "Address 1", "Message 1", 0) in msgs)
+        self.failUnless((h2, "Address 2", "Message 2", 0) in msgs)
+        # Add msg3, and acknowledge that msg1 succeeded.  msg2 is now in limbo
+        h3 = queue.queueDeliveryMessage("Address 3", "Message 3")
+        queue.deliverySucceeded(h1)
+        # Only msg3 should get sent out, since msg2 is still in progress.
+        queue.sendReadyMessages()
+        msgs = queue._msgs
+        self.assertEquals([(h3, "Address 3", "Message 3", 0)], msgs)
 
-	# Now, make sure that msg1 is gone from the pool.
-	allHandles = queue.getAllMessages()
-	allHandles.sort()
-	exHandles = [h2,h3]
-	exHandles.sort()
-	self.assertEquals(exHandles, allHandles)
+        # Now, make sure that msg1 is gone from the pool.
+        allHandles = queue.getAllMessages()
+        allHandles.sort()
+        exHandles = [h2,h3]
+        exHandles.sort()
+        self.assertEquals(exHandles, allHandles)
 
-	# Now, fail msg2 retriably, and fail msg3 hard.  Only one message
-	# should be left.  (It will have a different handle from the old
-	# msg2.)
-	queue.deliveryFailed(h2, retriable=1)
-	queue.deliveryFailed(h3, retriable=0)
-	allHandles = queue.getAllMessages()
-	h4 = allHandles[0]
-	self.assertEquals([h4], queue.getAllMessages())
-	# When we try to send messages again, msg2 should be atttempted.
-	queue.sendReadyMessages()
-	msgs = queue._msgs
-	self.assertEquals([(h4, "Address 2", "Message 2", 1)], msgs)
-	self.assertNotEquals(h2, h4)
+        # Now, fail msg2 retriably, and fail msg3 hard.  Only one message
+        # should be left.  (It will have a different handle from the old
+        # msg2.)
+        queue.deliveryFailed(h2, retriable=1)
+        queue.deliveryFailed(h3, retriable=0)
+        allHandles = queue.getAllMessages()
+        h4 = allHandles[0]
+        self.assertEquals([h4], queue.getAllMessages())
+        # When we try to send messages again, msg2 should be atttempted.
+        queue.sendReadyMessages()
+        msgs = queue._msgs
+        self.assertEquals([(h4, "Address 2", "Message 2", 1)], msgs)
+        self.assertNotEquals(h2, h4)
 
-	queue.removeAll()
-	queue.cleanQueue()
+        queue.removeAll()
+        queue.cleanQueue()
 
     def testMixQueues(self):
-	d_m = mix_mktemp("qm")
+        d_m = mix_mktemp("qm")
 
-	# Trivial 'TimedMixQueue'
-	queue = TimedMixQueue(d_m)
-	h1 = queue.queueMessage("Hello1")
-	h2 = queue.queueMessage("Hello2")
-	h3 = queue.queueMessage("Hello3")
-	b = queue.getBatch()
-	msgs = [h1,h2,h3]
-	msgs.sort()
-	b.sort()
-	self.assertEquals(msgs,b)
+        # Trivial 'TimedMixQueue'
+        queue = TimedMixQueue(d_m)
+        h1 = queue.queueMessage("Hello1")
+        h2 = queue.queueMessage("Hello2")
+        h3 = queue.queueMessage("Hello3")
+        b = queue.getBatch()
+        msgs = [h1,h2,h3]
+        msgs.sort()
+        b.sort()
+        self.assertEquals(msgs,b)
 
-	# Now, test the CottrellMixQueue.
-	cmq = CottrellMixQueue(d_m, 600, 6, sendRate=.3)
-	# Not enough messages (<= 6) -- none will be sent.
-	self.assertEquals([], cmq.getBatch())
-	self.assertEquals([], cmq.getBatch())
-	# 8 messages: 2 get sent
-	for i in range(5):
-	    cmq.queueMessage("Message %s"%i)
-	self.assertEquals(8, cmq.count())
-	b1, b2, b3 = cmq.getBatch(), cmq.getBatch(), cmq.getBatch()
-	self.assertEquals(2, len(b1))
-	self.assertEquals(2, len(b2))
-	self.assertEquals(2, len(b3))
+        # Now, test the CottrellMixQueue.
+        cmq = CottrellMixQueue(d_m, 600, 6, sendRate=.3)
+        # Not enough messages (<= 6) -- none will be sent.
+        self.assertEquals([], cmq.getBatch())
+        self.assertEquals([], cmq.getBatch())
+        # 8 messages: 2 get sent
+        for i in range(5):
+            cmq.queueMessage("Message %s"%i)
+        self.assertEquals(8, cmq.count())
+        b1, b2, b3 = cmq.getBatch(), cmq.getBatch(), cmq.getBatch()
+        self.assertEquals(2, len(b1))
+        self.assertEquals(2, len(b2))
+        self.assertEquals(2, len(b3))
 
-	# Make sure that all message batches are different.
-	allEq = 1
-	for x in xrange(13): #fails <one in a trillion
-	    b = cmq.getBatch()
-	    if b != b1:
-		allEq = 0; break
-	self.failIf(allEq)
+        # Make sure that all message batches are different.
+        allEq = 1
+        for x in xrange(13): #fails <one in a trillion
+            b = cmq.getBatch()
+            if b != b1:
+                allEq = 0; break
+        self.failIf(allEq)
 
-	# Send 30 when there are 100 messages.
-	for x in xrange(92):
-	    cmq.queueMessage("Hello2 %s"%x)
-	for x in xrange(10):
-	    self.assertEquals(30, len(cmq.getBatch()))
+        # Send 30 when there are 100 messages.
+        for x in xrange(92):
+            cmq.queueMessage("Hello2 %s"%x)
+        for x in xrange(10):
+            self.assertEquals(30, len(cmq.getBatch()))
 
-	# Binomial Cottrell pool
-	bcmq = BinomialCottrellMixQueue(d_m, 600, 6, sendRate=.3)
-	# (Just make sure that we don't always return the same number of
-	#  messages each time.)
-	messageLens = []
-	for i in range(31):
-	    b = bcmq.getBatch()
-	    messageLens.append(len(b))
-	messageLens.sort()
-	self.failIf(messageLens[0] == messageLens[-1])
-	# (Fails less than once in 2 **30 tests.)
-	self.assert_(messageLens[0] <= 30)
-	self.assert_(messageLens[-1] >= 30)
-	#print messageLens
+        # Binomial Cottrell pool
+        bcmq = BinomialCottrellMixQueue(d_m, 600, 6, sendRate=.3)
+        # (Just make sure that we don't always return the same number of
+        #  messages each time.)
+        messageLens = []
+        for i in range(31):
+            b = bcmq.getBatch()
+            messageLens.append(len(b))
+        messageLens.sort()
+        self.failIf(messageLens[0] == messageLens[-1])
+        # (Fails less than once in 2 **30 tests.)
+        self.assert_(messageLens[0] <= 30)
+        self.assert_(messageLens[-1] >= 30)
+        #print messageLens
 
-	bcmq.removeAll()
-	bcmq.cleanQueue()
+        bcmq.removeAll()
+        bcmq.cleanQueue()
 
 #---------------------------------------------------------------------
 # LOGGING
 class LogTests(unittest.TestCase):
     def testLogging(self):
 
-	# Create a new loghandler, and try sending a few messages to it.
+        # Create a new loghandler, and try sending a few messages to it.
         log = Log("INFO")
         self.assertEquals(log.getMinSeverity(), "INFO")
-	log.handlers = []
+        log.handlers = []
         log.log("WARN", "This message should not appear")
         buf = cStringIO.StringIO()
         log.addHandler(_ConsoleLogHandler(buf))
@@ -2139,22 +2139,22 @@ class LogTests(unittest.TestCase):
         self.failUnless(buf.getvalue().endswith(
             "[ERROR] All your anonymity are belong to us\n"))
 
-	buf.truncate(0)
+        buf.truncate(0)
 
-	# Try out error_exc.
-	try:
-	    raise MixError()
-	except:
-	    inf = sys.exc_info()
-	log.error_exc(inf)
-	log.error_exc(inf, "And so on")
-	log.error_exc(inf, "And so %s", "on")
+        # Try out error_exc.
+        try:
+            raise MixError()
+        except:
+            inf = sys.exc_info()
+        log.error_exc(inf)
+        log.error_exc(inf, "And so on")
+        log.error_exc(inf, "And so %s", "on")
 
-	# print buf.getvalue()
-	# FFFF We should examine the value of the above, but inspection
-	# FFFF show that we're fine.
+        # print buf.getvalue()
+        # FFFF We should examine the value of the above, but inspection
+        # FFFF show that we're fine.
 
-	# Try out file logging
+        # Try out file logging
         t = mix_mktemp("log")
         t1 = t+"1"
 
@@ -2175,102 +2175,102 @@ class LogTests(unittest.TestCase):
 
 class FileParanoiaTests(unittest.TestCase):
     def testPrivateDirs(self):
-	# Pick a private directory under tempdir, but don't create it.
-	noia = mix_mktemp("noia")
-	tempdir = mixminion.testSupport._MM_TESTING_TEMPDIR
+        # Pick a private directory under tempdir, but don't create it.
+        noia = mix_mktemp("noia")
+        tempdir = mixminion.testSupport._MM_TESTING_TEMPDIR
 
-	# If our tempdir doesn't exist and isn't private, we can't go on.
-	try:
-	    checkPrivateDir(tempdir)
-	except MixFatalError, e:
-	    self.fail("Can't test directory paranoia, because something's\n"
-		      +" wrong with %s: %s"%(tempdir, str(e)))
+        # If our tempdir doesn't exist and isn't private, we can't go on.
+        try:
+            checkPrivateDir(tempdir)
+        except MixFatalError, e:
+            self.fail("Can't test directory paranoia, because something's\n"
+                      +" wrong with %s: %s"%(tempdir, str(e)))
 
-	# Nonexistant directory.
-	self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
-	# Bad permissions.
-	os.mkdir(noia)
-	os.chmod(noia, 0777)
-	self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
-	# Bad permissions on parent
-	subdir = os.path.join(noia, "subdir")
-	os.mkdir(subdir, 0700)
-	self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
-	os.chmod(noia, 0755)
-	checkPrivateDir(subdir)
-	os.chmod(noia, 0700)
-	checkPrivateDir(subdir)
-	# Not writable by self
-	os.chmod(subdir, 0600)
-	self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
-	# Not a directory
-	os.rmdir(subdir)
-	writeFile(subdir, "x")
-	os.chmod(subdir, 0700)
-	self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
-	os.unlink(subdir)
-	os.mkdir(subdir, 0700)
+        # Nonexistant directory.
+        self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
+        # Bad permissions.
+        os.mkdir(noia)
+        os.chmod(noia, 0777)
+        self.failUnlessRaises(MixFatalError, checkPrivateDir, noia)
+        # Bad permissions on parent
+        subdir = os.path.join(noia, "subdir")
+        os.mkdir(subdir, 0700)
+        self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+        os.chmod(noia, 0755)
+        checkPrivateDir(subdir)
+        os.chmod(noia, 0700)
+        checkPrivateDir(subdir)
+        # Not writable by self
+        os.chmod(subdir, 0600)
+        self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+        # Not a directory
+        os.rmdir(subdir)
+        writeFile(subdir, "x")
+        os.chmod(subdir, 0700)
+        self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+        os.unlink(subdir)
+        os.mkdir(subdir, 0700)
 
-	# Now we test a directory we don't own...
-	if os.getuid() == 0: # If we're root, we can play with chown!
-	    # We don't own the directory
-	    os.chown(subdir, 1, 1)
-	    self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
-	    os.chown(subdir, 0, os.getgid())
-	    # We don't own the parent
-	    os.chown(noia, 1, 1)
-	    self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
-	    os.chown(noia, 0, os.getgid())
-	else:
-	    # We're not root.  We can't reliably find or make a directory
-	    # that's non-root and non-us.  Let's just make sure we don't
-	    # own temp.
-	    if os.path.exists("/tmp"):
-		self.failUnlessRaises(MixFatalError, checkPrivateDir, "/tmp")
+        # Now we test a directory we don't own...
+        if os.getuid() == 0: # If we're root, we can play with chown!
+            # We don't own the directory
+            os.chown(subdir, 1, 1)
+            self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+            os.chown(subdir, 0, os.getgid())
+            # We don't own the parent
+            os.chown(noia, 1, 1)
+            self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
+            os.chown(noia, 0, os.getgid())
+        else:
+            # We're not root.  We can't reliably find or make a directory
+            # that's non-root and non-us.  Let's just make sure we don't
+            # own temp.
+            if os.path.exists("/tmp"):
+                self.failUnlessRaises(MixFatalError, checkPrivateDir, "/tmp")
 
-	# Helper fn: return mode,uid,isdir
-	def mud(f):
-	    st = os.stat(f)
-	    return st[stat.ST_MODE]&0777, st[stat.ST_UID], os.path.isdir(f)
+        # Helper fn: return mode,uid,isdir
+        def mud(f):
+            st = os.stat(f)
+            return st[stat.ST_MODE]&0777, st[stat.ST_UID], os.path.isdir(f)
 
-	# Okay.  Now we try createPrivateDir a couple of times...
-	old_mask = None
-	try:
-	    # Make sure umask is lenient, so we can tell whether c-p-d is
-	    # strict.
-	    old_mask = os.umask(022)
-	    # 1. Create the world.
-	    os.rmdir(subdir)
-	    os.rmdir(noia)
-	    createPrivateDir(subdir)
-	    self.assertEquals((0700,os.getuid(),1), mud(subdir))
-	    self.assertEquals((0700,os.getuid(),1), mud(noia))
-	    # 2. Just create one dir.
-	    os.rmdir(subdir)
-	    os.chmod(noia, 0755)
-	    createPrivateDir(subdir)
-	    self.assertEquals((0700,os.getuid(),1), mud(subdir))
-	    self.assertEquals((0755,os.getuid(),1), mud(noia))
-	    # 3. Fail to create because of bad permissions
-	    os.rmdir(subdir)
-	    os.chmod(noia, 0777)
-	    self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
-	    # 4. Fail to create because of OSError
-	    os.rmdir(subdir)
-	    writeFile(subdir, 'W')
-	    self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
-	    os.unlink(subdir)
-	    # 5. Succeed: it's already there.
-	    os.chmod(noia, 0700)
-	    os.mkdir(subdir, 0700)
-	    createPrivateDir(subdir)
-	    # 6. Fail: it's already there, but has bad permissions
-	    os.chmod(subdir, 0777)
-	    self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
-	    os.chmod(subdir, 0700)
-	finally:
-	    if old_mask is not None:
-		os.umask(old_mask)
+        # Okay.  Now we try createPrivateDir a couple of times...
+        old_mask = None
+        try:
+            # Make sure umask is lenient, so we can tell whether c-p-d is
+            # strict.
+            old_mask = os.umask(022)
+            # 1. Create the world.
+            os.rmdir(subdir)
+            os.rmdir(noia)
+            createPrivateDir(subdir)
+            self.assertEquals((0700,os.getuid(),1), mud(subdir))
+            self.assertEquals((0700,os.getuid(),1), mud(noia))
+            # 2. Just create one dir.
+            os.rmdir(subdir)
+            os.chmod(noia, 0755)
+            createPrivateDir(subdir)
+            self.assertEquals((0700,os.getuid(),1), mud(subdir))
+            self.assertEquals((0755,os.getuid(),1), mud(noia))
+            # 3. Fail to create because of bad permissions
+            os.rmdir(subdir)
+            os.chmod(noia, 0777)
+            self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+            # 4. Fail to create because of OSError
+            os.rmdir(subdir)
+            writeFile(subdir, 'W')
+            self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+            os.unlink(subdir)
+            # 5. Succeed: it's already there.
+            os.chmod(noia, 0700)
+            os.mkdir(subdir, 0700)
+            createPrivateDir(subdir)
+            # 6. Fail: it's already there, but has bad permissions
+            os.chmod(subdir, 0777)
+            self.failUnlessRaises(MixFatalError, createPrivateDir, subdir)
+            os.chmod(subdir, 0700)
+        finally:
+            if old_mask is not None:
+                os.umask(old_mask)
 
 #----------------------------------------------------------------------
 # SIGHANDLERS
@@ -2302,23 +2302,23 @@ def _getTLSContext(isServer):
             if dh_fname and not USE_SLOW_MODE:
                 dhfile = dh_fname
                 if not os.path.exists(dh_fname):
-		    print "[Generating DH parameters...",
-		    sys.stdout.flush()
-		    _ml.generate_dh_parameters(dhfile, 0)
-		    print "done.]",
-		    sys.stdout.flush()
+                    print "[Generating DH parameters...",
+                    sys.stdout.flush()
+                    _ml.generate_dh_parameters(dhfile, 0)
+                    print "done.]",
+                    sys.stdout.flush()
             else:
-		print "[Generating DH parameters (not caching)...",
-		sys.stdout.flush()
+                print "[Generating DH parameters (not caching)...",
+                sys.stdout.flush()
                 _ml.generate_dh_parameters(dhfile, 0)
-		print "done.]",
-		sys.stdout.flush()
+                print "done.]",
+                sys.stdout.flush()
             pk = getRSAKey(3,1024)
             pk.PEM_write_key(open(pkfile, 'w'), 0)
             _ml.generate_cert(certfile, pk, "Testing certificate",
                               time.time(), time.time()+365*24*60*60)
 
-	pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), 0)
+        pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), 0)
         return _ml.TLSContext_new(certfile, pk, dhfile)
     else:
         return _ml.TLSContext_new()
@@ -2330,15 +2330,15 @@ def _getMMTPServer():
     server = mixminion.server.MMTPServer.AsyncServer()
     messagesIn = []
     def receivedHook(pkt,m=messagesIn):
-	m.append(pkt)
+        m.append(pkt)
     def conFactory(sock, context=_getTLSContext(1),
-		   receiveMessage=receivedHook):
-	tls = context.sock(sock, serverMode=1)
-	sock.setblocking(0)
-	return mixminion.server.MMTPServer.MMTPServerConnection(sock,tls,
-							 receiveMessage)
+                   receiveMessage=receivedHook):
+        tls = context.sock(sock, serverMode=1)
+        sock.setblocking(0)
+        return mixminion.server.MMTPServer.MMTPServerConnection(sock,tls,
+                                                         receiveMessage)
     listener = mixminion.server.MMTPServer.ListenConnection("127.0.0.1",
-						 TEST_PORT, 5, conFactory)
+                                                 TEST_PORT, 5, conFactory)
     listener.register(server)
     pk = _ml.rsa_PEM_read_key(open(pkfile, 'r'), public=0)
     keyid = sha1(pk.encode_key(1))
@@ -2348,8 +2348,8 @@ def _getMMTPServer():
 class MMTPTests(unittest.TestCase):
 
     def doTest(self, fn):
-	"""Wraps an underlying test function 'fn' to make sure we kill the
-	   MMTPServer, but don't block."""
+        """Wraps an underlying test function 'fn' to make sure we kill the
+           MMTPServer, but don't block."""
         self.listener = self.server = None
         try:
             fn()
@@ -2411,7 +2411,7 @@ class MMTPTests(unittest.TestCase):
         async = mixminion.server.MMTPServer.AsyncServer()
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid, messages[:],
-	   [None, None], None)
+           [None, None], None)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():
@@ -2440,7 +2440,7 @@ class MMTPTests(unittest.TestCase):
                 async.process(2)
 
         try:
-	    suspendLog() # suppress warning
+            suspendLog() # suppress warning
             server.process(0.1)
             t = threading.Thread(None, clientThread2)
 
@@ -2480,16 +2480,16 @@ class TestConfigFile(_ConfigFile):
 class ConfigFileTests(unittest.TestCase):
     def testValidFiles(self):
         TCF = TestConfigFile
-	# Try a minimal file.
+        # Try a minimal file.
         shorterString = """[Sec1]\nFoo a\n"""
         f = TCF(string=shorterString)
         self.assertEquals(f['Sec1']['Foo'], 'a')
-	# Try a slightly more spaceful version of the above.
+        # Try a slightly more spaceful version of the above.
         f = TCF(string="""\n\n[ Sec1 ]  \n  \n\nFoo a  \n""")
         self.assertEquals(f['Sec1']['Foo'], 'a')
         self.assertEquals(f['Sec2'], {})
 
-	# Now, try all the syntaxtical possibilities, and all the fields
+        # Now, try all the syntaxtical possibilities, and all the fields
         longerString = """[Sec1]
 
 Foo=  abcde f
@@ -2580,13 +2580,13 @@ IntRS=5
             self.failUnlessRaises(ConfigError, TestConfigFile, None, string)
 
 
-	# Missing section header
+        # Missing section header
         fails("Foo = Bar\n")
-	# Invalid indentation on key
+        # Invalid indentation on key
         fails("[Sec1]\n  Foo = Bar\n")
-	# Invalid indentation on header
-	fails("  [Sec1]\n  Foo = Bar\n")
-	# Unrecognized key
+        # Invalid indentation on header
+        fails("  [Sec1]\n  Foo = Bar\n")
+        # Unrecognized key
         fails("[Sec1]\nFoo! Bar\n")
 
         fails("[Sec1]\nFoob: Bar\n") # No such key
@@ -2608,26 +2608,26 @@ IntRS=5
     def testValidationFns(self):
         import mixminion.Config as C
 
-	## First, check valid cases.
-	# boolean
+        ## First, check valid cases.
+        # boolean
         self.assertEquals(C._parseBoolean("yes"), 1)
         self.assertEquals(C._parseBoolean(" NO"), 0)
-	# severity
+        # severity
         self.assertEquals(C._parseSeverity("error"), "ERROR")
-	# serverMode
+        # serverMode
         self.assertEquals(C._parseServerMode(" relay "), "relay")
         self.assertEquals(C._parseServerMode("Local"), "local")
-	# interval
+        # interval
         self.assertEquals(C._parseInterval(" 1 sec "), (1,"second", 1))
         self.assertEquals(C._parseInterval(" 99 sec "), (99,"second", 99))
         self.failUnless(floatEq(C._parseInterval("1.5 minutes")[2],
                                 90))
         self.assertEquals(C._parseInterval("2 houRS"), (2,"hour",7200))
-	# int
+        # int
         self.assertEquals(C._parseInt("99"), 99)
-	# IP
+        # IP
         self.assertEquals(C._parseIP("192.168.0.1"), "192.168.0.1")
-	# AddressSet
+        # AddressSet
         pa = C._parseAddressSet_allow
         self.assertEquals(pa("*"), ("0.0.0.0", "0.0.0.0", 48099, 48099))
         self.assertEquals(pa("192.168.0.1/255.255.0.0"),
@@ -2641,29 +2641,29 @@ IntRS=5
         self.assertEquals(pa("192.168.0.1",0),
                           ("192.168.0.1", "255.255.255.255", 0, 65535))
 
-	# Command
-	if not sys.platform == 'win32':
-	    # FFFF This should get implemented for Windows.
-	    self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
-	    self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
-	    self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
-	    self.failUnless(C._parseCommand("python")[0] is not None)
+        # Command
+        if not sys.platform == 'win32':
+            # FFFF This should get implemented for Windows.
+            self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
+            self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
+            self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
+            self.failUnless(C._parseCommand("python")[0] is not None)
 
-	# Base64
-	self.assertEquals(C._parseBase64(" YW\nJj"), "abc")
-	# Hex
-	self.assertEquals(C._parseHex(" C0D0"), "\xC0\xD0")
-	# Date
-	tm = C._parseDate("2002/05/30")
-	self.assertEquals(time.gmtime(tm)[:6], (2002,5,30,0,0,0))
-	tm = C._parseDate("2000/01/01")
-	self.assertEquals(time.gmtime(tm)[:6], (2000,1,1,0,0,0))
-	# Time
-	tm = C._parseTime("2001/12/25 06:15:10")
-	self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
+        # Base64
+        self.assertEquals(C._parseBase64(" YW\nJj"), "abc")
+        # Hex
+        self.assertEquals(C._parseHex(" C0D0"), "\xC0\xD0")
+        # Date
+        tm = C._parseDate("2002/05/30")
+        self.assertEquals(time.gmtime(tm)[:6], (2002,5,30,0,0,0))
+        tm = C._parseDate("2000/01/01")
+        self.assertEquals(time.gmtime(tm)[:6], (2000,1,1,0,0,0))
+        # Time
+        tm = C._parseTime("2001/12/25 06:15:10")
+        self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
 
-	##
-	# Now, try the failing cases.
+        ##
+        # Now, try the failing cases.
         def fails(fn, val, self=self):
             self.failUnlessRaises(ConfigError, fn, val)
 
@@ -2684,14 +2684,14 @@ IntRS=5
         fails(pa, "1/1")
         fails(pa, "192.168.0.1 50-40")
         fails(pa, "192.168.0.1 50-9999999")
-	fails(C._parseBase64, "Y")
-	fails(C._parseHex, "Z")
-	fails(C._parseHex, "A")
-	fails(C._parseDate, "2000/1/1")
-	fails(C._parseDate, "2000/50/01")
-	fails(C._parseDate, "2000/50/01 12:12:12")
-	fails(C._parseTime, "2000/50/01 12:12:12")
-	fails(C._parseTime, "2000/50/01 12:12:99")
+        fails(C._parseBase64, "Y")
+        fails(C._parseHex, "Z")
+        fails(C._parseHex, "A")
+        fails(C._parseDate, "2000/1/1")
+        fails(C._parseDate, "2000/50/01")
+        fails(C._parseDate, "2000/50/01 12:12:12")
+        fails(C._parseTime, "2000/50/01 12:12:12")
+        fails(C._parseTime, "2000/50/01 12:12:99")
 
         nonexistcmd = '/file/that/does/not/exist'
         if not os.path.exists(nonexistcmd):
@@ -2757,22 +2757,22 @@ Nickname: fred-the-bunny
 
 class ServerInfoTests(unittest.TestCase):
     def testServerInfoGen(self):
-	# Try generating a serverinfo and see if its values are as expected.
-	identity = getRSAKey(1, 2048)
+        # Try generating a serverinfo and see if its values are as expected.
+        identity = getRSAKey(1, 2048)
         d = mix_mktemp()
-	try:
-	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=(SERVER_CONFIG % mix_mktemp()))
-	finally:
-	    resumeLog()
+        try:
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(string=(SERVER_CONFIG % mix_mktemp()))
+        finally:
+            resumeLog()
         if not os.path.exists(d):
             os.mkdir(d, 0700)
 
         inf = generateServerDescriptorAndKeys(conf,
-					      identity,
-					      d,
-					      "key1",
-					      d)
+                                              identity,
+                                              d,
+                                              "key1",
+                                              d)
         info = mixminion.ServerInfo.ServerInfo(string=inf)
         eq = self.assertEquals
         eq(info['Server']['Descriptor-Version'], "0.1")
@@ -2804,7 +2804,7 @@ class ServerInfoTests(unittest.TestCase):
         # Now make sure everything was saved properly
         keydir = os.path.join(d, "key_key1")
         eq(inf, readFile(os.path.join(keydir, "ServerDesc")))
-	mixminion.server.ServerKeys.ServerKeyset(d, "key1", d) # Can we load?
+        mixminion.server.ServerKeys.ServerKeyset(d, "key1", d) # Can we load?
         packetKey = Crypto.pk_PEM_load(
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
@@ -2824,20 +2824,20 @@ class ServerInfoTests(unittest.TestCase):
                                                   identityPK))
 
         # Now with a shorter configuration
-	try:
-	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=(SERVER_CONFIG_SHORT%mix_mktemp())+
-					   """[Incoming/MMTP]
+        try:
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(string=(SERVER_CONFIG_SHORT%mix_mktemp())+
+                                           """[Incoming/MMTP]
 Enabled: yes
 IP: 192.168.0.99
 """)
-	finally:
-	    resumeLog()
-	generateServerDescriptorAndKeys(conf,
-	                                identity,
-					d,
-					"key2",
-					d)
+        finally:
+            resumeLog()
+        generateServerDescriptorAndKeys(conf,
+                                        identity,
+                                        d,
+                                        "key2",
+                                        d)
         # Now with a bad signature
         sig2 = Crypto.pk_sign(sha1("Hello"), identity)
         sig2 = base64.encodestring(sig2).replace("\n", "")
@@ -2869,54 +2869,54 @@ from mixminion.Config import ConfigError
 
 class TestModule(mixminion.server.Modules.DeliveryModule):
     def __init__(self):
-	self.processedMessages = []
-	self.processedAll = []
+        self.processedMessages = []
+        self.processedAll = []
     def getName(self):
-	return "TestModule"
+        return "TestModule"
     def getConfigSyntax(self):
-	return { "Example" : { "Foo" : ("REQUIRE",
-					mixminion.Config._parseInt, None) } }
+        return { "Example" : { "Foo" : ("REQUIRE",
+                                        mixminion.Config._parseInt, None) } }
     def validateConfig(self, cfg, entries, lines, contents):
-	if cfg['Example'] is not None:
-	    if cfg['Example'].get('Foo',1) % 2 == 0:
-		raise ConfigError("Foo was even")
+        if cfg['Example'] is not None:
+            if cfg['Example'].get('Foo',1) % 2 == 0:
+                raise ConfigError("Foo was even")
     def configure(self,cfg, manager):
-	if cfg['Example']:
-	    self.enabled = 1
-	    self.foo = cfg['Example'].get('Foo',1)
-	    manager.enableModule(self)
-	else:
-	    self.foo = None
-	    self.enabled = 0
+        if cfg['Example']:
+            self.enabled = 1
+            self.foo = cfg['Example'].get('Foo',1)
+            manager.enableModule(self)
+        else:
+            self.foo = None
+            self.enabled = 0
     def getServerInfoBlock(self):
-	if self.enabled:
-	    return "[Example]\\nFoo: %s\\n" % self.foo
-	else:
-	    return None
+        if self.enabled:
+            return "[Example]\\nFoo: %s\\n" % self.foo
+        else:
+            return None
     def getExitTypes(self):
-	return (1234,)
+        return (1234,)
     def processMessage(self, message, tag, exitType, exitInfo):
-	self.processedMessages.append(message)
-	self.processedAll.append( (message, tag, exitType, exitInfo) )
-	if exitInfo == 'fail?':
-	    return mixminion.server.Modules.DELIVER_FAIL_RETRY
-	elif exitInfo == 'fail!':
-	    return mixminion.server.Modules.DELIVER_FAIL_NORETRY
-	else:
-	    return mixminion.server.Modules.DELIVER_OK
+        self.processedMessages.append(message)
+        self.processedAll.append( (message, tag, exitType, exitInfo) )
+        if exitInfo == 'fail?':
+            return mixminion.server.Modules.DELIVER_FAIL_RETRY
+        elif exitInfo == 'fail!':
+            return mixminion.server.Modules.DELIVER_FAIL_NORETRY
+        else:
+            return mixminion.server.Modules.DELIVER_OK
 """
 
 class ModuleManagerTests(unittest.TestCase):
     def testModuleManager(self):
-	mod_dir = mix_mktemp()
-	home_dir = mix_mktemp()
+        mod_dir = mix_mktemp()
+        home_dir = mix_mktemp()
 
-	# Create an example module, and try to load iit.
-	os.mkdir(mod_dir, 0700)
-	writeFile(os.path.join(mod_dir, "ExampleMod.py"),
-		  EXAMPLE_MODULE_TEXT)
+        # Create an example module, and try to load iit.
+        os.mkdir(mod_dir, 0700)
+        writeFile(os.path.join(mod_dir, "ExampleMod.py"),
+                  EXAMPLE_MODULE_TEXT)
 
-	cfg_test = (SERVER_CONFIG_SHORT%home_dir) + """
+        cfg_test = (SERVER_CONFIG_SHORT%home_dir) + """
 ModulePath = %s
 Module ExampleMod.TestModule
 [Example]
@@ -2927,165 +2927,165 @@ IP: 1.0.0.1
 """ % (mod_dir)
 
         try:
-	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=cfg_test)
-	finally:
-	    resumeLog()
-	manager = conf.getModuleManager()
-	exampleMod = None
-	for m in manager.modules:
-	    if m.getName() == "TestModule":
-		exampleMod = m
-	self.failUnless(exampleMod is not None)
-	# Configure the new module, and make sure it recognizes its own config.
-	manager.configure(conf)
-
-	# Make sure the module enables itself.
-	self.failUnless(exampleMod is manager.typeToModule[1234])
-
-	# Try sending a few messages to the module.
-	t = "ZZZZ"*5
-	manager.queueMessage("Hello 1", t, 1234, "fail!")
-	manager.queueMessage("Hello 2", t, 1234, "fail?")
-	manager.queueMessage("Hello 3", t, 1234, "good")
-	manager.queueMessage("Drop very much", None,
-			     mixminion.Packet.DROP_TYPE, t)
-	queue = manager.queues['TestModule']
-	# Did the test module's delivery queue get the messages?
-	self.failUnless(isinstance(queue,
-			   mixminion.server.Modules.SimpleModuleDeliveryQueue))
-	self.assertEquals(3, queue.count())
-	# Has it processed any yet? (No.)
-	self.assertEquals(exampleMod.processedMessages, [])
-	# Now, tell the module to deliver the messages.
-	try:
-	    suspendLog()
-	    manager.sendReadyMessages()
-	finally:
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(string=cfg_test)
+        finally:
             resumeLog()
-	# There should be one message (the retriable one) left in the queue.
-	self.assertEquals(1, queue.count())
-	# It should have processed all three.
-	self.assertEquals(3, len(exampleMod.processedMessages))
-	# If we try to send agin, the second message should get re-sent.
-	manager.sendReadyMessages()
-	self.assertEquals(1, queue.count())
-	self.assertEquals(4, len(exampleMod.processedMessages))
-	self.assertEquals("Hello 2", exampleMod.processedMessages[-1])
+        manager = conf.getModuleManager()
+        exampleMod = None
+        for m in manager.modules:
+            if m.getName() == "TestModule":
+                exampleMod = m
+        self.failUnless(exampleMod is not None)
+        # Configure the new module, and make sure it recognizes its own config.
+        manager.configure(conf)
 
-	# But, none of them was decodeable: all of them should have been
-	# tagged as 'err'
-	self.assertEquals('err', exampleMod.processedAll[0][1])
+        # Make sure the module enables itself.
+        self.failUnless(exampleMod is manager.typeToModule[1234])
 
-	# Try a real message, to make sure that we really decode stuff properly
-	msg = mixminion.BuildMessage._encodePayload(
-	    "A man disguised as an ostrich, actually.",
-	    0, Crypto.getCommonPRNG())
-	manager.queueMessage(msg, "A"*20, 1234, "Hello")
-	exampleMod.processedAll = []
-	manager.sendReadyMessages()
-	# The retriable message got sent again; the other one, we care about.
-	pos = None
-	for i in xrange(len(exampleMod.processedAll)):
-	    if not exampleMod.processedAll[i][0].startswith('Hello'):
-		pos = i
-	self.assert_(pos is not None)
-	self.assertEquals(exampleMod.processedAll[i],
-			  ("A man disguised as an ostrich, actually.",
-			   None, 1234, "Hello" ))
+        # Try sending a few messages to the module.
+        t = "ZZZZ"*5
+        manager.queueMessage("Hello 1", t, 1234, "fail!")
+        manager.queueMessage("Hello 2", t, 1234, "fail?")
+        manager.queueMessage("Hello 3", t, 1234, "good")
+        manager.queueMessage("Drop very much", None,
+                             mixminion.Packet.DROP_TYPE, t)
+        queue = manager.queues['TestModule']
+        # Did the test module's delivery queue get the messages?
+        self.failUnless(isinstance(queue,
+                           mixminion.server.Modules.SimpleModuleDeliveryQueue))
+        self.assertEquals(3, queue.count())
+        # Has it processed any yet? (No.)
+        self.assertEquals(exampleMod.processedMessages, [])
+        # Now, tell the module to deliver the messages.
+        try:
+            suspendLog()
+            manager.sendReadyMessages()
+        finally:
+            resumeLog()
+        # There should be one message (the retriable one) left in the queue.
+        self.assertEquals(1, queue.count())
+        # It should have processed all three.
+        self.assertEquals(3, len(exampleMod.processedMessages))
+        # If we try to send agin, the second message should get re-sent.
+        manager.sendReadyMessages()
+        self.assertEquals(1, queue.count())
+        self.assertEquals(4, len(exampleMod.processedMessages))
+        self.assertEquals("Hello 2", exampleMod.processedMessages[-1])
 
-	# Now a non-decodeable message
-	manager.queueMessage("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches")
-	exampleMod.processedAll = []
-	manager.sendReadyMessages()
-	pos = None
-	for i in xrange(len(exampleMod.processedAll)):
-	    if not exampleMod.processedAll[i][0].startswith('Hello'):
-		pos = i
-	self.assert_(pos is not None)
-	self.assertEquals(exampleMod.processedAll[i],
-			  ("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches"))
+        # But, none of them was decodeable: all of them should have been
+        # tagged as 'err'
+        self.assertEquals('err', exampleMod.processedAll[0][1])
 
-	# Check serverinfo generation.
-	try:
-	    suspendLog()
-	    info = generateServerDescriptorAndKeys(
-		conf, getRSAKey(0,2048), home_dir, "key11", home_dir)
-	    self.failUnless(stringContains(info,"\n[Example]\nFoo: 99\n"))
-	finally:
-	    resumeLog()
+        # Try a real message, to make sure that we really decode stuff properly
+        msg = mixminion.BuildMessage._encodePayload(
+            "A man disguised as an ostrich, actually.",
+            0, Crypto.getCommonPRNG())
+        manager.queueMessage(msg, "A"*20, 1234, "Hello")
+        exampleMod.processedAll = []
+        manager.sendReadyMessages()
+        # The retriable message got sent again; the other one, we care about.
+        pos = None
+        for i in xrange(len(exampleMod.processedAll)):
+            if not exampleMod.processedAll[i][0].startswith('Hello'):
+                pos = i
+        self.assert_(pos is not None)
+        self.assertEquals(exampleMod.processedAll[i],
+                          ("A man disguised as an ostrich, actually.",
+                           None, 1234, "Hello" ))
 
-	# Try again, this time with the test module disabled.
-	#
-	cfg_test = (SERVER_CONFIG_SHORT%home_dir) + """
+        # Now a non-decodeable message
+        manager.queueMessage("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches")
+        exampleMod.processedAll = []
+        manager.sendReadyMessages()
+        pos = None
+        for i in xrange(len(exampleMod.processedAll)):
+            if not exampleMod.processedAll[i][0].startswith('Hello'):
+                pos = i
+        self.assert_(pos is not None)
+        self.assertEquals(exampleMod.processedAll[i],
+                          ("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches"))
+
+        # Check serverinfo generation.
+        try:
+            suspendLog()
+            info = generateServerDescriptorAndKeys(
+                conf, getRSAKey(0,2048), home_dir, "key11", home_dir)
+            self.failUnless(stringContains(info,"\n[Example]\nFoo: 99\n"))
+        finally:
+            resumeLog()
+
+        # Try again, this time with the test module disabled.
+        #
+        cfg_test = (SERVER_CONFIG_SHORT%home_dir) + """
 ModulePath = %s
 Module ExampleMod.TestModule
 """ % (mod_dir)
 
         try:
-	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=cfg_test)
-	finally:
-	    resumeLog()
-	manager = conf.getModuleManager()
-	exampleMod = None
-	for m in manager.modules:
-	    if m.getName() == "TestModule":
-		exampleMod = m
-	self.failUnless(exampleMod is not None)
-	manager.configure(conf)
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(string=cfg_test)
+        finally:
+            resumeLog()
+        manager = conf.getModuleManager()
+        exampleMod = None
+        for m in manager.modules:
+            if m.getName() == "TestModule":
+                exampleMod = m
+        self.failUnless(exampleMod is not None)
+        manager.configure(conf)
 
-	self.failIf(exampleMod is manager.typeToModule.get(1234))
+        self.failIf(exampleMod is manager.typeToModule.get(1234))
 
-	# Failing validation
-	cfg_test = SERVER_CONFIG_SHORT%home_dir + """
+        # Failing validation
+        cfg_test = SERVER_CONFIG_SHORT%home_dir + """
 ModulePath = %s
 Module ExampleMod.TestModule
 [Example]
 Foo: 100
 """ % (mod_dir)
 
-	# FFFF Add tests for catching exceptions from buggy modules
+        # FFFF Add tests for catching exceptions from buggy modules
 
     def testDecoding(self):
-	'test decoding and test encapsulation.'
-	em = mixminion.server.Modules._escapeMessage
-	eme = mixminion.server.Modules._escapeMessageForEmail
+        'test decoding and test encapsulation.'
+        em = mixminion.server.Modules._escapeMessage
+        eme = mixminion.server.Modules._escapeMessageForEmail
 
-	message = "Somebody set up us the module!\n\n(What you say?)\n"
-	binmessage = hexread("00ADD1EDC0FFEED00DAD")*40
-	tag = ".!..!....!........!."
+        message = "Somebody set up us the module!\n\n(What you say?)\n"
+        binmessage = hexread("00ADD1EDC0FFEED00DAD")*40
+        tag = ".!..!....!........!."
 
-	#####
-	# Test escapeMessage
+        #####
+        # Test escapeMessage
 
-	# plaintext text message, text mode.
-	self.assertEquals(em(message, None, 1), ("TXT", message, None))
-	# plaintext text message, bin mode.
-	self.assertEquals(em(message, None, 0), ("TXT", message, None))
-	# plaintext bin message, text mode.
-	self.assertEquals(em(binmessage, None, 1),
-			  ("BIN", base64.encodestring(binmessage), None))
-	# plaintext bin message, bin mode.
-	self.assertEquals(em(binmessage, None, 0), ("BIN", binmessage, None))
+        # plaintext text message, text mode.
+        self.assertEquals(em(message, None, 1), ("TXT", message, None))
+        # plaintext text message, bin mode.
+        self.assertEquals(em(message, None, 0), ("TXT", message, None))
+        # plaintext bin message, text mode.
+        self.assertEquals(em(binmessage, None, 1),
+                          ("BIN", base64.encodestring(binmessage), None))
+        # plaintext bin message, bin mode.
+        self.assertEquals(em(binmessage, None, 0), ("BIN", binmessage, None))
 
-	encoded = "baobob "*1024*4
-	# "Encoded" message, text mode
-	self.assertEquals(em(encoded, tag, 1),
-			  ("ENC", base64.encodestring(encoded),
-			   base64.encodestring(tag)[:-1]))
-	# "Encoded" message, binary mode
-	self.assertEquals(em(encoded, tag, 0),
-			  ("ENC", encoded, tag))
+        encoded = "baobob "*1024*4
+        # "Encoded" message, text mode
+        self.assertEquals(em(encoded, tag, 1),
+                          ("ENC", base64.encodestring(encoded),
+                           base64.encodestring(tag)[:-1]))
+        # "Encoded" message, binary mode
+        self.assertEquals(em(encoded, tag, 0),
+                          ("ENC", encoded, tag))
 
-	####
-	# Tests escapeMessageForEmail
-	self.assert_(stringContains(eme(message, None), message))
-	expect = "BEGINS\n"+base64.encodestring(binmessage)+"====="
-	self.assert_(stringContains(eme(binmessage, None), expect))
-	expect = "BEGINS\nDecoding handle: "+base64.encodestring(tag)+\
-		 base64.encodestring(encoded)+"====="
-	self.assert_(stringContains(eme(encoded, tag), expect))
+        ####
+        # Tests escapeMessageForEmail
+        self.assert_(stringContains(eme(message, None), message))
+        expect = "BEGINS\n"+base64.encodestring(binmessage)+"====="
+        self.assert_(stringContains(eme(binmessage, None), expect))
+        expect = "BEGINS\nDecoding handle: "+base64.encodestring(tag)+\
+                 base64.encodestring(encoded)+"====="
+        self.assert_(stringContains(eme(encoded, tag), expect))
 
 # Sample address file for testing MBOX
 MBOX_ADDRESS_SAMPLE = """\
@@ -3120,195 +3120,195 @@ zqse+sre7/rOqx76yt7v+s6rHvrK3u/6zqse+sre7/rOqx76yt7v+s6rHvrK3g==
 
 class ModuleTests(unittest.TestCase):
     def testMixmasterSMTP(self):
-	"""Check out the SMTP-Via-Mixmaster module.  (We temporarily relace
-	   os.spawnl with a stub function so that we don't actually send
-	   anything."""
-	manager = self.getManager()
+        """Check out the SMTP-Via-Mixmaster module.  (We temporarily relace
+           os.spawnl with a stub function so that we don't actually send
+           anything."""
+        manager = self.getManager()
 
-	# Configure the module.
-	module = mixminion.server.Modules.MixmasterSMTPModule()
-	module.configure({"Delivery/SMTP-Via-Mixmaster" :
-			  {"Enabled":1, "Server": "nonesuch",
-			   "SubjectLine":'foobar',
-			   'MixCommand' : ('ls', ['-z'])}},
-			 manager)
-	queue = manager.queues['SMTP_MIX2']
-	replaceFunction(os, "spawnl")
-	try:
-	    # Send a message...
-	    queue.queueDeliveryMessage((SMTP_TYPE, "foo@bar", None),
-				       "This is the message")
-	    queue.sendReadyMessages()
-	    # And make sure that Mixmaster was invoked correctly.
-	    calls = getReplacedFunctionCallLog()
-	    self.assertEquals('spawnl', calls[0][0])
-	    mixfn, mixargs = calls[0][1][2], calls[0][1][3:]
-	    self.assertEquals("ls", mixfn)
-	    self.assertEquals(mixargs[:-1],
-			      ('-z', '-l', 'nonesuch', '-s', 'foobar',
-			       '-t', 'foo@bar'))
-	    # ...and, if the temporary file it used hasn't been removed yet,
-	    # that it contains the correct data.
-	    fn = mixargs[-1]
-	    fn = os.path.join(os.path.split(fn)[0],
-			      "rmv_"+os.path.split(fn)[1][4:])
-	    if os.path.exists(fn):
-		self.assert_(stringContains(readFile(fn),
-					    "This is the message"))
+        # Configure the module.
+        module = mixminion.server.Modules.MixmasterSMTPModule()
+        module.configure({"Delivery/SMTP-Via-Mixmaster" :
+                          {"Enabled":1, "Server": "nonesuch",
+                           "SubjectLine":'foobar',
+                           'MixCommand' : ('ls', ['-z'])}},
+                         manager)
+        queue = manager.queues['SMTP_MIX2']
+        replaceFunction(os, "spawnl")
+        try:
+            # Send a message...
+            queue.queueDeliveryMessage((SMTP_TYPE, "foo@bar", None),
+                                       "This is the message")
+            queue.sendReadyMessages()
+            # And make sure that Mixmaster was invoked correctly.
+            calls = getReplacedFunctionCallLog()
+            self.assertEquals('spawnl', calls[0][0])
+            mixfn, mixargs = calls[0][1][2], calls[0][1][3:]
+            self.assertEquals("ls", mixfn)
+            self.assertEquals(mixargs[:-1],
+                              ('-z', '-l', 'nonesuch', '-s', 'foobar',
+                               '-t', 'foo@bar'))
+            # ...and, if the temporary file it used hasn't been removed yet,
+            # that it contains the correct data.
+            fn = mixargs[-1]
+            fn = os.path.join(os.path.split(fn)[0],
+                              "rmv_"+os.path.split(fn)[1][4:])
+            if os.path.exists(fn):
+                self.assert_(stringContains(readFile(fn),
+                                            "This is the message"))
 
-	    ## What about the flush command?
-	    self.assertEquals("spawnl", calls[-1][0])
-	    sendfn, sendargs = calls[-1][1][2], calls[-1][1][3:]
-	    self.assertEquals("ls", sendfn)
-	    self.assertEquals(sendargs, ('-S',))
-	finally:
-	    undoReplacedAttributes()
-	    clearReplacedFunctionCallLog()
+            ## What about the flush command?
+            self.assertEquals("spawnl", calls[-1][0])
+            sendfn, sendargs = calls[-1][1][2], calls[-1][1][3:]
+            self.assertEquals("ls", sendfn)
+            self.assertEquals(sendargs, ('-S',))
+        finally:
+            undoReplacedAttributes()
+            clearReplacedFunctionCallLog()
 
     def testMBOX(self):
-	"""Check out the MBOX module.  (We temporarily relace sendSMTPMessage
-	   with a stub function so that we don't actually send anything."""
+        """Check out the MBOX module.  (We temporarily relace sendSMTPMessage
+           with a stub function so that we don't actually send anything."""
         # Configure the module
-	manager = self.getManager()
-	module = mixminion.server.Modules.MBoxModule()
-	addrfile = mix_mktemp()
-	writeFile(addrfile, MBOX_ADDRESS_SAMPLE)
-	module.configure({'Server':{'Nickname': "nickname"},
+        manager = self.getManager()
+        module = mixminion.server.Modules.MBoxModule()
+        addrfile = mix_mktemp()
+        writeFile(addrfile, MBOX_ADDRESS_SAMPLE)
+        module.configure({'Server':{'Nickname': "nickname"},
                           'Incoming/MMTP':{},
-			  "Delivery/MBOX" :
-			  {"Enabled": 1,
-			   "AddressFile": addrfile,
-			   "ReturnAddress": "returnaddress@x",
-			   "RemoveContact": "removeaddress@x",
-			   "SMTPServer" : "foo.bar.baz"}}, manager)
-	# Check that the address file was read correctly.
+                          "Delivery/MBOX" :
+                          {"Enabled": 1,
+                           "AddressFile": addrfile,
+                           "ReturnAddress": "returnaddress@x",
+                           "RemoveContact": "removeaddress@x",
+                           "SMTPServer" : "foo.bar.baz"}}, manager)
+        # Check that the address file was read correctly.
         self.assertEquals({'mix-minion': 'mixminion@thishost',
-	                   'mixdaddy':   'mixminion@thathost',
- 	                   'mixdiddy':   'mixminion@theotherhost'},
-			   module.addresses)
-	queue = manager.queues['MBOX']
-	# Stub out sendSMTPMessage.
-	replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
- 	         lambda *args: mixminion.server.Modules.DELIVER_OK)
-	try:
-	    # Try queueing a message...
-	    queue.queueDeliveryMessage((MBOX_TYPE, 'mixdiddy', "x"*20),
-				       hexread("EFFACEAB1EFACADE")*20)
-	    self.assertEquals(getReplacedFunctionCallLog(), [])
-	    # ...and sending it.
-	    queue.sendReadyMessages()
-	    try:
-		# Also, try sending a message to an unknown address
-		suspendLog()
-		queue.queueDeliveryMessage((MBOX_TYPE, 'mixmuffin', "x"*20),
-					   hexread("EFFACEAB1EFACADE")*20)
-		queue.sendReadyMessages()
-	    finally:
-		m = resumeLog()
-		self.assert_(stringContains(m,"Unknown MBOX user 'mixmuffin'"))
-		self.assert_(stringContains(m,"Unable to deliver message"))
+                           'mixdaddy':   'mixminion@thathost',
+                           'mixdiddy':   'mixminion@theotherhost'},
+                           module.addresses)
+        queue = manager.queues['MBOX']
+        # Stub out sendSMTPMessage.
+        replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
+                 lambda *args: mixminion.server.Modules.DELIVER_OK)
+        try:
+            # Try queueing a message...
+            queue.queueDeliveryMessage((MBOX_TYPE, 'mixdiddy', "x"*20),
+                                       hexread("EFFACEAB1EFACADE")*20)
+            self.assertEquals(getReplacedFunctionCallLog(), [])
+            # ...and sending it.
+            queue.sendReadyMessages()
+            try:
+                # Also, try sending a message to an unknown address
+                suspendLog()
+                queue.queueDeliveryMessage((MBOX_TYPE, 'mixmuffin', "x"*20),
+                                           hexread("EFFACEAB1EFACADE")*20)
+                queue.sendReadyMessages()
+            finally:
+                m = resumeLog()
+                self.assert_(stringContains(m,"Unknown MBOX user 'mixmuffin'"))
+                self.assert_(stringContains(m,"Unable to deliver message"))
 
-	    # Check that sendSMTPMessage was called correctly.
-	    self.assertEquals(1, len(getReplacedFunctionCallLog()))
-	    fn, args, _ = getReplacedFunctionCallLog()[0]
-	    self.assertEquals('sendSMTPMessage', fn)
-	    self.assertEquals(('foo.bar.baz',
-			       ['mixminion@theotherhost'],
-			       'returnaddress@x'),
-			      args[:3])
-	    d = findFirstDiff(MBOX_EXPECTED_MESSAGE, args[3])
-	    if d != -1:
-		print d, "near", repr(args[3][d:d+10])
-	    self.assertEquals(MBOX_EXPECTED_MESSAGE, args[3])
-	finally:
-	    undoReplacedAttributes()
-	    clearReplacedFunctionCallLog()
+            # Check that sendSMTPMessage was called correctly.
+            self.assertEquals(1, len(getReplacedFunctionCallLog()))
+            fn, args, _ = getReplacedFunctionCallLog()[0]
+            self.assertEquals('sendSMTPMessage', fn)
+            self.assertEquals(('foo.bar.baz',
+                               ['mixminion@theotherhost'],
+                               'returnaddress@x'),
+                              args[:3])
+            d = findFirstDiff(MBOX_EXPECTED_MESSAGE, args[3])
+            if d != -1:
+                print d, "near", repr(args[3][d:d+10])
+            self.assertEquals(MBOX_EXPECTED_MESSAGE, args[3])
+        finally:
+            undoReplacedAttributes()
+            clearReplacedFunctionCallLog()
 
     def testDirectoryDump(self):
-	"""Check out the DirectoryStoreModule that we use for testing on
-	   machines with unreliable/nonexistant SMTP."""
-	eme = mixminion.server.Modules._escapeMessageForEmail
-	dir = mix_mktemp()
-	manager = self.getManager()
-	# Configure the module: disabled and enabled (queueless mode)
-	module = mixminion.testSupport.DirectoryStoreModule()
-	module.configure({'Testing/DirectoryDump' : {}}, manager)
-	self.assert_(not manager.queues.has_key('Testing_DirectoryDump'))
-	module.configure({'Testing/DirectoryDump' :
-			  {'Location': dir, 'UseQueue' : 0}}, manager)
-	# Try sending a couple of messages.
-	queue = manager.queues['Testing_DirectoryDump']
-	queue.queueDeliveryMessage((0xFFFE, "addr1", "t"*20),
-				   "This is the message")
-	self.assert_(os.path.exists(os.path.join(dir, "0")))
-	queue.queueDeliveryMessage((0xFFFE, "addr2", "x"*20),
-				   "This is message 2")
-	self.assert_(os.path.exists(os.path.join(dir, "1")))
-	self.assertEquals(eme("This is message 2", "x"*20),
-			  readFile(os.path.join(dir, "1")))
-	# test failure.
-	try:
-	    suspendLog()
-	    queue.queueDeliveryMessage((0xFFFE, "FAIL!", "y"*20),
-			       "This is message X which won't be delivered")
-	    self.assert_(not os.path.exists(os.path.join(dir, "2")))
-	finally:
-	    m = resumeLog()
-	    self.assert_(m.endswith("Unable to deliver message\n"))
+        """Check out the DirectoryStoreModule that we use for testing on
+           machines with unreliable/nonexistant SMTP."""
+        eme = mixminion.server.Modules._escapeMessageForEmail
+        dir = mix_mktemp()
+        manager = self.getManager()
+        # Configure the module: disabled and enabled (queueless mode)
+        module = mixminion.testSupport.DirectoryStoreModule()
+        module.configure({'Testing/DirectoryDump' : {}}, manager)
+        self.assert_(not manager.queues.has_key('Testing_DirectoryDump'))
+        module.configure({'Testing/DirectoryDump' :
+                          {'Location': dir, 'UseQueue' : 0}}, manager)
+        # Try sending a couple of messages.
+        queue = manager.queues['Testing_DirectoryDump']
+        queue.queueDeliveryMessage((0xFFFE, "addr1", "t"*20),
+                                   "This is the message")
+        self.assert_(os.path.exists(os.path.join(dir, "0")))
+        queue.queueDeliveryMessage((0xFFFE, "addr2", "x"*20),
+                                   "This is message 2")
+        self.assert_(os.path.exists(os.path.join(dir, "1")))
+        self.assertEquals(eme("This is message 2", "x"*20),
+                          readFile(os.path.join(dir, "1")))
+        # test failure.
+        try:
+            suspendLog()
+            queue.queueDeliveryMessage((0xFFFE, "FAIL!", "y"*20),
+                               "This is message X which won't be delivered")
+            self.assert_(not os.path.exists(os.path.join(dir, "2")))
+        finally:
+            m = resumeLog()
+            self.assert_(m.endswith("Unable to deliver message\n"))
 
-	try:
-	    suspendLog()
-	    queue.queueDeliveryMessage((0xFFFE, "fail", "z"*20),
-			       "This is message X which won't be delivered")
-	    self.assert_(not os.path.exists(os.path.join(dir, "2")))
-	finally:
-	    m = resumeLog()
-	    self.assert_(m.endswith("Unable to retry delivery for message\n"))
+        try:
+            suspendLog()
+            queue.queueDeliveryMessage((0xFFFE, "fail", "z"*20),
+                               "This is message X which won't be delivered")
+            self.assert_(not os.path.exists(os.path.join(dir, "2")))
+        finally:
+            m = resumeLog()
+            self.assert_(m.endswith("Unable to retry delivery for message\n"))
 
-	queue.sendReadyMessages()
+        queue.sendReadyMessages()
 
-	# Check sane behavior on missing files, and on restart.
-	writeFile(os.path.join(dir, "90"), 'zed')
-	module = mixminion.testSupport.DirectoryStoreModule()
-	# This time, use a queue.
-	module.configure({'Testing/DirectoryDump' :
-			  {'Location': dir, 'UseQueue' : 1}}, manager)
-	# Do we skip over the missing messages?
-	self.assertEquals(module.next, 91)
-	self.assertEquals(len(os.listdir(dir)), 3)
-	queue = manager.queues['Testing_DirectoryDump']
-	queue.queueDeliveryMessage((0xFFFE, "addr91", None),
-				   "This is message 91")
-	queue.queueDeliveryMessage((0xFFFE, "addr92", None),
-				   "This is message 92")
-	queue.queueDeliveryMessage((0xFFFE, "fail", None),
-				   "This is message 93")
-	queue.queueDeliveryMessage((0xFFFE, "FAIL!", None),
-				   "This is message 94")
-	# All 4 messages go into the queue...
-	self.assertEquals(4, queue.count())
-	self.assertEquals(3, len(os.listdir(dir)))
-	try:
-	    suspendLog()
-	    queue.sendReadyMessages()
-	finally:
-	    m = resumeLog()
-	    self.assert_(m.endswith("[ERROR] Unable to deliver message\n"))
-	# After delivery: 91 and 92 go through, 93 stays, and 94 gets dropped.
-	self.assertEquals(1, queue.count())
-	self.assertEquals(5, len(os.listdir(dir)))
+        # Check sane behavior on missing files, and on restart.
+        writeFile(os.path.join(dir, "90"), 'zed')
+        module = mixminion.testSupport.DirectoryStoreModule()
+        # This time, use a queue.
+        module.configure({'Testing/DirectoryDump' :
+                          {'Location': dir, 'UseQueue' : 1}}, manager)
+        # Do we skip over the missing messages?
+        self.assertEquals(module.next, 91)
+        self.assertEquals(len(os.listdir(dir)), 3)
+        queue = manager.queues['Testing_DirectoryDump']
+        queue.queueDeliveryMessage((0xFFFE, "addr91", None),
+                                   "This is message 91")
+        queue.queueDeliveryMessage((0xFFFE, "addr92", None),
+                                   "This is message 92")
+        queue.queueDeliveryMessage((0xFFFE, "fail", None),
+                                   "This is message 93")
+        queue.queueDeliveryMessage((0xFFFE, "FAIL!", None),
+                                   "This is message 94")
+        # All 4 messages go into the queue...
+        self.assertEquals(4, queue.count())
+        self.assertEquals(3, len(os.listdir(dir)))
+        try:
+            suspendLog()
+            queue.sendReadyMessages()
+        finally:
+            m = resumeLog()
+            self.assert_(m.endswith("[ERROR] Unable to deliver message\n"))
+        # After delivery: 91 and 92 go through, 93 stays, and 94 gets dropped.
+        self.assertEquals(1, queue.count())
+        self.assertEquals(5, len(os.listdir(dir)))
 
     def getManager(self):
-	d = mix_mktemp()
-	c = SERVER_CONFIG_SHORT % d
-	try:
-	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=c)
-	    m = conf.getModuleManager()
-	    m.configure(conf)
-	    return m
-	finally:
-	    resumeLog()
+        d = mix_mktemp()
+        c = SERVER_CONFIG_SHORT % d
+        try:
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(string=c)
+            m = conf.getModuleManager()
+            m.configure(conf)
+            return m
+        finally:
+            resumeLog()
 
 #----------------------------------------------------------------------
 
@@ -3333,85 +3333,85 @@ def _getServerKeyring():
     _FAKE_HOME = mix_mktemp()
     cfg = SERVERCFG % { 'home' : _FAKE_HOME }
     try:
-	suspendLog()
-	conf = mixminion.server.ServerConfig.ServerConfig(string=cfg)
+        suspendLog()
+        conf = mixminion.server.ServerConfig.ServerConfig(string=cfg)
     finally:
-	resumeLog()
+        resumeLog()
     return mixminion.server.ServerKeys.ServerKeyring(conf)
 
 class ServerKeysTests(unittest.TestCase):
     def testServerKeyring(self):
-	keyring = _getServerKeyring()
-	home = _FAKE_HOME
+        keyring = _getServerKeyring()
+        home = _FAKE_HOME
 
-	# Test creating identity key
-	#identity = getRSAKey(0,2048)
-	identity = keyring.getIdentityKey()
-	fn = os.path.join(home, "keys", "identity.key")
-	identity2 = Crypto.pk_PEM_load(fn)
-	self.assertEquals(Crypto.pk_get_modulus(identity),
-			  Crypto.pk_get_modulus(identity2))
-	# (Make sure warning case can occur.)
-	pk = getRSAKey(0,128)
-	Crypto.pk_PEM_save(pk, fn)
-	suspendLog()
-	keyring.getIdentityKey()
-	msg = resumeLog()
-	self.failUnless(len(msg))
-	Crypto.pk_PEM_save(identity, fn)
+        # Test creating identity key
+        #identity = getRSAKey(0,2048)
+        identity = keyring.getIdentityKey()
+        fn = os.path.join(home, "keys", "identity.key")
+        identity2 = Crypto.pk_PEM_load(fn)
+        self.assertEquals(Crypto.pk_get_modulus(identity),
+                          Crypto.pk_get_modulus(identity2))
+        # (Make sure warning case can occur.)
+        pk = getRSAKey(0,128)
+        Crypto.pk_PEM_save(pk, fn)
+        suspendLog()
+        keyring.getIdentityKey()
+        msg = resumeLog()
+        self.failUnless(len(msg))
+        Crypto.pk_PEM_save(identity, fn)
 
-	# Now create a keyset
-	now = time.time()
-	keyring.createKeys(1, now)
-	# check internal state
-	ivals = keyring.keyIntervals
-	start = mixminion.Common.previousMidnight(now)
-	finish = mixminion.Common.previousMidnight(start+(10*24*60*60)+30)
-	self.assertEquals(1, len(ivals))
-	self.assertEquals((start,finish,"0001"), ivals[0])
+        # Now create a keyset
+        now = time.time()
+        keyring.createKeys(1, now)
+        # check internal state
+        ivals = keyring.keyIntervals
+        start = mixminion.Common.previousMidnight(now)
+        finish = mixminion.Common.previousMidnight(start+(10*24*60*60)+30)
+        self.assertEquals(1, len(ivals))
+        self.assertEquals((start,finish,"0001"), ivals[0])
 
-	keyring.createKeys(2)
+        keyring.createKeys(2)
 
-	# Check the first key we created
-	va, vu, curKey = keyring._getLiveKey()
-	self.assertEquals(va, start)
-	self.assertEquals(vu, finish)
-	self.assertEquals(vu, keyring.getNextKeyRotation())
-	self.assertEquals(curKey, "0001")
-	keyset = keyring.getServerKeyset()
-	self.assertEquals(keyset.getHashLogFileName(),
-			  os.path.join(home, "work", "hashlogs", "hash_0001"))
+        # Check the first key we created
+        va, vu, curKey = keyring._getLiveKey()
+        self.assertEquals(va, start)
+        self.assertEquals(vu, finish)
+        self.assertEquals(vu, keyring.getNextKeyRotation())
+        self.assertEquals(curKey, "0001")
+        keyset = keyring.getServerKeyset()
+        self.assertEquals(keyset.getHashLogFileName(),
+                          os.path.join(home, "work", "hashlogs", "hash_0001"))
 
-	# Check the second key we created.
-	va, vu, curKey = keyring._getLiveKey(vu + 3600)
-	self.assertEquals(va, finish)
-	self.assertEquals(vu, mixminion.Common.previousMidnight(
-	    finish+10*24*60*60+60))
+        # Check the second key we created.
+        va, vu, curKey = keyring._getLiveKey(vu + 3600)
+        self.assertEquals(va, finish)
+        self.assertEquals(vu, mixminion.Common.previousMidnight(
+            finish+10*24*60*60+60))
 
-	# Make a key in the past, to see if it gets scrubbed.
-	keyring.createKeys(1, mixminion.Common.previousMidnight(
-	    start - 10*24*60*60 + 1))
-	self.assertEquals(4, len(keyring.keyIntervals))
+        # Make a key in the past, to see if it gets scrubbed.
+        keyring.createKeys(1, mixminion.Common.previousMidnight(
+            start - 10*24*60*60 + 1))
+        self.assertEquals(4, len(keyring.keyIntervals))
         waitForChildren() # make sure keys are really gone before we remove
 
         # In case we started very close to midnight, remove keys as if it
-	# were a little in the future; otherwise, we won't remove the
-	# just-expired keys.
-	keyring.removeDeadKeys(now+360)
-	self.assertEquals(3, len(keyring.keyIntervals))
+        # were a little in the future; otherwise, we won't remove the
+        # just-expired keys.
+        keyring.removeDeadKeys(now+360)
+        self.assertEquals(3, len(keyring.keyIntervals))
 
-	if USE_SLOW_MODE:
-	    # These are slow, since they regenerate the DH params.
-	    # Test getDHFile
-	    f = keyring.getDHFile()
-	    f2 = keyring.getDHFile()
-	    self.assertEquals(f, f2)
+        if USE_SLOW_MODE:
+            # These are slow, since they regenerate the DH params.
+            # Test getDHFile
+            f = keyring.getDHFile()
+            f2 = keyring.getDHFile()
+            self.assertEquals(f, f2)
 
-	    # Test getTLSContext
-	    keyring.getTLSContext()
+            # Test getTLSContext
+            keyring.getTLSContext()
 
-	# Test getPacketHandler
-	_ = keyring.getPacketHandler()
+        # Test getPacketHandler
+        _ = keyring.getPacketHandler()
 
 #----------------------------------------------------------------------
 
@@ -3434,19 +3434,19 @@ Enabled: yes
 
 _EXAMPLE_DESCRIPTORS_INP = [
     # name        days         ip?        validAt
-    [ "Fred",	  "10 days", "10.0.0.6", (-19,-9,1,11), () ],
-    [ "Lola",	  "5 days",  "10.0.0.7", (-2,0,5),      (MBOX_TYPE,) ],
-    [ "Joe",	  "20 days", "10.0.0.8", (-15,5,25),    (SMTP_TYPE,) ],
-    [ "Alice",	  "8 days",  "10.0.0.9", (-3,5,13),     () ],
-    [ "Bob",	  "11 days", "10.0.0.10", (-10,-1,6),   () ],
-    [ "Lisa",	  "3 days",  "10.0.0.11", (-10,-1,5),   () ],
+    [ "Fred",     "10 days", "10.0.0.6", (-19,-9,1,11), () ],
+    [ "Lola",     "5 days",  "10.0.0.7", (-2,0,5),      (MBOX_TYPE,) ],
+    [ "Joe",      "20 days", "10.0.0.8", (-15,5,25),    (SMTP_TYPE,) ],
+    [ "Alice",    "8 days",  "10.0.0.9", (-3,5,13),     () ],
+    [ "Bob",      "11 days", "10.0.0.10", (-10,-1,6),   () ],
+    [ "Lisa",     "3 days",  "10.0.0.11", (-10,-1,5),   () ],
 ]
 
 def getExampleServerDescriptors():
     """Helper function: generate a list of list of ServerInfo objects based
        on the values of _EXAMPLE_DESCRIPTORS_INP"""
     if _EXAMPLE_DESCRIPTORS:
- 	return _EXAMPLE_DESCRIPTORS
+        return _EXAMPLE_DESCRIPTORS
 
     gen = generateServerDescriptorAndKeys
     tmpkeydir = mix_mktemp()
@@ -3456,43 +3456,43 @@ def getExampleServerDescriptors():
 
     # For each server...
     for (nickname, lifetime, ip, starting, types) in _EXAMPLE_DESCRIPTORS_INP:
-	# Generate a config file
-	homedir = mix_mktemp()
-	conf = EX_SERVER_CONF_TEMPLATE % locals()
-	for t in types:
-	    if t == MBOX_TYPE:
-		addrf = mix_mktemp()
-		writeFile(addrf,"")
-		conf += ("[Delivery/MBOX]\nEnabled: yes\nAddressFile: %s\n"+
-			 "ReturnAddress: a@b.c\nRemoveContact: b@c.d\n") %(
-		    addrf)
-	    elif t == SMTP_TYPE:
-		conf += ("[Delivery/SMTP-Via-Mixmaster]\nEnabled: yes\n"+
-			 "MixCommand: /bin/ls\nServer: foobar\n")
-	    else:
-		raise MixFatalError("Unrecognized type: %04x"%t)
-	try:
-	    suspendLog()
-	    conf = mixminion.server.ServerConfig.ServerConfig(string=conf)
-	    conf.getModuleManager().configure(conf)
-	finally:
-	    resumeLog()
-	    pass
+        # Generate a config file
+        homedir = mix_mktemp()
+        conf = EX_SERVER_CONF_TEMPLATE % locals()
+        for t in types:
+            if t == MBOX_TYPE:
+                addrf = mix_mktemp()
+                writeFile(addrf,"")
+                conf += ("[Delivery/MBOX]\nEnabled: yes\nAddressFile: %s\n"+
+                         "ReturnAddress: a@b.c\nRemoveContact: b@c.d\n") %(
+                    addrf)
+            elif t == SMTP_TYPE:
+                conf += ("[Delivery/SMTP-Via-Mixmaster]\nEnabled: yes\n"+
+                         "MixCommand: /bin/ls\nServer: foobar\n")
+            else:
+                raise MixFatalError("Unrecognized type: %04x"%t)
+        try:
+            suspendLog()
+            conf = mixminion.server.ServerConfig.ServerConfig(string=conf)
+            conf.getModuleManager().configure(conf)
+        finally:
+            resumeLog()
+            pass
 
-	# Now, for each starting time, generate a server desciprtor.x
-	_EXAMPLE_DESCRIPTORS[nickname] = []
-	for n in xrange(len(starting)):
-	    k = "tst%d"%n
-	    validAt = previousMidnight(now + 24*60*60*starting[n])
-	    gen(config=conf, identityKey=getRSAKey(n%3,2048), keyname=k,
-		keydir=tmpkeydir, hashdir=tmpkeydir, validAt=validAt)
+        # Now, for each starting time, generate a server desciprtor.x
+        _EXAMPLE_DESCRIPTORS[nickname] = []
+        for n in xrange(len(starting)):
+            k = "tst%d"%n
+            validAt = previousMidnight(now + 24*60*60*starting[n])
+            gen(config=conf, identityKey=getRSAKey(n%3,2048), keyname=k,
+                keydir=tmpkeydir, hashdir=tmpkeydir, validAt=validAt)
 
-	    sd = os.path.join(tmpkeydir,"key_"+k,"ServerDesc")
-	    _EXAMPLE_DESCRIPTORS[nickname].append(readFile(sd))
+            sd = os.path.join(tmpkeydir,"key_"+k,"ServerDesc")
+            _EXAMPLE_DESCRIPTORS[nickname].append(readFile(sd))
 
-	    # (print some dots here; this step can take a while)
-	    sys.stdout.write('.')
-	    sys.stdout.flush()
+            # (print some dots here; this step can take a while)
+            sys.stdout.write('.')
+            sys.stdout.flush()
     sys.stdout.flush()
     return _EXAMPLE_DESCRIPTORS
 
@@ -3502,267 +3502,267 @@ BCC_INSTANCE = None
 
 class ClientMainTests(unittest.TestCase):
     def testTrivialKeystore(self):
-	"""Check out ClientMain's keystore implementation"""
-	eq = self.assertEquals
-	raises = self.failUnlessRaises
+        """Check out ClientMain's keystore implementation"""
+        eq = self.assertEquals
+        raises = self.failUnlessRaises
 
-	ServerInfo = mixminion.ServerInfo.ServerInfo
+        ServerInfo = mixminion.ServerInfo.ServerInfo
 
-	dirname = mix_mktemp()
-	ks = mixminion.ClientMain.TrivialKeystore(dirname)
+        dirname = mix_mktemp()
+        ks = mixminion.ClientMain.TrivialKeystore(dirname)
 
-	edesc = getExampleServerDescriptors()
+        edesc = getExampleServerDescriptors()
 
-	# Test empty keystore
-	eq(None, ks.getServerInfo("Fred"))
-	try:
-	    suspendLog()
-	    raises(MixError, ks.getPath, ["Fred"])
-	finally:
-	    resumeLog()
-	fred = ServerInfo(string=edesc["Fred"][0])
-	eq(1, len(ks.getPath([fred])))
-	self.failUnless(ks.getPath([fred])[0] is fred)
+        # Test empty keystore
+        eq(None, ks.getServerInfo("Fred"))
+        try:
+            suspendLog()
+            raises(MixError, ks.getPath, ["Fred"])
+        finally:
+            resumeLog()
+        fred = ServerInfo(string=edesc["Fred"][0])
+        eq(1, len(ks.getPath([fred])))
+        self.failUnless(ks.getPath([fred])[0] is fred)
 
-	## Test importing.
-	for sname, servers in edesc.items():
-	    for idx, sdesc in zip(range(len(servers)), servers):
-		writeFile(os.path.join(dirname, "%s%02d"%(sname,idx)), sdesc)
+        ## Test importing.
+        for sname, servers in edesc.items():
+            for idx, sdesc in zip(range(len(servers)), servers):
+                writeFile(os.path.join(dirname, "%s%02d"%(sname,idx)), sdesc)
 
-	suspendLog()
-	try:
-	    ks = mixminion.ClientMain.TrivialKeystore(dirname)
-	finally:
-	    resumeLog()
+        suspendLog()
+        try:
+            ks = mixminion.ClientMain.TrivialKeystore(dirname)
+        finally:
+            resumeLog()
 
-	# Try getServerInfo(ServerInfo)
-	si = ServerInfo(string=edesc['Lisa'][0])
-	self.assert_(si is ks.getServerInfo(si))
+        # Try getServerInfo(ServerInfo)
+        si = ServerInfo(string=edesc['Lisa'][0])
+        self.assert_(si is ks.getServerInfo(si))
 
-	# 'Bob' and 'Fred' are dangerous with regspect to the 'almost-expired'
-	# check; don't use them here
-	for (s,i) in [("Lola",0), ("Joe",0),("Alice",0),("Lisa",1)]:
-	    self.assert_(self.isSameServerDesc(edesc[s][i],
-				      ks.getServerInfo(s)))
-	    self.assert_(self.isSameServerDesc(edesc[s][i],
-				      ks.getServerInfo("%s%02d"%(s,i))))
+        # 'Bob' and 'Fred' are dangerous with regspect to the 'almost-expired'
+        # check; don't use them here
+        for (s,i) in [("Lola",0), ("Joe",0),("Alice",0),("Lisa",1)]:
+            self.assert_(self.isSameServerDesc(edesc[s][i],
+                                      ks.getServerInfo(s)))
+            self.assert_(self.isSameServerDesc(edesc[s][i],
+                                      ks.getServerInfo("%s%02d"%(s,i))))
 
-	# Check a nonexistant server.
-	self.assertEquals(None, ks.getServerInfo("Foob"))
+        # Check a nonexistant server.
+        self.assertEquals(None, ks.getServerInfo("Foob"))
 
-	# Try getPath()
-	x = mix_mktemp()
-	writeFile(x, edesc["Fred"][1])
-	p = ks.getPath(("Lola", "Joe", "Lola00", ks.getServerInfo("Lisa"), x))
-	self.assert_(self.isSameServerDesc(ks.getServerInfo("Lola"), p[0]))
-	self.assert_(self.isSameServerDesc(ks.getServerInfo("Joe"), p[1]))
-	self.assert_(self.isSameServerDesc(ks.getServerInfo("Lola"), p[2]))
-	self.assert_(self.isSameServerDesc(ks.getServerInfo("Lisa"), p[3]))
-	self.assert_(self.isSameServerDesc(edesc["Fred"][1], p[4]))
+        # Try getPath()
+        x = mix_mktemp()
+        writeFile(x, edesc["Fred"][1])
+        p = ks.getPath(("Lola", "Joe", "Lola00", ks.getServerInfo("Lisa"), x))
+        self.assert_(self.isSameServerDesc(ks.getServerInfo("Lola"), p[0]))
+        self.assert_(self.isSameServerDesc(ks.getServerInfo("Joe"), p[1]))
+        self.assert_(self.isSameServerDesc(ks.getServerInfo("Lola"), p[2]))
+        self.assert_(self.isSameServerDesc(ks.getServerInfo("Lisa"), p[3]))
+        self.assert_(self.isSameServerDesc(edesc["Fred"][1], p[4]))
 
-	# We fail on nonexistant files.
-	self.failUnlessRaises(MixError, ks.getPath, ["Lola", mix_mktemp()])
+        # We fail on nonexistant files.
+        self.failUnlessRaises(MixError, ks.getPath, ["Lola", mix_mktemp()])
 
-	# We warn on unparseable files.
-	fn = os.path.join(dirname, "xyzzy")
-	writeFile(fn, "this file is not a server descriptor\n")
-	try:
-	    suspendLog()
-	    _ = mixminion.ClientMain.TrivialKeystore(dirname)
-	finally:
-	    msg = resumeLog()
-	    self.assert_(stringContains(msg,"Invalid server descriptor %s"%fn))
+        # We warn on unparseable files.
+        fn = os.path.join(dirname, "xyzzy")
+        writeFile(fn, "this file is not a server descriptor\n")
+        try:
+            suspendLog()
+            _ = mixminion.ClientMain.TrivialKeystore(dirname)
+        finally:
+            msg = resumeLog()
+            self.assert_(stringContains(msg,"Invalid server descriptor %s"%fn))
 
     def testAddress(self):
-	def parseEq(s, tp, addr, server, eq=self.assertEquals):
-	    "Helper: return true iff parseAddress(s).getRouting() == t,s,a."
-	    t, a, s = mixminion.ClientMain.parseAddress(s).getRouting()
-	    eq(t, tp)
-	    eq(s, server)
-	    eq(a, addr)
+        def parseEq(s, tp, addr, server, eq=self.assertEquals):
+            "Helper: return true iff parseAddress(s).getRouting() == t,s,a."
+            t, a, s = mixminion.ClientMain.parseAddress(s).getRouting()
+            eq(t, tp)
+            eq(s, server)
+            eq(a, addr)
 
-	##
-	# Check valid mbox and smtp addresses
+        ##
+        # Check valid mbox and smtp addresses
         parseEq("mbox:foo", MBOX_TYPE, "foo", None)
-	parseEq("mbox:foo@bar", MBOX_TYPE, "foo", "bar")
-	parseEq("mbox:foo@bar@baz", MBOX_TYPE, "foo", "bar@baz")
-	parseEq("smtp:foo@bar", SMTP_TYPE, "foo@bar", None)
-	parseEq("smtp:foo@bar.com", SMTP_TYPE, "foo@bar.com", None)
-	parseEq("foo@bar.com", SMTP_TYPE, "foo@bar.com", None)
-	##
-	# Check other address formats.
-	parseEq("drop", DROP_TYPE, None, None)
-	parseEq("test:foobar", 0xFFFE, "foobar", None)
-	parseEq("test", 0xFFFE, "", None)
-	parseEq("0x999:zymurgy", 0x999, "zymurgy", None)
-	parseEq("0x999:", 0x999, "", None)
+        parseEq("mbox:foo@bar", MBOX_TYPE, "foo", "bar")
+        parseEq("mbox:foo@bar@baz", MBOX_TYPE, "foo", "bar@baz")
+        parseEq("smtp:foo@bar", SMTP_TYPE, "foo@bar", None)
+        parseEq("smtp:foo@bar.com", SMTP_TYPE, "foo@bar.com", None)
+        parseEq("foo@bar.com", SMTP_TYPE, "foo@bar.com", None)
+        ##
+        # Check other address formats.
+        parseEq("drop", DROP_TYPE, None, None)
+        parseEq("test:foobar", 0xFFFE, "foobar", None)
+        parseEq("test", 0xFFFE, "", None)
+        parseEq("0x999:zymurgy", 0x999, "zymurgy", None)
+        parseEq("0x999:", 0x999, "", None)
 
-	def parseFails(s, f=self.failUnlessRaises):
-	    f(ParseError, mixminion.ClientMain.parseAddress, s)
+        def parseFails(s, f=self.failUnlessRaises):
+            f(ParseError, mixminion.ClientMain.parseAddress, s)
 
-	# Check failing cases
-	parseFails("sxtp:foo@bar.com") # unknown module
-	parseFails("mbox") # missing mbox address
-	parseFails("mbox:") # missing mbox address
-	parseFails("smtp:Foo") # Invalid mailbox
-	parseFails("smtp:foo@bar@baz") # Invalid mailbox
-	parseFails("hello-friends") # Invalid mailbox
-	parseFails("@bar.baz") # Invalid mailbox
-	parseFails("moo:") # Unknown module; no text
-	parseFails("moo") # Unknown module; no text
-	parseFails(":oom") # Missing module
-	parseFails("0xZZ:zymurgy") # Bad hex literal
-	parseFails("0xZZ") # Bad hex literal, no data.
-	parseFails("0x9999") # No data
-	parseFails("0xFFFFF:zymurgy") # Hex literal out of range
+        # Check failing cases
+        parseFails("sxtp:foo@bar.com") # unknown module
+        parseFails("mbox") # missing mbox address
+        parseFails("mbox:") # missing mbox address
+        parseFails("smtp:Foo") # Invalid mailbox
+        parseFails("smtp:foo@bar@baz") # Invalid mailbox
+        parseFails("hello-friends") # Invalid mailbox
+        parseFails("@bar.baz") # Invalid mailbox
+        parseFails("moo:") # Unknown module; no text
+        parseFails("moo") # Unknown module; no text
+        parseFails(":oom") # Missing module
+        parseFails("0xZZ:zymurgy") # Bad hex literal
+        parseFails("0xZZ") # Bad hex literal, no data.
+        parseFails("0x9999") # No data
+        parseFails("0xFFFFF:zymurgy") # Hex literal out of range
 
     def testMixminionClient(self):
-	# Create and configure a MixminionClient object...
-	parseAddress = mixminion.ClientMain.parseAddress
-	userdir = mix_mktemp()
-	usercfgstr = "[User]\nUserDir: %s\n[DirectoryServers]\n"%userdir
-	usercfg = mixminion.Config.ClientConfig(string=usercfgstr)
-	client = mixminion.ClientMain.MixminionClient(usercfg)
+        # Create and configure a MixminionClient object...
+        parseAddress = mixminion.ClientMain.parseAddress
+        userdir = mix_mktemp()
+        usercfgstr = "[User]\nUserDir: %s\n[DirectoryServers]\n"%userdir
+        usercfg = mixminion.Config.ClientConfig(string=usercfgstr)
+        client = mixminion.ClientMain.MixminionClient(usercfg)
 
-	# Make sure client sets its directories up correctly.
-	serverdir = os.path.join(userdir, 'servers')
-	self.assert_(os.path.exists(serverdir))
-	self.assertEquals([], os.listdir(serverdir))
+        # Make sure client sets its directories up correctly.
+        serverdir = os.path.join(userdir, 'servers')
+        self.assert_(os.path.exists(serverdir))
+        self.assertEquals([], os.listdir(serverdir))
 
-	# Now try with some servers...
-	edesc = getExampleServerDescriptors()
-	writeFile(os.path.join(serverdir,"lola1"), edesc["Lola"][1])
-	writeFile(os.path.join(serverdir,"joe1"), edesc["Joe"][0])
-	writeFile(os.path.join(serverdir,"alice1"), edesc["Alice"][0])
+        # Now try with some servers...
+        edesc = getExampleServerDescriptors()
+        writeFile(os.path.join(serverdir,"lola1"), edesc["Lola"][1])
+        writeFile(os.path.join(serverdir,"joe1"), edesc["Joe"][0])
+        writeFile(os.path.join(serverdir,"alice1"), edesc["Alice"][0])
 
-	# ... and for now, we need to restart the client.
-	client = mixminion.ClientMain.MixminionClient(usercfg)
+        # ... and for now, we need to restart the client.
+        client = mixminion.ClientMain.MixminionClient(usercfg)
 
-	##  Test generateForwardMessage.
-	# We replace 'buildForwardMessage' to make this easier to test.
-	replaceFunction(mixminion.BuildMessage, "buildForwardMessage",
-			lambda *a:"X")
-	try:
-	    getCalls = getReplacedFunctionCallLog
-	    clearCalls = clearReplacedFunctionCallLog
-	    # First, two forward messages that end with 'joe' and go via
-	    # SMTP
-	    payload = "Hey Joe, where you goin' with that gun in your hand?"
-	    client.generateForwardMessage(
-		parseAddress("joe@cledonism.net"),
-		payload,
-		path1=["Lola", "Joe"], path2=["Alice", "Joe"])
+        ##  Test generateForwardMessage.
+        # We replace 'buildForwardMessage' to make this easier to test.
+        replaceFunction(mixminion.BuildMessage, "buildForwardMessage",
+                        lambda *a:"X")
+        try:
+            getCalls = getReplacedFunctionCallLog
+            clearCalls = clearReplacedFunctionCallLog
+            # First, two forward messages that end with 'joe' and go via
+            # SMTP
+            payload = "Hey Joe, where you goin' with that gun in your hand?"
             client.generateForwardMessage(
-		parseAddress("smtp:joe@cledonism.net"),
-		"Hey Joe, where you goin' with that gun in your hand?",
-		path1=["Lola", "Joe"], path2=["Alice", "Joe"])
+                parseAddress("joe@cledonism.net"),
+                payload,
+                path1=["Lola", "Joe"], path2=["Alice", "Joe"])
+            client.generateForwardMessage(
+                parseAddress("smtp:joe@cledonism.net"),
+                "Hey Joe, where you goin' with that gun in your hand?",
+                path1=["Lola", "Joe"], path2=["Alice", "Joe"])
 
-	    for fn, args, kwargs in getCalls():
-		self.assertEquals(fn, "buildForwardMessage")
-		self.assertEquals(args[0:3],
-				  (payload, SMTP_TYPE, "joe@cledonism.net"))
-		self.assert_(len(args[3]) == len(args[4]) == 2)
-		self.assertEquals(["Lola", "Joe", "Alice", "Joe"],
-		     [x['Server']['Nickname'] for x in args[3]+args[4]])
-	    clearCalls()
+            for fn, args, kwargs in getCalls():
+                self.assertEquals(fn, "buildForwardMessage")
+                self.assertEquals(args[0:3],
+                                  (payload, SMTP_TYPE, "joe@cledonism.net"))
+                self.assert_(len(args[3]) == len(args[4]) == 2)
+                self.assertEquals(["Lola", "Joe", "Alice", "Joe"],
+                     [x['Server']['Nickname'] for x in args[3]+args[4]])
+            clearCalls()
 
-	    # Now try an mbox message, with an explicit last hop.
-	    payload = "Hey, Lo', where you goin' with that pun in your hand?"
-	    client.generateForwardMessage(
-		parseAddress("mbox:granola"),
-		payload,
-		path1=["Lola", "Joe"], path2=["Alice", "Lola"])
-	    # And an mbox message with a last hop implicit in the address
-	    client.generateForwardMessage(
-		parseAddress("mbox:granola@Lola"),
-		payload,
-		path1=["Lola", "Joe"], path2=["Alice"])
+            # Now try an mbox message, with an explicit last hop.
+            payload = "Hey, Lo', where you goin' with that pun in your hand?"
+            client.generateForwardMessage(
+                parseAddress("mbox:granola"),
+                payload,
+                path1=["Lola", "Joe"], path2=["Alice", "Lola"])
+            # And an mbox message with a last hop implicit in the address
+            client.generateForwardMessage(
+                parseAddress("mbox:granola@Lola"),
+                payload,
+                path1=["Lola", "Joe"], path2=["Alice"])
 
-	    for fn, args, kwargs in getCalls():
-		self.assertEquals(fn, "buildForwardMessage")
-		self.assertEquals(args[0:3],
-				  (payload, MBOX_TYPE, "granola"))
-		self.assert_(len(args[3]) == len(args[4]) == 2)
-		self.assertEquals(["Lola", "Joe", "Alice", "Lola"],
-		     [x['Server']['Nickname'] for x in args[3]+args[4]])
-	    clearCalls()
-	finally:
-	    undoReplacedAttributes()
-	    clearCalls()
+            for fn, args, kwargs in getCalls():
+                self.assertEquals(fn, "buildForwardMessage")
+                self.assertEquals(args[0:3],
+                                  (payload, MBOX_TYPE, "granola"))
+                self.assert_(len(args[3]) == len(args[4]) == 2)
+                self.assertEquals(["Lola", "Joe", "Alice", "Lola"],
+                     [x['Server']['Nickname'] for x in args[3]+args[4]])
+            clearCalls()
+        finally:
+            undoReplacedAttributes()
+            clearCalls()
 
-	### Now try some failing cases for generateForwardMessage:
-	# Empty path...
-	self.assertRaises(MixError,
-			  client.generateForwardMessage,
-			  parseAddress("0xFFFF:zed"),
-			  "Z", [], ["Alice"])
-	# Nonexistant servers...
-	self.assertRaises(MixError,
-			  client.generateForwardMessage,
-			  parseAddress("0xFFFF:zed"),
-			  "Z", ["Marvin"], ["Fred"])
-	# Lola doesn't support SMTP...
-	self.assertRaises(MixError,
-			  client.generateForwardMessage,
-			  parseAddress("smtp:joe@cledonism.net"),
-			  "Z", ["Joe"], ["Lola"])
-	# Joe doesn't support MBOX...
-	self.assertRaises(MixError,
-			  client.generateForwardMessage,
-			  parseAddress("mbox:wahoo"),
-			  "Z", ["Lola"], ["Joe"])
+        ### Now try some failing cases for generateForwardMessage:
+        # Empty path...
+        self.assertRaises(MixError,
+                          client.generateForwardMessage,
+                          parseAddress("0xFFFF:zed"),
+                          "Z", [], ["Alice"])
+        # Nonexistant servers...
+        self.assertRaises(MixError,
+                          client.generateForwardMessage,
+                          parseAddress("0xFFFF:zed"),
+                          "Z", ["Marvin"], ["Fred"])
+        # Lola doesn't support SMTP...
+        self.assertRaises(MixError,
+                          client.generateForwardMessage,
+                          parseAddress("smtp:joe@cledonism.net"),
+                          "Z", ["Joe"], ["Lola"])
+        # Joe doesn't support MBOX...
+        self.assertRaises(MixError,
+                          client.generateForwardMessage,
+                          parseAddress("mbox:wahoo"),
+                          "Z", ["Lola"], ["Joe"])
 
 
-	# Temporarily replace BlockingClientConnection so we can try the client
-	# without hitting the network.
-	class FakeBCC:
-	    def __init__(self, addr, port, keyid):
-		global BCC_INSTANCE
-		BCC_INSTANCE = self
-		self.addr = addr
-		self.port = port
-		self.keyid = keyid
-		self.packets = []
-		self.connected = 0
-	    def connect(self):
-		self.connected = 1
-	    def sendPacket(self, msg):
-		assert self.connected
-		self.packets.append(msg)
-	    def shutdown(self):
-		self.connected = 0
+        # Temporarily replace BlockingClientConnection so we can try the client
+        # without hitting the network.
+        class FakeBCC:
+            def __init__(self, addr, port, keyid):
+                global BCC_INSTANCE
+                BCC_INSTANCE = self
+                self.addr = addr
+                self.port = port
+                self.keyid = keyid
+                self.packets = []
+                self.connected = 0
+            def connect(self):
+                self.connected = 1
+            def sendPacket(self, msg):
+                assert self.connected
+                self.packets.append(msg)
+            def shutdown(self):
+                self.connected = 0
 
-	replaceAttribute(mixminion.MMTPClient, "BlockingClientConnection",
-			 FakeBCC)
-	try:
-	    client.sendForwardMessage(
-		parseAddress("mbox:granola@Lola"),
-		"You only give me your information.",
-		["Alice", "Lola", "Joe", "Alice"], ["Joe", "Alice"])
-	    bcc = BCC_INSTANCE
-	    # first hop is alice
-	    self.assertEquals(bcc.addr, "10.0.0.9")
-	    self.assertEquals(bcc.port, 48099)
-	    self.assertEquals(0, bcc.connected)
-	    self.assertEquals(1, len(bcc.packets))
-	    self.assertEquals(32*1024, len(bcc.packets[0]))
+        replaceAttribute(mixminion.MMTPClient, "BlockingClientConnection",
+                         FakeBCC)
+        try:
+            client.sendForwardMessage(
+                parseAddress("mbox:granola@Lola"),
+                "You only give me your information.",
+                ["Alice", "Lola", "Joe", "Alice"], ["Joe", "Alice"])
+            bcc = BCC_INSTANCE
+            # first hop is alice
+            self.assertEquals(bcc.addr, "10.0.0.9")
+            self.assertEquals(bcc.port, 48099)
+            self.assertEquals(0, bcc.connected)
+            self.assertEquals(1, len(bcc.packets))
+            self.assertEquals(32*1024, len(bcc.packets[0]))
 
-	finally:
-	    undoReplacedAttributes()
-	    clearCalls()
+        finally:
+            undoReplacedAttributes()
+            clearCalls()
 
     def isSameServerDesc(self, s1, s2):
-	"""s1 and s2 are either ServerInfo objects or strings containing server
-	   descriptors. Returns 1 iff their digest fields match"""
-	ds = []
-	for s in s1, s2:
-	    if type(s) == types.StringType:
-		m = re.search(r"^Digest: (\S+)\n", s, re.M)
-		assert m
-		ds.append(base64.decodestring(m.group(1)))
-	    else:
-		ds.append(s['Server']['Digest'])
-	return ds[0] == ds[1]
+        """s1 and s2 are either ServerInfo objects or strings containing server
+           descriptors. Returns 1 iff their digest fields match"""
+        ds = []
+        for s in s1, s2:
+            if type(s) == types.StringType:
+                m = re.search(r"^Digest: (\S+)\n", s, re.M)
+                assert m
+                ds.append(base64.decodestring(m.group(1)))
+            else:
+                ds.append(s['Server']['Digest'])
+        return ds[0] == ds[1]
 
 #----------------------------------------------------------------------
 def testSuite():

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.14 2002/12/15 03:45:30 nickm Exp $
+# $Id: Main.py,v 1.15 2002/12/16 02:40:11 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -34,14 +34,14 @@ import types
 def filesAreSame(f1, f2):
     "Return true if f1 and f2 are exactly the same file."
     if os.path.normpath(f1) == os.path.normpath(f2):
-	return 1
+        return 1
     try:
         # FFFF what happens on systems that (shudder) lack inodes?
-	ino1 = os.stat(f1)[stat.ST_INO]
-	ino2 = os.stat(f2)[stat.ST_INO]
-	return ino1 and ino1 > 0 and ino1 == ino2
+        ino1 = os.stat(f1)[stat.ST_INO]
+        ino2 = os.stat(f2)[stat.ST_INO]
+        return ino1 and ino1 > 0 and ino1 == ino2
     except OSError:
-	return 0
+        return 0
 
 def correctPath(myself):
     "Given a command (sys.argv[0]), fix sys.path so 'import mixminion' works"
@@ -52,15 +52,15 @@ def correctPath(myself):
     # If we can import mixminion.Main, we bail out early: let's not mess
     # with anything.
     try:
-	__import__('mixminion.Main')
-	return
+        __import__('mixminion.Main')
+        return
     except ImportError:
-	pass
+        pass
 
     orig_cmd = myself
     # First, resolve all links.
     while os.path.islink(myself):
-	myself = os.readlink(myself)
+        myself = os.readlink(myself)
 
     # Now, the module ought to be living in x/y/z/mixminon/Foo.py.
     # The "x/y/z" is the part we're interested in.
@@ -68,38 +68,38 @@ def correctPath(myself):
     parentdir, miniondir = os.path.split(mydir)
     if not miniondir == 'mixminion':
         sys.stderr.write(("Bad mixminion installation:\n"+
-	 " I resolved %s to %s, but expected to find ../mixminion/Main.py\n")%(
-	     orig_cmd, myself))
+        " I resolved %s to %s, but expected to find ../mixminion/Main.py\n")%(
+            orig_cmd, myself))
 
     # Now we check whether there's already an entry in sys.path.  If not,
     # we add the directory we found.
     parentdir = os.path.normpath(parentdir)
     foundEntry = 0
     for pathEntry in sys.path:
-	# There are intimations on Python-dev that sys.path may eventually
-	# contain non-strings.
-	if not isinstance(pathEntry, types.StringType):
-	    continue
-	if os.path.normpath(pathEntry) == parentdir:
-	    foundEntry = 1; break
+        # There are intimations on Python-dev that sys.path may eventually
+        # contain non-strings.
+        if not isinstance(pathEntry, types.StringType):
+            continue
+        if os.path.normpath(pathEntry) == parentdir:
+            foundEntry = 1; break
 
-	ent = os.path.join(pathEntry, 'mixminion', 'Main.py')
-	if os.path.exists(ent) and filesAreSame(pathEntry, myself):
-	    foundEntry = 1; break
+        ent = os.path.join(pathEntry, 'mixminion', 'Main.py')
+        if os.path.exists(ent) and filesAreSame(pathEntry, myself):
+            foundEntry = 1; break
 
     if not foundEntry:
-	sys.stderr.write("Adding %s to PYTHONPATH\n" % parentdir)
-	sys.path[0:0] = [ parentdir ]
+        sys.stderr.write("Adding %s to PYTHONPATH\n" % parentdir)
+        sys.path[0:0] = [ parentdir ]
 
     # Finally, we make sure it all works.
     try:
         # We use __import__ here instead of 'import' so that we can stay
         #   parseable by Python 1.1.  You're welcome.
-	__import__('mixminion.Main')
+        __import__('mixminion.Main')
     except ImportError, e:
-	sys.stderr.write(str(e)+"\n")
-	sys.stderr.write("Unable to find correct path for mixminion.\n")
-	sys.exit(1)
+        sys.stderr.write(str(e)+"\n")
+        sys.stderr.write("Unable to find correct path for mixminion.\n")
+        sys.exit(1)
 
 # Global map from command name to 2-tuples of (module_name, function_name).
 # The function 'main' below uses this map to pick which module to import,
@@ -140,12 +140,12 @@ def main(args):
 
     # Check whether we have a recognized command.
     if len(args) == 1 or not _COMMANDS.has_key(args[1]):
-	# FFFF we could do better in generating a usage message here.
-	cmds = _COMMANDS.keys()
-	cmds.sort()
-	sys.stderr.write("Usage: %s {%s} [arguments]\n" %(
-	    args[0], "|".join(cmds)))
-	sys.exit(1)
+        # FFFF we could do better in generating a usage message here.
+        cmds = _COMMANDS.keys()
+        cmds.sort()
+        sys.stderr.write("Usage: %s {%s} [arguments]\n" %(
+            args[0], "|".join(cmds)))
+        sys.exit(1)
 
     # Read the module and function.
     command_module, command_fn = _COMMANDS[args[1]]

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
+# $Id: HashLog.py,v 1.3 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.HashLog
 
@@ -57,9 +57,9 @@ class HashLog:
         """Create a new HashLog to store data in 'filename' for the key
            'keyid'."""
         parent = os.path.split(filename)[0]
-	createPrivateDir(parent)
+        createPrivateDir(parent)
         self.log = anydbm.open(filename, 'c')
-	LOG.debug("Opening database %s for packet digests", filename)
+        LOG.debug("Opening database %s for packet digests", filename)
         if isinstance(self.log, dumbdbm._Database):
             LOG.warn("Warning: logging packet digests to a flat file.")
         try:
@@ -68,24 +68,24 @@ class HashLog:
         except KeyError:
             self.log["KEYID"] = keyid
 
-	self.journalFileName = filename+"_jrnl"
-	self.journal = {}
-	if os.path.exists(self.journalFileName):
-	    f = open(self.journalFileName, 'r')
-	    # FFFF deal with really big journals?
-	    j = f.read()
-	    for i in xrange(0, len(j), DIGEST_LEN):
-		self.journal[j[i:i+DIGEST_LEN]] = 1
-	    f.close()
+        self.journalFileName = filename+"_jrnl"
+        self.journal = {}
+        if os.path.exists(self.journalFileName):
+            f = open(self.journalFileName, 'r')
+            # FFFF deal with really big journals?
+            j = f.read()
+            for i in xrange(0, len(j), DIGEST_LEN):
+                self.journal[j[i:i+DIGEST_LEN]] = 1
+            f.close()
 
-	self.journalFile = os.open(self.journalFileName,
-		    _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
+        self.journalFile = os.open(self.journalFileName,
+                    _JOURNAL_OPEN_FLAGS|os.O_APPEND, 0600)
 
     def seenHash(self, hash):
         """Return true iff 'hash' has been logged before."""
         try:
-	    if self.journal.get(hash,0):
-		return 1
+            if self.journal.get(hash,0):
+                return 1
             _ = self.log[hash]
             return 1
         except KeyError:
@@ -93,25 +93,23 @@ class HashLog:
 
     def logHash(self, hash):
         """Insert 'hash' into the database."""
-	assert len(hash) == DIGEST_LEN
-	self.journal[hash] = 1
-	os.write(self.journalFile, hash)
+        assert len(hash) == DIGEST_LEN
+        self.journal[hash] = 1
+        os.write(self.journalFile, hash)
 
     def sync(self):
         """Flushes changes to this log to the filesystem."""
-	for hash in self.journal.keys():
-	    self.log[hash] = "1"
+        for hash in self.journal.keys():
+            self.log[hash] = "1"
         if hasattr(self.log, "sync"):
             self.log.sync()
-	os.close(self.journalFile)
-	self.journalFile = os.open(self.journalFileName,
-		   _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
-	self.journal = {}
+        os.close(self.journalFile)
+        self.journalFile = os.open(self.journalFileName,
+                   _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
+        self.journal = {}
 
     def close(self):
         """Closes this log."""
         self.sync()
         self.log.close()
-	os.close(self.journalFile)
-
-
+        os.close(self.journalFile)

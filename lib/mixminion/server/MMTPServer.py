@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.3 2002/12/15 04:48:46 nickm Exp $
+# $Id: MMTPServer.py,v 1.4 2002/12/16 02:40:11 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -69,9 +69,9 @@ class AsyncServer:
            """
 
 ##         trace("%s readers (%s), %s writers (%s)" % (len(self.readers),
-## 						    readers,
-## 						    len(self.writers),
-## 						    writers))
+##                                                  readers,
+##                                                  len(self.writers),
+##                                                  writers))
 
         readfds = self.readers.keys()
         writefds = self.writers.keys()
@@ -95,14 +95,14 @@ class AsyncServer:
             if self.writers.has_key(fd): del self.writers[fd]
 
     def hasReader(self, reader):
-	"""Return true iff 'reader' is a reader on this server."""
-	fd = reader.fileno()
-	return self.readers.get(fd, None) is reader
+        """Return true iff 'reader' is a reader on this server."""
+        fd = reader.fileno()
+        return self.readers.get(fd, None) is reader
 
     def hasWriter(self, writer):
-	"""Return true iff 'writer' is a writer on this server."""
-	fd = writer.fileno()
-	return self.writers.get(fd, None) is writer
+        """Return true iff 'writer' is a writer on this server."""
+        fd = writer.fileno()
+        return self.writers.get(fd, None) is writer
 
     def registerReader(self, reader):
         """Register a connection as a reader.  The connection's 'handleRead'
@@ -238,7 +238,7 @@ class SimpleTLSConnection(Connection):
         """
         self.__sock = sock            
         self.__con = tls
-	self.fd = self.__con.fileno()
+        self.fd = self.__con.fileno()
 
         if serverMode:
             self.__state = self.__acceptFn
@@ -305,26 +305,26 @@ class SimpleTLSConnection(Connection):
     def __shutdownFn(self):
         """Hook to implement shutdown."""
 
-	# This is a bit subtle.  The underlying 'shutdown' method
-	# needs to be retried till the other guy sends an 'ack'
-	# back... but we don't want to keep retrying indefinitely, or
-	# else we can deadlock on a connection from ourself to
-	# ourself.
-	if self.__con.shutdown() == 1: #may throw want*
-	    trace("Got a 1 on shutdown (fd %s)", self.fd)
-	    self.__server.unregister(self)
-	    self.__state = None
-	    self.__sock.close()
-	    self.shutdownFinished()
-	    return
+        # This is a bit subtle.  The underlying 'shutdown' method
+        # needs to be retried till the other guy sends an 'ack'
+        # back... but we don't want to keep retrying indefinitely, or
+        # else we can deadlock on a connection from ourself to
+        # ourself.
+        if self.__con.shutdown() == 1: #may throw want*
+            trace("Got a 1 on shutdown (fd %s)", self.fd)
+            self.__server.unregister(self)
+            self.__state = None
+            self.__sock.close()
+            self.shutdownFinished()
+            return
 
-	# If we don't get any response on shutdown, stop blocking; the other
-	# side may be hostile, confused, or deadlocking.
-	trace("Got a 0 on shutdown (fd %s)", self.fd)
-	# ???? Is 'wantread' always correct?
-	# ???? Rather than waiting for a read, should we use a timer or
-	# ????       something?
-	raise _ml.TLSWantRead()
+        # If we don't get any response on shutdown, stop blocking; the other
+        # side may be hostile, confused, or deadlocking.
+        trace("Got a 0 on shutdown (fd %s)", self.fd)
+        # ???? Is 'wantread' always correct?
+        # ???? Rather than waiting for a read, should we use a timer or
+        # ????       something?
+        raise _ml.TLSWantRead()
 
     def __readFn(self):
         """Hook to implement read"""
@@ -347,12 +347,12 @@ class SimpleTLSConnection(Connection):
 
         if self.__expectReadLen and self.__inbuflen > self.__expectReadLen:
             warn("Protocol violation: too much data. Closing connection to %s",
-		 self.address)
+                 self.address)
             self.shutdown(err=1, retriable=0)
             return
 
         if self.__terminator and stringContains(self.__inbuf[0],
-						self.__terminator):
+                                                self.__terminator):
             trace("read found terminator (fd %s)", self.fd)
             self.__server.unregister(self)
             self.finished()
@@ -368,7 +368,7 @@ class SimpleTLSConnection(Connection):
         while len(out):
             r = self.__con.write(out) # may throw
 
-	    assert r > 0
+            assert r > 0
             out = out[r:]
 
         self.__outbuf = out
@@ -393,7 +393,7 @@ class SimpleTLSConnection(Connection):
             # We have a while loop here so that, upon entering a new
             # state, we immediately see if we can go anywhere with it
             # without blocking.
-	    while self.__state is not None:
+            while self.__state is not None:
                 self.__state()
         except _ml.TLSWantWrite:
             self.__server.registerWriter(self)
@@ -401,17 +401,17 @@ class SimpleTLSConnection(Connection):
             self.__server.registerReader(self)
         except _ml.TLSClosed:
             warn("Unexpectedly closed connection to %s", self.address)
-	    self.handleFail(retriable=1)
+            self.handleFail(retriable=1)
             self.__sock.close()
             self.__server.unregister(self)
         except _ml.TLSError:
             if self.__state != self.__shutdownFn:
                 warn("Unexpected error: closing connection to %s",
-		     self.address)
+                     self.address)
                 self.shutdown(err=1, retriable=1)
             else:
                 warn("Error while shutting down: closing connection to %s",
-		     self.address)
+                     self.address)
                 self.__server.unregister(self)
         else:
             # We are in no state at all.
@@ -427,8 +427,8 @@ class SimpleTLSConnection(Connection):
 
     def shutdown(self, err=0, retriable=0):
         """Begin a shutdown on this connection"""
-	if err:
-	    self.handleFail(retriable)
+        if err:
+            self.handleFail(retriable)
         self.__state = self.__shutdownFn
 
     def fileno(self):
@@ -442,8 +442,8 @@ class SimpleTLSConnection(Connection):
         return self.__con.get_peer_cert_pk()
 
     def handleFail(self, retriable=0):
-	"""Called when we shutdown with an error."""
-	pass
+        """Called when we shutdown with an error."""
+        pass
 
 #----------------------------------------------------------------------
 # Implementation for MMTP.
@@ -471,9 +471,9 @@ class MMTPServerConnection(SimpleTLSConnection):
     # finished: callback when we're done with a read or write; see
     #     SimpleTLSConnection.
     def __init__(self, sock, tls, consumer):
-	"""Create an MMTP connection to receive messages sent along a given
-	   socket.  When valid packets are received, pass them to the
-	   function 'consumer'."""
+        """Create an MMTP connection to receive messages sent along a given
+           socket.  When valid packets are received, pass them to the
+           function 'consumer'."""
         SimpleTLSConnection.__init__(self, sock, tls, 1,
                                      "%s:%s"%sock.getpeername())
         self.messageConsumer = consumer
@@ -500,7 +500,7 @@ class MMTPServerConnection(SimpleTLSConnection):
         protocols = m.group(1).split(",")
         if "0.1" not in protocols:
             warn("Unsupported protocol list.  Closing connection to %s",
-		 self.address)
+                 self.address)
             self.shutdown(err=1); return
         else:
             trace("protocol ok (fd %s)", self.fd)
@@ -530,17 +530,17 @@ class MMTPServerConnection(SimpleTLSConnection):
             replyDigest = sha1(msg+"RECEIVED")
         else:
             warn("Unrecognized command from %s.  Closing connection.",
-		 self.address)
+                 self.address)
             self.shutdown(err=1)
             return
         if expectedDigest != digest:
             warn("Invalid checksum from %s. Closing connection",
-		 self.address)
+                 self.address)
             self.shutdown(err=1)
             return
         else:
             debug("%s packet received from %s; Checksum valid.",
-		  data[:4], self.address)
+                  data[:4], self.address)
             self.finished = self.__sentAck
             self.beginWrite(RECEIVED_CONTROL+replyDigest)
             self.messageConsumer(msg)
@@ -564,13 +564,13 @@ class MMTPClientConnection(SimpleTLSConnection):
     #   As described in the docstring for __init__ below.
     def __init__(self, context, ip, port, keyID, messageList, handleList,
                  sentCallback=None, failCallback=None):
-	"""Create a connection to send messages to an MMTP server.
-	   ip -- The IP of the destination server.
-	   port -- The port to connect to.
-	   keyID -- None, or the expected SHA1 hash of the server's public key
-	   messageList -- a list of message payloads to send
-	   handleList -- a list of objects corresponding to the messages in
-	      messageList.  Used for callback.
+        """Create a connection to send messages to an MMTP server.
+           ip -- The IP of the destination server.
+           port -- The port to connect to.
+           keyID -- None, or the expected SHA1 hash of the server's public key
+           messageList -- a list of message payloads to send
+           handleList -- a list of objects corresponding to the messages in
+              messageList.  Used for callback.
            sentCallback -- None, or a function of (msg, handle) to be called
               whenever a message is successfully sent.
            failCallback -- None, or a function of (msg, handle, retriable)
@@ -590,10 +590,10 @@ class MMTPClientConnection(SimpleTLSConnection):
 
         SimpleTLSConnection.__init__(self, sock, tls, 0, "%s:%s"%(ip,port))
         self.messageList = messageList
-	self.handleList = handleList
+        self.handleList = handleList
         self.finished = self.__setupFinished
         self.sentCallback = sentCallback
-	self.failCallback = failCallback
+        self.failCallback = failCallback
 
         debug("Opening client connection (fd %s)", self.fd)
 
@@ -605,7 +605,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         if self.keyID is not None:
             if keyID != self.keyID:
                 warn("Got unexpected Key ID from %s", self.address)
-		# This may work again in a couple of hours
+                # This may work again in a couple of hours
                 self.shutdown(err=1,retriable=1)
             else:
                 debug("KeyID from %s is valid", self.address)
@@ -627,8 +627,8 @@ class MMTPClientConnection(SimpleTLSConnection):
         inp = self.getInput()
         if inp != PROTOCOL_STRING:
             warn("Invalid protocol.  Closing connection to %s", self.address)
-	    # This isn't retriable; we don't talk to servers we don't
-	    # understand.
+            # This isn't retriable; we don't talk to servers we don't
+            # understand.
             self.shutdown(err=1,retriable=0)
             return
 
@@ -642,7 +642,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         msg = self.messageList[0]
         self.expectedDigest = sha1(msg+"RECEIVED")
         msg = SEND_CONTROL+msg+sha1(msg+"SEND")
-	assert len(msg) == SEND_RECORD_LEN
+        assert len(msg) == SEND_RECORD_LEN
 
         self.beginWrite(msg)
         self.finished = self.__sentMessage
@@ -668,8 +668,8 @@ class MMTPClientConnection(SimpleTLSConnection):
        # FFFF Rehandshake
        inp = self.getInput()
        if inp != (RECEIVED_CONTROL+self.expectedDigest):
-	   # We only get bad ACKs if an adversary somehow subverts TLS's
-	   # checksumming.  That's not fixable.
+           # We only get bad ACKs if an adversary somehow subverts TLS's
+           # checksumming.  That's not fixable.
            self.shutdown(err=1,retriable=0)
            return
 
@@ -684,10 +684,10 @@ class MMTPClientConnection(SimpleTLSConnection):
        self.beginNextMessage()
 
     def handleFail(self, retriable):
-	"""Invoked when a message is not deliverable."""
-	if self.failCallback is not None:
-	    for msg, handle in zip(self.messageList, self.handleList):
-		self.failCallback(msg,handle,retriable)
+        """Invoked when a message is not deliverable."""
+        if self.failCallback is not None:
+            for msg, handle in zip(self.messageList, self.handleList):
+                self.failCallback(msg,handle,retriable)
 
 LISTEN_BACKLOG = 10 # ???? Is something else more reasonable?
 class MMTPAsyncServer(AsyncServer):
@@ -695,49 +695,49 @@ class MMTPAsyncServer(AsyncServer):
        MMTPClientConnection, with a function to add new connections, and
        callbacks for message success and failure."""
     def __init__(self, config, tls):
-	AsyncServer.__init__(self)
+        AsyncServer.__init__(self)
 
         self.context = tls
-	# FFFF Don't always listen; don't always retransmit!
-	# FFFF Support listening on specific IPs
+        # FFFF Don't always listen; don't always retransmit!
+        # FFFF Support listening on specific IPs
         self.listener = ListenConnection(config['Incoming/MMTP']['IP'],
                                          config['Incoming/MMTP']['Port'],
-					 LISTEN_BACKLOG,
+                                         LISTEN_BACKLOG,
                                          self._newMMTPConnection)
-	#self.config = config
+        #self.config = config
         self.listener.register(self)
 
     def _newMMTPConnection(self, sock):
-	"""helper method.  Creates and registers a new server connection when
-	   the listener socket gets a hit."""
+        """helper method.  Creates and registers a new server connection when
+           the listener socket gets a hit."""
         # FFFF Check whether incoming IP is allowed!
         tls = self.context.sock(sock, serverMode=1)
         sock.setblocking(0)
         con = MMTPServerConnection(sock, tls, self.onMessageReceived)
         con.register(self)
-	return con
+        return con
 
     def stopListening(self):
-	self.listener.shutdown()
+        self.listener.shutdown()
 
     def sendMessages(self, ip, port, keyID, messages, handles):
-	"""Begin sending a set of messages to a given server."""
-	# ???? Can we remove these asserts yet?
-	for m,h in zip(messages, handles):
-	    assert len(m) == MESSAGE_LEN
-	    assert len(h) < 32
+        """Begin sending a set of messages to a given server."""
+        # ???? Can we remove these asserts yet?
+        for m,h in zip(messages, handles):
+            assert len(m) == MESSAGE_LEN
+            assert len(h) < 32
 
         con = MMTPClientConnection(self.context,
-				   ip, port, keyID, messages, handles,
+                                   ip, port, keyID, messages, handles,
                                    self.onMessageSent,
-				   self.onMessageUndeliverable)
+                                   self.onMessageUndeliverable)
         con.register(self)
 
     def onMessageReceived(self, msg):
         pass
 
     def onMessageUndeliverable(self, msg, handle, retriable):
-	pass
+        pass
 
     def onMessageSent(self, msg, handle):
         pass

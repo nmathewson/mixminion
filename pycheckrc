@@ -117,7 +117,7 @@ ignoreSelfUnused = 0
 redefiningFunction = 1
 
 # bool:  check if an overriden method has the same signature
-#	 as base class method (__init__() methods are not checked)
+#        as base class method (__init__() methods are not checked)
 checkOverridenMethods = 1
 
 # int: warnings for code complexity, max value before generating a warning
@@ -137,7 +137,7 @@ else:
     maxReferences = 20
 
 # bool:  ignore all warnings from standard library components
-#	 (this includes anything under the standard library, eg, site-packages)
+#        (this includes anything under the standard library, eg, site-packages)
 ignoreStandardLibrary = 1
 
 
@@ -198,10 +198,10 @@ checkReturnValues = 1
 checkImplicitReturns = 1
 
 # dict: suppress warnings, key is module.class.method or module.function
-#	value is a string of command line arguments (can omit -- for long args)
+#       value is a string of command line arguments (can omit -- for long args)
 #       { 'module1': 'no-namedargs maxlines=0',
-#	  'module2.my_func': 'argsused',
-#	  'module3.my_class': 'no-initreturn', }
+#         'module2.my_func': 'argsused',
+#         'module3.my_class': 'no-initreturn', }
 suppressions = {}
 
 # dict: suppress warnings where keys can be regular expressions

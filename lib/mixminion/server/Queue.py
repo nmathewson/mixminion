@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.3 2002/12/15 05:55:30 nickm Exp $
+# $Id: Queue.py,v 1.4 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.server.Queue
 
@@ -17,7 +17,7 @@ from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
 from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ 'Queue', 'DeliveryQueue', 'TimedMixQueue', 'CottrellMixQueue',
-	    'BinomialCottrellMixQueue' ]
+            'BinomialCottrellMixQueue' ]
 
 # Mode to pass to open(2) for creating a new file, and dying if it already
 # exists.
@@ -77,13 +77,13 @@ class Queue:
         if os.path.exists(location) and not os.path.isdir(location):
             raise MixFatalError("%s is not a directory" % location)
 
-	createPrivateDir(location, nocreate=(not create))
+        createPrivateDir(location, nocreate=(not create))
 
         if scrub:
             self.cleanQueue()
 
-	# Count messages on first time through.
-	self.n_entries = -1
+        # Count messages on first time through.
+        self.n_entries = -1
 
     def queueMessage(self, contents):
         """Creates a new message in the queue whose contents are 'contents',
@@ -94,8 +94,8 @@ class Queue:
         return handle
 
     def queueObject(self, object):
-	"""Queue an object using cPickle, and return a handle to that
-	   object."""
+        """Queue an object using cPickle, and return a handle to that
+           object."""
         f, handle = self.openNewMessage()
         cPickle.dump(object, f, 1)
         self.finishMessage(f, handle)
@@ -103,15 +103,15 @@ class Queue:
 
     def count(self, recount=0):
         """Returns the number of complete messages in the queue."""
-	if self.n_entries >= 0 and not recount:
-	    return self.n_entries
-	else:
-	    res = 0
-	    for fn in os.listdir(self.dir):
-		if fn.startswith("msg_"):
-		    res += 1
-	    self.n_entries = res
-	    return res
+        if self.n_entries >= 0 and not recount:
+            return self.n_entries
+        else:
+            res = 0
+            for fn in os.listdir(self.dir):
+                if fn.startswith("msg_"):
+                    res += 1
+            self.n_entries = res
+            return res
 
     def pickRandom(self, count=None):
         """Returns a list of 'count' handles to messages in this queue.
@@ -120,12 +120,12 @@ class Queue:
            If there are fewer than 'count' messages in the queue, all the
            messages will be retained."""
         handles = [ fn[4:] for fn in os.listdir(self.dir)
-		           if fn.startswith("msg_") ]
+                           if fn.startswith("msg_") ]
 
-	return self.rng.shuffle(handles, count)
+        return self.rng.shuffle(handles, count)
 
     def getAllMessages(self):
-	"""Returns handles for all messages currently in the queue.
+        """Returns handles for all messages currently in the queue.
            Note: this ordering is not guaranteed to be random"""
         return [fn[4:] for fn in os.listdir(self.dir) if fn.startswith("msg_")]
 
@@ -138,7 +138,7 @@ class Queue:
         for m in os.listdir(self.dir):
             if m[:4] in ('inp_', 'msg_'):
                 self.__changeState(m[4:], m[:3], "rmv")
-	self.n_entries = 0
+        self.n_entries = 0
         self.cleanQueue()
 
     def moveMessage(self, handle, queue):
@@ -171,7 +171,7 @@ class Queue:
 
     def getObject(self, handle):
         """Given a message handle, read and unpickle the contents of the
-	   corresponding message."""
+           corresponding message."""
         f = open(os.path.join(self.dir, "msg_"+handle), 'rb')
         res = cPickle.load(f)
         f.close()
@@ -208,32 +208,32 @@ class Queue:
         now = time.time()
         cleanFile = os.path.join(self.dir,".cleaning")
 
-	cleaning = 1
-	while cleaning:
-	    try:
-		# Try to get the .cleaning lock file.  If we can create it,
-		# we're the only cleaner around.
-		fd = os.open(cleanFile, os.O_WRONLY+os.O_CREAT+os.O_EXCL, 0600)
-		os.write(fd, str(now))
-		os.close(fd)
-		cleaning = 0
-	    except OSError:
-		try:
-		    # If we can't create the file, see if it's too old.  If it
-		    # is too old, delete it and try again.  If it isn't, there
-		    # may be a live clean in progress.
-		    s = os.stat(cleanFile)
-		    if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
-			os.unlink(cleanFile)
-		    else:
-			return 1
-		except OSError:
-		    # If the 'stat' or 'unlink' calls above fail, then
-		    # .cleaning must not exist, or must not be readable
-		    # by us.
-		    if os.path.exists(cleanFile):
-			# In the latter case, bail out.
-			return 1
+        cleaning = 1
+        while cleaning:
+            try:
+                # Try to get the .cleaning lock file.  If we can create it,
+                # we're the only cleaner around.
+                fd = os.open(cleanFile, os.O_WRONLY+os.O_CREAT+os.O_EXCL, 0600)
+                os.write(fd, str(now))
+                os.close(fd)
+                cleaning = 0
+            except OSError:
+                try:
+                    # If we can't create the file, see if it's too old.  If it
+                    # is too old, delete it and try again.  If it isn't, there
+                    # may be a live clean in progress.
+                    s = os.stat(cleanFile)
+                    if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
+                        os.unlink(cleanFile)
+                    else:
+                        return 1
+                except OSError:
+                    # If the 'stat' or 'unlink' calls above fail, then
+                    # .cleaning must not exist, or must not be readable
+                    # by us.
+                    if os.path.exists(cleanFile):
+                        # In the latter case, bail out.
+                        return 1
 
         rmv = []
         allowedTime = int(time.time()) - INPUT_TIMEOUT
@@ -245,7 +245,7 @@ class Queue:
                 if s[stat.ST_MTIME] < allowedTime:
                     self.__changeState(m[4:], "inp", "rmv")
                     rmv.append(os.path.join(self.dir, m))
-	secureDelete(rmv, blocking=1)
+        secureDelete(rmv, blocking=1)
         return 0
 
     def __changeState(self, handle, s1, s2):
@@ -253,12 +253,12 @@ class Queue:
            to 's2', and changes the internal count."""
         os.rename(os.path.join(self.dir, s1+"_"+handle),
                   os.path.join(self.dir, s2+"_"+handle))
-	if self.n_entries < 0:
-	    return
-	if s1 == 'msg' and s2 != 'msg':
-	    self.n_entries -= 1
-	elif s1 != 'msg' and s2 == 'msg':
-	    self.n_entries += 1
+        if self.n_entries < 0:
+            return
+        if s1 == 'msg' and s2 != 'msg':
+            self.n_entries -= 1
+        elif s1 != 'msg' and s2 == 'msg':
+            self.n_entries += 1
 
     def __newHandle(self):
         """Helper method: creates a new random handle."""
@@ -292,85 +292,85 @@ class DeliveryQueue(Queue):
     #           currently sending.
 
     def __init__(self, location):
-	Queue.__init__(self, location, create=1, scrub=1)
-	self._rescan()
+        Queue.__init__(self, location, create=1, scrub=1)
+        self._rescan()
 
     def _rescan(self):
-	"""Rebuild the internal state of this queue from the underlying
+        """Rebuild the internal state of this queue from the underlying
            directory."""
-	self.pending = {}
-	self.sendable = self.getAllMessages()
+        self.pending = {}
+        self.sendable = self.getAllMessages()
 
     def queueMessage(self, msg):
-	if 1: raise MixError("Tried to call DeliveryQueue.queueMessage.")
+        if 1: raise MixError("Tried to call DeliveryQueue.queueMessage.")
 
     def queueDeliveryMessage(self, addr, msg, retry=0):
-	"""Schedule a message for delivery.
-	     addr -- An object to indicate the message's destination
-	     msg -- the message itself
-	     retry -- how many times so far have we tried to send?"""
+        """Schedule a message for delivery.
+             addr -- An object to indicate the message's destination
+             msg -- the message itself
+             retry -- how many times so far have we tried to send?"""
 
         handle = self.queueObject( (retry, addr, msg) )
-	self.sendable.append(handle)
+        self.sendable.append(handle)
 
-	return handle
+        return handle
 
     def get(self,handle):
-	"""Returns a (n_retries, addr, msg) payload for a given
-	   message handle."""
+        """Returns a (n_retries, addr, msg) payload for a given
+           message handle."""
         return self.getObject(handle)
 
     def sendReadyMessages(self):
-	"""Sends all messages which are not already being sent."""
+        """Sends all messages which are not already being sent."""
 
-	handles = self.sendable
-	messages = []
-	self.sendable = []
-	for h in handles:
-	    retries, addr, msg = self.getObject(h)
-	    messages.append((h, addr, msg, retries))
-	    self.pending[h] = 1
-	if messages:
-	    self._deliverMessages(messages)
+        handles = self.sendable
+        messages = []
+        self.sendable = []
+        for h in handles:
+            retries, addr, msg = self.getObject(h)
+            messages.append((h, addr, msg, retries))
+            self.pending[h] = 1
+        if messages:
+            self._deliverMessages(messages)
 
     def _deliverMessages(self, msgList):
-	"""Abstract method; Invoked with a list of
-  	   (handle, addr, message, n_retries) tuples every time we have a batch
-	   of messages to send.
+        """Abstract method; Invoked with a list of
+           (handle, addr, message, n_retries) tuples every time we have a batch
+           of messages to send.
 
            For every handle in the list, delierySucceeded or deliveryFailed
-	   should eventually be called, or the message will sit in the queue
-	   indefinitely, without being retried."""
+           should eventually be called, or the message will sit in the queue
+           indefinitely, without being retried."""
 
         # We could implement this as a single _deliverMessage(h,addr,m,n)
-	# method, but that wouldn't allow implementations to batch
-	# messages being sent to the same address.
+        # method, but that wouldn't allow implementations to batch
+        # messages being sent to the same address.
 
-	raise NotImplementedError("_deliverMessages")
+        raise NotImplementedError("_deliverMessages")
 
     def deliverySucceeded(self, handle):
-	"""Removes a message from the outgoing queue.  This method
-	   should be invoked after the corresponding message has been
-	   successfully delivered.
+        """Removes a message from the outgoing queue.  This method
+           should be invoked after the corresponding message has been
+           successfully delivered.
         """
-	self.removeMessage(handle)
-	del self.pending[handle]
+        self.removeMessage(handle)
+        del self.pending[handle]
 
     def deliveryFailed(self, handle, retriable=0):
-	"""Removes a message from the outgoing queue, or requeues it
-	   for delivery at a later time.  This method should be
-	   invoked after the corresponding message has been
-	   successfully delivered."""
-	del self.pending[handle]
-	if retriable:
-	    # Queue the new one before removing the old one, for
-	    # crash-proofness
-	    retries, addr, msg = self.getObject(handle)
-	    # FFFF This test makes us never retry past the 10th attempt.
-	    # FFFF That's wrong; we should be smarter.
-	    if retries <= 10:
-		self.queueDeliveryMessage(addr, msg, retries+1)
-	self.removeMessage(handle)
+        """Removes a message from the outgoing queue, or requeues it
+           for delivery at a later time.  This method should be
+           invoked after the corresponding message has been
+           successfully delivered."""
+        del self.pending[handle]
+        if retriable:
+            # Queue the new one before removing the old one, for
+            # crash-proofness
+            retries, addr, msg = self.getObject(handle)
+            # FFFF This test makes us never retry past the 10th attempt.
+            # FFFF That's wrong; we should be smarter.
+            if retries <= 10:
+                self.queueDeliveryMessage(addr, msg, retries+1)
+        self.removeMessage(handle)
 
 class TimedMixQueue(Queue):
     """A TimedMixQueue holds a group of files, and returns some of them
@@ -380,18 +380,18 @@ class TimedMixQueue(Queue):
     ## Fields:
     #   interval: scanning interval, in seconds.
     def __init__(self, location, interval=600):
-	"""Create a TimedMixQueue that sends its entire batch of messages
-	   every 'interval' seconds."""
+        """Create a TimedMixQueue that sends its entire batch of messages
+           every 'interval' seconds."""
         Queue.__init__(self, location, create=1, scrub=1)
-	self.interval = interval
+        self.interval = interval
 
     def getBatch(self):
-	"""Return handles for all messages that the pool is currently ready
-	   to send in the next batch"""
-	return self.pickRandom()
+        """Return handles for all messages that the pool is currently ready
+           to send in the next batch"""
+        return self.pickRandom()
 
     def getInterval(self):
-	return self.interval
+        return self.interval
 
 class CottrellMixQueue(TimedMixQueue):
     """A CottrellMixQueue holds a group of files, and returns some of them
@@ -405,61 +405,61 @@ class CottrellMixQueue(TimedMixQueue):
     #      sending.
     # sendRate: Largest fraction of the pool to send at a time.
     def __init__(self, location, interval=600, minPool=6, minSend=1,
-		 sendRate=.7):
-	"""Create a new queue that yields a batch of message every 'interval'
-	   seconds, always keeps <minPool> messages in the pool, never sends
-	   unless it has <minPool>+<minSend> messages, and never sends more
-	   than <sendRate> * the corrent pool size.
+                 sendRate=.7):
+        """Create a new queue that yields a batch of message every 'interval'
+           seconds, always keeps <minPool> messages in the pool, never sends
+           unless it has <minPool>+<minSend> messages, and never sends more
+           than <sendRate> * the corrent pool size.
 
-	   If 'minSend'==1, this is a real Cottrell (type-II) mix pool.
-	   Otherwise, this is a generic 'timed dynamic-pool' mix pool.  (Note
-	   that there is still a matter of some controversy whether it ever
-	   makes sense to set minSend != 1.)
-	   """
+           If 'minSend'==1, this is a real Cottrell (type-II) mix pool.
+           Otherwise, this is a generic 'timed dynamic-pool' mix pool.  (Note
+           that there is still a matter of some controversy whether it ever
+           makes sense to set minSend != 1.)
+           """
 
         # Note that there was a bit of confusion here: earlier versions
-	# implemented an algorithm called "mixmaster" that wasn't actually the
-	# mixmaster algorithm.  I picked up the other algorithm from an early
-	# draft of Roger, Paul, and Andrei's 'Batching Taxonomy' paper (since
-	# corrected); they seem to have gotten it from Anja Jerichow's
-	# Phd. thesis ("Generalisation and Security Improvement of
-	# Mix-mediated Anonymous Communication") of 2000.
-	#
-	# *THIS* is the algorithm that the current 'Batching Taxonomy' paper
-	# says that Cottrell says is the real thing.
+        # implemented an algorithm called "mixmaster" that wasn't actually the
+        # mixmaster algorithm.  I picked up the other algorithm from an early
+        # draft of Roger, Paul, and Andrei's 'Batching Taxonomy' paper (since
+        # corrected); they seem to have gotten it from Anja Jerichow's
+        # Phd. thesis ("Generalisation and Security Improvement of
+        # Mix-mediated Anonymous Communication") of 2000.
+        #
+        # *THIS* is the algorithm that the current 'Batching Taxonomy' paper
+        # says that Cottrell says is the real thing.
 
-	TimedMixQueue.__init__(self, location, interval)
-	self.minPool = minPool
-	self.minSend = minSend
-	self.sendRate = sendRate
+        TimedMixQueue.__init__(self, location, interval)
+        self.minPool = minPool
+        self.minSend = minSend
+        self.sendRate = sendRate
 
     def _getBatchSize(self):
-	"Helper method: returns the number of messages to send."
-	pool = self.count()
-	if pool >= (self.minPool + self.minSend):
-	    sendable = pool - self.minPool
-	    return min(sendable, max(1, int(pool * self.sendRate)))
-	else:
-	    return 0
+        "Helper method: returns the number of messages to send."
+        pool = self.count()
+        if pool >= (self.minPool + self.minSend):
+            sendable = pool - self.minPool
+            return min(sendable, max(1, int(pool * self.sendRate)))
+        else:
+            return 0
 
     def getBatch(self):
-	"Returns a list of handles for the next batch of messages to send."
-	n = self._getBatchSize()
-	if n:
-	    return self.pickRandom(n)
-	else:
-	    return []
+        "Returns a list of handles for the next batch of messages to send."
+        n = self._getBatchSize()
+        if n:
+            return self.pickRandom(n)
+        else:
+            return []
 
 class BinomialCottrellMixQueue(CottrellMixQueue):
     """Same algorithm as CottrellMixQueue, but instead of sending N messages
        from the pool of size P, sends each message with probability N/P."""
     def getBatch(self):
-	n = self._getBatchSize()
-	if n == 0:
-	    return []
-	msgProbability = n / float(self.count())
-	return self.rng.shuffle([ h for h in self.getAllMessages()
-				    if self.rng.getFloat() < msgProbability ])
+        n = self._getBatchSize()
+        if n == 0:
+            return []
+        msgProbability = n / float(self.count())
+        return self.rng.shuffle([ h for h in self.getAllMessages()
+                                    if self.rng.getFloat() < msgProbability ])
 
 def _secureDelete_bg(files, cleanFile):
     """Helper method: delete files in another thread, removing 'cleanFile'

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.2 2002/12/12 19:56:47 nickm Exp $
+# $Id: PacketHandler.py,v 1.3 2002/12/16 02:40:11 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -39,19 +39,19 @@ class PacketHandler:
             self.privatekey = privatekey
             self.hashlog = hashlog
         except TypeError:
-	    # Privatekey is not be subscriptable; we must have only one.
+            # Privatekey is not be subscriptable; we must have only one.
             self.privatekey = (privatekey, )
             self.hashlog = (hashlog, )
 
     def syncLogs(self):
-	"""Sync all this PacketHandler's hashlogs."""
-	for h in self.hashlog:
-	    h.sync()
+        """Sync all this PacketHandler's hashlogs."""
+        for h in self.hashlog:
+            h.sync()
 
     def close(self):
-	"""Close all this PacketHandler's hashlogs."""
-	for h in self.hashlog:
-	    h.close()
+        """Close all this PacketHandler's hashlogs."""
+        for h in self.hashlog:
+            h.close()
 
     def processMessage(self, msg):
         """Given a 32K mixminion message, processes it completely.
@@ -148,7 +148,7 @@ class PacketHandler:
             return ("EXIT",
                     (rt, subh.getExitAddress(),
                      keys.get(Crypto.APPLICATION_KEY_MODE),
-		     subh.getTag(),
+                     subh.getTag(),
                      payload))
 
         # If we're not an exit node, make sure that what we recognize our
@@ -169,11 +169,11 @@ class PacketHandler:
                            keys.getLionessKeys(Crypto.HEADER_ENCRYPT_MODE))
 
         # If we're the swap node, (1) decrypt the payload with a hash of
-	# header2... (2) decrypt header2 with a hash of the payload...
-	# (3) and swap the headers.
+        # header2... (2) decrypt header2 with a hash of the payload...
+        # (3) and swap the headers.
         if rt == Packet.SWAP_FWD_TYPE:
-	    hkey = Crypto.lioness_keys_from_header(header2)
-	    payload = Crypto.lioness_decrypt(payload, hkey)
+            hkey = Crypto.lioness_keys_from_header(header2)
+            payload = Crypto.lioness_decrypt(payload, hkey)
 
             hkey = Crypto.lioness_keys_from_payload(payload)
             header2 = Crypto.lioness_decrypt(header2, hkey)
