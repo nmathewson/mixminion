@@ -25,7 +25,7 @@ FOR 0.0.1: (The first alpha)
 			o BUG: Make sure hashlogs get written
 			o BUG: "Unable to handle message with unknown type...
 		o Use real cottrell mixing again.
-		- More explicit overview of queues
+		- More explicit overview of queues.
 		- Need 'nuke keys' CLI.
 		- Unit tests for various queues.
 		o Better debugging logs
@@ -43,7 +43,7 @@ FOR 0.0.1: (The first alpha)
 		- Generate a message
 		- Linkage from command line to helper class
 		o Design directory layout
-		o Storage for serverinfo
+		D Storage for serverinfo
 			o Make serverinfo pickleable
 				o Make RSA pickleable
 			o Test
@@ -70,6 +70,10 @@ FOR 0.0.1: (The first alpha)
 		- Tests for servers on several different machines.
 	. MBox module
 		o Implement
+		- Test
+	. SMTP-Via-Mixmaster module
+		o Implement
+		- Document
 		- Test
 SPEC	o E2E functionality
 		o Build singleton messages of all kinds, with compression
