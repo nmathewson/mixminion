@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.7 2004/01/08 22:33:33 nickm Exp $
+# $Id: DNSFarm.py,v 1.8 2004/01/09 00:46:12 nickm Exp $
 
 """mixminion.server.DNSFarm: code to implement asynchronous DNS resolves with
    background threads and cachhe the results.
@@ -136,7 +136,8 @@ class DNSCache:
                     del cache[name]
 
             # Remove dead threads from self.threads.
-            self.threads = [ thr for thr in self.threads if thr.isAlive() ]
+            liveThreads = [ thr for thr in self.threads if thr.isAlive() ]
+            self.threads = liveThreads
 
             # Make sure we have enough threads.
             if len(self.threads) < MIN_THREADS:

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.74 2004/01/08 23:07:31 nickm Exp $
+# $Id: ServerInfo.py,v 1.75 2004/01/09 00:46:12 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -565,8 +565,9 @@ class ServerDirectory:
                                validatedDigests=validatedDigests)
                     for s in servercontents ]
         self.allServers = servers[:]
-        self.servers = [ s for s in servers
-                         if s.getNickname().lower() in self.goodServerNames ]
+        goodServers = [ s for s in servers
+                        if s.getNickname().lower() in self.goodServerNames ]
+        self.servers = goodServers
 
     def getServers(self):
         """Return a list of recommended ServerInfo objects in this directory"""
