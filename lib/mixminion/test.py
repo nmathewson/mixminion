@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.200 2004/05/18 02:55:14 nickm Exp $
+# $Id: test.py,v 1.201 2004/07/27 04:34:36 nickm Exp $
 
 """mixminion.tests
 
@@ -3334,7 +3334,7 @@ class QueueTests(FStoreTestBase):
 
         # When we try to send messages again after 5 seconds, nothing happens.
         queue.sendReadyMessages(now+5)
-        self.assertEquals(None, queue._msgs)
+        self.assertEquals([], queue._msgs)
         # When we try to send again after after 11 seconds, message 2 fires.
         queue.sendReadyMessages(now+11)
         msgs = [ (msg.getHandle(), msg.getMessage()) for msg in queue._msgs ]
@@ -5041,8 +5041,6 @@ IP: 192.168.100.4
         key3 = mixminion.server.ServerKeys.ServerKeyset(d, "key2", d)
         key3.load()
         info3 = key3.getServerDescriptor()
-        self.assertEquals(key3.getMMTPKey().get_public_key(),
-                          key2.getMMTPKey().get_public_key())
         self.assertEquals(key3.getPacketKey().get_public_key(),
                           key2.getPacketKey().get_public_key())
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver3")
@@ -5073,7 +5071,10 @@ IP: 192.168.100.4
         ServerDirectory = mixminion.ServerInfo.ServerDirectory
         baseDir = mix_mktemp()
         dirArchiveDir = os.path.join(baseDir, "dirArchive")
-        lst = ServerList(baseDir)
+        cfg = {"Directory":{"ClientVersions":["foo"],
+                            "ServerVersions":["foo","bar"],
+                            } }
+        lst = ServerList(baseDir, cfg)
 
         identity = Crypto.pk_generate(2048)
 
@@ -5132,7 +5133,7 @@ IP: 192.168.100.4
         ServerDirectory(re.sub(r"Fred$", "Fred  ", d))
 
         ### Now, try rescanning the directory.
-        lst = ServerList(baseDir)
+        lst = ServerList(baseDir, cfg)
         eq(len(lst.servers), 4)
         eq(len(lst.serversByNickname), 2)
         eq(len(lst.serversByNickname['fred']), 2)
@@ -5156,7 +5157,7 @@ IP: 192.168.100.4
         baseDir = mix_mktemp()
         archiveDir = os.path.join(baseDir, "archive")
         serverDir = os.path.join(baseDir, "servers")
-        lst = ServerList(baseDir)
+        lst = ServerList(baseDir, cfg)
         # Make sure that when we remove the last of a given server, we
         # still know its ID.
         lst.importServerInfo(examples["Lisa"][1]) # Valid for 2 days.
@@ -5207,7 +5208,7 @@ IP: 192.168.100.4
             fn = os.path.join(serverDir, fn)
             self.assertNotEquals(readFile(fn), examples["Bob"][1])
         # Now try rescanning...
-        lst = ServerList(baseDir)
+        lst = ServerList(baseDir, cfg)
         eq(4, len(lst.servers))
         eq(4, len(lst.serversByNickname["bob"]))
         # ... adding a new bob...
@@ -6383,11 +6384,11 @@ class ServerMainTests(TestCase):
         self.assertEquals(s.firstEventTime(), tm+1.5)
         s.processEvents(tm+1.5)
         self.assertEquals(["c"], lst)
-        diff = abs(s.firstEventTime()-(tm+1))
+        diff = abs(s.firstEventTime()-(tm+1.9))
         self.assert_(diff < 0.1)
 
         s.processEvents(tm+5)
-        self.assertEquals(["c", "c", "d", "b"], lst)
+        self.assertEquals(["c", "d", "b", "c" ], lst)
 
     def testMixPool(self):
         ServerConfig = mixminion.server.ServerConfig.ServerConfig
@@ -6531,7 +6532,10 @@ def getDirectory(servers, identity):
     """Return the filename of a newly created server directory, containing
        the server descriptors provided as literal strings in <servers>,
        signed with the RSA key <identity>"""
-    SL = mixminion.directory.ServerList.ServerList(mix_mktemp())
+    cfg = {"Directory":{"ClientVersions":[mixminion.__version__],
+                        "ServerVersions":["1.0",mixminion.__version__],
+                        } }
+    SL = mixminion.directory.ServerList.ServerList(mix_mktemp(), cfg)
     active = IntervalSet()
     for s in servers:
         SL.importServerInfo(s)
@@ -7744,7 +7748,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(QueueTests))
+        suite.addTest(tc(ServerMainTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
