@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.4 2002/08/31 04:12:36 nickm Exp $
+# $Id: testSupport.py,v 1.5 2002/10/21 02:32:49 nickm Exp $
 
 """mixminion.testSupport
 
@@ -9,12 +9,13 @@
 import os
 import sys
 import stat
+import base64
 
 from mixminion.Common import waitForChildren, createPrivateDir
 from mixminion.Config import _parseBoolean, ConfigError
 from mixminion.Modules import DeliveryModule, ImmediateDeliveryQueue, \
      SimpleModuleDeliveryQueue, DELIVER_OK, DELIVER_FAIL_RETRY, \
-     DELIVER_FAIL_NORETRY
+     DELIVER_FAIL_NORETRY, _escapeMessageForEmail
 
 class DirectoryStoreModule(DeliveryModule):
     """Delivery module for testing: puts messages in files in a given
@@ -70,16 +71,29 @@ class DirectoryStoreModule(DeliveryModule):
 	
     def processMessage(self, message, exitType, exitInfo):
 	assert exitType == 0xFFFE
+	if len(exitInfo) > 20:
+	    tag = exitInfo[:20]
+	    exitInfo = exitInfo[20:]
+	else:
+	    tag = "\000"*20
+
 	if exitInfo == 'fail':
 	    return DELIVER_FAIL_RETRY
 	elif exitInfo == 'FAIL!':
 	    return DELIVER_FAIL_NORETRY
 
+	m = _escapeMessageForEmail(message, tag)
+	if m is None:
+	    # Ordinarily, we'd drop these.
+	    m = """\
+==========CORRUPT OR UNDECODABLE MESSAGE
+Decoding handle: %s%s==========MESSAGE ENDS""" % (
+                      base64.encodestring(tag),
+                      base64.encodestring(message))
+
 	f = open(os.path.join(self.loc, str(self.next)), 'w')
 	self.next += 1
-	f.write(exitInfo)
-	f.write("\n")
-	f.write(message)
+	f.write(m)
 	f.close()
 	return DELIVER_OK
 
