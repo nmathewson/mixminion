@@ -11,7 +11,6 @@ __all__ = [ 'Address', 'ClientKeyring', 'MixminionClient' ]
 
 import getopt
 import os
-import socket
 import sys
 import time
 from types import ListType

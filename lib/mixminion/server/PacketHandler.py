@@ -1,7 +1,7 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.28 2003/10/09 15:26:16 nickm Exp $
+# $Id: PacketHandler.py,v 1.29 2003/10/13 17:30:24 nickm Exp $
 
-"""mixminion.PacketHandler: Code to process mixminion packets on a server"""
+"""mixminion.server.PacketHandler: Code to process mixminion packets"""
 
 import binascii
 import threading

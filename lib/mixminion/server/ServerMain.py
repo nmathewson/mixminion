@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.93 2003/09/28 04:12:29 nickm Exp $
+# $Id: ServerMain.py,v 1.94 2003/10/13 17:30:24 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -168,7 +168,7 @@ class IncomingQueue(mixminion.Filestore.StringStore):
                 if res.isDelivery():
                     res.decode()
 
-                h2 = self.mixPool.queueObject(res)
+                self.mixPool.queueObject(res)
                 self.removeMessage(handle)
                 LOG.debug("Processed message IN:%s; inserting into mix pool",
                           handle)

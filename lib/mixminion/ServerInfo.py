@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.57 2003/10/09 15:26:16 nickm Exp $
+# $Id: ServerInfo.py,v 1.58 2003/10/13 17:30:24 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -292,7 +292,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
             rt = mixminion.Packet.SWAP_FWD_IPV4_TYPE
         else:
             rt = mixminion.Packet.FWD_IPV4_TYPE
-        ri = other.getRoutingInfo().pack()
+        ri = otherDesc.getRoutingInfo().pack()
         return rt, ri
         
     def getCaps(self):

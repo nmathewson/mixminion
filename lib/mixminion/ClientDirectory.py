@@ -365,7 +365,6 @@ class ClientDirectory:
 
         for info, where in self.serverList:
             nn = info.getNickname().lower()
-            keyid = info.getKeyID()
             lists = [ self.allServers, self.byNickname.setdefault(nn, []),
                       self.byKeyID.setdefault(info.getKeyID(), []) ]
             for c in info.getCaps():
@@ -434,7 +433,7 @@ class ClientDirectory:
         return u.values()
 
     def getNicknameByKeyID(self, keyid):
-        s = self.bykeyID.get(keyid)
+        s = self.byKeyID.get(keyid)
         if not s:
             return None
         r = []
@@ -444,14 +443,11 @@ class ClientDirectory:
         return "/".join(r)
 
     def getNameByRelay(self, routingType, routingInfo):
-        assert routingType in (mixminion.Packet.FWD_IPV4_TYPE,
-                               mixminion.Packet.SWAP_FWD_IPV4_TYPE)
-        if type(routingInfo) == types.StringType:
-            routingInfo = mixminion.Packet.parseIPV4Info(routingInfo)
-        assert isinstance(routingInfo, mixminion.Packet.IPV4Info)
-        nn = self.getNicknameByKeyID(self, routingInfo.keyinfo)
+        routingInfo = mixminion.Packet.parseRelayInfoByType(
+            routingType, routingInfo)
+        nn = self.getNicknameByKeyID(routingInfo.keyinfo)
         if nn is None:
-            return "%s:%s"%(routingInfo.ip, routingInfo.port)
+            return routingInfo.format()
         else:
             return nn
 
@@ -619,16 +615,6 @@ class ClientDirectory:
            The path selection algorithm perfers to choose without
            replacement it it can.
         """
-        def setSub(s1, s2):
-            """Helper function. Given two lists of serverinfo, returns all
-               members of s1 that are not members of s2.  ServerInfos are
-               considered equivalent if their nicknames are the same,
-               ignoring case.
-            """
-            n = [ inf.getNickname().lower() for inf in s2 if inf is not None ]
-            return [ inf for inf in s1 
-                     if inf is not None and inf.getNickname().lower() not in n]
-
         # Fill in startAt, endAt, prng if not provided
         if startAt is None:
             startAt = time.time()
