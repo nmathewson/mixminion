@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.20 2002/11/21 18:26:12 nickm Exp $
+# $Id: Queue.py,v 1.21 2002/12/02 03:27:52 nickm Exp $
 
 """mixminion.Queue
 
@@ -205,8 +205,8 @@ class Queue:
            Returns 1 if a clean is already in progress; otherwise
            returns 0.
         """
-	# XXXX Race-prone if multiple processes sometimes try to clean
-	# XXXX the same queue.
+	# XXXX This is race-prone if multiple processes sometimes try to clean
+	# XXXX   the same queue.
         now = time.time()
 
         cleanFile = os.path.join(self.dir,".cleaning")
@@ -262,7 +262,7 @@ class DeliveryQueue(Queue):
        tuples of: (n_retries, addressing info, msg).
 
        This class is abstract. Implementors of this class should
-       subclass it to add a deliverMessages method.  Multiple
+       subclass it to add a _deliverMessages method.  Multiple
        invocations of this method may be active at a given time.  Upon
        success or failure, this method should cause deliverySucceeded
        or deliveryFailed to be called as appropriate.
@@ -291,7 +291,10 @@ class DeliveryQueue(Queue):
 	self.pending = {}
 	self.sendable = self.getAllMessages()
 
-    def queueMessage(self, addr, msg, retry=0):
+    def queueMessage(self, msg):
+	if 1: raise MixError("Tried to call DeliveryQueue.queueMessage.")
+
+    def queueDeliveryMessage(self, addr, msg, retry=0):
 	"""Schedule a message for delivery.
 	     addr -- An object to indicate the message's destination
 	     msg -- the message itself
@@ -318,9 +321,9 @@ class DeliveryQueue(Queue):
 	    messages.append((h, addr, msg, retries))
 	    self.pending[h] = 1
 	if messages:
-	    self.deliverMessages(messages)
+	    self._deliverMessages(messages)
 
-    def deliverMessages(self, msgList):
+    def _deliverMessages(self, msgList):
 	"""Abstract method; Invoked with a list of
   	   (handle, addr, message, n_retries) tuples every time we have a batch
 	   of messages to send.
@@ -329,11 +332,11 @@ class DeliveryQueue(Queue):
 	   should eventually be called, or the message will sit in the queue
 	   indefinitely, without being retried."""
 
-        # We could implement this as a single deliverMessage(h,addr,m,n)
+        # We could implement this as a single _deliverMessage(h,addr,m,n)
 	# method, but that wouldn't allow implementations to batch
 	# messages being sent to the same address.
 
-	raise NotImplementedError("deliverMessages")
+	raise NotImplementedError("_deliverMessages")
 
     def deliverySucceeded(self, handle):
 	"""Removes a message from the outgoing queue.  This method
@@ -356,7 +359,7 @@ class DeliveryQueue(Queue):
 	    # FFFF This test makes us never retry past the 10th attempt.
 	    # FFFF That's wrong; we should be smarter.
 	    if retries <= 10:
-		self.queueMessage(addr, msg, retries+1)
+		self.queueDeliveryMessage(addr, msg, retries+1)
 	self.removeMessage(handle)
 
 class TimedMixQueue(Queue):
