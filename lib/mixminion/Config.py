@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.80 2004/03/07 06:31:46 nickm Exp $
+# $Id: Config.py,v 1.81 2004/03/18 04:48:22 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -974,16 +974,16 @@ class ClientConfig(_ConfigFile):
                    'FileParanoia': ('ALLOW', "boolean", "yes"),
                    },
         'DirectoryServers' :
-                   { '__SECTION__' : ('REQUIRE', None, None),
+                   { '__SECTION__' : ('ALLOW', None, None),
                      'ServerURL' : ('ALLOW*', None, None),
                      'MaxSkew' : ('ALLOW', "interval", "10 minutes"),
                      'DirectoryTimeout' : ('ALLOW', "interval", "1 minute") },
         'User' : { 'UserDir' : ('ALLOW', "filename", DEFAULT_USER_DIR) },
         'Security' : { 'SURBAddress' : ('ALLOW', None, None),
                        'SURBLifetime' : ('ALLOW', "interval", "7 days"),
-                       'ForwardPath' : ('ALLOW', None, "*6"),
-                       'ReplyPath' : ('ALLOW', None, "*4"),
-                       'SURBPath' : ('ALLOW', None, "*4"),
+                       'ForwardPath' : ('ALLOW', None, "~5"),
+                       'ReplyPath' : ('ALLOW', None, "~5"),
+                       'SURBPath' : ('ALLOW', None, "~5"),
                        'BlockServers' : ('ALLOW*', 'list', ""),
                        'BlockEntries' : ('ALLOW*', 'list', ""),
                        'BlockExits' : ('ALLOW*', 'list', ""),

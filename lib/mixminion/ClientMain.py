@@ -1042,7 +1042,7 @@ class CLIArgumentParser:
         else:
             p = 'ForwardPath'
         if self.path is None:
-            self.path = self.config['Security'].get(p, "*5")
+            self.path = self.config['Security'].get(p, "~5")
 
         if isSURB:
             if self.lifetime is not None:
