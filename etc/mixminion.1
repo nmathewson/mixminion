@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.9 2004/04/27 06:10:02 nickm Exp $
+.\" $Id: mixminion.1,v 1.10 2004/05/01 03:57:00 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -338,6 +338,11 @@ outgoing message headers.  You can override its selections with
 .Fl -refereneces ,
 and
 .Fl -in-reply-to .
+.Pp
+By default, Mixminion will check whether you have a recent server directory
+and download a new one as necessary, before it encodes or sends your
+message.  You can force a download (or prevent one) with
+.Fl D .
 .It Cm queue
 Break a message into packets and encode them.  Delivery is not
 attempted until you call
@@ -485,7 +490,7 @@ printed with ASCII armor.
 .Brq list-servers
 List each server's name on a separate line from its validity dates
 and features.  Especially useful in combination with
-.Fl \-no-collapse.
+.It Fl \-no-collapse.
 .It Fl C | Fl \-cascade-features
 .Brq list-servers
 List each server feature on a separate line.  Useful when you have
@@ -497,7 +502,7 @@ Only delete packets that are at least
 days old.  The default is 60.
 .It Fl D Ar {yes|no} | Fl \-download-directory= Ns Ar {yes|no}
 .Brq general
-Override the directory download behavior.  By default, mixminion
+Override the directory download behavior.  By default, Mixminion
 downloads a fresh server directory if the current directory is older
 than midnight, GMT.  If
 .Fl D Ar yes
