@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.3 2004/07/27 23:33:18 nickm Exp $
+# $Id: Pinger.py,v 1.4 2004/07/28 00:04:06 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -21,7 +21,9 @@ import calendar
 import cPickle
 import os
 import re
+import string
 import struct
+import sys
 import threading
 import time
 
@@ -227,8 +229,9 @@ class PingStatusLog(PingLog):
         pend = pr.pendingPings
         pr.pendingPings=None
         # separate these for space savings.
-        writePickled(fname+".pend.gz",pend,gzipped=1)
-        writePickled(fname+".stat.gz",pr,gzipped=1)
+        writePickled(os.path.join(fname+".pend.gz"),
+                     pend,gzipped=1)
+        writePickled(os.path.join(fname+".stat.gz"),pr,gzipped=1)
 
     def _rescanImpl(self):
         # hold lock; restore pingStatus.
@@ -266,6 +269,7 @@ class PingStatusLog(PingLog):
 
     def _loadPingStatus(self):
         # lock is held if any refs to objects are held.
+        LOG.info("Loading ping status from disk")
         dateSet = {}
         for fn in os.listdir(self.location):
             date, tp = self._parseFname(fn)
@@ -278,12 +282,14 @@ class PingStatusLog(PingLog):
         lastStat = None
         for d in dates:
             l,s=dateSet[d].get('log'), dateSet[d].get('stat')
-            if not l or l == self.fname:
+            if not l or os.path.join(self.location,l) == self.fname:
                 continue
-            if not s:
+            if not s and not rescan:
+                LOG.info("Ping-log file %s without ping-stats file; rescanning.", l)
                 rescan = 1
             lastStat = d
         if lastStat and not dateSet[lastStat].has_key('pend'):
+            LOG.info("No pending-pings file to match last ping-stats file; rescanning.")
             rescan = 1
 
         if rescan:
@@ -305,7 +311,7 @@ class PingStatusLog(PingLog):
             else:
                 rescan = self._loadPingStatusImpl(None,None,self.fname)
         except (cPickle.UnpicklingError, OSError, ValueError):
-            rescan = 1
+            LOG.error_exc(sys.exc_info(), "Error while loading ping status")
 
         if rescan:
             #XXXX duplicate code.
@@ -328,7 +334,7 @@ class PingStatusLog(PingLog):
             date, tp = self._parseFname(fn)
             if tp != 'stat': continue
             if date < cutoff: continue
-            if fn == self.fname: continue
+            if os.path.join(self.location,fn) == self.fname: continue
             stats.append((date,
                        readPickled(os.path.join(self.location,fn),gzipped=1)))
         stats.sort()
@@ -378,9 +384,10 @@ def iteratePingLog(file, func):
             continue
         gr = m.groups()
         # parse time, event; make sure right # of args.
-        tm = calendar.timegm(*gr[:6])
+        tm = calendar.timegm(map(string.atoi, gr[:6]))
         event = tuple(gr[6].split())
         if _EVENT_ARGS.get(event[0]) != len(event)-1:
+            # warn unknown, warn bad n args
             continue
         func(tm, event)
 
@@ -527,7 +534,7 @@ class PingStatus:
                 m[nickname] = liveAt-tLast
 
         if self.lastUpdated is not None and self.lastUpdated < liveAt:
-            self.liveness += liveAt-self.last
+            self.liveness += liveAt-self.lastUpdated
 
         self.lastUpdated = liveAt
 
@@ -721,11 +728,11 @@ class _PingScheduler:
         self.pingLog = pingLog
         self.keyring = keyring
     def scheduleAllPings(self, now=None):
-        raise NotImplemented()
+        raise NotImplemented
     def _getPeriodStart(self, t):
-        raise NotImplemented()
+        raise NotImplemented
     def _getPingInterval(self, path):
-        raise NotImplemented()
+        raise NotImplemented
     def _schedulePing(self,path,now=None):
         if now is None: now = time.time()
         periodStart = self._getPeriodStart(now)
@@ -751,7 +758,7 @@ class _PingScheduler:
         else:
             return None
 
-class OneHopPingGenerator(PingGenerator,_PingScheduler):
+class OneHopPingGenerator(_PingScheduler,PingGenerator):
     """DOCDOC"""
     #XXXX008 make this configurable, but not less than 2 hours.
     PING_INTERVAL = 2*60*60
@@ -772,7 +779,7 @@ class OneHopPingGenerator(PingGenerator,_PingScheduler):
     def _getPeriodStart(self, t):
         return previousMidnight(t)
 
-    def _getInterval(self, path):
+    def _getPingInterval(self, path):
         return self.PING_INTERVAL
 
     def sendPings(self, now=None):
@@ -798,7 +805,7 @@ class OneHopPingGenerator(PingGenerator,_PingScheduler):
             self._sendOnePing([n], [myDescriptor])
             self._schedulePing((n,), now+60)
 
-class TwoHopPingGenerator:
+class TwoHopPingGenerator(_PingScheduler, PingGenerator):
     """DOCDOC"""
     #XXXX008 make this configurable, but not less than 2 hours.
     DULL_INTERVAL = 4*ONE_DAY
