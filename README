@@ -1,9 +1,6 @@
-$Id: README,v 1.50 2003/06/12 04:08:09 nickm Exp $
+$Id: README,v 1.51 2003/06/12 06:30:40 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.4.
-
- WARNING!  Mixminion 0.0.4 breaks backward compatibility with version 0.0.3.
- Versions older than 0.0.3 are no longer supported; you should upgrade now.
+This is Mixminion version 0.0.5, from the Mixminion CVS repository.
 
 CONTENTS:
         I.    Overview
@@ -40,116 +37,6 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
-
-NEW IN FINAL 0.0.4 release:
-  BUGFIXES:
-  - Fixed a bug that would sometimes give a useless error message when
-    trying to build a message with a too-long path.
-
-NEW IN VERSION 0.0.4rc4:
-  BUGFIXES:
-  - Improved error message on nonexistent directory.
-  - Fixed a bug (found by Mike Gurski) that could kill a server if a message
-    was received for an old key in between deleting the old key's replay cache,
-    and deleting the old key itself.
-  - Fixed a bug in setting up server directories.
-
-NEW IN VERSION 0.0.4rc3:
-   BUGFIXES:
-   - Memory leaks:
-       - Made server code release memory more aggressively.
-       - Fixed a race condition where messages could be queued on a server
-         connection that was already shutting down.
-       - Fixed memory leaks on certificate checking.
-   - Server bugs:
-       - Fixed a server crash on key-rotation that would occur when to trying
-         to open the same hash log db file twice.
-       - Fixed bug that would crash server if PublicKeyLifetime changed.
-       - Made server differentiate between ENOENT and EACCES when starting.
-       - Fixed a bug that would cause key generation to happen at the wrong
-         times.
-   - Other bugs:
-       - Fixed a bug related to using client keyrings without passwords.
-       - Made ASCII armor more reliable in the face of extraneous space,
-         headerless armor, and so on.
-       - Excluded superceeded servers from directories more thoroughly.
-
-   OTHER CHANGES:
-   - Cosmetic:
-       - Commented most uncommented code.
-       - Refactored path selection again.
-       - Refactored code to use more reliable file accessing functions.
-       - Added more unit tests
-   - Performance enhancements:
-       - Changed recommended OpenSSL version to 0.9.7b.
-   - Implementation quality
-       - Improved a few log messages.
-       - Made included etc/mixminiond.conf more reasonable by using a less
-         aggressive retry schedule, commenting out unused Allow lines, and
-         decreasing PublicKeyLifetime.
-       - Made os.expanduser work on more configuration values.
-   - Enabled threading on more C functions.
-
-NEW IN VERSION 0.0.4rc2:
-   BUGFIXES:
-   - The server shouldn't crash so much when it gets bad TLS errors or
-     timed-out connections.  Sometimes, it will give better errors when it
-     does.
-
-NEW IN VERSION 0.0.4rc1:
-   First steps toward directory automation:
-      - Servers generate new keys and server descriptors when the old ones
-        are close to expiring.  (~2 weeks)
-      - Servers also regenerate server descriptors when their configuration
-        changes.
-      - When a set of keys expires, a server rotates to the next set
-        automatically (with some overlap).
-      - Servers can upload their descriptors to a directory server
-        automatically.
-      - There's a trivial directory backend that accepts signed updates
-        automatically, and queues new servers.
-      - Directories now include a list of which servers are believed to be
-        working correctly.  Right now, this list is still manually
-        configured.
-      - There's a cron job that regenerates the directory every so often.
-
-   Packet format overhaul:
-      - Server RSA keys are now 2048 bits long.
-      - The header representation is more compact now, so we don't pay in
-        space for the increased key length.
-
-   MMTP improvements:
-      - The certificate regime has changed so that key rotation is now
-        possible: instead of authenticating servers based on their TLS
-        keys, we authenticate based on their identity keys, which never
-        change.
-      - Packets sent from a server to itself no longer hit the network.
-      - When relaying messages, a server never opens more than 1 connection
-        at a time to the same server.
-      - MMTP clients now recognize a 'REJECTED' reply that a server can use
-        to refuse messages when under high load.
-
-   Other server improvements:
-      - Servers can (optionally) track the number of packets received,
-        relayed successfully, dropped, and so on.
-      - Servers can recognize and advertise whether they are configured
-        'securely.'
-      - The deliver/retry logic has been largely rewritten.  It should
-        freak out and die less frequently now.  In any case, it also prints
-        better debugging messages, and thrashes the disk less.
-
-   Minor changes:
-      - We now use real OpenPGP-style ASCII-armor.  Accept no substitutes!
-
-   Numerous UI Improvements:
-      - There are saner error messages for many common cases.
-      - Support for multiple SURB keys to prevent identity-blending attack.
-      - There's a new (temporary) 'mixminion ping' command that you can use
-        to tell whether a server is accepting connections.  It's potentially
-        dangerous (if you go pinging all the servers in your path), and has
-        a banner saying so.
-      - The path selection syntax has changed to be more flexible.  (You can
-        now specify a single random hop, or N random hops.)
 
 <See HISTORY file for changes in earlier versions.>
 
