@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.22 2004/08/09 19:29:55 nickm Exp $
+# $Id: Filestore.py,v 1.23 2004/08/09 20:04:59 nickm Exp $
 
 """mixminion.Filestore
 
@@ -533,17 +533,25 @@ def _openDBHash(filename,flag,mode=0666):
        possible, reaches into bsddb.db and uses the DB_RECOVER* flag(s) to
        handle possible corruption from crashing without closing the database.
     """
+    if 1:
+        #XXXX008 This function is borked. Fix it or remove it.
+        return anydbm.open(filename, flag, mode)
     try:
         import bsddb
     except ImportError:
         # Fallback to anydbm, which delegates to dbhash
         return anydbm.open(filename, flag, mode)
     # Adapted from bsddb.hashopen
-    flags = bsddb._checkFlag(flag)
-    flags |= getattr(bsddb.db, "DB_RECOVER", 0)
-    flags |= getattr(bsddb.db, "DB_RECOVER_FATAL", 0)
-    d = bsddb.db.DB()
-    d.set_flags(flags)
+    e = bsddb.db.DBEnv(bsddb.db.DB_PRIVATE|
+                      bsddb.db.DB_CREATE |
+                      bsddb.db.DB_THREAD |
+                      bsddb.db.DB_INIT_LOCK |
+                      bsddb.db.DB_INIT_MPOOL | bsddb.db.DB_RECOVER )
+    flags = bsddb.db.DB_CREATE | bsddb.db.DB_THREAD
+    flags |= getattr(bsddb.db, "DB_AUTO_COMMIT", 0)
+    #flags |= getattr(bsddb.db, "DB_RECOVER", 0)
+    #flags |= getattr(bsddb.db, "DB_RECOVER_FATAL", 0)
+    d = bsddb.db.DB(e)
     d.open(filename, bsddb.db.DB_HASH, flags, mode)
     return bsddb._DBWithCursor(d)
 
