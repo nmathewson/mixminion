@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.32 2003/01/06 11:22:41 nickm Exp $
+# $Id: ClientMain.py,v 1.33 2003/01/06 12:41:49 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -843,10 +843,13 @@ class MixminionClient:
                                                             server.getPort(),
                                                             server.getKeyID())
         try:
-            con.connect()
-            LOG.info("Sending packet(s)")
-            for msg in msgList:
-                con.sendPacket(msg)
+            try:
+                con.connect()
+                LOG.info("Sending packet(s)")
+                for msg in msgList:
+                    con.sendPacket(msg)
+            except socket.error, e:
+                raise MixError("Error sending packets: %s" % e)
         finally:
             con.shutdown()
 
