@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.75 2004/01/08 23:07:31 nickm Exp $
+# $Id: Config.py,v 1.76 2004/01/27 05:30:23 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -302,6 +302,12 @@ def _parseAddressSet_allow(s, allowMode=1):
 
 def _parseAddressSet_deny(s):
     return _parseAddressSet_allow(s,0)
+
+def _parseEmail(s):
+    s = s.strip()
+    if not mixminion.Common.isSMTPMailbox(s):
+        raise ConfigError("%r is not a valid email address."%s)
+    return s
 
 def _parseCommand(command):
     """Validation function.  Converts a config value to a shell command of
@@ -717,6 +723,7 @@ class _ConfigFile:
         "nickname" : (_parseNickname, str),
         "filename" : (_parseFilename, str),
         "user" : (_parseUser, str),
+        "email" : (_parseEmail, str),
         }
 
     _syntax = None
