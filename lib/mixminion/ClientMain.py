@@ -832,10 +832,9 @@ class CLIArgumentParser:
                 self.forceNoQueue = 1
 
         if self.nHops and not self.path:
-            LOG.warn("-H/--hops is deprecated; use -P '*%d' instead",
-                     self.nHops)
+            self.path = '*%d'% self.nHops
         elif self.nHops:
-            LOG.warn("-H/--hops is deprecated")
+            raise UIError("You cannot specify both a path (-P/--path) and a number of hops (-H/--hops)")
 
     def init(self):
         """Configure objects and initialize subsystems as specified by the
@@ -955,7 +954,7 @@ class CLIArgumentParser:
 
         self.pathSpec = mixminion.ClientDirectory.parsePath(
             self.config, self.path, self.nHops, isReply=isReply, isSURB=isSURB,
-            defaultNHops = defHops)
+            defaultNHops=defHops)
         self.directory.validatePath(self.pathSpec, self.exitAddress,
                                     self.startAt, self.endAt)
 
