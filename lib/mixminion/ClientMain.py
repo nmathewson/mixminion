@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.31 2003/01/06 07:03:24 nickm Exp $
+# $Id: ClientMain.py,v 1.32 2003/01/06 11:22:41 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -829,6 +829,7 @@ class MixminionClient:
             path1,path2 -- lists of servers."""
 
         routingType, routingInfo, _ = address.getRouting()
+        LOG.info("Generating payload...")
         msg = mixminion.BuildMessage.buildForwardMessage(
             payload, routingType, routingInfo, servers1, servers2,
             self.prng)
@@ -837,11 +838,13 @@ class MixminionClient:
     def sendMessages(self, msgList, server):
         """Given a list of packets and a ServerInfo object, sends the
            packets to the server via MMTP"""
+        LOG.info("Connecting...")
         con = mixminion.MMTPClient.BlockingClientConnection(server.getAddr(),
                                                             server.getPort(),
                                                             server.getKeyID())
         try:
             con.connect()
+            LOG.info("Sending packet(s)")
             for msg in msgList:
                 con.sendPacket(msg)
         finally:
@@ -860,7 +863,7 @@ def parseAddress(s):
     """
     # ???? Should this should get refactored into clientmodules, or someplace?
     if s.lower() == 'drop':
-        return Address(DROP_TYPE, None, None)
+        return Address(DROP_TYPE, "", None)
     elif s.lower() == 'test':
         return Address(0xFFFE, "", None)
     elif ':' not in s:
@@ -969,6 +972,8 @@ EXAMPLES:
       %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux,Fee,Fie,Foe'
   Specify an explicit path with a swap point
       %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux:Fee,Fie,Foe'
+  Read the message from standard input.
+      %(cmd)s -t user@domain
   Force a fresh directory download
       %(cmd)s -D yes
   Send a message without dowloading a new directory, even if the current
@@ -979,11 +984,10 @@ EXAMPLES:
 def usageAndExit(cmd, error=None):
     if error:
         print >>sys.stderr, "ERROR: %s"%error
-    print >>sys.stderr, _SEND_USAGE % { 'cmd' : cmd }
-    if error:
+        print >>sys.stderr, "For usage, run 'mixminion send --help'"
         sys.exit(1)
-    else:
-        sys.exit(0)
+    print >>sys.stderr, _SEND_USAGE % { 'cmd' : "mixminion send" }
+    sys.exit(0)
 
 # NOTE: This isn't anything LIKE the final client interface.  Many or all
 #       options will change between now and 1.0.0
@@ -1000,7 +1004,7 @@ def runClient(cmd, args):
     if not options:
         usageAndExit(cmd)
     configFile = '~/.mixminionrc'
-    inFile = "-"
+    inFile = None
     verbose = 0
     path = None
     nHops = None
@@ -1031,7 +1035,11 @@ def runClient(cmd, args):
             except ValueError:
                 usageAndExit(cmd, "%s expects an integer"%opt)
         elif opt in ('-t', '--to'):
-            address = parseAddress(val)
+            try:
+                address = parseAddress(val)
+            except ParseError, e:
+                print >>sys.stderr, e
+                sys.exit(1)
         elif opt in ('-D', '--download-directory'):
             download = val.lower()
             if download in ('0','no','false','n','f'):
@@ -1039,7 +1047,8 @@ def runClient(cmd, args):
             elif download in ('1','yes','true','y','t','force'):
                 download = 1
             else:
-                usageAndExit(cmd, "Unrecognized value for %s"%opt)
+                usageAndExit(cmd,
+                      "Unrecognized value for %s. Expected 'yes' or 'no'"%opt)
 
     if args:
         usageAndExit(cmd,"Unexpected arguments")
@@ -1066,7 +1075,7 @@ def runClient(cmd, args):
 
     try:
         path1, path2 = parsePath(keystore, config, path, address, nHops, nSwap)
-        LOG.info("Chose path: [%s][%s]",
+        LOG.info("Selected path is [%s][%s]",
                  " ".join([ s.getNickname() for s in path1 ]),
                  " ".join([ s.getNickname() for s in path2 ]))
     except MixError, e:
@@ -1075,16 +1084,34 @@ def runClient(cmd, args):
 
     client = MixminionClient(config)
 
-    if inFile == '-':
-        f = sys.stdin
+    # XXXX Clean up this ugly control structure.
+    if inFile is None and address.getRouting()[0] == DROP_TYPE:
+        payload = ""
+        print >>sys.stderr, "Sending dummy message"
     else:
-        f = open(inFile, 'r')
-    payload = f.read()
-    f.close()
+        if address.getRouting()[0] == DROP_TYPE:
+            LOG.warn("Sending a payload with a dummy message makes no sense")
+        
+        if inFile is None:
+            inFile = "-"        
+
+        if inFile == '-':
+            f = sys.stdin
+            print >>sys.stderr, \
+                  "Enter your message now.  Type Ctrl-D when you are done."
+        else:
+            f = open(inFile, 'r')
+        
+        try:
+            payload = f.read()
+            f.close()
+        except KeyboardInterrupt:
+            print >>sys.stderr, "Interrupted.  Message not sent."
+            sys.exit(1)
 
     client.sendForwardMessage(address, payload, path1, path2)
 
-    print >>sys.stderr, "Message sent"
+    LOG.info("Message sent")
 
 _IMPORT_SERVER_USAGE = """\
 Usage: %s [options] <filename> ...
