@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.24 2003/01/07 19:17:57 nickm Exp $
+# $Id: ServerMain.py,v 1.25 2003/01/07 19:19:54 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -126,7 +126,7 @@ class MixPool:
             return
         handles = self.queue.getBatch()
         LOG.debug("%s messages in the mix pool; delivering %s.",
-                  self.queue.count(), len(handles)
+                  self.queue.count(), len(handles))
         
         for h in handles:
             tp, info = self.queue.getObject(h)
