@@ -76,12 +76,12 @@ class ClientDirectory:
     # _diskLock: An instance of RLock or Lockfile, used to synchronize
     #    access to the disk.
     ## Layout:
-    # DIR/cache: A cPickled tuple of ("ClientKeystore-0.3",
-    #         lastModified, lastDownload, clientVersions, serverList,
-    #         fullServerList, digestMap)
+    # DIR/cache: A cPickled tuple of ("ClientKeystore-0.4",
+    #         lastModified, lastDownload, clientVersions, serverVersions,
+    #         serverList, fullServerList, digestMap)
     # DIR/dir.gz *or* DIR/dir: A (possibly gzipped) directory file.
     # DIR/imported/: A directory of server descriptors.
-    MAGIC = "ClientKeystore-0.3"
+    MAGIC = "ClientKeystore-0.4"
 
     # The amount of time to require a path to be valid, by default.
     #
@@ -285,7 +285,7 @@ class ClientDirectory:
 
             s_clientVersions = (
                 directory['Recommended-Software'].get("MixminionClient"))
-            s_clientVersions = (
+            s_serverVersions = (
                 directory['Recommended-Software'].get("MixminionServer"))
             break
 
@@ -338,13 +338,13 @@ class ClientDirectory:
             magic = cached[0]
             if magic == self.MAGIC:
                 _, self.lastModified, self.lastDownload, \
-                   self.clientVersions, self.serverList, \
+                   self.clientVersions, self.serverVersions, self.serverList, \
                    self.fullServerList, self.digestMap \
                    = cached
                 self.__rebuildTables()
                 return
             else:
-                LOG.warn("Bad version on directory cache; rebuilding...")
+                LOG.warn("Unrecognized version on directory cache; rebuilding...")
         except (OSError, IOError):
             LOG.info("Couldn't read directory cache; rebuilding")
         except (cPickle.UnpicklingError, ValueError), e:
@@ -359,7 +359,8 @@ class ClientDirectory:
         try:
             data = (self.MAGIC,
                     self.lastModified, self.lastDownload,
-                    self.clientVersions, self.serverList, self.fullServerList,
+                    self.clientVersions, self.serverVersions,
+                    self.serverList, self.fullServerList,
                     self.digestMap)
             writePickled(os.path.join(self.dir, "cache"), data)
         finally:
@@ -586,6 +587,18 @@ class ClientDirectory:
                 if desc.getNickname().lower() not in r:
                     r.append(desc.getNickname())
             return "/".join(r)
+        finally:
+            self._lock.read_out()
+
+    def getKeyIDByNickname(self, nickname):
+        """DOCDOC"""
+        self._lock.read_in()
+        try:
+            s = self.byNickname.get(nickname.lower())
+            if not s:
+                return None
+            desc, _ = s[0]
+            return desc.getKeyDigest()
         finally:
             self._lock.read_out()
 
