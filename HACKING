@@ -1,4 +1,4 @@
-$Id: HACKING,v 1.22 2003/08/31 19:22:21 nickm Exp $
+$Id: HACKING,v 1.23 2003/12/12 22:37:12 nickm Exp $
 Hacking Mixminion
 
 Requirements:
@@ -22,25 +22,6 @@ NON-HACKING PROJECTS:
 
 THINGS TO HACK:  (Good introductory projects that I won't get to myself for
   at least a version or two.)
-
-- Last time I checked, the client and server could run okay on Cygwin.  More
-  people should try it out, and see what needs to be done.
-
-- We need a native (non-Cygwin) windows port!  (Right now, I can make the
-  client work, but the server needs to be tested, and we need an installer.)
-  Most of the code is in Python, and what C we have builds fine.  Some known
-  issues in the source are marked with comments labeled WWWW.  Other areas of
-  potential difficulty are:
-      - Binaries and installer.  (We should provide two versions: one that
-        comes with a Python interpreter, and one that doesn't. They should
-        both be easy to generate.)
-      - The signal code may not be correct; Windows signals may work
-        differently in subtle ways.  [This is mostly a server issue, but the
-        client code uses SIGALRM to timeout dead connections.]
-      - The 'daemonize' code in ServerMain.py is almost certainly not
-        right on windows.
-      - There will be other, as-yet-unexpected issues. :)
-  (Difficulty: moderate.  Invasiveness: moderate)
 
 - We need some distributed stress-test code.  Ideally, it should use SSH to
   build Mixminion on a number of machines and start servers on those

@@ -1,6 +1,6 @@
-$Id: README,v 1.64 2003/12/08 06:45:28 nickm Exp $
+$Id: README,v 1.65 2003/12/12 22:37:12 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.6rc1, from the Mixminion CVS repository.
+This is Mixminion version 0.0.6rc2, from the Mixminion CVS repository.
 
 CONTENTS:
         I.    Overview
@@ -37,6 +37,15 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.6rc2:
+   - Fixed a couple of bugs that would prevent Mixminion from running on
+     Python 2.0 or Python 2.1.
+
+   - Fixed a build problem with stand-alone Windows builds: the 'bsddb'
+     module was not included, so we were defaulting to the slow and
+     inefficient 'dumbdbm' module to store hash logs, SURB logs, and fragment
+     indexes.
 
 NEW IN VERSION 0.0.6rc1:
    - Windows support
@@ -154,9 +163,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version: For Unix-clones, Mac OS X, or Windows with Cygwin
 ---------------------------------------------------------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.6rc1.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.6rc2.tar.gz>
 
-  % cd Mixminion-0.0.6rc1
+  % cd Mixminion-0.0.6rc2
   % make download-openssl
   % make build-openssl
   % make
@@ -223,7 +232,7 @@ The very easy version: For Windows
 
    First, make sure that you're running Win98 or later.
 
-   Download 'mixminion-v006rc1-win32.zip", and unpack it anywhere you like.
+   Download 'mixminion-v0.0.6rc2-win32.zip", and unpack it anywhere you like.
    It will create a directory named 'mixminion'.
 
    Use mixminion.exe from that directory as your command-line client.
@@ -240,7 +249,7 @@ The slightly harder version: For Windows with Python 2.3
    First, make sure that you have the latest official release of Python 2.3
    installed.  As of 5 Dec 2003, this is 2.3.2.
 
-   Download and run "mixminion-v0.0.6rc1.win32-py2.3.exe".  It will unpack
+   Download and run "mixminion-v0.0.6rc2.win32-py2.3.exe".  It will unpack
    its files into your Python directory.
 
    The script to invoke Mixminion will be stored in the 'Scripts'

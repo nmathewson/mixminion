@@ -158,24 +158,22 @@ TCP latency, and me.)
                 D Tests for ServerInbox and Directory.py
                 D Tests for checkConsistency
                 o What happens when Overlap > Lifetime? (Test manually.)
-        . Cleanup for release
+        o Cleanup for release
                 o Resolve all XXXX006 and DOCDOC items
                 o Resolve all pending bugzilla bugs
                 o Resolve all pending mail bugs
                 o Make README accurate again
-                - Document new 'server-start' switches
+                o Document new 'server-start' switches
 
-For 0.0.7: [Incomplete list: right now, mostly contains 0.0.6 stuff.]
+For 0.0.7:
         - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
-                - Clear up specification for multiple addrs on MAIL
-                - Implement changes as needed, depending on migration
-                  plans.
-                - Add versioning to payload format? (Migration code as
-                  needed.)
+                o Clear up specification for multiple addrs on MAIL
         - Infrastructure -- high level
                 - Servers need to download and use directories
+                - Servers should use downloaded directories to print useful
+                  nicknames for other servers rather than just IP addresses.
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
                 - Make processing thread and module thread general
@@ -183,10 +181,6 @@ For 0.0.7: [Incomplete list: right now, mostly contains 0.0.6 stuff.]
         - UI improvements
                 - RFC822 interface and maildir-style exit module to help
                   integrators.
-        - MMTP
-                - Make MMTP bursty
-                - There's no need to ever store MMTP keys to disk; we should
-                  also rotate them more often.
         - Large reply messages and efwd messages
                 - Fragment-pool logic for client
         - Manual pages
@@ -201,30 +195,17 @@ For 0.0.7: [Incomplete list: right now, mostly contains 0.0.6 stuff.]
                 - Maybe add a page for Mixminion integration.
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
-[Release criteria: Workable replacement for type II.  At least as
-anonymous, usable, secure, and portable.  Nymservers aren't in, so
-not yet ready to replace type I.]
-
+  [Release criteria: Workable replacement for type II.  At least as
+  anonymous, usable, secure, and portable.  Other than lack of nymservers,
+  also ready to replace type I.  Interfaces are stable enough that
+  integrators can start building GUIs and nymservers without expecting large
+  incompatible changes.  Target: first half of 2004.  (No guarantees!)]
         - Dummies and pinging
-        - Key management
-                - Document "DELKEYS"
-                - Password-protected private identity keys
-                - Password-protected private link/packet keys
-                - Password-protected dirserver keys
         - Security
-                - Add ability to mark nodes as having same
-                  administrative domain.
-                - Change pathgen to avoid two nodes with same domain
-                  in a row.
-                - Change pathgen to avoid using same node for entry
-                  and exit?
-                - Add jurisdictions to pathgen?
                 - Make createPrivateDirs gripe about group-writable parent
                   dirs
         - Modules and module support
-                - Use STARTTLS as available
-                - Move boilerplate into outside files.  Add some generic
-                  'Boilerplate' functionality.
+                - Use STARTTLS as available, it it's not too hard.
                 - Real SMTP module
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
@@ -235,15 +216,12 @@ not yet ready to replace type I.]
                   downloading directories.
                 - Make client-side pooling configurable and more
                   sophisticated.
-                - Reload configuration on SIGHUP
-                - Support for one-side-only MMTP configurations.
                 . Freak out properly on missing/unpublishable IP.
                 . Full validation function for client
                 . Full validation function for server
                 - Support for non-clique topologies (cliques with a few
                   missing links would be sufficient.)
         - Client support
-                - Support for sending multiple copies of a packet?
                 - Automatically remove old messages from client queue. (Add
                   'warn after' and 'delete after' configuration options'.)
                 - Flush messages to a single mix, or set of mixes.
@@ -264,20 +242,7 @@ not yet ready to replace type I.]
                         o flock
                         - Installing to relative path
                 . An init.d script.
-        - Testing
-                - Test on other (non-redhat, non-linux) systems
-                - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
-                  CLI'S AND MULTI-SERVER SITUATIONS.
-                - Integration tests
-                        - Automated tests for several servers running
-                          on one machine.
-                        - Tests for servers on several different
-                          machines.
-                - Repeatable CLI tests.
-                        - For client
-                        - For server
-        - Support for multiple directories, no automated agreement. [But do
-          automated agreement if it's specified!]
+        - Support for multiple directories, with automated agreement.
                 - Configurable dirserver fingerprints and URLs.
         - Full documentation
                 - Complete docs for all code, with comments and examples.
@@ -309,9 +274,26 @@ not yet ready to replace type I.]
 Other features for "1.0" (no research required):
         - Full statistics
                 - Full statistics (ask Len what the list is.)
+        - Security
+                - Add ability to mark nodes as having same
+                  administrative domain.
+                - Change pathgen to avoid two nodes with same domain
+                  in a row.
+                - Change pathgen to avoid using same node for entry
+                  and exit?
+                - Add jurisdictions to pathgen?
+        - Key management
+                - Document "server-DELKEYS"
+                - Password-protected private identity keys
+                - Password-protected private link/packet keys
+                - Password-protected dirserver keys
+                - There's no need to ever store MMTP keys to disk; we should
+                  also rotate them more often.  (Only if identity key is
+                  unencrytped.)
         - Better CLIs
                 - Add a --status-fd option similar to GPG's so that
                   we can be more easily embedded.
+                - Support for sending multiple copies of a packet?
         - ClientAPI correctness
                 - Port ClientAPI from C API document.
                 - Move other functionality into ClientSupport module.
@@ -325,26 +307,26 @@ Other features for "1.0" (no research required):
         o Refactoring/cleanup
                 o Put 'address' someplace more reasonable.
         - Configurability
-                - Put pid and lock and key and queues in different
+                o Put pid and lock and key and queues in different
                   places; coalesce pid and lock.
                 - Make all filenames in server config relative to
                   server home, if not absolute.
+                - Support for one-side-only MMTP configurations.
                 X Make zlib bomb prevention configurable.
                 - Separate error/other log files.
+                - Move boilerplate into outside files.  Add some generic
+                  'Boilerplate' functionality.
                 - Make SURB logging configurable.
                 - Add 'ALLOW' lines to blacklist.
         - Client support
                 - Some way to read a reply block *and* a message from
                 stdin?
-        - Directory support
-                - Servers should download directories
-                - Servers should use downloaded directories to print useful
-                  nicknames for other servers rather than just IP addresses.
         - Port to Twisted, if reasonable (see HACKING)
         - Send/receive large messages without having to suck them all
           into RAM at once.
                 - Fragment and unfragment large messages on disk.
         - MMTP / async
+               - Make MMTP bursty, at least on client side.
                - Tests for all cases:
                         - Packet to server with bogus IP
                         - Junk
@@ -353,6 +335,18 @@ Other features for "1.0" (no research required):
                         - Bad senders
                         - Bad recipients
                         - Hunt down leaks
+        - Testing
+                - Test on other (non-redhat, non-linux) systems
+                - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
+                  CLI'S AND MULTI-SERVER SITUATIONS.
+                - Integration tests
+                        - Automated tests for several servers running
+                          on one machine.
+                        - Tests for servers on several different
+                          machines.
+                - Repeatable CLI tests.
+                        - For client
+                        - For server
 
 Features for "1.0" (some research/specification required):
         - Nymservers
@@ -387,7 +381,6 @@ Features for "1.0" (some research/specification required):
         - Generate link padding (if it helps)
         - Notice active attacks and block IPs dynamically.
         - Abuse prevention of some undetermined kind.
-
 
 WHEN WE GET THE CHANCE:
         [This stuff could be for any version 1.0 or later; it's not a

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.49 2003/11/28 04:14:04 nickm Exp $
+# $Id: benchmark.py,v 1.50 2003/12/12 22:37:13 nickm Exp $
 
 """mixminion.benchmark
 
@@ -560,13 +560,13 @@ def serverProcessTiming():
                                   [server, server], [server, server])
 
     print "Server process (no swap, no log)", timeit(
-        lambda sp=sp, m_noswap=m_noswap: sp.processMessage(m_noswap), 100)
+        lambda sp=sp, m_noswap=m_noswap: sp.processPacket(m_noswap), 100)
 
     m_swap = buildForwardPacket(payload, SMTP_TYPE, "f@invalid",
                                  [server], [server, server])
 
     print "Server process (swap, no log)", timeit(
-        lambda sp=sp, m_swap=m_swap: sp.processMessage(m_swap), 100)
+        lambda sp=sp, m_swap=m_swap: sp.processPacket(m_swap), 100)
 
 def encodingTiming():
     print "#=============== END-TO-END ENCODING =================="
@@ -673,7 +673,7 @@ def timeEfficiency():
                                   [server, server], [server, server])
 
     sp_ns = timeit_(
-        lambda sp=sp, m_noswap=m_noswap: sp.processMessage(m_noswap), 100)
+        lambda sp=sp, m_noswap=m_noswap: sp.processPacket(m_noswap), 100)
 
     expected = rsa_128b+sha1_hdr+sha1_key*5+aes_2k+lioness_28k+prng_128b
     expected += lioness_2k
