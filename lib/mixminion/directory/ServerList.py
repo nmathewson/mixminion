@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.24 2003/05/30 02:11:11 nickm Exp $
+# $Id: ServerList.py,v 1.25 2003/05/30 02:18:12 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -114,7 +114,6 @@ class ServerList:
         createPrivateDir(self.archiveDir)
         createPrivateDir(self.dirArchiveDir)
         self.rescan()
-
         
     def isServerKnown(self, server):
         """Return true iff the current server descriptor is known.  Raises
@@ -391,7 +390,14 @@ class ServerList:
                              filename)
                     continue
                 nickname, key = t[1]
-                self.serverIDs[nickname.lower()] = pk_decode_public_key(key)
+                key = pk_decode_public_key(key)
+                if self.serverIDs.has_key(nickname.lower()):
+                    LOG.warn("Eeek! Multiple entries for %s", nickname)
+                    if not pk_same_public_key(self.serverIDs[nickname.lower()],
+                                              key):
+                        raise MixFatalError(
+                            "Multiple conflicting entries for %s"%nickname)
+                self.serverIDs[nickname.lower()] = key
 
             # (check for consistency)
             for s in self.servers.values():
