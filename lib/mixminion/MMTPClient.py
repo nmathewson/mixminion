@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.37 2003/09/04 16:08:13 nickm Exp $
+# $Id: MMTPClient.py,v 1.38 2003/09/24 01:03:14 arma Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -283,7 +283,7 @@ class PeerCertificateCache:
         try:
             tls.check_cert_alive()
         except _ml.TLSError, e:
-            raise MixProtocolBadAuth("Invalid certificate: %s", str(e))
+            raise MixProtocolBadAuth("Invalid certificate: %s" % str(e))
 
         # If we don't care whom we're talking to, we don't need to check
         # them out.
@@ -299,7 +299,7 @@ class PeerCertificateCache:
         # compatibility as well.
         if targetKeyID == hashed_peer_pk:
             raise MixProtocolBadAuth(
-               "Pre-0.0.4 (non-rotatable) certificate from server at %s",
+               "Pre-0.0.4 (non-rotatable) certificate from server at %s" %
                address)
 
         try:
