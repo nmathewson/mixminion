@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.71 2004/02/21 00:02:09 nickm Exp $
+# $Id: Modules.py,v 1.72 2004/02/25 06:03:11 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -927,7 +927,6 @@ class EmailAddressSet:
         return 0
 
 #----------------------------------------------------------------------
-
 def _cleanMaxSize(sz,modname):
     """Given a 'Maximum-Size' configuration value, ensure that it's at least
        32KB, and round it up to the next highest 1KB increment.  Use 'modname'
@@ -941,6 +940,14 @@ def _cleanMaxSize(sz,modname):
         LOG.warn("Rounding %s maximum message size up to %s KB",modname,kb)
         sz = 1024*kb
     return sz
+
+DEFAULT_SUBJECT_LINE = "Type III Anonymous Message"
+DEFAULT_MBOX_DISCLAIMER = """\
+THIS IS AN ANONYMOUS MESSAGE.  The Mixminion server '%(nickname)s' at
+<%(IP)s has been configured to deliver messages to your address.
+If you do not want to receive messages in the future, contact %(removeaddress)s
+and you will be removed."""
+DEFAULT_SMTP_DISCLAIMER = ""
 
 class MailBase:
     """Implementation class: contains code shared by modules that send email
@@ -957,6 +964,19 @@ class MailBase:
     # maxMessageSize: Largest allowable size (after decompression, before
     #   base64) for outgoing messages.
     # allowFromAddr: Boolean: do we support user-supplied from addresses?
+
+    COMMON_OPTIONS = { 
+        'MaximumSize' : ('ALLOW', "size", "100K"),
+        'AllowFromAddress' : ('ALLOW', "boolean", "yes"),
+        'SubjectLine' : ('ALLOW', None,
+                         'Type III Anonymous Message'),
+        'X-Abuse' : ('ALLOW', None, None),
+        'Comments' : ('ALLOW', None, None),
+        'Message' : ('ALLOW', None, None),
+        'FromTag' : ('ALLOW', None, "[Anon]"),
+        'ReturnAddress' : ('ALLOW', None, None),
+        }
+        
     def _formatEmailMessage(self, address, packet):
         """Given a RFC822 mailbox (delivery address), and an instance of
            DeliveryMessage, return a string containing a message to be sent
@@ -988,10 +1008,36 @@ class MailBase:
 
         # Decode and escape the message, and get ready to send it.
         msg = _escapeMessageForEmail(packet)
-        msg = "To: %s\nFrom: %s\nSubject: %s\n%s%s\n\n%s"%(
+        msg = "To: %s\nFrom: %s\nSubject: %s\n%s%s%s"%(
             address, fromAddr, subject, "".join(morelines), self.header, msg)
 
         return msg
+
+    def initializeHeaders(self, sec):
+        """Sets subject and returns a string that can be added to message 
+           headers."""
+        # set subject
+        self.subject = _wrapHeader(sec.get("SubjectLine").strip()).strip()
+
+        header = [ "X-Anonymous: yes\n" ]
+
+        # I'm putting this in a list so adding headers will be simple
+        for h in ['X-Abuse', 'Comments']:
+            val = sec.get(h)
+            if val:
+                header.append(_wrapHeader("%s: %s" % (h, val)))
+
+        # Blank line between headers and body
+        header.append("\n")
+
+        # see if we have a disclaimer
+        disclaimer = sec.get("Message")
+        if disclaimer:
+            header.append("\n".join(textwrap.wrap(disclaimer.strip())))
+            # blank line between disclaimer and body.
+            header.append("\n\n")
+
+        self.header = "".join(header)
 
 #----------------------------------------------------------------------
 class MBoxModule(DeliveryModule, MailBase):
@@ -1023,18 +1069,15 @@ class MBoxModule(DeliveryModule, MailBase):
     def getConfigSyntax(self):
         # FFFF There should be some way to say that fields are required
         # FFFF if the module is enabled.
-        return { "Delivery/MBOX" :
-                 { 'Enabled' : ('REQUIRE',  "boolean", "no"),
-                   'Retry': ('ALLOW', "intervalList",
-                             "7 hours for 6 days"),
-                   'AddressFile' : ('ALLOW', "filename", None),
-                   'ReturnAddress' : ('ALLOW', None, None),
-                   'RemoveContact' : ('ALLOW', None, None),
-                   'AllowFromAddress' : ('ALLOW', "boolean", 'yes'),
-                   'SMTPServer' : ('ALLOW', None, 'localhost'),
-                   'MaximumSize' : ('ALLOW', "size", "100K"),
-                   }
-                 }
+        cfg = { 'Enabled' : ('REQUIRE',  "boolean", "no"),
+                'Retry': ('ALLOW', "intervalList",
+                          "7 hours for 6 days"),
+                'AddressFile' : ('ALLOW', "filename", None),
+                'RemoveContact' : ('ALLOW', None, None),
+                'SMTPServer' : ('ALLOW', None, 'localhost'),
+                }
+        cfg.update(MailBase.COMMON_OPTIONS)
+        return { "Delivery/MBOX" : cfg }
 
     def validateConfig(self, config, lines, contents):
         sec = config['Delivery/MBOX']
@@ -1078,15 +1121,8 @@ class MBoxModule(DeliveryModule, MailBase):
                                             "Delivery/MBOX")
 
         # These fields are needed by MailBase
-        self.subject = "Type III Anonymous Message"
+        self.initializeHeaders(sec)
         self.fromTag = "[Anon]"
-        self.header = """\
-X-Anonymous: yes
-
-THIS IS AN ANONYMOUS MESSAGE.  The mixminion server '%s' at
-%s has been configured to deliver messages to your address.
-If you do not want to receive messages in the future, contact %s
-and you will be removed.""" %(self.nickname, self.addr, self.contact)
 
         # Parse the address file.
         self.addresses = {}
@@ -1184,25 +1220,19 @@ class DirectSMTPModule(SMTPModule):
     def __init__(self):
         SMTPModule.__init__(self)
 
+
     def getRetrySchedule(self):
         return self.retrySchedule
 
     def getConfigSyntax(self):
-        return { "Delivery/SMTP" :
-                 { 'Enabled' : ('REQUIRE', "boolean", "no"),
-                   'Retry': ('ALLOW', "intervalList",
-                             "7 hours for 6 days"),
-                   'BlacklistFile' : ('ALLOW', "filename", None),
-                   'SMTPServer' : ('ALLOW', None, 'localhost'),
-                   'AllowFromAddress': ('ALLOW', "boolean", "yes"),
-                   'Message' : ('ALLOW', None, ""),
-                   'ReturnAddress': ('ALLOW', None, None), #Required on e
-                   'FromTag' : ('ALLOW', None, "[Anon]"),
-                   'SubjectLine' : ('ALLOW', None,
-                                    'Type III Anonymous Message'),
-                   'MaximumSize' : ('ALLOW', "size", "100K"),
-                   }
-                 }
+        cfg = { 'Enabled' : ('REQUIRE', "boolean", "no"),
+                'Retry': ('ALLOW', "intervalList",
+                          "7 hours for 6 days"),
+                'BlacklistFile' : ('ALLOW', "filename", None),
+                'SMTPServer' : ('ALLOW', None, 'localhost'),
+                }
+        cfg.update(MailBase.COMMON_OPTIONS)
+        return { "Delivery/SMTP" : cfg }
 
     def validateConfig(self, config, lines, contents):
         sec = config['Delivery/SMTP']
@@ -1232,15 +1262,11 @@ class DirectSMTPModule(SMTPModule):
             self.blacklist = EmailAddressSet(fname=sec['BlacklistFile'])
         else:
             self.blacklist = None
-        message = "\n".join(textwrap.wrap(sec.get('Message',""))).strip()
-        self.subject = sec['SubjectLine']
         self.returnAddress = sec['ReturnAddress']
         self.fromTag = sec.get('FromTag', "[Anon]")
         self.allowFromAddr = sec['AllowFromAddress']
-        if message:
-            self.header = "X-Anonymous: yes\n\n%s" %(message)
-        else:
-            self.header = "X-Anonymous: yes"
+
+        self.initializeHeaders(sec)
 
         self.maxMessageSize = _cleanMaxSize(sec['MaximumSize'],
                                             "Delivery/SMTP")
@@ -1295,19 +1321,14 @@ class MixmasterSMTPModule(SMTPModule):
         return self.retrySchedule
 
     def getConfigSyntax(self):
-        return { "Delivery/SMTP-Via-Mixmaster" :
-                 { 'Enabled' : ('REQUIRE', "boolean", "no"),
-                   'Retry': ('ALLOW', "intervalList",
-                             "7 hours for 6 days"),
-                   'MixCommand' : ('REQUIRE', "command", None),
-                   'Server' : ('REQUIRE', None, None),
-                   'FromTag' : ('ALLOW', None, "[Anon]"),
-                   'SubjectLine' : ('ALLOW', None,
-                                    'Type III Anonymous Message'),
-                   'MaximumSize' : ('ALLOW', "size", "100K"),
-                   'AllowFromAddress' : ('ALLOW', "boolean", "yes"),
-                   }
-                 }
+        cfg = { 'Enabled' : ('REQUIRE', "boolean", "no"),
+                'Retry': ('ALLOW', "intervalList",
+                          "7 hours for 6 days"),
+                'MixCommand' : ('REQUIRE', "command", None),
+                'Server' : ('REQUIRE', None, None),
+                }
+        cfg.update(MailBase.COMMON_OPTIONS)
+        return { "Delivery/SMTP-Via-Mixmaster" : cfg }
 
     def validateConfig(self, config, lines, contents):
         #FFFF write more
@@ -1323,14 +1344,13 @@ class MixmasterSMTPModule(SMTPModule):
             return
         cmd = sec['MixCommand']
         self.server = sec['Server']
-        self.subject = sec['SubjectLine']
         self.retrySchedule = sec['Retry']
         self.fromTag = sec.get('FromTag', "[Anon]")
         self.allowFromAddr = sec['AllowFromAddress']
         self.command = cmd[0]
         self.options = tuple(cmd[1]) + ("-l", self.server)
         self.returnAddress = "nobody"
-        self.header = "X-Anonymous: yes"
+        self.initializeHeaders(sec)
         self.maxMessageSize = _cleanMaxSize(sec['MaximumSize'],
                                             "Delivery/SMTP-Via-Mixmaster")
         manager.enableModule(self)
@@ -1437,6 +1457,13 @@ def sendSMTPMessage(server, toList, fromAddr, message):
     return res
 
 #----------------------------------------------------------------------
+
+def _wrapHeader(text):
+    """Wraps a header. If it's more than 70 characters long, adds
+       spaces to the next lines so it's properly indented."""
+    lines = textwrap.wrap(text.strip(), width=70, subsequent_indent="    ")
+    lines.append("") # to get final \n
+    return "\n".join(lines)
 
 def _escapeMessageForEmail(packet):
     """Helper function: Given a DeliveryPacket, escape the message if

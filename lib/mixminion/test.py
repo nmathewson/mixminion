@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.185 2004/02/21 00:02:09 nickm Exp $
+# $Id: test.py,v 1.186 2004/02/25 06:03:11 nickm Exp $
 
 """mixminion.tests
 
@@ -5349,11 +5349,6 @@ From: returnaddress@x
 Subject: Type III Anonymous Message
 X-Anonymous: yes
 
-THIS IS AN ANONYMOUS MESSAGE.  The mixminion server 'nickname' at
-<Unknown IP> has been configured to deliver messages to your address.
-If you do not want to receive messages in the future, contact removeaddress@x
-and you will be removed.
-
 This message is not in plaintext.  It's either 1) a reply; 2) a forward
 message encrypted to you; or 3) junk.
 
@@ -5709,6 +5704,7 @@ Free to hide no more.
                            "SMTPServer" : "foo.bar.baz",
                            "MaximumSize" : 32*1024,
                            "AllowFromAddress": 1,
+                           "SubjectLine" : "Type III Anonymous Message"
                            }}, manager)
         # Check that the address file was read correctly.
         self.assertEquals({'mix-minion': 'mixminion@thishost',

@@ -5,17 +5,20 @@ Acknowledgements
    code or patches to Mixminion.  Thanks, everyone!
 
 Roger Dingledine
+Brian L. Fordham
 Lucky Green
 Peter Palfrader
 Robyn Wagner
 Brian Warner
 Bryce "Zooko" Wilcox-O'Hearn
 
-   Special thanks go to Christopher Porter, whose donation of
-   a copy of Visual Studio 6 made a native Windows port possible.
+   Special thanks go to Christopher Porter, whose donation of a copy
+   of Visual Studio 6 made the first native Windows port possible;
+   and to the as-now anonymous donor who got me an MSDN subscription
+   to make the Windows port better.
 
-   Finaly, thanks to George Danezis and the whole Mixminion-Dev team
+   Finally, thanks to George Danezis and the whole Mixminion-Dev team
    for their work on the Type III remailer design.
 
                                               -- Nick
-$Id: ACKS,v 1.5 2004/01/15 21:03:50 nickm Exp $
+$Id: ACKS,v 1.6 2004/02/25 06:03:11 nickm Exp $
