@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.32 2003/02/13 07:03:50 nickm Exp $
+# $Id: Modules.py,v 1.33 2003/02/20 02:19:56 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -722,7 +722,7 @@ class MBoxModule(DeliveryModule):
         msg = """\
 To: %(user)s
 From: %(return)s
-Subject: Anonymous Mixminion message
+Subject: Type III anonymous message
 X-Anonymous: yes
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server '%(nickname)s' at
