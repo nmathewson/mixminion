@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.23 2003/01/07 04:49:11 nickm Exp $
+# $Id: ServerMain.py,v 1.24 2003/01/07 19:17:57 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -121,9 +121,13 @@ class MixPool:
     def mix(self):
         """Get a batch of messages, and queue them for delivery as
            appropriate."""
+        if self.queue.count() == 0:
+            LOG.trace("No messages in the mix pool")
+            return
         handles = self.queue.getBatch()
-        LOG.debug("Mixing %s messages out of %s",
-                       len(handles), self.queue.count())
+        LOG.debug("%s messages in the mix pool; delivering %s.",
+                  self.queue.count(), len(handles)
+        
         for h in handles:
             tp, info = self.queue.getObject(h)
             if tp == 'EXIT':
@@ -237,41 +241,41 @@ class MixminionServer:
             nKeys = ceilDiv(30*24*60*60, keylife)
             self.keyring.createKeys(nKeys)
 
-        LOG.trace("Initializing packet handler")
+        LOG.debug("Initializing packet handler")
         self.packetHandler = self.keyring.getPacketHandler()
-        LOG.trace("Initializing TLS context")
+        LOG.debug("Initializing TLS context")
         tlsContext = self.keyring.getTLSContext()
-        LOG.trace("Initializing MMTP server")
+        LOG.debug("Initializing MMTP server")
         self.mmtpServer = _MMTPServer(config, tlsContext)
 
         # FFFF Modulemanager should know about async so it can patch in if it
         # FFFF needs to.
-        LOG.trace("Initializing delivery module")
+        LOG.debug("Initializing delivery module")
         self.moduleManager = config.getModuleManager()
         self.moduleManager.configure(config)
 
         queueDir = os.path.join(homeDir, 'work', 'queues')
 
         incomingDir = os.path.join(queueDir, "incoming")
-        LOG.trace("Initializing incoming queue")
+        LOG.debug("Initializing incoming queue")
         self.incomingQueue = IncomingQueue(incomingDir, self.packetHandler)
-        LOG.trace("Found %d pending messages in incoming queue",
-                       self.incomingQueue.count())
+        LOG.debug("Found %d pending messages in incoming queue",
+                  self.incomingQueue.count())
 
         mixDir = os.path.join(queueDir, "mix")
 
         LOG.trace("Initializing Mix pool")
         self.mixPool = MixPool(config, mixDir)
-        LOG.trace("Found %d pending messages in Mix pool",
+        LOG.debug("Found %d pending messages in Mix pool",
                        self.mixPool.count())
 
         outgoingDir = os.path.join(queueDir, "outgoing")
-        LOG.trace("Initializing outgoing queue")
+        LOG.debug("Initializing outgoing queue")
         self.outgoingQueue = OutgoingQueue(outgoingDir)
-        LOG.trace("Found %d pending messages in outgoing queue",
+        LOG.debug("Found %d pending messages in outgoing queue",
                        self.outgoingQueue.count())
 
-        LOG.trace("Connecting queues")
+        LOG.debug("Connecting queues")
         self.incomingQueue.connectQueues(mixPool=self.mixPool)
         self.mixPool.connectQueues(outgoing=self.outgoingQueue,
                                    manager=self.moduleManager)
@@ -298,7 +302,7 @@ class MixminionServer:
                                  "TIMEOUT") )
         nextMix = self.mixPool.getNextMixTime(now)
         scheduledEvents.append( (nextMix, "MIX") )
-        LOG.trace("Next mix at %s", formatTime(nextMix,1))
+        LOG.debug("First mix at %s", formatTime(nextMix,1))
         scheduledEvents.sort()
 
         # FFFF Support for automatic key rotation.
@@ -328,7 +332,7 @@ class MixminionServer:
             del scheduledEvents[0]
 
             if event == 'TIMEOUT':
-                LOG.debug("Timing out old connections")
+                LOG.trace("Timing out old connections")
                 self.mmtpServer.tryTimeout(now)
                 insort(scheduledEvents,
                        (self.mmtpServer.getNextTimeoutTime(now), "TIMEOUT"))

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.18 2003/01/07 05:33:07 nickm Exp $
+# $Id: Modules.py,v 1.19 2003/01/07 19:17:57 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -857,7 +857,7 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 
     # FFFF We should leave the connection open if we're going to send many
     # FFFF messages in a row.
-    LOG.trace("Sending message via SMTP host %s to %s", server, toList)
+    LOG.debug("Sending message via SMTP host %s to %s", server, toList)
     con = smtplib.SMTP(server)
     try:
         con.sendmail(fromAddr, toList, message)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.11 2003/01/07 05:33:39 nickm Exp $
+# $Id: MMTPServer.py,v 1.12 2003/01/07 19:17:57 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -86,13 +86,13 @@ class AsyncServer:
                 raise e
 
         for fd in readfds:
-            trace("Select got a read on fd %s",fd)
+            #trace("Select got a read on fd %s",fd)
             self.readers[fd].handleRead()
         for fd in writefds:
-            trace("Select got a write on fd %s", fd)
+            #trace("Select got a write on fd %s", fd)
             self.writers[fd].handleWrite()
         for fd in exfds:
-            trace("Select got an exception on fd %s", fd)
+            #trace("Select got an exception on fd %s", fd)
             if self.readers.has_key(fd): del self.readers[fd]
             if self.writers.has_key(fd): del self.writers[fd]
 
@@ -333,7 +333,7 @@ class SimpleTLSConnection(Connection):
         # else we can deadlock on a connection from ourself to
         # ourself.
         if self.__con.shutdown() == 1: #may throw want*
-            trace("Got a 1 on shutdown (fd %s)", self.fd)
+            #trace("Got a 1 on shutdown (fd %s)", self.fd)
             self.__server.unregister(self)
             self.__state = None
             self.__sock.close()
@@ -342,7 +342,7 @@ class SimpleTLSConnection(Connection):
 
         # If we don't get any response on shutdown, stop blocking; the other
         # side may be hostile, confused, or deadlocking.
-        trace("Got a 0 on shutdown (fd %s)", self.fd)
+        #trace("Got a 0 on shutdown (fd %s)", self.fd)
         # ???? Is 'wantread' always correct?
         # ???? Rather than waiting for a read, should we use a timer or
         # ????       something?
@@ -353,7 +353,7 @@ class SimpleTLSConnection(Connection):
         while 1:
             r = self.__con.read(1024) #may throw want*
             if r == 0:
-                trace("read returned 0 (fd %s)", self.fd)
+                trace("read returned 0 -- shutting down (fd %s)", self.fd)
                 self.shutdown(err=0)
                 return
             else:
