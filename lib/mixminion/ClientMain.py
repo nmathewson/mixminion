@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.80 2003/05/28 08:39:45 nickm Exp $
+# $Id: ClientMain.py,v 1.81 2003/05/29 03:37:02 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -81,10 +81,12 @@ class ClientDirectory:
     # dir: directory where we store everything.
     # lastModified: time when we last modified this directory.
     # lastDownload: time when we last downloaded a directory
-    # serverList: List of (ServerInfo, 'D'|'I:filename') tuples.  The
+    # serverList: List of (ServerInfo, 'D'|'D-'|'I:filename') tuples.  The
     #   second element indicates whether the ServerInfo comes from a
-    #   directory or a file.
-    # digestMap: Map of (Digest -> 'D'|'I:filename').
+    #   directory or a file. DOCDOC D-
+    # fullServerList: List of (ServerInfo, 'D'|'D-'|'I:filename')
+    #   tuples, including servers not on the Recommended-Servers list.
+    # digestMap: Map of (Digest -> 'D'|'D-'|'I:filename').
     # byNickname: Map from nickname.lower() to list of (ServerInfo, source)
     #   tuples.
     # byCapability: Map from capability ('mbox'/'smtp'/'relay'/None) to
@@ -93,13 +95,14 @@ class ClientDirectory:
     # __scanning: Flag to prevent recursive invocation of self.rescan().
     # clientVersions: String of allowable client versions as retrieved
     #    from most recent directory.
+    # goodServerNicknames: DOCDOC
     ## Layout:
-    # DIR/cache: A cPickled tuple of ("ClientKeystore-0.1",
+    # DIR/cache: A cPickled tuple of ("ClientKeystore-0.2",
     #         lastModified, lastDownload, clientVersions, serverlist,
-    #         digestMap)
+    #         fullServerList, digestMap)
     # DIR/dir.gz *or* DIR/dir: A (possibly gzipped) directory file.
     # DIR/imported/: A directory of server descriptors.
-    MAGIC = "ClientKeystore-0.1"
+    MAGIC = "ClientKeystore-0.2"
 
     # The amount of time to require a path to be valid, by default.
     DEFAULT_REQUIRED_LIFETIME = 3600
@@ -223,7 +226,10 @@ class ClientDirectory:
         """Regenerate the cache based on files on the disk."""
         self.lastModified = self.lastDownload = -1
         self.serverList = []
+        self.fullServerList = []
         self.clientVersions = None
+        self.goodServerNicknames = {}
+
         if force:
             self.digestMap = {}
 
@@ -244,6 +250,16 @@ class ClientDirectory:
             for s in directory.getServers():
                 self.serverList.append((s, 'D'))
                 self.digestMap[s.getDigest()] = 'D'
+                self.goodServerNicknames[s.getNickname().lower()] = 1
+                
+            for s in directory.getAllServers():
+                if self.goodServerNicknames.has_key(s.getNickname().lower()):
+                    where = 'D'
+                else:
+                    where = 'D-'
+                
+                self.fullServerList.append((s, where))
+                self.digestMap[s.getDigest()] = where
 
             self.clientVersions = (
                 directory['Recommended-Software'].get("MixminionClient"))
@@ -266,7 +282,9 @@ class ClientDirectory:
             if mtime > self.lastModified:
                 self.lastModifed = mtime
             self.serverList.append((info, "I:%s"%fn))
+            self.fullServerList.append((info, "I:%s"%fn))
             self.digestMap[info.getDigest()] = "I:%s"%fn
+            self.goodServerNicknames[info.getNickname().lower()] = 1
 
         # Regenerate the cache
         self.__save()
@@ -281,7 +299,8 @@ class ClientDirectory:
             magic = cached[0]
             if magic == self.MAGIC:
                 _, self.lastModified, self.lastDownload, self.clientVersions, \
-                   self.serverList, self.digestMap = cached
+                   self.serverList, self.fullServerList, self.digestMap \
+                   = cached
                 self.__rebuildTables()
                 return
             else:
@@ -298,7 +317,7 @@ class ClientDirectory:
         """Helper method. Recreate the cache on disk."""
         data = (self.MAGIC,
                 self.lastModified, self.lastDownload,
-                self.clientVersions, self.serverList,
+                self.clientVersions, self.serverList, self.fullServerList,
                 self.digestMap)
         writePickled(os.path.join(self.dir, "cache"), data)
 
@@ -341,6 +360,7 @@ class ClientDirectory:
         # Now store into the cache.
         fnshort = os.path.split(fname)[1]
         self.serverList.append((info, 'I:%s'%fnshort))
+        self.fullServerList.append((info, 'I:%s'%fnshort))
         self.digestMap[info.getDigest()] = 'I:%s'%fnshort
         self.lastModified = time.time()
         self.__save()
@@ -366,9 +386,7 @@ class ClientDirectory:
         self.serverList = newList
         # Recreate cache if needed.
         if n:
-            self.lastModifed = time.time()
-            self.__save()
-            self.__rebuildTables()
+            self.rescan()
         return n
 
     def __rebuildTables(self):
@@ -381,6 +399,7 @@ class ClientDirectory:
                               'smtp': [],
                               'relay': [],
                               None: self.allServers }
+        self.goodServerNicknames = {}
 
         for info, where in self.serverList:
             nn = info.getNickname().lower()
@@ -389,6 +408,12 @@ class ClientDirectory:
                 lists.append( self.byCapability[c] )
             for lst in lists:
                 lst.append((info, where))
+            self.goodServerNicknames[nn] = 1
+
+        for info, where in self.fullServerList:
+            nn = info.getNickname().lower()
+            self.byNickname.setdefault(nn, []).append((info, where))
+
 
     def listServers(self):
         """Returns a linewise listing of the current servers and their caps.
@@ -402,10 +427,15 @@ class ClientDirectory:
             return [ "No servers known" ]
         longestnamelen = max(map(len, nicknames))
         fmtlen = min(longestnamelen, 20)
-        nnFormat = "%"+str(fmtlen)+"s:"
+        nnFormat = "%"+str(fmtlen)+"s:%s"
         for n in nicknames:
             nnreal = self.byNickname[n][0][0].getNickname()
-            lines.append(nnFormat%nnreal)
+            isGood = self.goodServerNicknames.get(n, 0)
+            if isGood:
+                status = ""
+            else:
+                status = " (not recommended)"
+            lines.append(nnFormat%(nnreal,status))
             for info, where in self.byNickname[n]:
                 caps = info.getCaps()
                 va = formatDate(info['Server']['Valid-After'])
@@ -466,8 +496,8 @@ class ClientDirectory:
             # Find all digests of servers with the same name, in the directory.
             inDirectory = [ s.getDigest()
                             for s, w in self.byNickname[lcnickname]
-                            if w == 'D' ]
-            if (where != 'D'
+                            if w in ('D','D-') ]
+            if (where not in ('D', 'D-')
                 and (info.isExpiredAt(cutoff)
                      or info.isSupersededBy(others)
                      or info.getDigest() in inDirectory)):
@@ -486,9 +516,8 @@ class ClientDirectory:
         # rebuild.
         if len(self.serverList) != len(newServers):
             self.serverList = newServers
-            self.__save()
-            self.__rebuildTables()
-
+            self.rescan()
+            
     def getServerInfo(self, name, startAt=None, endAt=None, strict=0):
         """Return the most-recently-published ServerInfo for a given
            'name' valid over a given time range.  If not strict, and no
@@ -511,11 +540,16 @@ class ClientDirectory:
         elif self.byNickname.has_key(name.lower()):
             # If it's a nickname, return a serverinfo with that name.
             s = self.__findOne(self.byNickname[name.lower()], startAt, endAt)
+
             if not s:
                 # FFFF Beef up this message to say that we know about that
                 # FFFF nickname, but that all suchnamed servers are dead.
                 raise UIError("Couldn't find any valid descriptor with name %s"
                               % name)
+
+            if not self.goodServerNicknames.has_key(s.getNickname().lower()):
+                LOG.warn("Server %s is not recommended",name)
+            
             return s
         elif os.path.exists(os.path.expanduser(name)):
             # If it's a filename, try to read it.

@@ -164,13 +164,12 @@ For 0.0.4:
                 o Rotate stats
                 o Failed delivery w/ retry
                 o (need delkeys command!)
+                o Make sure rotation gets recalculated after keygen.
+                o Let users see and specifically request unrecommended servers
                 - Does rotation happen?
-                - Make sure rotation gets recalculated after keygen.
-
 
 Deferred from 0.0.4:
         . Good user error reporting strategy; use UIError uniformly.
-        - Clients should be able to see and refer to 
         - Separate error/other log files. ????
         - Notice when out of disk space, die more cleanly
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
