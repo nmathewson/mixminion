@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.4 2003/05/27 04:56:48 nickm Exp $
+# $Id: Directory.py,v 1.5 2003/05/28 05:26:48 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -22,7 +22,7 @@ class Directory:
     def __init__(self, config=None, location=None):
         self.config = config
         if config and not location:
-            self.location = config['Directory-Store']['Homedir']
+            self.location = location = config['Directory-Store']['Homedir']
         else:
             self.location = location
         assert location
@@ -51,7 +51,6 @@ class Directory:
         dir_gid = self.config.dir_gid
         cgi_gid = self.config.cgi_gid
         
-        
         for fn, uid, gid, mode, recurse in [
             (self.location,       dir_uid, cgi_gid, 0750, 1),
             (self.directoryBase,  dir_uid, dir_gid, 0700, 0),
@@ -65,7 +64,7 @@ class Directory:
                     os.makedirs(fn, mode)
                 else:
                     os.mkdir(fn, mode)
-            _set_uid_gid_mode(fn, dir_uid, cgi_gid, 0640)
+            _set_uid_gid_mode(fn, dir_uid, cgi_gid, mode)
 
         if not os.path.exists(self.cacheFile):
             self.cache = IDCache(self.cacheFile)
@@ -110,16 +109,15 @@ class Directory:
             return key
         else:
             return pk_PEM_load(fname)
-
             
 class DirectoryConfig(C._ConfigFile):
-    _restrictFormat = 1
+    _restrictFormat = 0
     _restrictKeys = 1
     _syntax = {
         'Host' : C.ClientConfig._syntax['Host'],
         "Directory-Store" : {
-           "__SECTION__" : ( ), 
-           "Homedir" : ('REQUIRE', None, None),
+           "__SECTION__" : ("REQUIRE", None, None ), 
+           "Homedir" : ('REQUIRE', C._parseFilename, None),
            "DirUser" : ('REQUIRE', None, None),
            "CGIUser" : ('REQUIRE', None, None),
            "CGIGroup" : ('REQUIRE', None, None),
@@ -128,7 +126,8 @@ class DirectoryConfig(C._ConfigFile):
            "BadServer" : ("ALLOW*", None, None)
         },
         'Publishing' : {
-           "Location" : ('REQUIRE', None, None)
+           "__SECTION__": ('REQUIRE', None, None),
+           "Location" : ('REQUIRE', C._parseFilename, None)
         } }
     def __init__(self, filename=None, string=None):
         C._ConfigFile.__init__(self, filename, string)
@@ -137,16 +136,16 @@ class DirectoryConfig(C._ConfigFile):
         import pwd
         import grp
         ds_sec = self['Directory-Store']
-        diruser = ds_sec['DirUser'].strip()
-        cgiuser = ds_sec['CGIUser'].strip()
-        cgigrp = ds_sec['CGIGroup'].strip()
+        diruser = ds_sec['DirUser'].strip().lower()
+        cgiuser = ds_sec['CGIUser'].strip().lower()
+        cgigrp = ds_sec['CGIGroup'].strip().lower()
 
         try:
-            dir_pwent = pwd.getpwname(diruser)
+            dir_pwent = pwd.getpwnam(diruser)
         except KeyError:
             raise C.ConfigError("No such user: %r"%diruser)
         try:
-            cgi_pwent = pwd.getpwname(cgiuser)
+            cgi_pwent = pwd.getpwnam(cgiuser)
         except KeyError:
             raise C.ConfigError("No such user: %r"%cgiuser)
         try:
@@ -155,7 +154,7 @@ class DirectoryConfig(C._ConfigFile):
             raise C.ConfigError("No such group: %r"%cgigrp)
 
         self.dir_uid = dir_pwent[2]
-        self.dir_grp = dir_pwent[3]
+        self.dir_gid = dir_pwent[3]
         self.cgi_uid = cgi_pwent[2]
         self.cgi_gid = cgi_grpent[2]
 
@@ -164,10 +163,12 @@ class DirectoryConfig(C._ConfigFile):
             if pwent[3] == self.cgi_gid:
                 groupMembers.append(pwent[0])
 
-        if self.dir_uid not in groupMembers:
+        groupMembers = [ g.lower().strip() for g in groupMembers ]
+
+        if diruser not in groupMembers:
             raise C.ConfigError("User %s is not in group %s"
                                 %(diruser, cgigrp))
-        if self.cgi_uid not in groupMembers:
+        if cgiuser not in groupMembers:
             raise C.ConfigError("User %s is not in group %s"
                                 %(cgiuser, cgigrp))
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.10 2003/05/26 21:08:13 nickm Exp $
+# $Id: DirMain.py,v 1.11 2003/05/28 05:26:48 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -14,26 +14,27 @@ import shutil
 import stat
 import sys
 import time
-from mixminion.Common import createPrivateDir, formatTime, LOG
+from mixminion.Common import createPrivateDir, formatTime, LOG, UIError
+from mixminion.Config import ConfigError
 from mixminion.Crypto import init_crypto, pk_fingerprint, pk_generate, \
      pk_PEM_load, pk_PEM_save
 from mixminion.directory.Directory import Directory, DirectoryConfig
 
 USAGE = """\
-Usage: %s -d <directory> command
+Usage: mixminion dir <command>
    Where 'command' is one of:
-      import <serverinfo>      [Import a descriptor for a known server]
-      import-new <serverinfo>  [Import a descriptor for a new server]
+      initialize [DOCDOC]
+      import-new <nickname>  [Import a descriptor for a new server]
+      list [DOCDOC]
+      update [DOCDOC]
       generate                 [Generate and sign a new directory]
-      export <filename>        [Export the most recently generated directory]
-      remove <nickname>        [Remove a server from storage]
       fingerprint              [Return the fingerprint of this directory's pk]
 """.strip()
 
 def getDirectory():
     fn = os.environ.get('MINION_DIR_CONF')
     if not fn:
-        fn = os.expanduser("~/.mixminion_dir.cf")
+        fn = os.path.expanduser("~/.mixminion_dir.cf")
         if not os.path.exists(fn):
             fn = None
     if not fn:
@@ -46,20 +47,23 @@ def getDirectory():
     try:
         config = DirectoryConfig(filename=fn)
     except ConfigError, e:
-        raise UIError("Error in %s: %s", fn, e)
+        raise UIError("Error in %s: %s"%(fn, e))
 
     return Directory(config)
 
-def usageAndExit(cmd):
+def usageAndExit():
     """Print a usage message and exit"""
-    print USAGE%cmd
-    sys.exit
+    print USAGE
+    sys.exit(0)
 
-def cmd_init():
+def cmd_init(args):
+    if args:
+        raise UIError("mixminion dir initialize takes no arguments")
+    
     d = getDirectory()
     d.setupDirectories()
     d.getServerList()
-    d.getServerInbox()
+    d.getInbox()
 
 def cmd_update(args):
     if args:

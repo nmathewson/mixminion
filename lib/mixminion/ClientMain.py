@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.76 2003/05/25 17:07:30 nickm Exp $
+# $Id: ClientMain.py,v 1.77 2003/05/28 05:27:11 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -45,7 +45,7 @@ from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
-MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/directory.gz"
+MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
 MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
 
 #----------------------------------------------------------------------

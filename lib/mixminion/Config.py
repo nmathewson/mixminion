@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.42 2003/05/17 00:08:42 nickm Exp $
+# $Id: Config.py,v 1.43 2003/05/28 05:26:47 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -337,6 +337,18 @@ def _parseNickname(s):
     elif len(s) == 0:
         raise ConfigError("Nickname is too short")
     return s
+
+def _parseFilename(s):
+    """DOCDOC"""
+    #XXXX004 testme
+    #XXXX004 use this more.
+    s = s.strip()
+    if s[0] in "\"'":
+        if s[-1] != s[0]:
+            raise ConfigError("Mismatched quotes")
+        s = s[1:-1]
+
+    return os.path.expanduser(s)
 
 #----------------------------------------------------------------------
 
