@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.33 2003/02/13 10:56:40 nickm Exp $
+# $Id: Packet.py,v 1.34 2003/02/16 04:50:55 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -24,15 +24,14 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'parseTextEncodedMessage', 'parseTextReplyBlocks', 'uncompressData'
             ]
 
-import base64
 import binascii
 import re
 import struct
 import sys
 import zlib
 from socket import inet_ntoa, inet_aton
-from mixminion.Common import MixError, MixFatalError, floorDiv, formatTime, \
-     isSMTPMailbox, LOG
+from mixminion.Common import MixError, MixFatalError, encodeBase64, \
+     floorDiv, formatTime, isSMTPMailbox, LOG
 from mixminion.Crypto import sha1
 
 if sys.version_info[:3] < (2,2,0):
@@ -520,7 +519,7 @@ First server is: %s""" % (hash, expiry, server)
 
     def packAsText(self):
         """Returns the external text representation of this reply block"""
-        text = base64.encodestring(self.pack())
+        text = encodeBase64(self.pack())
         if not text.endswith("\n"):
             text += "\n"
         return "%s\nVersion: 0.1\n%s%s\n"%(RB_TEXT_START,text,RB_TEXT_END)
@@ -733,7 +732,7 @@ class TextEncodedMessage:
         preNL = postNL = ""
 
         if self.messageType != 'TXT':
-            c = base64.encodestring(c)
+            c = encodeBase64(c)
         else:
             #XXXX004 disable "decoding handle" format
             if (c.startswith("Decoding-handle:") or

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.61 2003/02/13 07:03:49 nickm Exp $
+# $Id: Common.py,v 1.62 2003/02/16 04:50:55 nickm Exp $
 
 """mixminion.Common
 
@@ -7,13 +7,14 @@
 
 __all__ = [ 'IntervalSet', 'Lockfile', 'LOG', 'LogStream', 'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
-            'ceilDiv', 'checkPrivateDir', 'createPrivateDir', 'floorDiv',
+            'ceilDiv', 'checkPrivateDir', 'createPrivateDir',
+            'encodeBase64', 'floorDiv',
             'formatBase64', 'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
             'previousMidnight', 'readPossiblyGzippedFile', 'secureDelete',
             'stringContains', 'succeedingMidnight', 'waitForChildren' ]
 
-import base64
+import binascii
 import bisect
 import calendar
 import fcntl
@@ -121,8 +122,21 @@ def stripSpace(s, space=" \t\v\n"):
 
 def formatBase64(s):
     """Convert 's' to a one-line base-64 representation."""
-    return base64.encodestring(s).replace("\n", "")
+    return binascii.b2a_base64(s).strip()
 
+def encodeBase64(s, lineWidth=64):
+    """Convert 's' to a multiline base-64 representation.  Improves upon
+       base64.encodestring by having a variable line width.  Implementation
+       is based upon that function.
+    """
+    # XXXX003 test me
+    pieces = []
+    bytesPerLine = floorDiv(lineWidth, 4) * 3
+    for i in xrange(0, len(s), bytesPerLine):
+        chunk = s[i:i+bytesPerLine]
+        pieces.append(binascii.b2a_base64(chunk))
+    return "".join(pieces)
+    
 #----------------------------------------------------------------------
 def createPrivateDir(d, nocreate=0):
     """Create a directory, and all parent directories, checking permissions

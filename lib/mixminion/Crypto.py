@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.40 2003/02/11 22:18:10 nickm Exp $
+# $Id: Crypto.py,v 1.41 2003/02/16 04:50:55 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -8,7 +8,6 @@
    the functions in mixminion.Crypto, and not call _minionlib's crypto
    functionality themselves."""
 
-import base64
 import binascii
 import copy_reg
 import errno
@@ -580,7 +579,7 @@ class RNG:
             mode = "wb"
         while 1:
             bytes = self.getBytes(6)
-            base = base64.encodestring(bytes).strip().replace("/","-")
+            base = binascii.b2a_base64(bytes).strip().replace("/","-")
             fname = os.path.join(dir, "%s%s"%(prefix,base))
             try:
                 fd = os.open(fname, flags, 0600)

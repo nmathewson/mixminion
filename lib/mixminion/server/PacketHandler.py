@@ -1,10 +1,11 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.10 2003/02/13 06:30:23 nickm Exp $
+# $Id: PacketHandler.py,v 1.11 2003/02/16 04:50:56 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
-import base64
+import binascii
 
+from mixminion.Common import encodeBase64, formatBase64
 import mixminion.Crypto as Crypto
 import mixminion.Packet as Packet
 import mixminion.Common as Common
@@ -323,11 +324,11 @@ class DeliveryPacket:
         if self.type == 'plain' and isPrintingAscii(self.contents, allowISO=1):
             return self.contents
         else:
-            return base64.encodestring(self.contents)
+            return encodeBase64(self.contents)
 
     def getAsciiTag(self):
         """Return a base64-representation of this message's decoding handle."""
-        return base64.encodestring(self.tag).strip()
+        return formatBase64(self.tag)
 
     def getTextEncodedMessage(self):
         """Return a Packet.TextEncodedMessage object for this packet."""
