@@ -1,7 +1,7 @@
 Hacking Mixminion                                  -*- Text -*-
 
 Requirements:
-        Python 2.0-2.2  (see PORTING NOTES below)
+        Python >= 2.0 (see PORTING NOTES below)
 
         OpenSSL 0.9.7 (If you don't have it, the Makefile knows how to
             download it for you.)
@@ -33,13 +33,13 @@ CODING STYLE:
 PORTABILITY NOTES:
     - I've already backported to Python 2.0.  (I refuse to backport to 1.5 or
       1.6.)
-    - Right now, we're dependant on OpenSSL. OpenSSL's license has an
+    - Right now, we're dependent on OpenSSL. OpenSSL's license has an
       old-style BSD license that isn't compatible with the GPL.  We
       have two other options, it seems:
          - libnss: this is a dual-license GPL/MPL library from
            Mozilla.  Sadly, we can't use it now, because it doesn't
            yet support server-side DHE.  Bugzilla says that
-           server-side DHE is targetted for 3.5.  Perhaps then we can
+           server-side DHE is targeted for 3.5.  Perhaps then we can
            port, but I wouldn't hold my breath.
          - gnutls/libgcrypt: These are the GNU offerings; the relevant
            portions of each are licensed under the LGPL.  They don't
@@ -65,7 +65,7 @@ FINDING YOUR WAY AROUND THE CODE.
     - The Python code lives in lib/mixminion (for client and shared code)
       and lib/mixminion/server (for server code only).  The main loop is
       in lib/mixminion/server/ServerMain; the asynchronous server code is
-      in lib/mixminion/server/MMMTPServer.
+      in lib/mixminion/server/MMTPServer.
     - A message coming in to a Mixminion server takes the following path:
 
         Received in MMTPServer;
