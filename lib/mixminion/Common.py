@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.17 2002/08/25 05:58:01 nickm Exp $
+# $Id: Common.py,v 1.18 2002/08/25 06:10:33 nickm Exp $
 
 """mixminion.Common
 
@@ -182,13 +182,18 @@ def secureDelete(fnames, blocking=0):
 # I'm trying to make this interface look like a subset of the one in
 # the draft PEP-0282 (http://www.python.org/peps/pep-0282.html).
 
-def _logtime():
-    'Helper function.  Returns current local time formatted for log.'
-
-    # Note: Python strftime is implemented using that platform libc's
-    # strftime, so in theory, this might barf.  All of the format
-    # elements below are (I think) standard, so we should be ok.
-    return time.strftime("%b %d %H:%m:%S")
+if sys.version_info[:2] >= (2,1):
+    def _logtime():
+        'Helper function.  Returns current local time formatted for log.'
+        
+        # Note: Python strftime is implemented using that platform libc's
+        # strftime, so in theory, this might barf.  All of the format
+        # elements below are (I think) standard, so we should be ok.
+        return time.strftime("%b %d %H:%m:%S")
+else:
+    def _logtime():
+        'Helper function.  Returns current local time formatted for log.'
+        return time.strftime("%b %d %H:%m:%S", time.localtime(time.time()))
 
 class _FileLogHandler:
     """Helper class for logging.  Represents a file on disk, and allows the

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.17 2002/08/25 05:58:02 nickm Exp $
+# $Id: Crypto.py,v 1.18 2002/08/25 06:10:34 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -427,7 +427,7 @@ class RNG:
         # FFFF This implementation is about 2-4x as good as the last one, but
 	# FFFF still could be better.  It's faster than getFloat()*max.
 
-        assert 0 < max < 0x3ffffffff
+        assert 0 < max < 0x3fffffff
 	_ord = ord
 	while 1:
 	    # Get a random positive int between 0 and 0x7fffffff.

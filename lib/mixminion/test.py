@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.23 2002/08/25 05:58:02 nickm Exp $
+# $Id: test.py,v 1.24 2002/08/25 06:10:35 nickm Exp $
 
 """mixminion.tests
 
@@ -19,7 +19,7 @@ import threading
 import time
 import types
 import re
-import binascii
+import base64
 import stat
 import cPickle
 
@@ -2128,7 +2128,7 @@ class ServerInfoTests(unittest.TestCase):
         
         # Now with a bad signature
         sig2 = mixminion.Crypto.pk_sign(sha1("Hello"), identity)
-        sig2 = binascii.b2a_base64(sig2).replace("\n", "")
+        sig2 = base64.encodestring(sig2).replace("\n", "")
         sigpat = re.compile('^Signature:.*$', re.M)
         badSig = sigpat.sub("Signature: %s" % sig2, inf)
         self.failUnlessRaises(ConfigError,

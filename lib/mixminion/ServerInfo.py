@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.11 2002/08/25 05:58:02 nickm Exp $
+# $Id: ServerInfo.py,v 1.12 2002/08/25 06:10:35 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -12,7 +12,7 @@ __all__ = [ 'ServerInfo' ]
 
 import time
 import os
-import binascii
+import base64
 import socket
 
 from mixminion.Common import createPrivateDir
@@ -179,7 +179,7 @@ class ServerKeyset:
 
 def _base64(s):
     "Helper function: returns a one-line base64 encoding of a given string."
-    return binascii.b2a_base64(s).replace("\n","")
+    return base64.encodestring(s).replace("\n", "")
 
 def _time(t):
     """Helper function: turns a time (in seconds) into the format used by
@@ -385,7 +385,7 @@ def _getServerInfoDigestImpl(info, rsa=None):
 
     signature = mixminion.Crypto.pk_sign(digest,rsa)
     digest = _base64(digest)
-    signature = binascii.b2a_base64(signature).replace("\n","")
+    signature = base64.encodestring(signature).replace("\n","")
     infoLines[digestLine] = 'Digest: '+digest
     infoLines[signatureLine] = 'Signature: '+signature
 
