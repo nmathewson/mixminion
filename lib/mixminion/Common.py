@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.114 2003/11/07 06:45:22 nickm Exp $
+# $Id: Common.py,v 1.115 2003/11/07 07:35:11 nickm Exp $
 
 """mixminion.Common
 
@@ -83,10 +83,6 @@ class MixProtocolBadAuth(MixProtocolError):
     """Exception class for failed authentication to a server."""
     pass
 
-class MixFilePermissionError(MixFatalError):
-    """Exception raised when a file has the wrong owner or permissions."""
-    pass
-
 class UIError(MixError):
     """Exception raised for an error that should be reported to the user,
        not dumped as a stack trace."""
@@ -101,6 +97,10 @@ class UsageError(UIError):
     """Exception raised for an error that should be reported to the user
        along with a usage message.
     """
+    pass
+
+class MixFilePermissionError(MixFatalError,UIError):
+    """Exception raised when a file has the wrong owner or permissions."""
     pass
 
 #----------------------------------------------------------------------
