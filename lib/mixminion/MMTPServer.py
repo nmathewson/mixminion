@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.1 2002/06/24 20:28:19 nickm Exp $
+# $Id: MMTPServer.py,v 1.2 2002/06/25 11:41:08 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -12,7 +12,9 @@
    XXXX As yet unsupported are: Session resumption, key renegotiation,
    XXXX checking KeyID."""
 
-import socket, select, re
+import socket
+import select
+import re
 import mixminion._minionlib as _ml
 from types import StringType
 from mixminion.Common import MixError, MixFatalError, log
@@ -23,6 +25,7 @@ __all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
             'MMTPClientConnection' ]
 
 def debug(s):
+    '''placeholder; all calls should go away.'''
     #print s
     pass
 
@@ -37,8 +40,6 @@ class AsyncServer:
         """Create a new AsyncServer with no readers or writers."""
         self.writers = {}
         self.readers = {}
-        ## Defunct code for poll-based implementation.
-        #self.p = select.poll()
 
     def process(self, timeout):
         """If any relevant file descriptors become available within
@@ -49,23 +50,6 @@ class AsyncServer:
         debug("%s readers, %s writers" % (len(self.readers),
                                           len(self.writers)))
         
-### Defunct code for for poll-based implementation
-#          res = self.p.poll(timeout*1000)
-#          for fd, event in res:
-#              if event == select.POLLIN:
-#                  print "Got a read on", fd
-#                  self.readers[fd].handleRead()
-#              elif event == select.POLLOUT:
-#                  print "Got a write on", fd 
-#                  self.writers[fd].handleWrite()
-#              elif event == select.POLLNVAL:
-#                  #XXXX Should never happen
-#                  print "Bad FD: ",fd, "unregistered."
-#                  self.p.unregister(fd)
-#              else:
-#                  # XXXX Should never happen
-#                  print "????", fd,event
-
         readfds = self.readers.keys()
         writefds = self.writers.keys()
         readfds, writefds, exfds = select.select(readfds, writefds,[], timeout)
@@ -84,7 +68,6 @@ class AsyncServer:
         """Register a connection as a reader.  The connection's 'handleRead'
            method will be called whenever data is available for reading."""
         fd = reader.fileno()
-        #self.p.register(fd, select.POLLIN)
         self.readers[fd] = reader
         if self.writers.has_key(fd):
             del self.writers[fd]
@@ -94,7 +77,6 @@ class AsyncServer:
            method will be called whenever the buffer is free for writing.
         """
         fd = writer.fileno()
-        #self.p.register(fd, select.POLLOUT)
         self.writers[fd] = writer
         if self.readers.has_key(fd):
             del self.readers[fd]
@@ -215,7 +197,8 @@ class SimpleTLSConnection(Connection):
             self.__state = self.__connectFn
 
     def isShutdown(self):
-        return self.__state == None
+        """Returns true iff this connection is finished shutting down"""
+        return self.__state is None
 
     def register(self, server):
         self.__server = server
@@ -258,18 +241,20 @@ class SimpleTLSConnection(Connection):
         self.__server.registerWriter(self)
 
     def __acceptFn(self):
-        # may throw wantread, wantwrite.
-        self.__con.accept()
+        """Hook to implement server-side handshake."""
+        self.__con.accept() #may throw want*
         self.__server.unregister(self)
         self.finished()
 
     def __connectFn(self):
-        self.__con.connect()
+        """Hook to implement client-side handshake."""
+        self.__con.connect() #may throw want*
         self.__server.unregister(self)
         self.finished()
 
     def __shutdownFn(self):
-        r = self.__con.shutdown()
+        """Hook to implement shutdown."""
+        r = self.__con.shutdown() #may throw want*
         if r == 1:
             debug("Got a 1 on shutdown")
             self.__server.unregister(self)
@@ -280,14 +265,15 @@ class SimpleTLSConnection(Connection):
             debug("Got a 0 on shutdown")
 
     def __readFn(self):
+        """Hook to implement read"""
         while 1:
-            r = self.__con.read(1024)
+            r = self.__con.read(1024) #may throw want*
             if r == 0:
                 debug("read returned 0.")
                 self.shutdown()
                 return
             else:
-                assert type(r) == StringType
+                assert isinstance(r, StringType)
                 debug("read got %s bytes" % len(r))
                 self.__inbuf.append(r)
                 self.__inbuflen += len(r)
@@ -295,30 +281,28 @@ class SimpleTLSConnection(Connection):
                     break
 
         if self.__terminator and len(self.__inbuf) > 1:
-            self.__inbuf = [ "".join(self.__inbuf) ]
+            self.__inbuf = ["".join(self.__inbuf)]
 
         if self.__maxReadLen and self.__inbuflen > self.__maxReadLen:
             debug("Read got too much.")
             self.shutdown(err=1)
             return
          
-        if (self.__terminator and self.__inbuf[0].find(self.__terminator)>-1):
+        if self.__terminator and self.__inbuf[0].find(self.__terminator) > -1:
             debug("read found terminator")
             self.__server.unregister(self)
             self.finished()
 
-        if (self.__expectReadLen and 
-            (self.__inbuflen >= self.__expectReadLen)):
-            
+        if self.__expectReadLen and (self.__inbuflen >= self.__expectReadLen):
             debug("read got enough.")
             self.__server.unregister(self)
             self.finished()
 
     def __writeFn(self):
+        """Hook to implement write"""
         out = self.__outbuf
         while len(out):
-            # may throw
-            r = self.__con.write(out)
+            r = self.__con.write(out) # may throw
 
             if r == 0:
                 self.shutdown() #XXXX
@@ -337,22 +321,31 @@ class SimpleTLSConnection(Connection):
         self.__handleAll()
 
     def __handleAll(self):
-          try:
-              while self.__state is not None:
-                  self.__state()
-          except _ml.TLSWantWrite:
-              self.__server.registerWriter(self)
-          except _ml.TLSWantRead:
-              self.__server.registerReader(self)
-          except _ml.TLSError:
-              if self.__state != self.__shutdownFn:
-                  debug("Unexpected error: closing connection.")
-                  self.shutdown(1)
-              else:
-                  debug("Error while shutting down: closing connection.")
-                  self.__server.unregister(self)
-          else:
-              self.__server.unregister(self)
+        """Underlying implementation of TLS connection: traverses as
+           many states as possible until some operation blocks on
+           reading or writing, or until the current __state becomes
+           None.
+        """
+        try:
+            # We have a while loop here so that, upon entering a new
+            # state, we immediately see if we can go anywhere with it
+            # without blocking.
+            while self.__state is not None:
+                self.__state()
+        except _ml.TLSWantWrite:
+            self.__server.registerWriter(self)
+        except _ml.TLSWantRead:
+            self.__server.registerReader(self)
+        except _ml.TLSError:
+            if self.__state != self.__shutdownFn:
+                debug("Unexpected error: closing connection.")
+                self.shutdown(1)
+            else:
+                debug("Error while shutting down: closing connection.")
+                self.__server.unregister(self)
+        else:
+            # We are in no state at all.
+            self.__server.unregister(self)
               
     def finished(self):
         """Called whenever a connect, accept, read, or write is finished."""
@@ -364,6 +357,7 @@ class SimpleTLSConnection(Connection):
 
     def shutdown(self, err=0):
         """Begin a shutdown on this connection"""
+        
         self.__state = self.__shutdownFn
         #self.__server.registerWriter(self)
         
@@ -373,6 +367,9 @@ class SimpleTLSConnection(Connection):
     def getInput(self):
         """Returns the current contents of the input buffer."""
         return "".join(self.__inbuf)
+
+    def getPeerPK(self):
+        return self.__con.get_peer_cert_pk()
     
 #----------------------------------------------------------------------
 # XXXX Need to support future protos.
@@ -452,11 +449,12 @@ class MMTPServerConnection(SimpleTLSConnection):
 #----------------------------------------------------------------------
         
 class MMTPClientConnection(SimpleTLSConnection):
-    def __init__(self, context, ip, port, keyId, messageList,
+    def __init__(self, context, ip, port, keyID, messageList,
                  sentCallback=None):
         debug("CLIENT CON")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(0)
+        self.keyID = keyID
         try:
             sock.connect((ip, port))
         except socket.error:
@@ -471,14 +469,18 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.sentCallback = sentCallback
 
     def __setupFinished(self):
-        '''Called when we're done with the client side negotations.
-           Begins sending the protocol string.'''
+        """Called when we're done with the client side negotations.
+           Begins sending the protocol string.
+        """
+        peer_pk = self.getPeerPK()
+        # Check this!
         self.beginWrite(PROTOCOL_STRING)
         self.finished = self.__sentProtocol
 
     def __sentProtocol(self):    
-        '''Called when we're done sending the protocol string.  Begins
-           reading the server's response.'''
+        """Called when we're done sending the protocol string.  Begins
+           reading the server's response.
+        """
         self.expectRead(len(PROTOCOL_STRING), len(PROTOCOL_STRING))
         self.finished = self.__receivedProtocol
 
@@ -493,6 +495,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.beginNextMessage()
 
     def beginNextMessage(self):
+        """Start writing a message to the connection."""
         if not self.messageList:
             self.shutdown(0)
             return
@@ -533,46 +536,3 @@ class MMTPClientConnection(SimpleTLSConnection):
 
        self.beginNextMessage()
 
-# ----------------------------------------------------------------------
-# Old defunct testing code.  Will remove 
-
-## if __name__=='__main__':
-##   import sys
-##   if len(sys.argv) == 1:
-##     d = "/home/nickm/src/ssl_sandbox/"
-##     for f in (d+"server.cert",d+"server.pk",d+"dh"):
-##         assert os.path.exists(f)
-##     context = _ml.TLSContext_new(d+"server.cert",d+"server.pk",d+"dh")
-
-##     _server = AsyncServer()
-##     def receiveMessage(pkt):
-##         print "Received packet beginning with %r" % pkt[:16]
-##     def conFactory(con,context=context,receiveMessage=receiveMessage):
-##         tls = context.sock(con)
-##         con.setblocking(0)
-##         return MMTPServerConnection(con, tls, receiveMessage)
-
-##     listener = ListenConnection("127.0.0.1", 9002, 5, conFactory)
-##     listener.register(_server)
-##     try:
-##         while 1:
-##             print "."
-##             _server.process(10)
-##     finally:
-##         listener.shutdown()
-##   else:
-##     context = _ml.TLSContext_new()
-##     _server = AsyncServer()
-##     def sentMessage():
-##         print "Done sending a message"
-##     msg = "helloxxx"*4096
-##     clientDone = 0
-##     def onSend():
-##         global clientDone
-##         clientDone = 1
-##     sender = MMTPClientConnection(context, "127.0.0.1", 9002, None,
-##                                   [msg], onSend)
-##     sender.register(_server)
-##     while 1 and not clientDone:
-##         print "."
-##         _server.process(10)

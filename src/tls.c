@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.1 2002/06/24 20:28:19 nickm Exp $ */
+/* $Id: tls.c,v 1.2 2002/06/25 11:41:08 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <openssl/ssl.h>
@@ -73,6 +73,7 @@ typedef struct mm_TLSSock {
 	int sock;
 	PyObject *sockObj;
 } mm_TLSSock;
+
 #define mm_TLSSock_Check(v) ((v)->ob_type == &mm_TLSSock_Type)
 
 /* XXXX Code to make new cert */
@@ -258,7 +259,7 @@ mm_TLSSock_accept(PyObject *self, PyObject *args, PyObject *kwargs)
 	SSL *ssl;
 	int r;
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
 	
 	ssl = ((mm_TLSSock*)self)->ssl;
@@ -284,7 +285,7 @@ mm_TLSSock_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 	SSL *ssl;
 	int r, err; 
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
 	
 	ssl = ((mm_TLSSock*)self)->ssl;
@@ -309,7 +310,7 @@ mm_TLSSock_pending(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	SSL *ssl;
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
 	
 	ssl = ((mm_TLSSock*)self)->ssl;
@@ -333,7 +334,7 @@ mm_TLSSock_read(PyObject *self, PyObject *args, PyObject *kwargs)
 	int r;
 	PyObject *res;
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i:read", kwlist,
 					 &n))
 		return NULL;
@@ -383,7 +384,7 @@ mm_TLSSock_write(PyObject *self, PyObject *args, PyObject *kwargs)
 	SSL *ssl;
 	int r;
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#:write", kwlist,
 					  &string, &stringlen))
 		return NULL;
@@ -418,7 +419,7 @@ mm_TLSSock_shutdown(PyObject *self, PyObject *args, PyObject *kwargs)
 	SSL *ssl;
 	int r;
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
 	
 	ssl = ((mm_TLSSock*)self)->ssl;
@@ -454,7 +455,7 @@ static PyObject*
 mm_TLSSock_fileno(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
 	
 	return PyInt_FromLong(((mm_TLSSock*)self)->sock);
@@ -474,7 +475,7 @@ mm_TLSSock_get_peer_cert_pk(PyObject *self, PyObject *args, PyObject *kwargs)
 	RSA *rsa;
 	mm_RSA *result;
 
-	assert(mm_TLSSock_check(self));
+	assert(mm_TLSSock_Check(self));
 	FAIL_IF_ARGS();
 	
 	ssl = ((mm_TLSSock*)self)->ssl;

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.4 2002/06/24 20:28:19 nickm Exp $
+# $Id: Common.py,v 1.5 2002/06/25 11:41:08 nickm Exp $
 
 """mixminion.Common
 
@@ -9,7 +9,10 @@ __all__ = [ 'MixError', 'MixFatalError', 'onReset', 'onTerminate',
             'installSignalHandlers', 'secureDelete', 'secureRename',
             'ceilDiv', 'floorDiv', 'log', 'debug' ]
 
-import os, signal, sys
+import os
+import signal
+import sys
+from types import StringType
 
 class MixError(Exception):
     """Base exception class for all Mixminion errors"""
@@ -38,11 +41,12 @@ class MixProtocolError(MixError):
 # Python 3.0 is off in the distant future, but I like to plan ahead.
 
 def floorDiv(a,b):
-    "Computes floor(a / b). See comments for portability notes."
+    "Compute floor(a / b). See comments for portability notes."
     return divmod(a,b)[0]
 
+
 def ceilDiv(a,b):
-    "Computes ceil(a / b). See comments for portability notes."
+    "Compute ceil(a / b). See comments for portability notes."
     return divmod(a-1,b)[0]+1
 
 #----------------------------------------------------------------------
@@ -52,12 +56,20 @@ def ceilDiv(a,b):
 _SHRED_CMD = "/usr/bin/shred"
 
 def secureDelete(fnames, blocking=0):
-    """ Given a list of filenames, removes the contents of all of those files,
-        from the disk, 'securely'.  If blocking=1, does not return until the
-        remove is complete.  If blocking=0, returns immediately, and returns
-        the PID of the process removing the files.  (Returns None if this
-        process unlinked the files itself) XXXX Clarify this."""
-    if type(fnames) == type(""):
+    """Given a list of filenames, removes the contents of all of those
+       files, from the disk, 'securely'.  If blocking=1, does not
+       return until the remove is complete.  If blocking=0, returns
+       immediately, and returns the PID of the process removing the
+       files.  (Returns None if this process unlinked the files
+       itself) XXXX Clarify this.
+
+       XXXX Securely deleting files only does so much good.  Metadata on
+       XXXX the file system, such as atime and dtime, can still be used
+       XXXX to reconstruct information about message timings.  To be
+       XXXX really safe, we should use a loopback device and shred _that_
+       XXXX from time to time.
+    """
+    if isinstance(fnames, StringType):
         fnames = [fnames]
     if blocking:
         mode = os.P_WAIT
@@ -77,8 +89,6 @@ def secureDelete(fnames, blocking=0):
 # XXXX Placeholder for a real logging mechanism
 def log(s):
     print s
-def debug(s):
-    print s
 
 #----------------------------------------------------------------------
 # Signal handling
@@ -90,17 +100,19 @@ resetHooks = []
 terminateHooks = []
 
 def onReset(fn):
-    """Given a 0-argument function fn, causes fn to be invoked when
+    """Given a 0-argument function fn, cause fn to be invoked when
        this process next receives a SIGHUP."""
     resetHooks.append(fn)
 
+
 def onTerminate(fn):
-    """Given a 0-argument function fn, causes fn to be invoked when
+    """Given a 0-argument function fn, cause fn to be invoked when
        this process next receives a SIGTERM."""
     terminateHooks.append(fn)
 
+
 def waitForChildren():
-    """Waits until all subprocesses have finished.  Useful for testing.""" 
+    """Wait until all subprocesses have finished.  Useful for testing.""" 
     while 1:
         try:
             # FFFF This won't work on Windows.  What to do?
@@ -108,12 +120,13 @@ def waitForChildren():
         except:
             break
 
+
 def _sigChldHandler(signal_num, _):
     '''(Signal handler for SIGCHLD)'''
     # Because of the peculiarities of Python's signal handling logic, I
     # believe we need to re-register ourself.
-    signal.signal(signal.SIGCHLD, _sigChldHandler)
-
+    signal.signal(signal_num, _sigChldHandler)
+    
     while 1:
         try:
             # This waitpid call won't work on Windows.  What to do?
@@ -126,7 +139,8 @@ def _sigChldHandler(signal_num, _):
     #outcome, core, sig = status & 0xff00, status & 0x0080, status & 0x7f
     # FFFF Log if outcome wasn't as expected.
 
-def _sigHandler(signal_num, frame):
+
+def _sigHandler(signal_num, _):
     '''(Signal handler for SIGTERM and SIGHUP)'''
     signal.signal(signal_num, _sigHandler)
     if signal_num == signal.SIGTERM:
@@ -137,8 +151,9 @@ def _sigHandler(signal_num, frame):
         for hook in resetHooks:
             hook()
 
+
 def installSignalHandlers(child=1,hup=1,term=1):
-    '''Registers signal handlers for this process.  If 'child', registers
+    '''Register signal handlers for this process.  If 'child', registers
        a handler for SIGCHLD.  If 'hup', registers a handler for SIGHUP.
        If 'term', registes a handler for SIGTERM.'''
     if child:

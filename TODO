@@ -1,23 +1,16 @@
 
 NEEDS TO BE WRITTEN
 
-NEXT CHECKIN:
-	- Code cleanup
-		- PEP 8
-		- PEP 257
-
 FOR 0.1: (The rough edges release)
-	- Make crypt.c read/write stuff in PEM.
+	- Make crypt.c read/write stuff in PEM?
 	- Local delivery module
 	- Manager process
 	- Configuration code
 	- Logging/debugging/warning code
-	- Reading messages sent to reply blocks
-	- Coding style guide
+	o Coding style guide
 	- MMTP		
 		- Generate X509/RSA/DH files as needed
-		- Hunt down leaks
-		- Check Key IDs
+		. Check Key IDs
 		- Renegotiate connections
 		- Timeouts
 		- Tests for all cases:
@@ -25,13 +18,16 @@ FOR 0.1: (The rough edges release)
 			- Bad senders
 			- Bad recipients
 			- Hanging connections
-	- More standard __init__
+			- Hunt down leaks
+	- More standard __init__.py
 	- CLI
 	- Server description blocks
 	- Main loop for server
 	- Clean shutdown for server
-	- Reply block storage and format.
+	o Reply block format
+	- External reply block format
 	- End-to-end payload encryption, if we ever agree on a spec.
+		- Reading messages sent to reply blocks
 	- Versioning :)
 
 FOR 0.2: (The first hacker release)

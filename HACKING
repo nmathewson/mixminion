@@ -50,6 +50,10 @@ DESIGN PRINCIPALS:
 
 CODING STYLE:
     - See PEP-0008.  I believe in most of it.
+    - Also see PEP-0257 for documentation; we're not there yet, but it's
+      happening.
+    - The magic string "XXXX" indicates a defect in the code. "FFFF" indicates
+      a missing feature, and "????" indicates an untested or iffy block.
 
 PORTABILITY NOTES:
     - I've already backported to 2.0.  (I refuse to backport to 1.5 or

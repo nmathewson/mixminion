@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.2 2002/06/24 20:28:19 nickm Exp $
+# $Id: PacketHandler.py,v 1.3 2002/06/25 11:41:08 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -22,9 +22,7 @@ class PacketHandler:
        an exist handler."""
     
     def __init__(self, privatekey, hashlog):
-        """PacketHandler(privatekey, hashlog)
-
-           Constructs a new packet handler, given a private key object for
+        """Constructs a new packet handler, given a private key object for
            header encryption, and a hashlog object to prevent replays.
 
            A sequence of private keys may be provided, if you'd like the
@@ -32,16 +30,17 @@ class PacketHandler:
            though: this slows down the packet handler a lot.
         """
         # ???? Any way to support multiple keys in protocol?
-        if type(privatekey) in (type(()), type([])):
+        try:
+            # Check whether we have a key or a tuple of keys.
+            _ = privatekey[0]
             self.privatekey = privatekey
-        else:
+        except:
             self.privatekey = (privatekey, )
+
         self.hashlog = hashlog
 
     def processMessage(self, msg):
-        """ph.processMessage(msg)
-
-           Given a 32K mixminion message, processes it completely.
+        """Given a 32K mixminion message, processes it completely.
 
            Returns one of:
                     None [if the mesesage should be dropped.
@@ -64,17 +63,17 @@ class PacketHandler:
         msg = Packet.parseMessage(msg)
         header1 = Packet.parseHeader(msg.header1)
 
-        # Try to decrypt the first subheader.
-        enc_subh = header1[0]
+        # Try to decrypt the first subheader.  Try each private key in
+        # order.  Only fail if all private keys fail.
         subh = None
-        err = None
+        e = None
         for pk in self.privatekey:
             try:
-                subh = Crypto.pk_decrypt(enc_subh, pk)
-            except Crypto.CryptoError, e:
-                err = e
+                subh = Crypto.pk_decrypt(header1[0], pk)
+            except Crypto.CryptoError, err:
+                e = err
         if not subh:
-            raise err
+            raise e
         subh = Packet.parseSubheader(subh)
 
         # Check the version: can we read it?
@@ -82,8 +81,7 @@ class PacketHandler:
             raise ContentError("Invalid protocol version")
 
         # Check the digest: is it correct?
-        digest = Crypto.sha1(header1[1:])
-        if digest != subh.digest:
+        if subh.digest != Crypto.sha1(header1[1:]):
             raise ContentError("Invalid digest")
 
         # Get ready to generate message keys.

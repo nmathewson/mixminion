@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.7 2002/06/24 20:28:19 nickm Exp $
+# $Id: test.py,v 1.8 2002/06/25 11:41:08 nickm Exp $
 
 """mixminion.tests
 
@@ -274,7 +274,7 @@ class CryptoTests(unittest.TestCase):
         eq(msg, pk_decrypt(pk_encrypt(msg, k1024),k1024))
         eq(msg, pk_decrypt(pk_encrypt(msg, pub1024),k1024))
 
-        # Make sure that CH_OAEP(RSA( )) inverts pk_encrypt.
+        # Make sure that CH_OAEP(RSA()) inverts pk_encrypt.
         eq(msg, _ml.check_oaep_padding(
                     k512.crypt(pk_encrypt(msg,k512), 0, 0),
                     mixminion.Crypto.OAEP_PARAMETER, 64))
@@ -313,9 +313,9 @@ class CryptoTests(unittest.TestCase):
 
         left = plain[:20]
         right = plain[20:]
-        right = ctr_crypt( right, sha1(key1+left+key1)[:16] )
+        right = ctr_crypt(right, sha1(key1+left+key1)[:16])
         left  = strxor(left, sha1(key2+right+key2))
-        right = ctr_crypt( right, sha1(key3+left+key3)[:16] )
+        right = ctr_crypt(right, sha1(key3+left+key3)[:16])
         left  = strxor(left, sha1(key4+right+key4))
 
         key = (key1,key2,key3,key4)
@@ -331,9 +331,9 @@ class CryptoTests(unittest.TestCase):
         eq(s("aBar")[:16], k.get("Bar"))
 
         z19 = "\x00"*19
-        eq( (s("aBaz"),               x(s("aBaz"), z19+"\x01"),
-             x(s("aBaz"),z19+"\x02"), x(s("aBaz"), z19+"\x03") ),
-            k.getLionessKeys("Baz"))
+        eq((s("aBaz"),               x(s("aBaz"), z19+"\x01"),
+            x(s("aBaz"),z19+"\x02"), x(s("aBaz"), z19+"\x03")),
+           k.getLionessKeys("Baz"))
 
     def test_aesprng(self):
         # Make sure that AESCounterPRNG is really repeatable.
@@ -462,6 +462,7 @@ class FormatTests(unittest.TestCase):
 
         self.failUnlessRaises(ParseError, parseIPV4Info, ri[:-1])
         self.failUnlessRaises(ParseError, parseIPV4Info, ri+"x")
+    
 
     def test_smtpinfolocalinfo(self):
         for _class, _parse, _key in ((SMTPInfo, parseSMTPInfo, 'email'),
@@ -486,6 +487,15 @@ class FormatTests(unittest.TestCase):
             self.assertEquals(inf.tag, "xyzzy\x00plover")
             self.assertEquals(inf.pack(), ri)
 
+    def test_replyblock(self):
+        r = ("SURB\x01\x00"+"\x00\x00\x00\x00"+("Z"*2048)+"\x00\x0A"+"\x00\x01"
+             +("F"*10))
+        rb = parseReplyBlock(r)
+        self.assertEquals(rb.timestamp, 0)
+        self.assertEquals(rb.header, "Z"*2048)
+        self.assertEquals(rb.routingType, 1)
+        self.assertEquals(rb.routingInfo, "F"*10)
+        self.assertEquals(r, rb.pack())
 
 #----------------------------------------------------------------------
 from mixminion.HashLog import HashLog
@@ -635,8 +645,8 @@ class BuildMessageTests(unittest.TestCase):
             """
         retsecrets = []
         retinfo = []
-        if secrets == None:
-            secrets = [ None ] * len(pks)
+        if secrets is None:
+            secrets = [None] * len(pks)
         self.assertEquals(len(head), mixminion.Packet.HEADER_LEN)
         for pk, secret, rt, ri in zip(pks, secrets,rtypes,rinfo):
             subh = mixminion.Packet.parseSubheader(pk_decrypt(head[:128], pk))
@@ -683,9 +693,9 @@ class BuildMessageTests(unittest.TestCase):
     def test_extended_routinginfo(self):
         bhead = BuildMessage._buildHeader
 
-        secrets = ["9"*16 ]
+        secrets = ["9"*16]
         longStr = "Foo"*50
-        head = bhead([self.server1 ], secrets, 99, longStr, AESCounterPRNG())
+        head = bhead([self.server1], secrets, 99, longStr, AESCounterPRNG())
         pks = (self.pk1,)
         rtypes = (99,)
         rinfo = (longStr,)
@@ -826,20 +836,20 @@ class BuildMessageTests(unittest.TestCase):
                                (FWD_TYPE, 99),
                                (self.server2.getRoutingInfo().pack(),
                                 "Goodbye") ),
-                             "Hello" )
+                             "Hello")
 
         m = bfm(payload, 99, "Goodbye",
-                [self.server1, ],
-                [self.server3, ])
+                [self.server1,],
+                [self.server3,])
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
-                               (SWAP_FWD_TYPE, ),
-                               ( self.server3.getRoutingInfo().pack(), ) ),
-                             ( (self.pk3, ), None,
+                               (SWAP_FWD_TYPE,),
+                               (self.server3.getRoutingInfo().pack(),) ),
+                             ( (self.pk3,), None,
                                (99,),
                                ("Goodbye",) ),
-                             "Hello" )
+                             "Hello")
 
     def test_buildreply(self):
         brb = BuildMessage.buildReplyBlock
@@ -848,8 +858,8 @@ class BuildMessageTests(unittest.TestCase):
 
         ## Stateful reply blocks.
         reply, secrets = \
-             brb([ self.server3, self.server1, self.server2,
-                   self.server1, self.server3 ],
+             brb([self.server3, self.server1, self.server2,
+                  self.server1, self.server3],
                  SMTP_TYPE,
                  SMTPInfo("no-such-user@invalid", None).pack())
         pks_1 = (self.pk3, self.pk1, self.pk2, self.pk1, self.pk3)
@@ -858,7 +868,7 @@ class BuildMessageTests(unittest.TestCase):
                  self.server1.getRoutingInfo().pack(),
                  self.server3.getRoutingInfo().pack())
 
-        self.assert_(reply.addr == self.server3)
+        self.assert_(reply.routingInfo == self.server3.getRoutingInfo().pack())
 
         m = brm("Information?",
                 [self.server3, self.server1],
@@ -877,8 +887,8 @@ class BuildMessageTests(unittest.TestCase):
                              "Information?")
 
         ## Stateless replies
-        reply = bsrb([ self.server3, self.server1, self.server2,
-                       self.server1, self.server3 ],
+        reply = bsrb([self.server3, self.server1, self.server2,
+                      self.server1, self.server3],
                      "fred", "Galaxy Far Away.", 0)
 
         sec,(loc,) = self.do_header_test(reply.header, pks_1, None,
@@ -888,11 +898,11 @@ class BuildMessageTests(unittest.TestCase):
         self.assert_(loc.startswith(s))
         seed = ctr_crypt(loc[len(s):], "Galaxy Far Away.")
         prng = AESCounterPRNG(seed)
-        self.assert_(sec == [ prng.getBytes(16) for _ in range(5)])
+        self.assert_(sec == [ prng.getBytes(16) for _ in range(5) ])
 
         ## Stateless reply, no user key (trusted server)
-        reply = bsrb([ self.server3, self.server1, self.server2,
-                       self.server1, self.server3 ],
+        reply = bsrb([self.server3, self.server1, self.server2,
+                      self.server1, self.server3],
                      "fred", None)
         sec,(loc,) = self.do_header_test(reply.header, pks_1, None,
                             (FWD_TYPE,FWD_TYPE,FWD_TYPE,FWD_TYPE,LOCAL_TYPE),
@@ -900,7 +910,7 @@ class BuildMessageTests(unittest.TestCase):
         self.assert_(loc.startswith(s))
         seed = loc[len(s):]
         prng = AESCounterPRNG(seed)
-        self.assert_(sec == [ prng.getBytes(16) for _ in range(5)])
+        self.assert_(sec == [ prng.getBytes(16) for _ in range(5) ])
 
 #----------------------------------------------------------------------
 # Having tested BuildMessage without using PacketHandler, we can now use
@@ -1020,7 +1030,7 @@ class PacketHandlerTests(unittest.TestCase):
         server1X = ServerInfo("127.0.0.1", 1, pk_get_modulus(self.pk1), "X"*20)
         class _packable:
             def pack(self): return "x"*200
-        server1X.getRoutingInfo = lambda _packable=_packable : _packable()
+        server1X.getRoutingInfo = lambda _packable=_packable: _packable()
 
         m = bfm("Z", LOCAL_TYPE, "hello\000bye",
                 [self.server2, server1X, self.server3],
@@ -1044,9 +1054,9 @@ class PacketHandlerTests(unittest.TestCase):
 
         # Even duplicate secrets need to go.
         prng = AESCounterPRNG(" "*16)
-        reply1,s = brb([self.server1], SMTP_TYPE, "fred@invalid",prng)
+        reply1,s = brb([self.server1], SMTP_TYPE, "fred@invalid",0,prng)
         prng = AESCounterPRNG(" "*16)
-        reply2,s = brb([self.server2], LOCAL_TYPE, "foo",prng)
+        reply2,s = brb([self.server2], LOCAL_TYPE, "foo",0,prng)
         m = brm("Y", [self.server3], reply1)
         m2 = brm("Y", [self.server3], reply2)
         q, (a,m) = self.sp3.processMessage(m)
@@ -1189,8 +1199,8 @@ class QueueTests(unittest.TestCase):
         queue1 = Queue(self.d1, create=1)
         queue2 = Queue(self.d2, create=1)
 
-        handles = [ queue1.queueMessage("Sample message %s" % i)
-                    for i in range(100) ]
+        handles = [queue1.queueMessage("Sample message %s" % i) 
+                   for i in range(100)]
         hdict = {}
         for i in range(100): hdict[handles[i]] = i
         self.assertEquals(queue1.count(), 100)
@@ -1208,7 +1218,7 @@ class QueueTests(unittest.TestCase):
 
         q2h = []
         for h in handles[:30]:
-            q2h.append( queue1.moveMessage(h, queue2) )
+            q2h.append(queue1.moveMessage(h, queue2))
 
         from string import atoi
         seen = {}
@@ -1295,7 +1305,7 @@ def _getMMTPServer():
 class MMTPTests(unittest.TestCase):
     def testBlockingTransmission(self):
         server, listener, messagesIn = _getMMTPServer() 
-        messages = [ "helloxxx"*4096, "helloyyy"*4096 ]
+        messages = ["helloxxx"*4096, "helloyyy"*4096]
 
         server.process(0.1)
         t = threading.Thread(None,
@@ -1313,7 +1323,7 @@ class MMTPTests(unittest.TestCase):
     def testNonblockingTransmission(self):
         server, listener, messagesIn = _getMMTPServer() 
 
-        messages = [ "helloxxx"*4096, "helloyyy"*4096 ]
+        messages = ["helloxxx"*4096, "helloyyy"*4096]
         async = mixminion.MMTPServer.AsyncServer()
         clientcon = mixminion.MMTPServer.MMTPClientConnection(
             _getTLSContext(0), "127.0.0.1", TEST_PORT, None, messages[:], None)

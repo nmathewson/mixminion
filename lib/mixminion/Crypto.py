@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.7 2002/06/24 20:28:19 nickm Exp $
+# $Id: Crypto.py,v 1.8 2002/06/25 11:41:08 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -7,6 +7,8 @@
    implemented in C by OpenSSL.  Nonetheless, other modules should call
    the functions in mixminion.Crypto, and not call _minionlib's crypto
    functionality themselves."""
+
+from types import StringType
 
 import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv
@@ -56,13 +58,13 @@ def ctr_crypt(s, key, idx=0):
     """Given a string s and a 16-byte key key, computes the AES counter-mode
        encryption of s using k.  The counter begins at idx.
     """
-    if type(key) == type(""):
+    if isinstance(key, StringType):
         key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,s,idx)
 
 def prng(key,count,idx=0):
     """Returns the bytestream 0x00000000...., encrypted in counter mode."""
-    if type(key) == type(""):
+    if isinstance(key, StringType):
         key = _ml.aes_key(key)
     return _ml.aes_ctr128_crypt(key,"",idx,count)
 
@@ -71,8 +73,8 @@ def lioness_encrypt(s,(key1,key2,key3,key4)):
        s using the LIONESS super-pseudorandom permutation.
     """
 
-    assert len(key1)==len(key3)==DIGEST_LEN
-    assert len(key2)==len(key4)==DIGEST_LEN
+    assert len(key1) == len(key3) == DIGEST_LEN
+    assert len(key2) == len(key4) == DIGEST_LEN
     assert len(s) > DIGEST_LEN
 
     left = s[:DIGEST_LEN]
@@ -152,15 +154,11 @@ def pk_from_modulus(n, e=65535L):
     return _ml.rsa_make_public_key(long(n),long(e))
 
 def pk_encode_private_key(key):
-    """pk_encode_private_key(rsa)->str
-
-       Creates an ASN1 representation of a keypair for external storage."""
+    """Creates an ASN1 representation of a keypair for external storage."""
     return key.encode_key(0)
 
 def pk_decode_private_key(s):
-    """pk_encode_private_key(str)->rsa
-
-       Reads an ASN1 representation of a keypair from external storage."""
+    """Reads an ASN1 representation of a keypair from external storage."""
     return _ml.rsa_decode_key(s,0)
 
 #----------------------------------------------------------------------
@@ -202,8 +200,8 @@ def _add_oaep_padding(data, p, bytes, rng=None):
 
        If rng is None, uses the general purpose RNG.  The parameter may
        be any length.  len(data) must be <= bytes-42.  '''
-    if rng==None:
-        rng=getCommonPRNG()
+    if rng is None:
+        rng = getCommonPRNG()
     bytes = bytes-1
     mLen = len(data)
     paddingLen = bytes-mLen-2*DIGEST_LEN-1
@@ -242,7 +240,7 @@ def _check_oaep_padding(data, p, bytes):
             pass
         else:
             raise CryptoError("Decoding error")
-    if m == None:
+    if m is None:
         raise CryptoError("Decoding error")
     return m
 
@@ -291,12 +289,12 @@ class Keyset:
     def get(self, mode, bytes=AES_KEY_LEN):
         """Creates a new key from the master secret, using the first <bytes>
            bytes of SHA1(master||mode)."""
-        assert 0<bytes<=DIGEST_LEN
+        assert 0 < bytes <= DIGEST_LEN
         return sha1(self.master+mode)[:bytes]
     def getLionessKeys(self, mode):
         """Returns a set of 4 lioness keys, as described in the Mixminion
            specification."""
-        z19="\x00"*19
+        z19 = "\x00"*19
         key1 = sha1(self.master+mode)
         key2 = _ml.strxor(sha1(self.master+mode), z19+"\x01")
         key3 = _ml.strxor(sha1(self.master+mode), z19+"\x02")
@@ -322,8 +320,8 @@ class RNG:
     def __init__(self, chunksize):
         """Initializes a RNG.  Bytes will be fetched from _prng by 'chunkSize'
            bytes at a time."""
-        self.bytes=""
-        self.chunksize=chunksize
+        self.bytes = ""
+        self.chunksize = chunksize
     def getBytes(self, n):
         """Returns a string of 'n' random bytes."""
 
@@ -333,11 +331,11 @@ class RNG:
             nMore = n+self.chunksize-len(self.bytes)
             morebytes = self._prng(nMore)
             res = self.bytes+morebytes[:n-len(self.bytes)]
-            self.bytes=morebytes[n-len(self.bytes):]
+            self.bytes = morebytes[n-len(self.bytes):]
             return res
         else:
             res = self.bytes[:n]
-            self.bytes=self.bytes[n:]
+            self.bytes = self.bytes[n:]
             return res
 
     def getInt(self, max):
@@ -387,14 +385,14 @@ class AESCounterPRNG(RNG):
            is specified, gets one from the true random number generator."""
         RNG.__init__(self, 16*1024)
         self.counter = 0
-        if seed == None:
+        if seed is None:
             seed = trng(AES_KEY_LEN)
         self.key = aes_key(seed)
         
     def _prng(self, n):
         """Implementation: uses the AES counter stream to generate entropy."""
         c = self.counter
-        self.counter+=n
+        self.counter += n
         # On python2.0, we overflow and wrap around.
         if (self.counter < c) or (self.counter >> 32):
             raise MixFatalError("Exhausted period of PRNG.")
@@ -404,7 +402,7 @@ _theSharedPRNG = None
 def getCommonPRNG():
     '''Returns a general-use AESCounterPRNG, initializing it if necessary.'''
     global _theSharedPRNG
-    if _theSharedPRNG == None:
+    if _theSharedPRNG is None:
         _theSharedPRNG = AESCounterPRNG()
     return _theSharedPRNG
 

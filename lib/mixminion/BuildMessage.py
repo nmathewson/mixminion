@@ -1,66 +1,60 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.6 2002/06/24 20:28:19 nickm Exp $
+# $Id: BuildMessage.py,v 1.7 2002/06/25 11:41:07 nickm Exp $
 
 """mixminion.BuildMessage
 
    Code to construct messages and reply blocks."""
 
+import operator
 from mixminion.Packet import *
 from mixminion.Common import MixError
 import mixminion.Crypto as Crypto
 import mixminion.Modules as Modules
-import operator
 
 __all__ = [ 'buildForwardMessage', 'buildReplyBlock', 'buildReplyMessage',
             'buildStatelessReplyBlock' ]
 
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2):
-    """buildForwardMessage(payload, exitType, exitInfo, path1, path2) ->str
-
-       Constructs a forward message.
+    """Construct a forward message.
             payload: The payload to deliver.
             exitType: The routing type for the final node
             exitType: The routing info for the final node
             path1: Sequence of ServerInfo objects for the first leg of the path
             path1: Sequence of ServerInfo objects for the 2nd leg of the path
-        """
+    """
     return _buildMessage(payload, exitType, exitInfo, path1, path2)
 
 def buildReplyMessage(payload, path1, replyBlock):
-    """buildReplyMessage(payload, path1, replyBlock) ->str
-
-       Builds a message using a reply block.  'path1' is a sequence of
-       ServerInfo for the nodes on the first leg of the path."""
+    """Build a message using a reply block.  'path1' is a sequence of
+       ServerInfo for the nodes on the first leg of the path.
+    """
     return _buildMessage(payload, None, None,
-                         path1=path1,
-                         reply=replyBlock)
+                         path1=path1, path2=replyBlock)
 
-def buildReplyBlock(path, exitType, exitInfo, secretPRNG=None):
-    """buildReplyBlock(path, exitType, exitInfo, secretPRNG=None) 
-                                                  -> (Reply block, secret list)
-
-       Returns a newly-constructed reply block and a list of secrets used
+def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None):
+    """Return a newly-constructed reply block and a list of secrets used
        to make it.
        
               path: A list of ServerInfo
               exitType: Routing type to use for the final node
               exitInfo: Routing info for the final node
+              expiryTime: The time at which this block should expirt.
               secretPRNG: A PRNG to use for generating secrets.  If not
                  provided, uses an AES counter-mode stream seeded from our
                  entropy source.
        """
-    if secretPRNG == None:
+    if secretPRNG is None:
         secretPRNG = Crypto.AESCounterPRNG()
     secrets = [ secretPRNG.getBytes(SECRET_LEN) for _ in path ]
     header = _buildHeader(path, secrets, exitType, exitInfo, 
                           paddingPRNG=Crypto.AESCounterPRNG())
-    return ReplyBlock(header, path[0]), secrets
+    return ReplyBlock(header, expiryTime,
+                      Modules.SWAP_FWD_TYPE,
+                      path[0].getRoutingInfo().pack()), secrets
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
-def buildStatelessReplyBlock(path, user, userKey, email=0):
-    """buildStatelessReplyBlock(path, user, userKey, email=0) -> ReplyBlock
-
-       Constructs a 'stateless' reply block that does not require the
+def buildStatelessReplyBlock(path, user, userKey, email=0, expiryTime=0):
+    """Construct a 'stateless' reply block that does not require the
        reply-message recipient to remember a list of secrets.
        Instead, all secrets are generated from an AES counter-mode
        stream, and the seed for the stream is stored in the 'tag'
@@ -78,6 +72,7 @@ def buildStatelessReplyBlock(path, user, userKey, email=0):
                   userKey: an AES key to encrypt the seed, or None.
                   email: If true, delivers via SMTP; else delivers via LOCAL.
        """
+    #XXXX Out of sync with the spec.
     if email and userKey:
         raise MixError("Requested EMail delivery without password-protection")
 
@@ -95,15 +90,12 @@ def buildStatelessReplyBlock(path, user, userKey, email=0):
         exitInfo = LocalInfo(user, "RTRN"+tag).pack()
 
     prng = Crypto.AESCounterPRNG(seed)
-    return buildReplyBlock(path, exitType, exitInfo, prng)[0]
+    return buildReplyBlock(path, exitType, exitInfo, expiryTime, prng)[0]
 
 #----------------------------------------------------------------------
 def _buildMessage(payload, exitType, exitInfo,
-                  path1, path2=None, reply=None, paddingPRNG=None, paranoia=0):
-    """_buildMessage(payload, exitType, exitInfo, path1, path2=None,
-                     reply=None, paddingPRNG=None, paranoia=0) -> str
-    
-    Helper method to create a message.
+                  path1, path2, paddingPRNG=None, paranoia=0):
+    """Helper method to create a message.
 
     The following fields must be set:
        payload: the intended exit payload.
@@ -113,11 +105,11 @@ def _buildMessage(payload, exitType, exitInfo,
           on the first leg of the path.
 
     The following fields must be set for a forward message:
-       path2: a sequence of ServerInfo objects, one for each of the nodes
-          on the second leg of the path.
-
-    The following fields must be set for a reply message:
-       reply: a ReplyBlock object
+       path2: EITHER
+             a sequence of ServerInfo objects, one for each of the nodes
+             on the second leg of the path.
+         OR
+             a replyBlock object.
 
     The following fields are optional:
        paddingPRNG: A pseudo-random number generator used to pad the headers
@@ -127,13 +119,15 @@ def _buildMessage(payload, exitType, exitInfo,
          header secrets too.  Otherwise, we read all of our header secrets
          from the true entropy source. 
     """
-    assert path2 or reply
-    assert not (path2 and reply)
+    reply = None
+    if isinstance(path2, ReplyBlock):
+        reply = path2
+        path2 = None
 
     ### SETUP CODE: let's handle all the variant cases.
 
     # Set up the random number generators.
-    if paddingPRNG == None:
+    if paddingPRNG is None:
         paddingPRNG = Crypto.AESCounterPRNG()
     if paranoia:
         nHops = len(path1)
@@ -144,8 +138,10 @@ def _buildMessage(payload, exitType, exitInfo,
 
     # Determine exit routing for path1 and path2.
     if reply:
-        path1exitinfo = reply.addr.getRoutingInfo().pack()
+        path1exittype = reply.routingType
+        path1exitinfo = reply.routingInfo
     else:
+        path1exittype = Modules.SWAP_FWD_TYPE
         path1exitinfo = path2[0].getRoutingInfo().pack()
 
     # Pad the payload, as needed.
@@ -166,21 +162,20 @@ def _buildMessage(payload, exitType, exitInfo,
         header2 = reply.header
 
     # Construct header1.
-    header1 = _buildHeader(path1,secrets1,Modules.SWAP_FWD_TYPE,path1exitinfo,
+    header1 = _buildHeader(path1,secrets1,path1exittype,path1exitinfo,
                            paddingPRNG)
 
     return _constructMessage(secrets1, secrets2, header1, header2, payload)
 
 def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
-    """_buildHeader(path, secrets, exitType, exitInfo, paddingPRNG) -> str
-
-       Helper method to construct a single header.
+    """Helper method to construct a single header.
            path: A sequence of serverinfo objects.
            secrets: A list of 16-byte strings to use as master-secrets for
                each of the subeaders.
            exitType: The routing for the last node in the header
            exitInfo: The routing info for the last node in the header
-           paddingPRNG: A pseudo-random number generator to generate padding"""
+           paddingPRNG: A pseudo-random number generator to generate padding
+    """
 
     assert len(path) == len(secrets)
     if len(path) * ENC_SUBHEADER_LEN > HEADER_LEN:
@@ -189,10 +184,10 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     # Construct a list 'routing' of exitType, exitInfo.  
     routing = [ (Modules.FWD_TYPE, node.getRoutingInfo().pack()) for
                 node in path[1:] ]
-    routing.append( (exitType, exitInfo) )
+    routing.append((exitType, exitInfo))
     
     # sizes[i] is size, in blocks, of subheaders for i.
-    sizes =[ getTotalBlocksForRoutingInfoLen(len(info)) for t, info in routing]
+    sizes =[ getTotalBlocksForRoutingInfoLen(len(ri)) for _, ri in routing]
     
     # totalSize is number total number of blocks.
     totalSize = reduce(operator.add, sizes)
@@ -207,7 +202,7 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     #   junkSeen[i]==the junk that node i will see, before it does any
     #                encryption.   Note that junkSeen[0]=="", because node 0
     #                sees no junk.
-    junkSeen = [ "" ]
+    junkSeen = [""]
     for secret, headerKey, size in zip(secrets, headerKeys, sizes):
         # Here we're calculating the junk that node i+1 will see.
         #
@@ -256,10 +251,10 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
     """Helper method: Builds a message, given both headers, all known
        secrets, and the padded payload.
 
-       If using a reply block, secrets2 should be null."""
+       If using a reply block, secrets2 should be null.
+    """
     assert len(payload) == PAYLOAD_LEN
     assert len(header1) == len(header2) == HEADER_LEN
-
     
     if secrets2:
         # (Copy secrets2 so we don't reverse the original)

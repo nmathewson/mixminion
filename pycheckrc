@@ -103,9 +103,8 @@ maxLines = 100
 maxBranches = 20
 maxReturns = 10
 maxArgs = 7
-maxLocals = 10
+maxLocals = 15
 maxReferences = 10
-
 
 # bool:  ignore all warnings from standard library components
 #	 (this includes anything under the standard library, eg, site-packages)

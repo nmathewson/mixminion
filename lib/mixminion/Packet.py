@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.2 2002/06/24 20:28:19 nickm Exp $
+# $Id: Packet.py,v 1.3 2002/06/25 11:41:08 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -9,7 +9,8 @@ __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseMessage', 'parseHeader', 'parseSubheader',
             'getTotalBlocksForRoutingInfoLen', 'ReplyBlock',
             'IPV4Info', 'SMTPInfo', 'LocalInfo', 'parseIPV4Info',
-            'parseSMTPInfo', 'parseLocalInfo', 'ENC_SUBHEADER_LEN',
+            'parseSMTPInfo', 'parseLocalInfo', 'ReplyBlock',
+            'parseReplyBlock', 'ENC_SUBHEADER_LEN',
             'HEADER_LEN', 'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO',
             'SECRET_LEN']
 
@@ -49,9 +50,7 @@ class ParseError(MixError):
     pass
 
 def parseMessage(s):
-    """parseMessage(s) -> Message
-
-       Given a 32K string, returns a Message object that breaks it into
+    """Given a 32K string, returns a Message object that breaks it into
        two headers and a payload."""
     if len(s) != MESSAGE_LEN:
         raise ParseError("Bad message length")
@@ -65,21 +64,17 @@ class Message:
 
        Fields: header1, header2, payload"""
     def __init__(self, header1, header2, payload):
-        """Message(header1, header2, payload) -> msg
-
-           Creates a new Message object from three strings."""
+        """Create a new Message object from three strings."""
         self.header1 = header1
         self.header2 = header2
         self.payload = payload
 
     def pack(self):
-        """Returns the 32K string value of this message."""
+        """Return the 32K string value of this message."""
         return "".join([self.header1,self.header2,self.payload])
 
 def parseHeader(s):
-    """parseHeader(s) -> Header
-
-       Converts a 2K string into a Header object"""
+    """Convert a 2K string into a Header object"""
     if len(s) != HEADER_LEN:
         raise ParseError("Bad header length")
 
@@ -88,6 +83,7 @@ def parseHeader(s):
 class Header:
     """Represents a 2K Mixminion header"""
     def __init__(self, contents):
+        """Initialize a new header from its contents"""
         self.contents = contents
 
     def __getitem__(self, i):
@@ -99,16 +95,17 @@ class Header:
                              (i+1)*ENC_SUBHEADER_LEN]
 
     def __getslice__(self, i, j):
-        """header[i] -> str
+        """header[i:j] -> str
 
            Returns a slice of the i-j'th subheaders of this header."""
         if j > 16: j = 16
-        if i < 0: i=16+i
-        if j < 0: j=16+j
+        if i < 0: i += 16
+        if j < 0: j += 16 
         return self.contents[i*ENC_SUBHEADER_LEN:
                              j*ENC_SUBHEADER_LEN]
 
     def __len__(self):
+        """Return the number of subheaders in this header (always 16)"""
         return 16
 
 # A subheader begins with: a major byte, a minor byte, SECRET_LEN secret
@@ -117,9 +114,7 @@ class Header:
 SH_UNPACK_PATTERN = "!BB%ds%dsHH" % (SECRET_LEN, DIGEST_LEN)
 
 def parseSubheader(s):
-    """parseSubheader(s) -> Subheader
-
-       Converts a decoded Mixminion subheader into a Subheader object"""
+    """Convert a decoded Mixminion subheader into a Subheader object"""
     if len(s) < MIN_SUBHEADER_LEN:
         raise ParseError("Header too short")
     if len(s) > MAX_SUBHEADER_LEN:
@@ -136,7 +131,7 @@ def parseSubheader(s):
     return Subheader(major,minor,secret,digest,rt,ri,rlen)
 
 def getTotalBlocksForRoutingInfoLen(bytes):
-    """Returns the number of subheraders that will be needed for a hop
+    """Return the number of subheaders that will be needed for a hop
        whose routinginfo is (bytes) long."""
     if bytes <= MAX_ROUTING_INFO_LEN:
         return 1
@@ -157,11 +152,12 @@ class Subheader:
 
     def __init__(self, major, minor, secret, digest, routingtype,
                  routinginfo, routinglen=None):
+        """Initialize a new subheader"""
         self.major = major
         self.minor = minor
         self.secret = secret
         self.digest = digest
-        if routinglen == None:
+        if routinglen is None:
             self.routinglen = len(routinginfo)
         else:
             self.routinglen = routinglen
@@ -175,25 +171,25 @@ class Subheader:
                 "routinglen=%(routinglen)r)")% self.__dict__
 
     def setRoutingInfo(self, info):
-        """Changes the routinginfo, and the routinglength to correspond."""
+        """Change the routinginfo, and the routinglength to correspond."""
         self.routinginfo = info
         self.routinglen = len(info)
 
     def isExtended(self):
-        """Returns true iff the routinginfo is too long to fit in a single
+        """Return true iff the routinginfo is too long to fit in a single
            subheader."""
         return self.routinglen > MAX_ROUTING_INFO_LEN
 
     def getNExtraBlocks(self):
-        """Returns the number of extra blocks that will be needed to fit
+        """Return the number of extra blocks that will be needed to fit
            the routinginfo."""
         return getTotalBlocksForRoutingInfoLen(self.routinglen)-1
 
     def appendExtraBlocks(self, data):
-        """appendExtraBlocks(str)
-
-           Given additional (decoded) blocks of routing info, adds them
-           to the routinginfo of this object."""
+        """Given a string containing additional (decoded) blocks of
+           routing info, add them to the routinginfo of this
+           object.
+        """
         nBlocks = self.getNExtraBlocks()
         assert len(data) == nBlocks * ENC_SUBHEADER_LEN
         raw = [self.routinginfo]
@@ -203,7 +199,7 @@ class Subheader:
         self.routinginfo = ("".join(raw))[:self.routinglen]
 
     def pack(self):
-        """Returns the (unencrypted) string representation of this Subhead.
+        """Return the (unencrypted) string representation of this Subhead.
 
            Does not include extra blocks"""
         assert self.routinglen == len(self.routinginfo)
@@ -216,9 +212,7 @@ class Subheader:
                            self.routinglen, self.routingtype)+info
 
     def getExtraBlocks(self):
-        """getExtraBlocks() -> [ str, ...]
-
-           Returns a list of (unencrypted) blocks of extra routing info."""
+        """Return a list of (unencrypted) blocks of extra routing info."""
         if not self.isExtended():
             return []
         else:
@@ -234,17 +228,51 @@ class Subheader:
             return result
 
 
-#FFFF We don't have an interchange format for these yet, so there's no way
-#FFFF to parse or unparse 'em.
+RB_UNPACK_PATTERN = "!4sBBL%ssHH" % (HEADER_LEN)
+MIN_RB_LEN = 14+HEADER_LEN
+
+def parseReplyBlock(s):
+    """Return a new ReplyBlock object for an encoded reply block"""
+    if len(s) < MIN_RB_LEN:
+        raise ParseError("Reply block too short")
+
+    try:
+        magic, major, minor, timestamp, header, rlen, rt = \
+               struct.unpack(RB_UNPACK_PATTERN, s[:MIN_RB_LEN])
+    except struct.error:
+        raise ParseError("Misformatted reply block")
+
+    if magic != 'SURB':
+        raise ParseError("Misformatted reply block")
+
+    if major != 0x01 or minor != 0x00:
+        raise ParseError("Unrecognized version on reply block")
+
+    ri = s[MIN_RB_LEN:]
+    if len(ri) != rlen:
+        raise ParseError("Misformatted reply block")
+
+    return ReplyBlock(header, timestamp, rt, ri)
+
 class ReplyBlock:
     """A mixminion reply block, including the address of the first hop
-       on the path, and a ServerInfo for the server."""
-    def __init__(self, header, addr):
+       on the path, and the RoutingType and RoutingInfo for the server."""
+    def __init__(self, header, useBy, rt, ri):
+        """Construct a new Reply Block."""
         self.header = header
-        self.addr = addr
+        self.timestamp = useBy
+        self.routingType = rt
+        self.routingInfo = ri
+
+    def pack(self):
+        """Returns the external representation of this reply block"""
+        return struct.pack(RB_UNPACK_PATTERN,
+                           "SURB", 0x01, 0x00, self.timestamp,
+                           self.header, len(self.routingInfo),
+                           self.routingType)+self.routingInfo
 
 def _packIP(s):
-    """Helper method: converts a dotted-decimal IPv4 address into a
+    """Helper method: convert a dotted-decimal IPv4 address into a
        four-byte encoding.  Raises ParseError if the input is not a
        dotted quad of 0..255"""
     addr = s.split(".")
@@ -259,7 +287,7 @@ def _packIP(s):
     return struct.pack("!BBBB", *addr)
 
 def _unpackIP(s):
-    """Helper method: convers a four-byte IPv4 address into a dotted quad."""
+    """Helper method: convert a four-byte IPv4 address into a dotted quad."""
     if len(s) != 4: raise ParseError("Malformed IP")
     return ".".join(map(str, struct.unpack("!BBBB", s)))
 
@@ -268,9 +296,7 @@ def _unpackIP(s):
 IPV4_PAT = "!4sH%ds" % DIGEST_LEN
 
 def parseIPV4Info(s):
-    """parseIP4VInfo(s) -> IPV4Info
-
-       Converts routing info for an IPV4 address into an IPV4Info object,
+    """Converts routing info for an IPV4 address into an IPV4Info object,
        suitable for use by FWD or SWAP_FWD modules."""
     if len(s) != 4+2+DIGEST_LEN:
         raise ParseError("IPV4 information with wrong length")
@@ -287,17 +313,19 @@ class IPV4Info:
        Fields: ip (a dotted quad), port (an int from 0..65535), and keyinfo
        (a digest)."""
     def __init__(self, ip, port, keyinfo):
-        assert 0<=port<=65535
+        """Construct a new IPV4Info"""
+        assert 0 <= port <= 65535
         self.ip = ip
         self.port = port
         self.keyinfo = keyinfo
 
     def pack(self):
+        """Return the routing info for this address"""
         assert len(self.keyinfo) == DIGEST_LEN
         return struct.pack(IPV4_PAT, _packIP(self.ip), self.port, self.keyinfo)
 
 def parseSMTPInfo(s):
-    """Converts the encoding of an SMTP routinginfo into an SMTPInfo object."""
+    """Convert the encoding of an SMTP routinginfo into an SMTPInfo object."""
     lst = s.split("\000",1)
     if len(lst) == 1:
         return SMTPInfo(s,None)
@@ -313,13 +341,14 @@ class SMTPInfo:
         self.tag = tag
 
     def pack(self):
+        """Returns the wire representation of this SMTPInfo"""
         if self.tag != None:
             return self.email+"\000"+self.tag
         else:
             return self.email
 
 def parseLocalInfo(s):
-    """Converts the encoding of an LOCAL routinginfo into an LocalInfo
+    """Convert the encoding of an LOCAL routinginfo into an LocalInfo
        object."""
     lst = s.split("\000",1)
     if len(lst) == 1:
@@ -337,6 +366,7 @@ class LocalInfo:
         self.tag = tag
 
     def pack(self):
+        """Return the external representation of this routing info."""
         if self.tag:
             return self.user+"\000"+self.tag
         else:

@@ -1,12 +1,15 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.1 2002/06/24 20:28:19 nickm Exp $
+# $Id: Queue.py,v 1.2 2002/06/25 11:41:08 nickm Exp $
 
 """mixminion.Queue
 
    Facility for a fairly secure, directory-based, unordered queue.
    """
 
-import os, base64, time, stat
+import os
+import base64
+import time
+import stat
 
 from mixminion.Common import MixError, MixFatalError, secureDelete
 from mixminion.Crypto import AESCounterPRNG
@@ -97,7 +100,7 @@ class Queue:
         messages = [fn for fn in os.listdir(self.dir) if fn.startswith("msg_")]
 
         n = len(messages)
-        if count == None:
+        if count is None:
             count = n
         else:
             count = min(count, n)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.6 2002/06/24 20:28:19 nickm Exp $
+# $Id: benchmark.py,v 1.7 2002/06/25 11:41:08 nickm Exp $
 
 """mixminion.benchmark
 
@@ -35,7 +35,7 @@ def timeit_(fn, iters, ov=1):
     nones = [None]*iters
     if ov:
         overhead = loop_overhead.get(iters, None)
-        if overhead == None:
+        if overhead is None:
             overhead = loop_overhead[iters] = timeit_((
                 lambda:(lambda:None)()), iters, 0)
     else:
@@ -94,12 +94,12 @@ s120b = 'z'*120
 
 def cryptoTiming():
     print "#==================== CRYPTO ======================="
-    print "SHA1 (short)", timeit((lambda : sha1(short)), 100000)
-    print "SHA1 (64b)", timeit((lambda : sha1(s64b)), 100000)
-    print "SHA1 (2K)", timeit((lambda : sha1(s2K)), 10000)
-    print "SHA1 (8K)", timeit((lambda : sha1(s8K)), 10000)
-    print "SHA1 (28K)", timeit((lambda : sha1(s28K)), 1000)
-    print "SHA1 (32K)", timeit((lambda : sha1(s32K)), 1000)
+    print "SHA1 (short)", timeit((lambda: sha1(short)), 100000)
+    print "SHA1 (64b)", timeit((lambda: sha1(s64b)), 100000)
+    print "SHA1 (2K)", timeit((lambda: sha1(s2K)), 10000)
+    print "SHA1 (8K)", timeit((lambda: sha1(s8K)), 10000)
+    print "SHA1 (28K)", timeit((lambda: sha1(s28K)), 1000)
+    print "SHA1 (32K)", timeit((lambda: sha1(s32K)), 1000)
 
     shakey = "8charstr"*2
     print "Keyed SHA1 for lioness (28K, unoptimized)", timeit(
@@ -147,11 +147,11 @@ def cryptoTiming():
 
     c = AESCounterPRNG()
     print "aesprng.getInt (10)", \
-          timeit((lambda c=c : c.getInt(10)), 10000)
+          timeit((lambda c=c: c.getInt(10)), 10000)
     print "aesprng.getInt (1000)", \
-          timeit((lambda c=c : c.getInt(1000)), 10000)
+          timeit((lambda c=c: c.getInt(1000)), 10000)
     print "aesprng.getInt (513)", \
-          timeit((lambda c=c : c.getInt(513)), 10000)
+          timeit((lambda c=c: c.getInt(513)), 10000)
 
     lkey = Keyset("keymaterial foo bar baz").getLionessKeys("T")
     print "lioness E (1K)", timeit((
@@ -216,7 +216,9 @@ def cryptoTiming():
     print "Timing overhead: %s...%s" % (timestr(min(o)),timestr(max(o)))
 
 #----------------------------------------------------------------------
-import tempfile, os, stat
+import tempfile
+import os
+import stat
 
 def hashlogTiming():
     print "#==================== HASH LOGS ======================="
@@ -242,20 +244,20 @@ def _hashlogTiming(fname, load):
     for hash in hashes:
         h.logHash(hash)
     t = time()-t
-    print "Add entry (up to %s entries)" %load, timestr( t/float(load) )
+    print "Add entry (up to %s entries)" %load, timestr(t/float(load))
 
     t = time()
     for hash in hashes[0:1000]:
         h.seenHash(hash)
     t = time()-t
-    print "Check entry [hit] (%s entries)" %load, timestr( t/1000.0 )
+    print "Check entry [hit] (%s entries)" %load, timestr(t/1000.0)
 
     hashes =[ prng.getBytes(20) for _ in xrange(1000) ]
     t = time()
     for hash in hashes:
         h.seenHash(hash)
     t = time()-t
-    print "Check entry [miss] (%s entries)" %load, timestr( t/1000.0 )
+    print "Check entry [miss] (%s entries)" %load, timestr(t/1000.0)
 
     hashes =[ prng.getBytes(20) for _ in xrange(1000) ]
     t = time()
@@ -263,7 +265,7 @@ def _hashlogTiming(fname, load):
         h.seenHash(hash)
         h.logHash(hash)
     t = time()-t
-    print "Check entry [miss+add] (%s entries)" %load, timestr( t/1000.0 )
+    print "Check entry [miss+add] (%s entries)" %load, timestr(t/1000.0)
 
     h.close()
     size = 0
@@ -283,15 +285,16 @@ def buildMessageTiming():
     print "#================= BUILD MESSAGE ====================="
     pk = pk_generate()
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
-    serverinfo = [ ServerInfo("127.0.0.1", 48099, pk_get_modulus(pk),
-                              "x"*20) ] * 16
+    serverinfo = [ServerInfo("127.0.0.1", 48099, pk_get_modulus(pk),"x"*20)
+                  ] * 16
+                             
     def bh(np,it, serverinfo=serverinfo):
         ctr = AESCounterPRNG()
 
         tm = timeit_(
               lambda np=np,it=it,serverinfo=serverinfo,ctr=ctr:
                          _buildHeader(serverinfo[:np], ["Z"*16]*np,
-                                        99, "Hello", ctr), it )
+                                        99, "Hello", ctr), it)
 
         print "Build header (%s)" %(np), timestr(tm)
 
@@ -335,13 +338,13 @@ def serverProcessTiming():
                                    [server, server], [server, server])
 
     print "Server process (no swap, no log)", timeit(
-        lambda sp=sp, m_noswap=m_noswap : sp.processMessage(m_noswap), 100)
+        lambda sp=sp, m_noswap=m_noswap: sp.processMessage(m_noswap), 100)
 
     m_swap = buildForwardMessage("Hello world", SMTP_TYPE, "f@invalid",
                                  [server], [server, server])
 
     print "Server process (swap, no log)", timeit(
-        lambda sp=sp, m_swap=m_swap : sp.processMessage(m_swap), 100)
+        lambda sp=sp, m_swap=m_swap: sp.processMessage(m_swap), 100)
 
 #----------------------------------------------------------------------
 def timeEfficiency():
@@ -414,7 +417,7 @@ def timeEfficiency():
                                    [server, server], [server, server])
 
     sp_ns = timeit_(
-        lambda sp=sp, m_noswap=m_noswap : sp.processMessage(m_noswap), 100)
+        lambda sp=sp, m_noswap=m_noswap: sp.processMessage(m_noswap), 100)
 
     expected = rsa_128b+sha1_hdr+sha1_key*5+aes_2k+lioness_28k+prng_128b
     expected += lioness_2k
@@ -435,7 +438,8 @@ def timeEfficiency():
 
 #----------------------------------------------------------------------
 
-from mixminion.Common import secureDelete, installSignalHandlers, waitForChildren
+from mixminion.Common import secureDelete, installSignalHandlers, \
+     waitForChildren
 
 def fileOpsTiming():
     print "#================= File ops ====================="

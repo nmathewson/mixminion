@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.4 2002/06/24 20:28:19 nickm Exp $
+# $Id: HashLog.py,v 1.5 2002/06/25 11:41:08 nickm Exp $
 
 """mixminion.HashLog
 
@@ -30,9 +30,7 @@ class HashLog:
        The base HashLog implementation assumes an 8-bit-clean database that
        maps strings to strings."""
     def __init__(self, filename, keyid):
-        """HashLog(filename, keyid) -> hashlog
-
-           Creates a new HashLog to store data in 'filename' for the key
+        """Create a new HashLog to store data in 'filename' for the key
            'keyid'."""
         self.log = anydbm.open(filename, 'c')
         #FFFF Warn if we're using dumbdbm
@@ -43,9 +41,7 @@ class HashLog:
             self.log["KEYID"] = keyid
 
     def seenHash(self, hash):
-        """seenHash(hash) -> bool
-
-           Returns true iff 'hash' has been logged before."""
+        """Return true iff 'hash' has been logged before."""
         try:
             _ = self.log[hash]
             return 1
@@ -53,22 +49,16 @@ class HashLog:
             return 0
 
     def logHash(self, hash):
-        """logHash(hash)
-
-           Inserts 'hash' into the database."""
+        """Insert 'hash' into the database."""
         self.log[hash] = "1"
 
     def sync(self):
-        """sync()
-
-           Flushes changes to this log to the filesystem."""
+        """Flushes changes to this log to the filesystem."""
         if hasattr(self.log, "sync"):
             self.log.sync()
 
     def close(self):
-        """close()
-
-           Closes this log."""
+        """Closes this log."""
         self.sync()
         self.log.close()
 
