@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.8 2002/10/21 02:53:48 nickm Exp $
+# $Id: setup.py,v 1.9 2002/11/22 21:00:52 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -57,8 +57,6 @@ if big_endian:
 elif little_endian:
     print "Host is little-endian"
     MACROS.append( ("MM_L_ENDIAN", 1) )
-    if os.path.exists("/usr/include/byteswap.h"):
-        MACROS.append( ("MM_HAVE_BYTESWAP_H", 1) )
 elif other_endian:
     print "Wild!  Your machine seems to be middle-endian, and yet you've"
     print "somehow made it run Python.  Despite your perversity, I admire"
