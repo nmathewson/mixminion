@@ -23,11 +23,8 @@ For 0.0.5:
                 o Lazy-load deliverable messages.
                 o Don't block while shredding messages at startup.
                 o Shutdown faster on SIGTERM.
-        . Background projects:
-                o Port to cygwin
-                . Start win32 port
-                o Twisted port decision
-                - Website, FAQ
+        o Security improvements
+                o Include cfg info in descriptor
         o Initial support for email headers (server side)
                 o Subject
                 o From (limited)
@@ -35,23 +32,38 @@ For 0.0.5:
                 o References
                 o MBOX support
                 o Tests
+        . Background projects:
+                o Port to cygwin
+                o Start win32 port
+                        o Make it build.
+                        o Make all unittests pass
+                        o Make unittests pass without warnings
+                        o Add a makeshift interactive mode.
+                o Twisted port decision
+                - Website, FAQ
         . Initial support for email headers (client side)
                 o Implement
                 - Give error messages on bad headers
                 - Test
-        o Security improvements
-                o Include cfg info in descriptor
-        - Support for large messages and K-of-N
+        . Support for large messages and K-of-N
+                o fec backend code
+                o Tests and timing for fec backend
+                - Fragment genration code for client
+                - Fragment-pool logic for server
+                - Tests
+        . Change descriptors to accept YYYY-MM-DD.
+                o Implement
+                - Test
         . UI improvements:
                 o If we can't read serverdescs on startup, suggest a
                   server-DELKEYS.
                 o Quiet server startup; should be by default if daemon
                   mode.
-                . Ability to remove old messages from queue
+                o Ability to remove old messages from queue
                          o Implement
-                         - Test
+                         o Test
+                o Generate random-length paths.
                 - Audit exceptions: which should be UIError?
-                - Notice when out of disk space, die more cleanly.
                 - 'Iffy mode' messages are confusing.
                 - SSL's "Unexpected error: wrong version number"
                   message is confusing.
@@ -60,21 +72,43 @@ For 0.0.5:
                 - Tests for ServerInbox and Directory.py
                 - Tests for checkConsistency
                 - What happens when Overlap > Lifetime?
-        - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
-        - Change descriptors to accept YYYY-MM-DD.
-                - Implement
-                - Test
         - Bugfixes
-                - Handle server time moving backwards.
+                - Handle server time moving backward
                 - Solve CPU infinite loop bug
 
 For 0.0.6:
         - Dummies and pinging
         - Rudimentary MIME support (content-type, content-encoding
           only.)
+        . UI improvements:
+                - Notice when out of disk space, die more cleanly.
+                  (support max-disk-usage).
+                - List servers by nickname, not by IP.
         - Servers need to download and use directories
         - Servers redirect to latest IP if old IP is down.  (Dynamic
           IP support, after a fashion)
+        - Full Windows client-side support
+                - Address everything on Itamar's non-blocking
+                  incompatibility list.
+                - Real RNG via CryptGenRandom() 
+                - Real locking
+                - Installer
+                - Instructions
+        - RFC822 interface to help integrators
+        - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
+                - SIGHUP should reconfigure everything:
+                        - Logs
+                        - EventStats
+                        - securedelete
+                        - EntropySource (discard old entropy)
+                        - Configuration (as used by key)
+                        - File locations (????)
+                        - Network setup
+                        - Module setup
+                        - (What else?)
+                - SIGHUP should check whether serverinfo should be 
+                  regenerated. 
+                - Add SIGUSR1 to do rotate-and-dump only.
         - Security improvements
                 - Add ability to mark nodes as having same
                   administrative domain.
@@ -143,7 +177,7 @@ not yet ready to replace type I.]
                         - Installing to relative path
                 - "Somebody" should do a native Windows port
                         - Build process
-                        - Any C porting as necessary
+                        o Any C porting as necessary
                         - Signal code may need to change.
                         - Process mgt code may need to change.
                         - Some kind of substitute for /dev/urandom.

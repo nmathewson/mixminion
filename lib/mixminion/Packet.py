@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.50 2003/07/08 19:13:50 nickm Exp $
+# $Id: Packet.py,v 1.51 2003/07/13 02:59:30 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -695,7 +695,10 @@ def encodeMessageHeaders(headers):
     hitems = headers.items()
     hitems.sort()
     for k,v in hitems:
-        items.append("%s:%s\n"%(k,v))
+        item = "%s:%s\n"%(k,v)
+        if not HEADER_RE.match(item) or "\n" in k or "\n" in v:
+            raise ParseError("Invalid value for %s header"%k)
+        items.append(item)
     items.append("\n")
     return "".join(items)
 

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.46 2003/07/10 20:01:30 nickm Exp $
+# $Id: Crypto.py,v 1.47 2003/07/13 02:59:30 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -11,6 +11,7 @@
 import binascii
 import copy_reg
 import errno
+import math
 import os
 import stat
 import sys
@@ -189,6 +190,8 @@ def trng(count):
     """Returns (count) bytes of true random data from a true source of
        entropy (/dev/urandom).  May read ahead and cache values.
     """
+    if _theTrueRNG is None:
+        configure_trng(None)
     return _theTrueRNG.getBytes(count)
 
 # Specified in the Mixminion spec.  It's a Thomas Paine quotation.
@@ -473,6 +476,9 @@ def lioness_keys_from_header(header2):
 # we assert it.
 assert sys.maxint >= 0x7fffffff
 
+# Magic number used for normal distribution
+NV_MAGICCONST = 4 * math.exp(-0.5)/math.sqrt(2.0)
+
 class RNG:
     '''Base implementation class for random number generators.  Works
        by requesting a bunch of bytes via self._prng, and doling them
@@ -555,6 +561,19 @@ class RNG:
             # run of 'max' elements.
             if 0x7fffffff - max >= o:
                 return o % max
+
+    def getNormal(self, m, s):
+        """Return a random value with mean m and standard deviation s.
+        """
+        # Lifted from random.py in standard python dist.
+        while 1:
+            u1 = self.getFloat()
+            u2 = 1.0 - self.getFloat()
+            z = NV_MAGICCONST*(u1-0.5)/u2
+            zz = z*z/4.0
+            if zz <= -math.log(u2):
+                break
+        return m + z*s
 
     def getFloat(self):
         """Return a floating-point number between 0 and 1."""
@@ -744,4 +763,6 @@ class _OpensslRNG(RNG):
 # Return the shared instance of the true RNG.
 def getTrueRNG():
     """Return the shared instance of the true RNG."""
+    if _theTrueRNG is None:
+        configure_trng(None)
     return _theTrueRNG

@@ -15,6 +15,7 @@ import errno
 import cPickle
 import getopt
 import getpass
+import math
 import os
 import re
 import signal
@@ -749,6 +750,8 @@ def parsePath(directory, config, path, address, nHops=None,
        specified.  Specifically, if nHops is used _without_ a star on the
        path, nHops must equal the path length; and if nHops is used _with_ a
        star on the path, nHops must be >= the path length.
+
+       DOCDOC ~
     """
     if not path:
         path = '*'
@@ -757,6 +760,7 @@ def parsePath(directory, config, path, address, nHops=None,
     #     or "<swap>"
     #     or "?"
     p = []
+    #XXXX005 test 'filename:with:colons',b,c
     while path:
         if path[0] == "'":
             m = re.match(r"'([^']+|\\')*'", path)
@@ -788,12 +792,15 @@ def parsePath(directory, config, path, address, nHops=None,
             path = path[1:]
             p.append("<swap>")
 
-
-    #p = path.replace(":", ",<swap>,").split(",")
     path = []
     for ent in p:
         if re.match(r'\*(\d+)', ent):
             path.extend(["?"]*int(ent[1:]))
+        elif re.match(r'\~(\d+)', ent):
+            avg = int(ent[1:])
+            n = int(mixminion.Crypto.getCommonPRNG().getNormal(avg, 1.5)+0.5)
+            if n < 0: n = 0
+            path.extend(['?']*n)
         else:
             path.append(ent)
 
@@ -1377,7 +1384,7 @@ class ClientQueue:
         for h in self.getHandles():
             when = self.getPacket(h)[2]
             if when < cutoff:
-                remove.append(when)
+                remove.append(h)
         LOG.info("Removing %s old messages from queue", len(remove))
         for h in remove:
             self.removePacket(h)
@@ -2727,24 +2734,24 @@ def flushQueue(cmd, args):
     client.flushQueue(count)
 
 _CLEAN_QUEUE_USAGE = """\
-Usage: %(cmd)s <-D n|--days=n> [options]
+Usage: %(cmd)s <-d n|--days=n> [options]
   -h, --help                 Print this usage message and exit.
   -v, --verbose              Display extra debugging messages.
   -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
                                (You can also use MIXMINIONRC=FILE)
-  -D <n>, --days=<n>         Remove all messages older than <n> days old.
+  -d <n>, --days=<n>         Remove all messages older than <n> days old.
 
 EXAMPLES:
   Remove all pending messages older than one week.
-      %(cmd)s -D 30
+      %(cmd)s -d 30
 """.strip()
 
 def cleanQueue(cmd, args):
-    options, args = getopt.getopt(args, "hvf:D:",
+    options, args = getopt.getopt(args, "hvf:d:",
              ["help", "verbose", "config=", "days=",])
-    days = 0
+    days = None
     for o,v in options:
-        if o in ('-D','--days'):
+        if o in ('-d','--days'):
             try:
                 days = int(v)
             except ValueError:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.136 2003/07/10 23:11:15 nickm Exp $
+# $Id: test.py,v 1.137 2003/07/13 02:59:30 nickm Exp $
 
 """mixminion.tests
 
@@ -1080,6 +1080,14 @@ class CryptoTests(unittest.TestCase):
         for i in xrange(1,10000,17):
             self.failUnless(0 <= PRNG.getInt(10) < 10)
             self.failUnless(0 <= PRNG.getInt(i) < i)
+        
+        # Check getNormal
+        tot = 0
+        for i in xrange(1,1000):
+            v = PRNG.getNormal(5,1)
+            self.failUnless(0 <= v <= 10)
+            tot += v
+        self.failUnless(4500<tot<5500)
 
 ##      itot=ftot=0
 ##      for i in xrange(1000000):
@@ -5531,10 +5539,6 @@ class ClientMainTests(unittest.TestCase):
              ("Fred1", "Fred2", "Lola2", "Alice0", "Alice1",
               "Bob3", "Bob4", "Lisa1") ], identity)
 
-        print
-        print fname, fileURL(fname)
-        print "================================"
-
         # Replace the real URL and fingerprint with the ones we have; for
         # unit testing purposes, we can't rely on an http server.
         mixminion.ClientMain.MIXMINION_DIRECTORY_URL = fileURL(fname)
@@ -5837,6 +5841,11 @@ class ClientMainTests(unittest.TestCase):
         p1,p2 = ppath(ks, None, 'Bob:Alice,*', mboxWithServer, nHops=5)
         pathIs((p1[0],p2[0],p2[-1]), (bob, alice, lola))
         eq((len(p1),len(p2)), (1,5))
+
+        # 1d'. Tilde
+        p1,p2 = ppath(ks, None, '?,~4,Bob,Joe', email) #default nHops=6
+        p = p1+p2
+        pathIs((p2[-1], p2[-2],), (joe, bob))
 
         # 1e. Complex.
         try:
