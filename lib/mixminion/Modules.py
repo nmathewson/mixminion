@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.17 2002/11/22 21:12:05 nickm Exp $
+# $Id: Modules.py,v 1.18 2002/12/02 03:24:23 nickm Exp $
 
 """mixminion.Modules
 
@@ -11,6 +11,7 @@ __all__ = [ 'ModuleManager', 'DeliveryModule',
 	    'SMTP_TYPE', 'MBOX_TYPE' ]
 
 import os
+import re
 import sys
 import smtplib
 import socket
@@ -88,12 +89,19 @@ class DeliveryModule:
 	"""Return a DeliveryQueue object suitable for delivering messages
 	   via this module.  The default implementation returns a
 	   SimpleModuleDeliveryQueue,  which (though adequate) doesn't
-	   batch messages intended for the same destination."""
+	   batch messages intended for the same destination.
+
+	   For the 'address' component of the delivery queue, modules must
+	   accept a tuple of: (exitType, address, tag).  If 'tag' is None,
+	   the message has been decrypted; if 'tag' is 'err', the message is
+	   corrupt.  Otherwise, the message is either a reply or an encrypted
+	   forward message
+	   """
         return SimpleModuleDeliveryQueue(self, queueDir)
 
     def processMessage(self, message, tag, exitType, exitInfo):
 	"""Given a message with a given exitType and exitInfo, try to deliver
-           it.  Return one of:
+           it.  'tag' is as decribed in createDeliveryQueue. Return one of:
             DELIVER_OK (if the message was successfully delivered),
 	    DELIVER_FAIL_RETRY (if the message wasn't delivered, but might be
               deliverable later), or
@@ -108,9 +116,9 @@ class ImmediateDeliveryQueue:
     def __init__(self, module):
 	self.module = module
 
-    def queueMessage(self, (exitType, address, tag), message):
+    def queueDeliveryMessage(self, (exitType, address, tag), message):
 	try:
-	    res = self.module.processMessage(message, exitType, tag, address)
+	    res = self.module.processMessage(message, tag, exitType, address)
 	    if res == DELIVER_OK:
 		return
 	    elif res == DELIVER_FAIL_RETRY:
@@ -132,7 +140,7 @@ class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
 	mixminion.Queue.DeliveryQueue.__init__(self, directory)
 	self.module = module
 
-    def deliverMessages(self, msgList):
+    def _deliverMessages(self, msgList):
 	for handle, addr, message, n_retries in msgList:	
 	    try:
 		exitType, address, tag = addr
@@ -284,7 +292,17 @@ class ModuleManager:
                            exitType)
 	    return
 	queue = self.queues[mod.getName()]
-	queue.queueMessage((exitType, address, tag), message)
+	try:
+	    payload = mixminion.BuildMessage.decodePayload(message, tag)
+	except MixError, _:
+	    queue.queueDeliveryMessage((exitType, address, 'err'), message)
+	    return
+	if payload is None:
+	    # enrypted message
+	    queue.queueDeliveryMessage((exitType, address, tag), message)
+	else:
+	    # forward message
+	    queue.queueDeliveryMessage((exitType, address, tag), payload)
 
     def sendReadyMessages(self):
 	for name, queue in self.queues.items():
@@ -358,19 +376,25 @@ class MBoxModule(DeliveryModule):
             self.nickname = socket.gethostname()
         self.addr = config['Server'].get('IP', "<Unknown host>")
 
+	self.addresses = {}
         f = open(self.addressFile)
-        addresses = f.read()
-        f.close()
-
-        addresses = mixminion.Config._readConfigFile(addresses)
-        assert len(addresses) > 1
-        assert not addresses.has_key('Addresses')
-
-        self.addresses = {}
-        for k, v, line in addresses[0][1]:
-            if self.addresses.has_key(k):
-                raise ConfigError("Duplicate MBOX user %s"%k)
-            self.addresses[k] = v
+	address_line_re = re.compile(r'\s*([^\s:=]+)\s*[:=]\s*(\S+)')
+	try:
+	    lineno = 0
+	    for line in f.xreadlines():
+		line = line.strip()
+		lineno += 1
+		if line == '' or line[0] == '#':
+		    continue
+		m = address_line_re.match(line)
+		if not m:
+		    raise ConfigError("Bad address on line %s of %s"%(
+			lineno,self.addressFile))
+		self.addresses[m.group(1)] = m.group(2)
+		getLog().trace("Mapping MBOX address %s -> %s", m.group(1),
+			       m.group(2))
+	finally:
+	    f.close()
 
 	moduleManager.enableModule(self)
 
@@ -393,7 +417,8 @@ class MBoxModule(DeliveryModule):
 	try:
 	    address = self.addresses[info.user]
 	except KeyError, _:
-            getLog.warn("Unknown MBOX user %r", info.user)
+            getLog().error("Unknown MBOX user %r", info.user)
+	    return DELIVER_FAIL_NORETRY
 
         msg = _escapeMessageForEmail(message, tag)
 
@@ -403,25 +428,24 @@ class MBoxModule(DeliveryModule):
                    'addr': self.addr,
                    'contact': self.contact,
                    'msg': msg }
-        msg = """
+        msg = """\
 To: %(user)s
 From: %(return)s
 Subject: Anonymous Mixminion message
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server '%(nickname)s' at
-%(addr)s has been configured to deliver messages to your address.  If you
-do not want to receive messages in the future, contact %(contact)s and you
-will be removed.
+%(addr)s has been configured to deliver messages to your address.  
+If you do not want to receive messages in the future, contact %(contact)s 
+and you will be removed.
 
-%(msg)s
-""" % fields
+%(msg)s""" % fields
 
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
 #----------------------------------------------------------------------
 class SMTPModule(DeliveryModule):
     """Placeholder for real exit node implementation.
-        DOCDOC XXXXX document me."""
+        DOCDOC document me."""
     def __init__(self):
         DeliveryModule.__init__(self)
         self.enabled = 0
@@ -469,13 +493,14 @@ class MixmasterSMTPModule(SMTPModule):
         self.server = sec['Server']
         self.subject = sec['Subject']
         self.command = cmd[0]
-        self.options = cmd[1] + ("-l", self.server,
-                                 "-s", self.subject)
-        
+        self.options = tuple(cmd[1]) + ("-l", self.server,
+					"-s", self.subject)
+        manager.enableModule(self)
+
     def getName(self): 
         return "SMTP_MIX2" 
     def createDeliveryQueue(self, queueDir):
-        self.tmpQueue = mixminion.Queue.queue(queueDir+"_tmp", 1, 1)
+        self.tmpQueue = mixminion.Queue.Queue(queueDir+"_tmp", 1, 1)
         self.tmpQueue.removeAll()
         return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
     def processMessage(self, message, tag, exitType, smtpAddress):
@@ -495,18 +520,18 @@ class MixmasterSMTPModule(SMTPModule):
         return DELIVER_OK
                          
     def flushMixmasterPool(self):
-        "XXXX"
+        "DOCDOC"
         cmd = self.command
         getLog().debug("Flushing Mixmaster pool")
         os.spawnl(os.P_NOWAIT, cmd, cmd, "-S")
 
 class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
-    "XXXX"
+    "DOCDOC"
     def __init__(self, module, directory):
         SimpleModuleDeliveryQueue.__init__(self, module, directory)
-    def deliverMessages(self, msgList):
-        SimpleModuleDeliveryQueue.deliverMessages(self, msgList)
-        self.module.flushMixmaterPool()
+    def _deliverMessages(self, msgList):
+        SimpleModuleDeliveryQueue._deliverMessages(self, msgList)
+        self.module.flushMixmasterPool()
         
 #----------------------------------------------------------------------
 def sendSMTPMessage(server, toList, fromAddr, message):
@@ -525,14 +550,20 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 
 #----------------------------------------------------------------------
 
-#XXXX DOCDOC
+# DOCDOC
 _allChars = "".join(map(chr, range(256)))
-# XXXX Are there any nonprinting chars >= 0x7f to worry about now?
+# DOCDOC
+# ???? Are there any nonprinting chars >= 0x7f to worry about now?
 _nonprinting = "".join(map(chr, range(0x00, 0x07)+range(0x0E, 0x20)))
+def isPrintable(s):
+    """Return true iff s consists only of printable characters."""
+    printable = s.translate(_allChars, _nonprinting)
+    return len(printable) == len(s)
+
 def _escapeMessageForEmail(msg, tag):
-    """XXXX DOCDOC
+    """DOCDOC
          -> None | str """
-    m = _decodeAndEscapeMessage(msg, tag, text=1)
+    m = _escapeMessage(msg, tag, text=1)
     if m is None:
 	return None
     code, msg, tag = m
@@ -553,24 +584,18 @@ message encrypted to you; or 3) junk.\n\n"""
 %s============ ANONYMOUS MESSAGE BEGINS
 %s%s============ ANONYMOUS MESSAGE ENDS\n""" %(junk_msg, tag, msg)
 
-def _decodeAndEscapeMessage(payload, tag, text=0):
-    """XXXX DOCDOC
-	  -> ("TXT"|"BIN"|"ENC", message, tag|None) or None
+def _escapeMessage(message, tag, text=0):
+    """DOCDOC
+	 (message,tag|None,output-as-text?) 
+                -> ("TXT"|"BIN"|"ENC", message, tag|None) or None
     """
-    if not tag:
-	raise ContentError("Missing tag from message")
-    try:
-	message = mixminion.BuildMessage.decodePayload(payload, tag)
-    except MixError, _:
+    if tag == 'err':
 	return None
-
-    if message is None:
+    elif tag is not None:
 	code = "ENC"
-	message = payload
     else:
 	tag = None
-	printable = message.translate(_allChars, _nonprinting)
-	if len(printable) == len(message):
+	if isPrintable(message):
 	    code = "TXT"
 	else:
 	    code = "BIN"
@@ -578,7 +603,6 @@ def _decodeAndEscapeMessage(payload, tag, text=0):
     if text and (code != "TXT") :
 	message = base64.encodestring(message)
     if text and tag:
-	tag = base64.encodestring(tag)
-	if tag[-1] == '\n': tag = tag[:-1]
+	tag = base64.encodestring(tag).strip()
 
     return code, message, tag
