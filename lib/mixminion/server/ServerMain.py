@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.43 2003/02/19 03:41:22 nickm Exp $
+# $Id: ServerMain.py,v 1.44 2003/02/20 16:57:40 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -508,7 +508,7 @@ class MixminionServer:
         # we have to do it now.
         mixminion.Common.LOG.configure(self.config, keepStderr=0)
         if self.config['Server'].get("Daemon",1):
-            closeUnusedFDs()        
+            closeUnusedFDs()
 
         # FFFF Support for automatic key rotation.
         while 1:
@@ -734,7 +734,7 @@ def runServer(cmd, args):
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
         LOG.fatal("Shutting down because of exception: %s", info[0])
-        sys.exit(1)            
+        sys.exit(1)
             
     LOG.info("Starting server: Mixminion %s", mixminion.__version__)
     try:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.19 2003/02/04 02:05:02 nickm Exp $
+# $Id: MMTPServer.py,v 1.20 2003/02/20 16:57:40 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -630,7 +630,7 @@ class MMTPClientConnection(SimpleTLSConnection):
     # junk: A list of 32KB padding chunks that we're going to send.  We
     #   pregenerate these to avoid timing attacks.
     # isJunk: flag.  Is the current chunk padding?
-    # expectedDigest: The digest we expect to receive in response to the 
+    # expectedDigest: The digest we expect to receive in response to the
     #   current chunk.
     # protocol: The MMTP protocol version we're currently using, or None
     #     if negotiation hasn't completed.

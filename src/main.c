@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.12 2003/02/16 18:46:31 nickm Exp $ */
+/* $Id: main.c,v 1.13 2003/02/20 16:57:40 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -118,7 +118,7 @@ init_minionlib(void)
                 return;
 
         /* We set ob_type here so that Cygwin is happy. */
-        mm_RSA_Type.ob_type = mm_TLSContext_Type.ob_type = 
+        mm_RSA_Type.ob_type = mm_TLSContext_Type.ob_type =
                 mm_TLSSock_Type.ob_type = &PyType_Type;
                 
 

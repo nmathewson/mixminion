@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.11 2003/02/16 04:50:56 nickm Exp $
+# $Id: PacketHandler.py,v 1.12 2003/02/20 16:57:40 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -59,7 +59,7 @@ class PacketHandler:
         for h in self.hashlog:
             h.close()
 
-    def processMessage(self, msg):    
+    def processMessage(self, msg):
         """Given a 32K mixminion message, processes it completely.
 
            Return one of:

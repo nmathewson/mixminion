@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.17 2003/02/16 18:49:55 nickm Exp $ */
+/* $Id: tls.c,v 1.18 2003/02/20 16:57:40 nickm Exp $ */
 #include "_minionlib.h"
 
 #ifndef TRUNCATED_OPENSSL_INCLUDES
@@ -138,7 +138,7 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
 
         if (!(ctx = SSL_CTX_new(method)))
                 err = 1;
-        if (!err && !SSL_CTX_set_cipher_list(ctx, 
+        if (!err && !SSL_CTX_set_cipher_list(ctx,
                                        TLS1_TXT_DHE_RSA_WITH_AES_128_SHA))
                 err = 1;
         if (!err && certfile &&
@@ -161,7 +161,7 @@ mm_TLSContext_new(PyObject *self, PyObject *args, PyObject *kwargs)
                         err = 1;
                 if (!err) {
                         dh=PEM_read_bio_DHparams(bio,NULL,NULL,NULL);
-                        if (!dh) 
+                        if (!dh)
                                 err = 1;
                 }
                 if (!err)
@@ -603,7 +603,7 @@ static char mm_TLSSock_get_num_renegotiations__doc__[] =
 "tlssock.get_num_renegotiations()\n\n";
 
 static PyObject*
-mm_TLSSock_get_num_renegotiations(PyObject *self, PyObject *args, 
+mm_TLSSock_get_num_renegotiations(PyObject *self, PyObject *args,
                                   PyObject *kwargs)
 {
         SSL *ssl;

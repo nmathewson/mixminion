@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.39 2003/02/20 02:27:39 nickm Exp $
+# $Id: Makefile,v 1.40 2003/02/20 16:57:38 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -246,7 +246,7 @@ xxxx003:
 	   | xargs -0 grep 'XXXX00[123]\|FFFF00[123]\|DOCDOC\|????00[123]'
 
 eolspace:
-	perl -i.bak -pe 's/\s*\n$$/\n/;' ACKS HACKING LICENSE MANIFEST.in \
+	perl -i.bak -pe 's/(\S)\s*\n$$/\1\n/;' ACKS HACKING LICENSE MANIFEST.in \
 		Makefile README TODO pycheckrc setup.py src/*.[ch] \
 		lib/mixminion/*.py lib/mixminion/*/*.py
 

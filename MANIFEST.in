@@ -3,6 +3,3 @@ include contrib/unittest.py contrib/zlibutil.py contrib/textwrap.py
 include etc/mixminiond.conf etc/blacklist.conf
 # Old versions of distutils miss header files
 include src/_minionlib.h
-
-
-

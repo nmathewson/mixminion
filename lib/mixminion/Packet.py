@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.37 2003/02/20 02:20:33 nickm Exp $
+# $Id: Packet.py,v 1.38 2003/02/20 16:57:39 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -407,7 +407,7 @@ RB_TEXT_END   = "======== END TYPE III REPLY BLOCK ========"
 # XXXX Use a better pattern here.
 RB_TEXT_RE = re.compile(r"==+ BEGIN TYPE III REPLY BLOCK ==+"+
                         r'[\r\n]+Version: (\d+\.\d+)\s*[\r\n]+(.*?)'+
-                        r"==+ END TYPE III REPLY BLOCK ==+", re.M|re.DOTALL) 
+                        r"==+ END TYPE III REPLY BLOCK ==+", re.M|re.DOTALL)
 
 def parseTextReplyBlocks(s):
     """Given a string holding one or more text-encoded reply blocks,
@@ -662,11 +662,11 @@ def parseTextEncodedMessage(msg,force=0,idx=0):
         msgType = 'TXT'
     elif m.group(1):
         ascTag = m.group(1)
-        msgType = "ENC" 
+        msgType = "ENC"
         idx = _nextLine(msg, idx)
     elif m.group(2):
         if m.group(2) == 'overcompressed':
-            msgType = 'LONG' 
+            msgType = 'LONG'
         elif m.group(2) == 'binary':
             msgType = 'BIN'
         else:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.93 2003/02/20 06:33:02 nickm Exp $
+# $Id: test.py,v 1.94 2003/02/20 16:57:40 nickm Exp $
 
 """mixminion.tests
 
@@ -4385,7 +4385,7 @@ Free to hide no more.
         self.assertEquals(queue.retrySchedule, [0,0,0,3])
         try:
             # Try queueing a message...
-            queue.queueDeliveryMessage(FDP('enc', MBOX_TYPE, 'mixdiddy', 
+            queue.queueDeliveryMessage(FDP('enc', MBOX_TYPE, 'mixdiddy',
                                    hexread("EFFACEAB1EFACADE")*20, "x"*20))
             self.assertEquals(getReplacedFunctionCallLog(), [])
             # ...and sending it.
@@ -4446,7 +4446,7 @@ Free to hide no more.
         try:
             suspendLog()
             queue.queueDeliveryMessage(
-               FDP('plain', 0xFFFE, "FAIL!", 
+               FDP('plain', 0xFFFE, "FAIL!",
                    "This is message X which won't be delivered", "x"*20))
             self.assert_(not os.path.exists(os.path.join(dir, "2")))
         finally:

@@ -1,4 +1,4 @@
-$Id: README,v 1.36 2003/02/20 06:38:27 nickm Exp $
+$Id: README,v 1.37 2003/02/20 16:57:38 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3
 
@@ -67,7 +67,7 @@ NEW IN VERSION 0.0.3rc2:
       - mixminion stop-server and mixminion reload-server commands.
 
 NEW IN VERSION 0.0.3rc1:
-   CLIENT:   
+   CLIENT:
       - Single-use reply blocks (SURBs) are fully supported and available.
       - You can use client-side pooling: it holds messages until you're
         ready to send them.  Pooling also prevents you from losing
@@ -86,7 +86,7 @@ NEW IN VERSION 0.0.3rc1:
         stalling under heavy loads.  Now the network should remain fairly
         responsive under far more traffic than before.
       - When a message delivery fails, the retry schedule is more reasonable.
-        By default, a server will retry an undeliverable message every 
+        By default, a server will retry an undeliverable message every
         30 minutes for a day, then every 7 hours for 5 days.
       - All modules that use SMTP now set a "X-Anonymous: yes" header.
    CONFORMANCE:
@@ -347,9 +347,9 @@ instead of "mixminion send":
       If you specify a "SURBAddress" field in ~/.mixminionrc, you may
       omit the target address:
 
-      mixminion generate-surb 
+      mixminion generate-surb
 
-      Also, you can control path selection in the same way as with 
+      Also, you can control path selection in the same way as with
       sending messages:
 
       mixminion generate-surb -H 3        (a 3-hop path)
@@ -378,7 +378,7 @@ messages by typing:
       mixminion send -R <reply-block-filename> -i <input-filename>
 
       The other options to 'send' and 'pool' still apply; the reply block
-      takes the place of the destination address: 
+      takes the place of the destination address:
          mixminion send -R <reply-block>          (Read from stdin)
          mixminion send -R <reply-block> -D yes   (Reload directory)
          mixminion send -R <reply-block> -H 4     (Use 4 hops before reply.)
@@ -391,7 +391,7 @@ messages by typing:
       block to 2 users, it will only work for one of them, once.
 
       As a convenience, if you have a file containing many reply blocks,
-      you can use it with '-R': the client will choose the first reply 
+      you can use it with '-R': the client will choose the first reply
       block from the file which has not expired, and which you have not
       yet used.
 

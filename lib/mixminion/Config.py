@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.39 2003/02/09 22:30:58 nickm Exp $
+# $Id: Config.py,v 1.40 2003/02/20 16:57:39 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -499,7 +499,7 @@ class _ConfigFile:
 
     _syntax = None
     _restrictFormat = 0
-    _restrictKeys = 1 
+    _restrictKeys = 1
 
     def __init__(self, filename=None, string=None, assumeValid=0):
         """Create a new _ConfigFile.  If <filename> is set, read from

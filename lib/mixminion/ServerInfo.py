@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.38 2003/02/13 10:56:40 nickm Exp $
+# $Id: ServerInfo.py,v 1.39 2003/02/20 16:57:39 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -357,7 +357,7 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
                       },
         'Recommended-Software': {"__SECTION__": ("ALLOW", None, None),
                 "MixminionClient": ("ALLOW", None, None),
-                "MixminionServer": ("ALLOW", None, None), } 
+                "MixminionServer": ("ALLOW", None, None), }
         }
     def __init__(self, contents, expectedDigest):
         """Parse a directory header out of a provided string; validate it

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.23 2003/02/13 06:30:22 nickm Exp $
+# $Id: MMTPClient.py,v 1.24 2003/02/20 16:57:39 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -135,7 +135,7 @@ class BlockingClientConnection:
         # This is ugly, but we have no choice if we want to read up to the
         # first newline.
         # we don't really want 100; we just want up to the newline.
-        inp = self.tls.read(100) 
+        inp = self.tls.read(100)
         while "\n" not in inp and len(inp) < 100:
             inp += self.tls.read(100)
         self.protocol = None

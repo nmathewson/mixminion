@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.65 2003/02/20 00:34:35 nickm Exp $
+# $Id: ClientMain.py,v 1.66 2003/02/20 16:57:38 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -56,7 +56,7 @@ def clientLock():
         _CLIENT_LOCKFILE.acquire(blocking=1, contents=pidStr)
     
 def clientUnlock():
-    """Release the client lock."""    
+    """Release the client lock."""
     _CLIENT_LOCKFILE.release()
 
 def configureClientLock(filename):
@@ -1189,7 +1189,7 @@ class ClientPool:
     ## Format:
     # The directory holds files with names of the form pkt_<handle>.
     # Each file holds pickled tuple containing:
-    #           ("PACKET-0", 
+    #           ("PACKET-0",
     #             a 32K string (the packet),
     #             an instance of IPV4Info (the first hop),
     #             the latest midnight preceeding the time when this
@@ -1310,7 +1310,7 @@ class MixminionClient:
         """Generate and send a forward message.
             address -- the results of a parseAddress call
             payload -- the contents of the message to send
-            servers1,servers2 -- lists of ServerInfos for the first and second 
+            servers1,servers2 -- lists of ServerInfos for the first and second
                legs the path, respectively.
             forcePool -- if true, do not try to send the message; simply
                pool it and exit.
@@ -1442,7 +1442,7 @@ class MixminionClient:
         else:
             timeout = 60
 
-        if noPool or lazyPool: 
+        if noPool or lazyPool:
             handles = []
         else:
             handles = self.poolMessages(msgList, routingInfo)
@@ -1503,7 +1503,7 @@ class MixminionClient:
             LOG.info("Sending %s messages to %s:%s...",
                      len(messagesByServer[routing]), routing.ip, routing.port)
             msgs = [ m for m, _ in messagesByServer[routing] ]
-            handles = [ h for _, h in messagesByServer[routing] ] 
+            handles = [ h for _, h in messagesByServer[routing] ]
             try:
                 self.sendMessages(msgs, routing, noPool=1, warnIfLost=0)
                 try:
@@ -1543,7 +1543,7 @@ class MixminionClient:
            return a list containing the decoded messages.
            
            Raise ParseError on malformatted messages.  Unless 'force' is
-           true, do not uncompress possible zlib bombs. 
+           true, do not uncompress possible zlib bombs.
         """
         #XXXX004 write unit tests
         results = []
@@ -1665,7 +1665,7 @@ class CLIArgumentParser:
              -h | --help : print usage and exit.
              -f | --config : specify a configuration file.
              -v | --verbose : run verbosely.
-          DIRECTORY ONLY   
+          DIRECTORY ONLY
              -D | --download-directory : force/disable directory downloading.
           PATH-RELEATED
              -t | --to : specify an exit address
@@ -1673,7 +1673,7 @@ class CLIArgumentParser:
              --swap-at : specify a swap point numerically
              -H | --hops : specify a path length
              -P | --path : specify a literal path.
-          REPLY PATH ONLY   
+          REPLY PATH ONLY
              --lifetime : Required lifetime of new reply blocks.
           MESSAGE-SENDING ONLY:
              --pool | --no-pool : force/disable pooling.
@@ -1726,7 +1726,7 @@ class CLIArgumentParser:
               path (for forward or reply messages), and enable self.parsePath.
            wantReplyPath -- If true, accept options to specify a path for
               a reply block, and enable seslf.parsePath.
-           minHops -- Smallest allowable value for -H option.   
+           minHops -- Smallest allowable value for -H option.
         """
         self.config = None
         self.directory = None
@@ -2003,7 +2003,7 @@ EXAMPLES:
       %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux,Fee,Fie,Foe'
   Specify an explicit path with a swap point
       %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux:Fee,Fie,Foe'
-  %(Send)s the message to a reply block stored in 'FredsBlocks', using a 
+  %(Send)s the message to a reply block stored in 'FredsBlocks', using a
   randomly chosen first leg.
       %(cmd)s -t user@domain -i data -R FredsBlocks
   %(Send)s the message to a reply block stored in 'FredsBlocks', specifying
@@ -2224,7 +2224,7 @@ def updateServers(cmd, args):
                                    wantLog=1)
     except UsageError, e:
         e.dump()
-        print _UPDATE_SERVERS_USAGE % { 'cmd' : cmd } 
+        print _UPDATE_SERVERS_USAGE % { 'cmd' : cmd }
         sys.exit(1)
 
     parser.init()
@@ -2246,7 +2246,7 @@ Options:
   -F, --force:               Decode the input files, even if they seem
                              overcompressed.
   -o <file>, --output=<file> Write the results to <file> rather than stdout.
-  -i <file>, --input=<file>  Read the results from <file>.  
+  -i <file>, --input=<file>  Read the results from <file>.
 
 EXAMPLES:
   Decode message(s) stored in 'NewMail', writing the result to stdout.

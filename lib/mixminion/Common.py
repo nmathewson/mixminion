@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.65 2003/02/20 01:54:44 nickm Exp $
+# $Id: Common.py,v 1.66 2003/02/20 16:57:39 nickm Exp $
 
 """mixminion.Common
 
@@ -584,7 +584,7 @@ class LogStream:
     def __init__(self, name, severity):
         self.name = name
         self.severity = severity
-        self.buf = [] 
+        self.buf = []
     def write(self, s):
         # This is inefficient, but we don't actually use this class if we can
         # avoid it.  The basic idea is to generate a call to Log.log for every

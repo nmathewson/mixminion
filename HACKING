@@ -8,7 +8,7 @@ Requirements:
 
         A working /dev/urandom (see PORTING NOTES below)
 
-THINGS TO HACK:  (Good introductory projects that I won't get to myself for 
+THINGS TO HACK:  (Good introductory projects that I won't get to myself for
   at least a version or two.)
 
 - We need a windows port!  (A client-only port would be a good start.)  Most
@@ -86,7 +86,7 @@ THINGS TO HACK:  (Good introductory projects that I won't get to myself for
   parallel with the processing code, but the processing thread accounts (I
   think) for most of the CPU use.  It would be nice to support multiple
   processing threads and multiple network threads (round-robin, not
-  one-per-connection). (Difficulty: easy/moderate, depending on your 
+  one-per-connection). (Difficulty: easy/moderate, depending on your
   knowledge of writing multithreaded code. Invasiveness: slight.)
 
 THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
@@ -126,7 +126,7 @@ THINGS TO THINK ABOUT AND HACK: (Introductory projects that will take some
   an IPv4-only server simply cannot deliver to a server without an IPv4
   address.  Any path-generation algorithm I can come up with has troublesome
   anonymity implications.  If you can come up with an algorithm that
-  doesn't, the code should be pretty easy to do.  (Spec difficulty: ????. 
+  doesn't, the code should be pretty easy to do.  (Spec difficulty: ????.
   Implementation difficulty: easy.  Invasiveness: some.)
 
 NON-HACKING PROJECTS:

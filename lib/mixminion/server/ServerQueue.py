@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.8 2003/02/17 14:58:46 nickm Exp $
+# $Id: ServerQueue.py,v 1.9 2003/02/20 16:57:40 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -235,7 +235,7 @@ class Queue:
     def cleanQueue(self, secureDeleteFn=None):
         """Removes all timed-out or trash messages from the queue.
 
-           If secureDeleteFn is provided, it is called with a list of 
+           If secureDeleteFn is provided, it is called with a list of
            filenames to be removed.  Otherwise, files are removed using
            secureDelete.
 
@@ -343,7 +343,7 @@ class DeliveryQueue(Queue):
                 10-second intervals, but sendReadyMessages is invoked only
                 every 30 minutes, messages will only me retried once every
                 30 minutes.
-        """              
+        """
         self.retrySchedule = schedule[:]
 
     def _rescan(self):
@@ -365,7 +365,7 @@ class DeliveryQueue(Queue):
              retry -- how many times so far have we tried to send?
              nextAttempt -- A time before which no further attempts to
                   deliver should be made.
-        """ 
+        """
         try:
             self._lock.acquire()
             handle = self.queueObject( (retry, None, msg, nextAttempt) )

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.12 2003/02/13 06:30:23 nickm Exp $
+# $Id: ServerKeys.py,v 1.13 2003/02/20 16:57:40 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -470,7 +470,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "KeyID":
            formatBase64(serverKeys.getMMTPKeyID()),
         "MMTPProtocolsIn" : mmtpProtocolsIn,
-        "MMTPProtocolsOut" : mmtpProtocolsOut,        
+        "MMTPProtocolsOut" : mmtpProtocolsOut,
         }
 
     # If we don't know our IP address, try to guess
