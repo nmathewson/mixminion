@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.8 2002/11/22 00:26:35 nickm Exp $
+# $Id: Main.py,v 1.9 2002/11/22 21:01:49 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -83,8 +83,8 @@ def correctPath(myself):
         # We use __import__ here instead of 'import' so that we can stay
         #   parseable by Python 1.1.  You're welcome.
 	__import__('mixminion.Main')
-    except ImportError, _:
-	sys.stderr.write(_+"\n")
+    except ImportError, e:
+	sys.stderr.write(str(e)+"\n")
 	sys.stderr.write("Unable to find correct path for mixminion.\n")
 	sys.exit(1)
 
