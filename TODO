@@ -111,6 +111,7 @@ Deferred from 0.0.4:
         . UI
                 . Good user error reporting strategy; use UIError uniformly.
         - Separate error/other log files. ????
+        - Notice when out of disk space, die more cleanly
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
            CLI'S AND MULTI-SERVER SITUATIONS.
         - Tests for packet addressed to server with bogus IP.
