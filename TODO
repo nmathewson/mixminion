@@ -14,24 +14,37 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 
 	- Real SMTP module
 	- Interface for reply blocks
-	- Minimal directory support
+	. Minimal directory support
+		. Make everything resistant to newline corruption
+		       o Signatures are independent of newline style
+		       o Config files are read independent of newline style.
+		       o Tests for above.
+		       - Directories are independent of nl style
+		       - Tests for above
+		- Test whether serverinfo is really pickleable.
 		- Client-side directory support
 		- Server-side directory generation (not automated;
-	          still no automatic rotation.)	 
+	          still no automatic rotation.)	
 	- Path selection
-	- Minimal DOS prevention
+	. Minimal DOS prevention
 		- SMTP-address blacklisting (for SMTP module)
 		o Prevent zlib bombing: minimal version.
 		        o Implement
 			o Tests for BuildMessage functionality
 			o Tests for ModuleManager functionality
 			o Mention in the spec.
-		. Timeout connections.
+			- Check whether Zooko's memory-bounding
+		          uncompress code is right for us.
+		o Timeout connections.
 			o Implement timeout logic in MMTPServer
 			o Implement in ServerMain
-			- Tests for MMTPServer code: setting lastActivity
-			- Tests for MMTPServer code: timing out.
-			- Test server
+			o Tests for MMTPServer code: setting lastActivity
+			o Tests for MMTPServer code: timing out.
+			o Test server
+	- Add another level of CLI commands. (E.g., mixminion server
+	  keygen)?
+	- Correct README to mention: gmake, no 'make build',
+	 ~mixminion must be mode 0700.
 	o Configurable mix algorithm, defaulting to cottrell-style
 	  mixing with a medium-long interval.
 	  	o Implement
@@ -84,7 +97,7 @@ Required for "1.0":
 	- End-to-end issues
 	        - K-of-N fragmentation and reassembly
 		- Make zlib bomb prevention configurable.
-	- Configurablity
+	- Configurability
 	  	- Support for one-side-only MMTP configurations.
 		o Make batching algorithm configurable
 		o Infer server IP
@@ -94,6 +107,7 @@ Required for "1.0":
 		  rules for each listener.
 		. Full validation function for client
 		. Full validation function for server
+		- Ability to disable directory paranoia.
 		- Make 'push' and 'retry' delivery rates independant and
 		  module-adjustable
 		- Make 'drop undeliverable' rate configurable.
@@ -104,6 +118,7 @@ Required for "1.0":
 	  	- Generate (but don't send) a message
 		- Generate a reply block
 		- Read message from reply block
+		- Check paths before reading from stdin.
 		- Path selection
 		        - Automatic path selection
 			. Understand differing server features
@@ -123,7 +138,8 @@ Required for "1.0":
 	- MMTP / async
 		- Make listen options configurable (backlog, IP)
 		- Code to send junk (connection padding)
-SPEC!!		- Timeout old connections
+		o Timeout old connections
+		- Timeout connections more aggressively under higher load.
 		- Renegotiate connections
 		- (Make sure sender retries on bogus close)
 		- Session managment and resumption (security issues?)
@@ -151,7 +167,7 @@ SPEC		o Patch to address George's 15August attack
 		- Test on other (non-redhat, non-linux) systems
 		- Integration tests
 			- Automated tests for several servers running
-		          on one machine.  
+		          on one machine.
 			- Tests for servers on several different
 		          machines.
 		- Repeatable CLI tests.
