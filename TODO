@@ -259,6 +259,7 @@ WHEN WE GET THE CHANCE:
 		- Server running on windows.
 	- Time the rest of the system
 	- Make DB module choice configurable?
+	- Consider dropping support for older Python versions?
 
 NEED TO BE TESTED
 - Signals
