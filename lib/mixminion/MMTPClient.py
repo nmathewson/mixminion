@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.36 2003/07/13 03:45:33 nickm Exp $
+# $Id: MMTPClient.py,v 1.37 2003/09/04 16:08:13 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -189,9 +189,8 @@ class BlockingClientConnection:
         try:
             ##
             # We write: "SEND\r\n", 28KB of data, and sha1(packet|"SEND").
-            self.tls.write(control)
-            self.tls.write(packet)
-            self.tls.write(sha1(packet+hashExtra))
+            written = control+packet+sha1(packet+hashExtra)
+            self.tls.write(written)
             LOG.debug("Packet sent; waiting for ACK")
 
             # And we expect, "RECEIVED\r\n", and sha1(packet|"RECEIVED")
