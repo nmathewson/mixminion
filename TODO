@@ -104,7 +104,7 @@ For 0.0.4:
                 o Better syntax
                 o Improved implementation
                 o Tests
-        . Key management:
+        o Key management:
                 o Refactor the scheduler code in ServerMain.  We know
                   too many events now.
                         o Implement
@@ -113,16 +113,14 @@ For 0.0.4:
                 o Ability to generate new serverdesc with old keys.
                         o Implement
                         o Test backend
-                        - Test midend
                         o Automate
                         o Test
-                . Ability to notice discrepancies between SD and
+                o Ability to notice discrepancies between SD and
                   server configuration.
                         o Implement
-.5                      *- Test backend, midend
                         o Integrate with frontend
-                        o Test
-                . Online key rotation
+                        o Test in the field
+                o Online key rotation
                         o Function to determine time for next rotation event.
                         o Ability to add PK to packethandler
                         o Ability to remove PK from packethandler.
@@ -131,22 +129,19 @@ For 0.0.4:
                         o Trigger all of the above as timed events occur.
                         o Generate new SD's as needed
                         o Publish as needed
-2.5                     *- Somehow test the whole business.
-                . Rudimentary directory automation (with trivial pinging)
+                o Rudimentary directory automation (with trivial pinging)
                         o CGI to receive server descriptors:
                                 o replace old ones if superceded, 
                                   reject them if invalid,
                                   and queue them if unrecognized.
                                 o The actual CGI
-2                               *- Tests for above
                         o Ability to move servers from queue to good-list.
-0.5                             *- Tests
-                        . Code to remember whether descriptors are published,
+                                o Tests
+                        o Code to remember whether descriptors are published,
                           and republish as needed
                                 o Implement
                                 o Add 'publish' option
                                 o Add explicit 'republish' command.
-1                               *- Tests
                         o Design directory liveness format.  Maybe include
                           all servers in "live" list for now?
                         o Add code to make directory list some servers
@@ -156,8 +151,14 @@ For 0.0.4:
         o Make "=== BEGIN" stuff comply with openpgp rfc: why rock
           the boat?
         o Add an 'upgrade to new server format' command.
-4       - Finish all documentation, resolve all XXXX004s
-3       . Try out all functionality by hand
+        - Finish all documentation, resolve all XXXX004s
+        - Remaining unit tests
+                - Tests for online key rotation
+                - Tests for ServerInbox and Directory.py
+                - Tests for remembering whether keys are published
+                - Tests for ServerKeyset.regenerate
+                - Tests for checkConsistency
+        . Try out all functionality by hand
                 o Start a server
                 o Get stats 
                 o generate directory w/ blacklisted server
