@@ -19,11 +19,11 @@ For 0.0.7:
                 o Clear up specification for multiple addrs on MAIL
         . Infrastructure -- high level
                 o Servers need to download and use directories
-                . Servers should use downloaded directories to print useful
+                o Servers should use downloaded directories to print useful
                   nicknames for other servers rather than just IP addresses.
                         o For outgoing connections
                         o For incoming connections
-                        . Test
+                        o Test
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
                 D Make processing thread and module thread general
@@ -48,17 +48,24 @@ For 0.0.7:
                   servers from directory.
                         o Implement
                         - Test
-                - RFC822 interface and maildir-style exit module to help
-                  integrators.
+                - Maildir-style exit module to help integrators.
         . MMTP
                 o Make MMTP bursty.
-                - Bandwidth throttling
-                        - Limit number of simultaneous outgoing connections
-                        - Limit number of bytes transmitted per second
-                        - Limit number of bytes read per second.
-        - Security
-                - Make createPrivateDirs gripe about group-writable parent
-                  dirs
+                . Bandwidth throttling
+                        . Limit number of simultaneous outgoing connections
+                                o Implement code
+                                o Implement configurability
+                                - Test
+                        . Limit number of bytes transmitted/read per second
+                                o Implement per-connnection cap functionality.
+                                o Set and adjust caps.
+                                - Configuration to enable caps
+                                - Test
+                        - Limit number of packets sent over single client
+                          connection.
+        o Security
+                X Make createPrivateDirs gripe about group-writable parent
+                  dirs.  [Actually, this has been done for a while!]
         - Large reply messages and efwd messages
                 - Fragment-pool logic for client
         - Manual pages
@@ -71,8 +78,11 @@ For 0.0.7:
                 - Add pages for 'mixminiond' and 'mixminion.conf' and
                   'mixminiond.conf'.
                 - Maybe add a page for Mixminion integration.
+
 Reach for 0.0.7:
         - Dummies and pinging
+        - RFC822 interface and maildir-style exit module to help
+          integrators.
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
                 - SIGHUP should reconfigure everything:
                         - Logs

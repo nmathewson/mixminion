@@ -1,12 +1,12 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.8 2004/02/02 07:19:47 nickm Exp $
+# $Id: TLSConnection.py,v 1.9 2004/02/06 23:14:28 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
 """
 
 #XXXX implement renegotiate
-
+import sys
 import time
 
 import mixminion._minionlib as _ml
@@ -14,6 +14,9 @@ from mixminion.Common import LOG, stringContains
 
 # Number of bytes to try reading at once.
 _READLEN = 1024
+
+class _Closing(Exception):
+    pass
 
 class TLSConnection:
     """Common abstract class to implement asynchronous bidirectional
@@ -252,21 +255,21 @@ class TLSConnection:
         self.__stateFn = self.__closedFn
         self.onClosed()
 
-    def __connectFn(self, r, w):
+    def __connectFn(self, r, w, cap):
         """state function: client-side TLS handshaking"""
         self.tls.connect() # might raise TLS*
         self.__setup = 1
         self.onConnected()
         return 1 # We may be ready for the next state.
 
-    def __acceptFn(self, r, w):
+    def __acceptFn(self, r, w, cap):
         """state function: server-side TLS handshaking"""
         self.tls.accept() # might raise TLS*
         self.__setup = 1
         self.onConnected()
         return 1 # We may be ready for the next state.
 
-    def __shutdownFn(self, r, w):
+    def __shutdownFn(self, r, w, cap):
         """state function: TLS shutdonw"""
         while 1:
             if self.__awaitingShutdown:
@@ -296,14 +299,14 @@ class TLSConnection:
             if done:
                 LOG.debug("Got a completed shutdown from %s", self.address)
                 self.shutdownFinished()
-                self.__close()
+                raise _Closing()
                 return 0
             else:
                 LOG.trace("Shutdown returned zero -- entering read mode.")
                 self.__awaitingShutdown = 1
                 self.__bytesReadOnShutdown = 0
 
-    def __closedFn(self,r,w):
+    def __closedFn(self,r,w, cap):
         """state function: called when the connection is closed"""
         self.__sock = None
         return 0
@@ -314,36 +317,36 @@ class TLSConnection:
         LOG.error("Read over 128 bytes of unexpected data from closing "
                   "connection to %s", self.address)
         self.onTLSError()
-        self.__close()
+        raise _Closing()
 
-    def __dataFn(self, r, w):
+    def __dataFn(self, r, w, cap):
         """state function: read or write data as appropriate"""
         if r:
             if self.__writeBlockedOnRead:
-                self.__doWrite()
+                cap = self.__doWrite(cap)
             if self.__reading and not self.__writeBlockedOnRead:
-                self.__doRead()
+                cap = self.__doRead(cap)
         if w:
             if self.__reading and self.__readBlockedOnWrite:
-                self.__doRead()
+                cap = self.__doRead(cap)
             if self.outbuf and not self.__readBlockedOnWrite:
-                self.__doWrite()
+                cap = self.__doWrite(cap)
         return 0
 
-    def __doWrite(self):
+    def __doWrite(self, cap):
         "Helper function: write as much data from self.outbuf as we can."
         self.__writeBlockedOnRead = 0
-        while self.outbuf:
+        while self.outbuf and cap > 0:
             try:
-                n = self.tls.write(self.outbuf[0])
+                n = self.tls.write(self.outbuf[0][:cap])
             except _ml.TLSWantRead:
                 self.__writeBlockedOnRead = 1
                 self.wantWrite = 0
                 self.wantRead = 1
-                return
+                return cap
             except _ml.TLSWantWrite:
                 self.wantWrite = 1
-                return
+                return cap
             else:
                 # We wrote some data: remove it from the buffer.
                 assert n >= 0
@@ -353,62 +356,72 @@ class TLSConnection:
                 else:
                     self.outbuf[0] = self.outbuf[0][n:]
                 self.outbuflen -= n
+                cap -= n
                 self.onWrite(n)
         # There's no more data to write.  We only want write events now if
         # read is blocking on write.
         self.wantWrite = self.__readBlockedOnWrite
         self.doneWriting()
+        return cap
 
-    def __doRead(self):
+    def __doRead(self, cap):
         "Helper function: read as much data as we can."
         self.__readBlockedOnWrite = 0
-        while self.__reading:
+        while self.__reading and cap >= 0:
             try:
-                s = self.tls.read(_READLEN)
+                s = self.tls.read(min(_READLEN,cap))
                 if s == 0:
                     # The other side sent us a shutdown; we'll shutdown too.
                     self.receivedShutdown()
                     LOG.trace("read returned 0: shutting down connection to %s"
                               , self.address)
                     self.startShutdown()
-                    return
+                    return cap
                 else:
                     # We got some data; add it to the inbuf.
                     LOG.trace("Read got %s bytes from %s", len(s),self.address)
                     self.inbuf.append(s)
                     self.inbuflen += len(s)
-                    if not self.tls.pending():
+                    cap -= len(s)
+                    if (not self.tls.pending()) and cap > 0:
                         # Only call onRead when we've got all the pending
-                        # data from self.tls.
+                        # data from self.tls. DOCDOC cap
                         self.onRead()
             except _ml.TLSWantRead:
                 self.wantRead = 1
-                return
+                return cap
             except _ml.TLSWantWrite:
                 self.wantRead = 0
                 self.wantWrite = 1
                 self.__readBlockedOnWrite = 1
-                return
+                return cap
 
-    def process(self, r, w, x):
+    def process(self, r, w, x, maxBytes=None):
         """Given that we've received read/write events as indicated in r/w,
            advance the state of the connection as much as possible.  Return
-           is as in 'getStatus'."""
+           is as in 'getStatus'.
+
+           DOCDOC cap."""
         if x and (self.sock is not None):
             self.__close(gotClose=1)
-            return 0,0,0
-        elif not (r or w):
-            return self.wantRead, self.wantWrite, (self.sock is not None)
+            return 0,0,0,0
+        if not (r or w):
+            return self.wantRead, self.wantWrite, (self.sock is not None),0
+
+        bytesAtStart = bytesNow = self.tls.get_num_bytes_raw();
+        if maxBytes is None:
+            bytesCutoff = sys.maxint
+            maxBytes = sys.maxint-bytesNow
+        else:
+            bytesCutoff = nr+nw+maxBytes
         try:
             self.lastActivity = time.time()
-            while self.__stateFn(r, w):
+            while bytesNow < bytesCutoff and self.__stateFn(r, w, maxBytes):
                 # If __stateFn returns 1, then the state has changed, and
                 # we should try __stateFn again.
-                pass
-        except _ml.TLSClosed:
-            # We get this error if the socket unexpectedly closes underneath
-            # the TLS connection.
-            self.__close(gotClose=1)
+                if self.tls is not None:
+                    bytesNow = self.tls.get_num_bytes_raw()
+                    maxBytes = bytesCutoff-bytesNow
         except _ml.TLSWantRead:
             self.wantRead = 1
             self.wantWrite = 0
@@ -418,7 +431,18 @@ class TLSConnection:
                 self.wantWrite = 2
             else:
                 self.wantWrite = 1
+        except _Closing:
+            #DOCDOC
+            if self.tls is not None:
+                bytesNow = self.tls.get_num_bytes_raw()
+            self.__close()
+        except _ml.TLSClosed:
+            # We get this error if the socket unexpectedly closes underneath
+            # the TLS connection.
+            self.__close(gotClose=1)
         except _ml.TLSError, e:
+            if self.tls is not None:
+                bytesNow = self.tls.get_num_bytes_raw()
             if not (self.__awaitingShutdown or self.__stateFn == self.__shutdownFn):
                 e = str(e)
                 if stringContains(e, 'wrong version number'):
@@ -433,10 +457,12 @@ class TLSConnection:
                 self.onTLSError()
                 self.__close()
 
-        return self.wantRead, self.wantWrite, (self.sock is not None)
+        return (self.wantRead, self.wantWrite, (self.sock is not None),
+                bytesNow-bytesAtStart)
 
     def getStatus(self):
         """Return a 3-tuple of wantRead, wantWrite, and isOpen."""
+        #DOCDOC
         return self.wantRead, self.wantWrite, (self.sock is not None)
 
     #####

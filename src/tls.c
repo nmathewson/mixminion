@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.32 2004/01/17 04:22:44 nickm Exp $ */
+/* $Id: tls.c,v 1.33 2004/02/06 23:14:28 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -739,32 +739,24 @@ mm_TLSSock_do_handshake(PyObject *self, PyObject *args, PyObject *kwargs)
         return Py_None;
 }
 
-static char mm_TLSSock_get_num_bytes_raw__doc__[] = 
+static char mm_TLSSock_get_num_bytes_raw__doc__[] =
 "tlssock.get_num_bytes_raw()\n\n"
-"DOCDOC";
+"Return a total number of bytes read and written for this TLS connection\n";
+
 
 static PyObject*
 mm_TLSSock_get_num_bytes_raw(PyObject *self, PyObject* args, PyObject *kwargs)
 {
         SSL *ssl;
-        long r, w;
+        unsigned long r, w;
         PyObject *tup;
         assert(mm_TLSSock_Check(self));
         FAIL_IF_ARGS();
         ssl = ((mm_TLSSock*)self)->ssl;
-        r = (long) BIO_number_read(SSL_get_rbio(ssl));
-        w = (long) BIO_number_written(SSL_get_wbio(ssl));
-
-        if (!(tup = PyTuple_New(2))) {
-                PyErr_NoMemory();
-                return NULL;
-        }
-        PyTuple_SET_ITEM(tup, 0, PyInt_FromLong(r));
-        PyTuple_SET_ITEM(tup, 1, PyInt_FromLong(w));
-
-        return tup;
+        r = BIO_number_read(SSL_get_rbio(ssl));
+        w = BIO_number_written(SSL_get_wbio(ssl));
+        return PyInt_FromLong((long)(r+w));
 }
-
 
 #if 0
 static char mm_TLSSock_get_num_renegotiations__doc__[] =

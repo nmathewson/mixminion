@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.116 2004/02/02 07:05:50 nickm Exp $
+# $Id: ServerMain.py,v 1.117 2004/02/06 23:14:28 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -907,9 +907,11 @@ class MixminionServer(_Scheduler):
             nextEventTime = self.firstEventTime()
             now = time.time()
             timeLeft = nextEventTime - now
+            tickInterval = self.mmtpServer.TICK_INTERVAL
+            nexttick = now+tickInterval
             while timeLeft > 0:
                 # Handle pending network events
-                self.mmtpServer.process(2)
+                self.mmtpServer.process(tickInterval)
                 # Check for signals
                 if STOPPING:
                     LOG.info("Caught SIGTERM; shutting down.")
@@ -927,6 +929,9 @@ class MixminionServer(_Scheduler):
 
                 # Calculate remaining time until the next event.
                 now = time.time()
+                if now > nexttick:
+                    self.mmtpServer.tick()
+                    nextTick = now+tickInterval
                 timeLeft = nextEventTime - now
 
             # An event has fired.

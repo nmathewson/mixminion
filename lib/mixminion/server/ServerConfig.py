@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.49 2004/01/27 05:30:23 nickm Exp $
+# $Id: ServerConfig.py,v 1.50 2004/02/06 23:14:28 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -9,6 +9,7 @@ __all__ = [ "ServerConfig" ]
 
 import operator
 import os
+import sys
 
 import mixminion.Config
 import mixminion.server.Modules
@@ -91,10 +92,13 @@ class ServerConfig(mixminion.Config._ConfigFile):
             LOG.warn("Allow/deny are not yet supported")
 
         if not self['Outgoing/MMTP'].get('Enabled'):
-            LOG.warn("Disabling incoming MMTP is not yet supported.")
+            LOG.warn("Disabling outgoing MMTP is not yet supported.")
         if [e for e in self._sectionEntries['Outgoing/MMTP']
             if e[0] in ('Allow', 'Deny')]:
             LOG.warn("Allow/deny are not yet supported")
+        mc = self['Outgoing/MMTP'].get('MaxConnections')
+        if mc is not None and mc < 1:
+            raise ConfigError("MaxConnections must be at least 1.")
 
         self.validateRetrySchedule("Outgoing/MMTP")
 
@@ -363,6 +367,7 @@ SERVER_SYNTAX =  {
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', "boolean", "no"),
                             'Retry' : ('ALLOW', "intervalList",
                                  "every 1 hour for 1 day, 7 hours for 5 days"),
+                            'MaxConnections' : ('ALLOW', 'int', '16'),
                           'Allow' : ('ALLOW*', "addressSet_allow", None),
                           'Deny' : ('ALLOW*', "addressSet_deny", None) },
         # FFFF Missing: Queue-Size / Queue config options

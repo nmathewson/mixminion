@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.52 2004/02/02 07:05:49 nickm Exp $
+# $Id: MMTPClient.py,v 1.53 2004/02/06 23:14:28 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -16,6 +16,7 @@
 __all__ = [ "MMTPClientConnection", "sendPackets", "DeliverableMessage" ]
 
 import socket
+import sys
 import time
 import mixminion._minionlib as _ml
 import mixminion.NetUtils
@@ -71,6 +72,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
     #   sent to the TLS connection, in the order they should be sent.
     # pendingPackets: a list of DeliverableMessage objects that have been
     #   sent to the TLS connection, but which have not yet been acknowledged.
+    # nPacketsTotal: total number of packets we've ever been asked to send.
     # nPacketsSent: total number of packets sent across the TLS connection
     # nPacketsAcked: total number of acks received from the TLS connection
     # expectedAcks: list of acceptAck,rejectAck tuples for the packets
@@ -121,7 +123,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         self.packets = []
         self.pendingPackets = []
         self.expectedAcks = []
-        self.nPacketsSent = self.nPacketsAcked = 0
+        self.nPacketsSent = self.nPacketsAcked = self.nPacketsTotal =0
         self._isConnected = 0
         self._isFailed = 0
         self._isAlive = 1 #DOCDOC
@@ -135,6 +137,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
            failure, deliverableMessage.failed will be called."""
         assert hasattr(deliverableMessage, 'getContents')
         self.packets.append(deliverableMessage)
+        self.nPacketsTotal += 1
         # If we're connected, maybe start sending the packet we just added.
         self._updateRWState()
 
@@ -448,7 +451,7 @@ def sendPackets(routing, packetList, timeout=300, callback=None):
 
         rfds,wfds,xfds=select.select(rfds,wfds,xfds,3)
         now = time.time()
-        wr,ww,isopen=con.process(fd in rfds, fd in wfds, 0)
+        wr,ww,isopen,_=con.process(fd in rfds, fd in wfds, 0)
         if isopen:
             if con.tryTimeout(now-timeout):
                 isopen = 0

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.129 2004/01/27 05:13:36 nickm Exp $
+# $Id: Common.py,v 1.130 2004/02/06 23:14:28 nickm Exp $
 
 """mixminion.Common
 
@@ -785,7 +785,7 @@ def _logtime(_time=time.time,_strftime=time.strftime,
     # We use the '_dst[0]' variable to check whether our DST setting
     # has changed since the last time _logtime was called.
     if lt[8]!=_dst[0]:
-        # If it was, we regenerate the string '_tzadj[0]' to be the 
+        # If it was, we regenerate the string '_tzadj[0]' to be the
         # adjustment to UTC used to get local time.
         _dst[0]=lt[8]
         offset = floorDiv((calendar.timegm(lt)-time.mktime(lt)),60)
@@ -795,11 +795,11 @@ def _logtime(_time=time.time,_strftime=time.strftime,
             sign='-'
         h,m=divmod(abs(offset),60)
         _tzadj[0]="%s%02d%02d"%(sign,h,m)
-        
+
     return "%s.%03d %s"%(_strftime("%b %d %H:%M:%S", lt),
                          (t*1000)%1000,
                          _tzadj[0])
-    #return time.strftime("%b %d %H:%M:%S.%%03d %z", time.localtime(t)) %( 
+    #return time.strftime("%b %d %H:%M:%S.%%03d %z", time.localtime(t)) %(
     #    (t*1000)%1000)
 
 class _FileLogHandler:
