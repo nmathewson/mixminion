@@ -1,6 +1,6 @@
 include README HACKING LICENSE Makefile TODO pycheckrc ACKS HISTORY
 include contrib/unittest.py contrib/zlibutil.py contrib/textwrap.py
 include etc/mixminiond.conf etc/blacklist.conf etc/countlines.py
-include etc/mixminion.init
+include etc/mixminion.init etc/mixminion.1
 # Old versions of distutils miss header files
 include src/_minionlib.h
