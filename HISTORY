@@ -1,8 +1,56 @@
-$Id: HISTORY,v 1.3 2003/07/13 03:45:33 nickm Exp $
+$Id: HISTORY,v 1.4 2003/09/05 21:59:49 nickm Exp $
 ----------------------------------------------------------------------
 This file lists changes for earlier versions of Mixminion.  For changes
 in the latest version, see the README file.
 ----------------------------------------------------------------------
+NEW IN VERSION 0.0.5:
+   - Fix a harmless but hard-to-detect bug that showed up when running
+     unittests on certain platforms.
+
+NEW IN VERSION 0.0.5rc2:
+   - Fix for a bug that would crash exit servers trying to upgrade from
+     certain older versions.
+
+   - Improved error messages for several cases.
+
+   - Add a draft man page (credit goes to George Danezis).
+
+NEW IN VERSION 0.0.5rc1:
+   - Support for email headers.  'Subject', 'In-Reply-To', and 'References'
+     are fully supported.  'From' support is limited, as documented in
+     'E2E-spec.txt'.
+
+   - Limited support for K-of-N message fragmentation and reassembly.  Right
+     now, clients can send large fragmented messages for servers to
+     reassemble them.  Not yet supported are independent paths, fragmented
+     reply messages, and client-side fragment reassembly.
+
+   - UI improvements
+      - Path generation can now create random-length paths
+      - Support for removing old messages from client queues.
+      - 'Mixminion shell' command to wrap other commands on platforms with
+        iffy terminals or shells.  Poor substitute for a real GUI.
+
+   - Improved portability
+      - All client and server functionality works properly on Cygwin.
+      - Everything should work on win32 too.  (But it won't be supported till
+        I can get Py2Exe working.)
+      - The build system should work on more unixes.
+
+   - Improved configurability
+      - Support for suppressing directory permission messages.
+
+   - Improved performance
+      - Server RAM usage should be way down, except while reassembling large
+        messages.
+
+   - Improved testability
+      - Server descriptors now describe the server's platform and
+        configuration. 
+
+   - Bugfixes too numerous to mention.  Server pools in general should be
+     significantly more robust.
+
 NEW IN FINAL 0.0.4 RELEASE:
   BUGFIXES:
   - Fixed a bug that would sometimes give a useless error message when
