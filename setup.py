@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.100 2004/05/10 16:46:21 nickm Exp $
+# $Id: setup.py,v 1.101 2004/05/17 05:17:42 nickm Exp $
 import sys
 
 #
@@ -536,7 +536,7 @@ else:
 
 setup(name='Mixminion',
       version=VERSION,
-      license="LGPL",
+      license="MIT",
       description=
       "Mixminion: Python implementation of the Type III Mix protocol (ALPHA)",
       author="Nick Mathewson",
