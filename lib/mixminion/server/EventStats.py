@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.9 2003/08/25 21:05:34 nickm Exp $
+# $Id: EventStats.py,v 1.10 2003/11/25 02:15:14 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -304,11 +304,9 @@ def configureLog(config):
     global log
     if config['Server']['LogStats']:
         LOG.info("Enabling statistics logging")
-        homedir = config['Server']['Homedir']
-        statsfile = config['Server'].get('StatsFile')
-        if not statsfile:
-            statsfile = os.path.join(homedir, "stats")
-        workfile = os.path.join(homedir, "work", "stats.tmp")
+        statsfile = config.getStatsFile()
+        workfile = os.path.join(config.getWorkDir(), "stats.tmp")
+        #XXXX006 ensure parent.
         log = EventLog(
            workfile, statsfile, config['Server']['StatsInterval'].getSeconds())
         LOG.info("Statistics logging enabled")

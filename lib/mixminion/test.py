@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.167 2003/11/24 19:59:04 nickm Exp $
+# $Id: test.py,v 1.168 2003/11/25 02:15:14 nickm Exp $
 
 """mixminion.tests
 
@@ -560,6 +560,13 @@ class MiscTests(TestCase):
         LF1.acquire("LF1")
         if not ON_WINDOWS:
             self.assertEquals("LF1", readFile(fn))
+        LF1.replaceContents("new longer contents")
+        if not ON_WINDOWS:
+            self.assertEquals("new longer contents", readFile(fn))
+        LF1.replaceContents("shorter")
+        if not ON_WINDOWS:
+            self.assertEquals("shorter", readFile(fn))
+        
         self.assertRaises(LockfileLocked, LF2.acquire, blocking=0)
         LF1.release()
         LF2.acquire("LF2",1)
@@ -4355,7 +4362,7 @@ SERVER_CONFIG = """
 EncryptIdentityKey: no
 PublicKeyLifetime: 10 days
 EncryptPrivateKey: no
-Homedir: %s
+BaseDir: %s
 Mode: relay
 Nickname: The-Server
 Contact-Email: a@b.c
@@ -4881,10 +4888,24 @@ class EventStatsTests(TestCase):
         tm = time.time()
         eq = self.assertEquals
         homedir = mix_mktemp()
-        ES.configureLog({'Server':
-                         {'LogStats' : 1,
-                          'Homedir' : homedir,
-                 'StatsInterval' : mixminion.Config._parseInterval("1 hour")}})
+        class FakeESConfig:
+            def __getitem__(self,k):
+                items = {'Server':
+                {'LogStats' : 1,
+                 'Homedir' : self.homedir,
+                 'StatsInterval' : mixminion.Config._parseInterval("1 hour")}}
+                return items[k]
+            def getStatsFile(self):
+                return os.path.join(self.homedir, "stats")
+            def getWorkDir(self):
+                return os.path.join(self.homedir, "work")
+        cfg = FakeESConfig()
+        cfg.homedir = homedir
+##         ES.configureLog({'Server':
+##                          {'LogStats' : 1,
+##                           'Homedir' : homedir,
+##                  'StatsInterval' : mixminion.Config._parseInterval("1 hour")}})
+        ES.configureLog(cfg)
         self.failUnless(isinstance(ES.log, ES.EventLog))
         # Test all commands
         ES.log.receivedPacket()
@@ -4903,10 +4924,11 @@ class EventStatsTests(TestCase):
         eq(ES.log.count['UnretriableDelivery']['Y'], 1)
         eq(ES.log.count['AttemptedDelivery'][None], 2)
         # Test reload.
-        ES.configureLog({'Server':
-                         {'LogStats' : 1,
-                          'Homedir' : homedir,
-                 'StatsInterval' : mixminion.Config._parseInterval("1 hour")}})
+        ES.configureLog(cfg)
+##         ES.configureLog({'Server':
+##                          {'LogStats' : 1,
+##                           'Homedir' : homedir,
+##                  'StatsInterval' : mixminion.Config._parseInterval("1 hour")}})
         eq(ES.log.count['AttemptedDelivery']['Y'], 2)
         # Test dump
         buf = cStringIO.StringIO()
@@ -4952,10 +4974,11 @@ class EventStatsTests(TestCase):
         eq(ES.log.lastSave, tm+3600*24)
         eq(ES.log.accumulatedTime, 0)
         self.assert_((ES.log.nextRotation - (tm+3600*25)) < 3600)
-        ES.configureLog({'Server':
-                         {'LogStats' : 1,
-                          'Homedir' : homedir,
-                 'StatsInterval' : mixminion.Config._parseInterval("1 hour")}})
+        ES.configureLog(cfg)
+##         ES.configureLog({'Server':
+##                          {'LogStats' : 1,
+##                           'Homedir' : homedir,
+##                  'StatsInterval' : mixminion.Config._parseInterval("1 hour")}})
         eq(ES.log.count['UnretriableDelivery'], {})
         self.assertFloatEq(ES.log.lastSave, time.time())
 
@@ -5779,7 +5802,7 @@ Message-type: binary
 # Sample server configuration to test ServerKeys
 SERVERCFG = """
 [Server]
-Homedir: %(home)s
+BaseDir: %(home)s
 Mode: local
 EncryptIdentityKey: No
 PublicKeyLifetime: 10 days
@@ -5958,8 +5981,14 @@ class DNSFarmTests(TestCase):
                               (socket.AF_INET, '10.99.22.8'))
             self.assert_(DELAY*1.20 <= receiveDict['baz.com'][2]-start 
                                     <= DELAY*1.25 + LATENCY)
-            cache.cleanCache(start+DELAY+
-                             mixminion.server.DNSFarm.MAX_ENTRY_TTL+.001)
+
+            # Change foo's expiration time to be well before nowhere's, 
+            # then expire foo but not nowhere.
+            t2 = receiveDict['nowhere.noplace'][2]
+            cache.cache['foo'] = cache.cache['foo'][:2]+((t2-5),)
+            cache.cleanCache(t2-1+
+                             mixminion.server.DNSFarm.MAX_ENTRY_TTL)
+
             self.assertEquals(cache.getNonblocking('foo'), None)
             self.assertEquals(cache.getNonblocking('nowhere.noplace'),
                               receiveDict['nowhere.noplace'])

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.62 2003/11/24 19:59:04 nickm Exp $
+# $Id: Modules.py,v 1.63 2003/11/25 02:15:14 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -389,8 +389,7 @@ class ModuleManager:
             m.validateConfig(config, lines, contents)
 
     def configure(self, config):
-        self._setQueueRoot(os.path.join(config['Server']['Homedir'],
-                                        'work', 'queues', 'deliver'))
+        self._setQueueRoot(os.path.join(config.getQueueDir(), 'deliver'))
         createPrivateDir(self.queueRoot)
         for m in self.modules:
             m.configure(config, self)

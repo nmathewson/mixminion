@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.41 2003/11/24 19:59:05 nickm Exp $
+# $Id: ServerConfig.py,v 1.42 2003/11/25 02:15:14 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -8,6 +8,7 @@
 __all__ = [ "ServerConfig" ]
 
 import operator
+import os
 
 import mixminion.Config
 import mixminion.server.Modules
@@ -183,6 +184,46 @@ class ServerConfig(mixminion.Config._ConfigFile):
         mixInterval = self['Server']['MixInterval'].getSeconds()
         _validateRetrySchedule(mixInterval, entry, sectionName)
 
+    def _get_fname(self, sec, ent, defaultRel):
+        """DOCDOC"""
+        raw = self[sec].get(ent)
+        homedir = self.getBaseDir()
+        if not raw:
+            return os.path.join(homedir, defaultRel)
+        if os.path.isabs(raw):
+            return raw
+        else:
+            return os.path.join(homedir, raw)
+
+    def getBaseDir(self):
+        """DOCDOC"""
+        v = self["Server"]["BaseDir"]
+        if v is None:
+            v = self["Server"]["Homedir"]
+        if v is None:
+            v = "/var/spool/minion"
+        return v
+    def getLogFile(self):
+        """DOCDOC"""
+        return self._get_fname("Server", "LogFile", "log")
+    def getStatsFile(self):
+        """DOCDOC"""
+        return self._get_fname("Server", "StatsFile", "stats")
+    def getKeyDir(self):
+        """DOCDOC"""
+        return self._get_fname("Server", "KeyDir", "keys")
+    def getWorkDir(self):
+        """DOCDOC"""
+        return self._get_fname("Server", "WorkDir", "work")
+    def getPidFile(self):
+        """DOCDOC"""
+        return self._get_fname("Server", "PidFile", "pid")
+    def getQueueDir(self):
+        """DOCDOC"""
+        if self["Server"]["QueueDir"] is None:
+            return os.path.join(self.getWorkDir(), 'queues')
+        else:
+            return self._get_fname("Server", "QueueDir", "work/queues")
 
 def _validateRetrySchedule(mixInterval, schedule, sectionName):
     """Backend for ServerConfig.validateRetrySchedule -- separated for testing.
@@ -261,16 +302,24 @@ def _parseFraction(frac):
 SERVER_SYNTAX =  {
         'Host' : mixminion.Config.ClientConfig._syntax['Host'],
         'Server' : { '__SECTION__' : ('REQUIRE', None, None),
+                     'BaseDir' : ("ALLOW", "filename", None),
                      'Homedir' :
                          ('ALLOW', "filename", "/var/spool/minion"),
-                     'LogFile' : ('ALLOW', None, None),
+                     # DOCDOC all these file options need documentation in
+                     # DOCDOC the example mixminiond.conf.
+                     'LogFile' : ('ALLOW', "filename", None),
+                     'StatsFile' : ('ALLOW', "filename", None),
+                     'KeyDir' : ('ALLOW', "filename", None),
+                     'WorkDir' : ('ALLOW', "filename", None),
+                     'QueueDir' : ('ALLOW', "filename", None),
+                     'PidFile' : ('ALLOW', "filename", None),
+
                      'LogLevel' : ('ALLOW', "severity", "WARN"),
                      'EchoMessages' : ('ALLOW', "boolean", "no"),
                      'Daemon' : ('ALLOW', "boolean", "no"),
                      'LogStats' : ('ALLOW', "boolean", 'yes'),
                      'StatsInterval' : ('ALLOW', "interval",
                                         "1 day"),
-                     'StatsFile' : ('ALLOW', None, None),
                      'EncryptIdentityKey' :('ALLOW', "boolean", "no"),
                      'IdentityKeyBits': ('ALLOW', "int", "2048"),
                      'PublicKeyLifetime' : ('ALLOW', "interval",

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.58 2003/11/24 19:59:05 nickm Exp $
+# $Id: ServerKeys.py,v 1.59 2003/11/25 02:15:14 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -81,9 +81,11 @@ class ServerKeyring:
     def configure(self, config):
         "Set up a ServerKeyring from a config object"
         self.config = config
-        self.homeDir = config['Server']['Homedir']
-        self.keyDir = os.path.join(self.homeDir, 'keys')
-        self.hashDir = os.path.join(self.homeDir, 'work', 'hashlogs')
+        self.homeDir = config.getBaseDir()
+        self.keyDir = config.getKeyDir()
+        self.hashDir = os.path.join(config.getWorkDir(), 'hashlogs')
+        #DOCDOC
+        self.dhFile = os.path.join(config.getWorkDir(), 'tls', 'dhparam')
         self.keyOverlap = config['Server']['PublicKeyOverlap'].getSeconds()
         self.nextUpdate = None
         self.currentKeys = None
@@ -269,10 +271,9 @@ class ServerKeyring:
             LOG.warn("Removing identity key")
             secureDelete([fn], blocking=1)
 
-        dhfile = os.path.join(self.homeDir, 'work', 'tls', 'dhparam')
-        if os.path.exists('dhfile'):
+        if os.path.exists(self.dhFile):
             LOG.info("Removing diffie-helman parameters file")
-            secureDelete([dhfile], blocking=1)
+            secureDelete([self.dhFile], blocking=1)
 
     def createKeysAsNeeded(self,now=None):
         """Generate new keys and descriptors as needed, so that the next
@@ -440,20 +441,19 @@ class ServerKeyring:
     def _getDHFile(self):
         """Return the filename for the diffie-helman parameters for the
            server.  Creates the file if it doesn't yet exist."""
-        dhdir = os.path.join(self.homeDir, 'work', 'tls')
+        dhdir = os.path.split(self.dhFile)[0]
         createPrivateDir(dhdir)
-        dhfile = os.path.join(dhdir, 'dhparam')
-        if not os.path.exists(dhfile):
+        if not os.path.exists(self.dhFile):
             # ???? This is only using 512-bit Diffie-Hellman!  That isn't
             # ???? remotely enough.
             LOG.info("Generating Diffie-Helman parameters for TLS...")
-            mixminion._minionlib.generate_dh_parameters(dhfile, verbose=0)
+            mixminion._minionlib.generate_dh_parameters(self.dhFile, verbose=0)
             LOG.info("...done")
         else:
             LOG.debug("Using existing Diffie-Helman parameter from %s",
-                           dhfile)
+                           self.dhFile)
 
-        return dhfile
+        return self.dhFile
 
     def _getTLSContext(self, keys=None):
         """Create and return a TLS context from the currently live key."""

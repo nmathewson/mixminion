@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.101 2003/11/19 09:48:10 nickm Exp $
+# $Id: ServerMain.py,v 1.102 2003/11/25 02:15:14 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -10,7 +10,7 @@
 
 #XXXX make usage messages have the same format.
 
-## Directory layout:
+## Directory layout:  DOCDOC this is now more complicated. :P
 #    MINION_HOME/work/queues/incoming/ [Queue of received,unprocessed pkts]
 #                            mix/ [Mix pool]
 #                            outgoing/ [Packets for mmtp delivery]
@@ -76,7 +76,7 @@ SERVER_HOMEDIR_VERSION = "1001"
 def getHomedirVersion(config):
     """Return the version of the server's homedir.  If no version is found,
        the version must be '1000'. """
-    homeDir = config['Server']['Homedir']
+    homeDir = config.getBaseDir()
     versionFile = os.path.join(homeDir, "version")
     if not os.path.exists(homeDir):
         return None
@@ -614,7 +614,8 @@ class MixminionServer(_Scheduler):
     # processingThread: Thread to handle CPU-intensive activity without
     #    slowing down network interactivity.
     # lockFile: An instance of Lockfile to prevent multiple servers from
-    #    running in the same directory
+    #    running in the same directory.  The filename for this lock is
+    #    stored in self.pidFile.
     # pidFile: Filename in which we store the pid of the running server.
     def __init__(self, config):
         """Create a new server from a ServerConfig."""
@@ -622,7 +623,7 @@ class MixminionServer(_Scheduler):
         LOG.debug("Initializing server")
 
         self.config = config
-        homeDir = config['Server']['Homedir']
+        homeDir = config.getBaseDir()
 
         exists = getHomedirVersion(config)
 
@@ -632,15 +633,24 @@ class MixminionServer(_Scheduler):
             writeFile(os.path.join(homeDir, "version"),
                       SERVER_HOMEDIR_VERSION, 0644)
 
-        # Lock file.
-        self.lockFile = Lockfile(os.path.join(homeDir, "lock"))
+        # Obsolete lock file.
+        #XXXX007: remove this check.
+        lockFname = os.path.join(homeDir, "lock")
+        if os.path.exists(lockFname):
+            lf = Lockfile(lockFname)
+            try:
+                lf.acquire()
+                lf.release()
+            except LockfileLocked:
+                raise UIError("Another (older) server seems to be running")
+
+        # The pid/lock file.
+        self.pidFile = config.getPidFile()
+        self.lockFile = Lockfile(self.pidFile)
         try:
-            self.lockFile.acquire()
+            self.lockFile.acquire(mode=0644)
         except LockfileLocked:
             raise UIError("Another server seems to be running.")
-
-        # The pid file.
-        self.pidFile = os.path.join(homeDir, "pid")
 
         # Try to read the keyring.  If we have a pre-0.0.4 version of
         # mixminion, we might have some bad server descriptors lying
@@ -687,7 +697,7 @@ The original error message was '%s'."""%e)
         self.moduleManager = config.getModuleManager()
         self.moduleManager.configure(config)
 
-        queueDir = os.path.join(homeDir, 'work', 'queues')
+        queueDir = config.getQueueDir()
 
         incomingDir = os.path.join(queueDir, "incoming")
         LOG.debug("Initializing incoming queue")
@@ -778,7 +788,7 @@ The original error message was '%s'."""%e)
     def run(self):
         """Run the server; don't return unless we hit an exception."""
         global GOT_HUP
-        writeFile(self.pidFile, "%s\n"%os.getpid(), mode=0644)
+        self.lockFile.replaceContents("%s\n"%os.getpid())
 
         self.cleanQueues()
 
@@ -925,10 +935,7 @@ The original error message was '%s'."""%e)
 
         EventStats.log.save()
 
-        try:
-            self.lockFile.release()
-        finally:
-            tryUnlink(self.pidFile)
+        self.lockFile.release()
 
 #----------------------------------------------------------------------
 def daemonize():
@@ -1150,9 +1157,9 @@ def runUpgrade(cmd, args):
 
     assert curVersion == "1000"
 
-    homeDir = config['Server']['Homedir']
-    keyDir = os.path.join(homeDir, 'keys')
-    hashDir = os.path.join(homeDir, 'work', 'hashlogs')
+    homeDir = config.getBaseDir()
+    keyDir = config.getKeyDir()
+    hashDir = os.path.join(config.getWorkDir(), 'hashlogs')
     keysets = []
     if not os.path.exists(keyDir):
         print >>sys.stderr, "No server keys to upgrade."
@@ -1180,10 +1187,10 @@ def runUpgrade(cmd, args):
 
     # Now we need to clean out all the old queues -- the messages in them
     # are incompatible.
-    queueDirs = [ os.path.join(homeDir, 'work', 'queues', 'incoming'),
-                  os.path.join(homeDir, 'work', 'queues', 'mix'),
-                  os.path.join(homeDir, 'work', 'queues', 'outgoing') ]
-    deliver = os.path.join(homeDir, 'work', 'queues', 'deliver')
+    queueDirs = [ os.path.join(config.getQueueDir(), 'incoming'),
+                  os.path.join(config.getQueueDir(), 'mix'),
+                  os.path.join(config.getQueueDir(), 'outgoing') ]
+    deliver = os.path.join(config.getQueueDir(), 'deliver')
     if os.path.exists(deliver):
         for fn in os.listdir(deliver):
             if os.path.isdir(os.path.join(deliver,fn)):
@@ -1225,9 +1232,9 @@ def runDELKEYS(cmd, args):
 
     checkHomedirVersion(config)
 
-    homeDir = config['Server']['Homedir']
-    keyDir = os.path.join(homeDir, 'keys')
-    hashDir = os.path.join(homeDir, 'work', 'hashlogs')
+    homeDir = config.getBaseDir()
+    keyDir = config.getKeyDir()
+    hashDir = os.path.join(config.getWorkDir(), 'hashlogs')
     if not os.path.exists(keyDir):
         print >>sys.stderr, "No server keys to delete"
     else:
@@ -1292,8 +1299,8 @@ def _signalServer(config, reload):
        server if it's running.  If 'reload', the signal is HUP.  Else,
        the signal is TERM.
     """
-    homeDir = config['Server']['Homedir']
-    pidFile = os.path.join(homeDir, "pid")
+    homeDir = config.getBaseDir()
+    pidFile = config.getPidFile()
     if not os.path.exists(pidFile):
         raise UIError("No server seems to be running.")
 
@@ -1336,7 +1343,7 @@ def runRepublish(cmd, args):
     LOG.setMinSeverity("INFO")
     mixminion.Crypto.init_crypto(config)
 
-    keydir = os.path.join(config['Server']['Homedir'], 'keys')
+    keydir = config.getKeyDir()
     items = os.listdir(keydir)
     items.sort()
     for fn in items:
