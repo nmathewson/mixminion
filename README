@@ -1,6 +1,6 @@
-$Id: README,v 1.70 2003/12/15 04:41:53 nickm Exp $
+$Id: README,v 1.71 2003/12/15 05:16:47 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.6, from the Mixminion CVS repository.
+This is Mixminion version 0.0.7alpha, from the Mixminion CVS repository.
 
 CONTENTS:
         I.    Overview
@@ -37,105 +37,6 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
-
-NEW IN VERSION 0.0.6:
-   - Several documentation fixes.
-
-   - Starting a server for the first time will no longer give a spurious
-     message about an out-of-date installation.
-
-   - We now accept as uniform several more recent versions of zlib.
-
-   - 'mixminion server-start --quiet' is now even more quiet than before.
-
-   - Inital initial debian packaging files and targes (Peter Palfrader)
-
-NEW IN VERSION 0.0.6rc2:
-   - Fixed a couple of bugs that would prevent Mixminion from running on
-     Python 2.0 or Python 2.1.
-
-   - Fixed a build problem with stand-alone Windows builds: the 'bsddb'
-     module was not included, so we were defaulting to the slow and
-     inefficient 'dumbdbm' module to store hash logs, SURB logs, and fragment
-     indexes.
-
-NEW IN VERSION 0.0.6rc1:
-   - Windows support
-       - The Mixminion command-line interface now works on MS Windows, at
-         least for me.  It has been tested on Windows 2000, and should work
-         on any platform running Windows 98 or later.  There are probably
-         some lingering bugs, especially when running a server.
-
-   - Improved security
-       - SURB keys are now rotated periodically.
-
-       - The client now _always_ shuffles packets before delivery, and sends
-         them in a random order.
-
-   - Improved robustness
-       - Servers are now addressed by hostname rather than IP.  It is now
-         feasible to run a Mixminion server with a dynamic IP address.
-         Support for old-style routing will be deprecated in 0.0.7.
-         (Servers use a DNS-farm abstraction to avoid blocking on slow
-         DNS lookups.  MMTP connections are still authenticated, so attacks
-         against DNS can at worst delay packets from arriving.)
-
-       - The path generation logic has been largely rewritten to use the
-         optimal routing method for each server-to-server pair.
-
-       - The path generation code now chooses good paths for fragmented
-         messages and messages with specific requirements on their exit
-         nodes.
-
-       - Client queues are generally less buggy.
-
-       - Consistency enforcement between fragmentation and other modules.
-
-       - Better spec compliance.
-
-   - Improved performance
-       - When flushing messages from the client queue, it is no longer
-         necessary to load them all into RAM at once.
-
-   - User interface tweaks
-       - When running as a client, Mixminion now displays servers by nickname
-         in addition to IP:port whenever possible.  Servers will gain this
-         behavior in a later version, once they begin downloading
-         directories.
-
-       - The behavior of 'mixminion list-servers' has been changed: its
-         default output is far terser and easier to parse than before, though
-         output _even more_ verbose than previous can be selected.  Also,
-         whereas the old implementation only listed servers by their
-         lifetime, capabilities, and status, it is now possible to list
-         arbitrary 'features' of the servers in the directory.
-
-       - Error messages for timeouts are more reasonable; timeouts themselves
-         should now work a little better than before.
-
-       - A longstanding typo in the MMTP server's logging code has been
-         resolved: running at DEBUG should be far terser and more reasonable
-         than before.
-
-       - Users can now send fragmented messages for reassembly by their
-         recipients rather than exit servers.  (Client side reassembly is
-         not yet implemented, however.)
-
-       - Many error messages have been cleaned up, including a few related to
-         SSL errors, Windows internals, corrupt databases, unsupported
-         databases.
-
-   - Build improvements
-       - Use the preferred version of Python if one exists.
-
-       - Add build target to output test vectors for crypto functionality.
-
-       - Support the DESTDIR environment variable
-
-       - Check SHA1 digest on downloaded OpenSSL 0.9.7c.
-
-   - Other bugfixes too numerous to mention.
-
 <See HISTORY file for changes in earlier versions.>
 
 STILL NOT IN THIS VERSION:
