@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.66 2003/11/19 09:48:09 nickm Exp $
+# $Id: Config.py,v 1.67 2003/11/20 08:48:33 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -403,12 +403,16 @@ def _parseTime(s):
 
 _NICKNAME_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
                    "abcdefghijklmnopqrstuvwxyz"+
-                   "0123456789_.@-")
+                   "0123456789-")
+_NICKNAME_INITIAL_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
+                           "abcdefghijklmnopqrstuvwxyz")
+
 MAX_NICKNAME = 128
 def _parseNickname(s):
     """Validation function.  Returns true iff s contains a valid
        server nickname -- that is, a string of 1..128 characters,
-       containing only the characters [A-Za-z0-9_@], '.' or '-'.
+       containing only the characters [A-Za-z0-9], or '-'.  It must
+       not begin with a digit or a '-'.
        """
     s = s.strip()
     bad = s.translate(mixminion.Common._ALLCHARS, _NICKNAME_CHARS)
@@ -418,6 +422,8 @@ def _parseNickname(s):
         raise ConfigError("Nickname is too long")
     elif len(s) == 0:
         raise ConfigError("Nickname is too short")
+    elif s[0] not in _NICKNAME_INITIAL_CHARS:
+        raise ConfigError("Nickname begins with invalid character %r" %s[0])
     return s
 
 def _parseFilename(s):
