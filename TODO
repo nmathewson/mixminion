@@ -13,6 +13,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
     user-visible improvements to address the most glaring defects in 0.0.1.]
 
 	!- Real SMTP module
+		- Exit filtering support
 	- Interface for reply blocks
 	. Minimal directory support
 		o Make everything resistant to newline corruption
@@ -73,14 +74,13 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 	!- History.
 	!- Triage XXXX'S for 002.
 	. Document everything
-	- Make __version__ get set automatically, from only one place.
+	o Make __version__ get set automatically, from only one place.
 	- Write a "whatsnew".
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
-          the first beta.  The first three priorities are: replies,
-  	  DOS-prevention, and directories.]
+          the first beta.]
 
 	- Better CLIs
 		- Actual strategy for reporting exceptions vs
@@ -105,12 +105,12 @@ Required for "1.0":
 			- Use async or threading to cope with blocking MTAs
 			- Full config validation
 			- Full boilerplate text
+		- Use ESMTP
 		- Move boilerplate into outside files.  Add a generic
 		  'Boilerplate' functionality.
 		- Tell ModuleManager about async code
 		- Real SMTP module
 			- Abuse prevention
-			- Exit filtering support
 			- Support for setting 'Subject' and 'From' lines.
 			- Support multiple exit addresses.
 		- Incoming email gateway
@@ -144,19 +144,19 @@ Required for "1.0":
 		- Read message from reply block
 		- Check paths before reading from stdin.
 		- Path selection
-		        - Automatic path selection
+		        o Automatic path selection
 			. Understand differing server features
 			- Watch out for servers that are really the
 			  same server
-			- Notice servers that don't support MMTP, or
+			o Notice servers that don't support MMTP, or
 			  don't relay.
 			- Notice Allow/Deny.
-			- Ability to specify only last hop.
+			o Ability to specify only last hop.
 		- Reply to reply block
 		- Examine reply block
 		- Send message to user with known key
-		. Send message to user with known server
-		- Real server directory management
+		o Send message to user with known server
+		o Real server directory management
 		- Real PKI
 	        - Queue a bunch of messages at the client level.
 		- Client-side pooling
@@ -175,12 +175,12 @@ Required for "1.0":
 			- Bad recipients
 			- Hunt down leaks
 	- Build and install process
-	  	- The version string should be given in only one place
+	  	o The version string should be given in only one place
 		o Use sane arguments when testing with multiple python versions
 		o Get SSL as needed
-		- Well-tested 'make install'
+		. Well-tested 'make install'
 		- RPMS, debs, and so on
-		- Make sure we run on solaris and *BSD.
+		. Make sure we run on solaris and *BSD.
 		- "Somebody" should do a Windows port of the client code
 		- An init.d script.
 	- Protocol support

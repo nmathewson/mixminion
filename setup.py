@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.20 2003/01/03 05:14:47 nickm Exp $
+# $Id: setup.py,v 1.21 2003/01/03 15:56:30 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -18,7 +18,7 @@ except ImportError:
     print "Zlib support seems to be missing; install python with zlib support."
     sys.exit(0)
 
-import os, struct, shutil
+import os, re, struct, shutil
 
 VERSION= '0.0.2a0'
 
@@ -38,6 +38,19 @@ if USE_OPENSSL:
 MACROS=[]
 MODULES=[]
 
+#======================================================================
+# Check the version of Python in the source.
+
+f = open("lib/mixminion/__init__.py", 'r')
+initFile = f.read()
+f.close()
+initCorrected = re.compile(r'^__version__\s*=.*$', re.M).sub(
+    '__version__ = \"%s\"'%VERSION, initFile)
+if initCorrected != initFile:
+    f = open("lib/mixminion/__init__.py", 'w')
+    f.write(initCorrected)
+    f.close()
+    
 #======================================================================
 # Install unittest if python doesn't provide it. (This is a 2.0 issue)
 try:
