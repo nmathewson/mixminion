@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.3 2002/09/10 20:06:24 nickm Exp $
+# $Id: ClientMain.py,v 1.4 2002/10/13 01:34:44 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -46,6 +46,13 @@ class DirectoryCache:
        FFFF want to re-do it entirely once we have directory support, so it
        FFFF doesn't matter so much right now.
        """
+    ## Fields
+    # dirname: the name of the storage directory.  All files in the directory
+    #     should be of the form 'si_XXXX...X', and contain validated server
+    #     descriptors.
+    # servers: a map from nickname to [list of serverinfo objects], or None
+    #     if no servers have been loaded
+    # allServers: a list of serverinfo objects
     def __init__(self, dirname):
 	dirname = os.path.join(dirname, 'servers')
 	createPrivateDir(dirname)
@@ -53,6 +60,8 @@ class DirectoryCache:
 	self.servers = None
 
     def load(self, forceReload=0):
+	"""Retrieve a list of servers from disk.  If 'forceReload' is false,
+           only load the servers if we have not already done so."""
 	if not (self.servers is None or forceReload):
 	    return
 	now = time.time()
@@ -80,24 +89,34 @@ class DirectoryCache:
 		self.servers[nickname] = info
 
     def getCurrentServer(nickname, when=None, until=None):
-	if type(nickname) == ServerInfo:
-	    return nickname
+        """Return a server descriptor valid during the interval
+           when...until.  If 'nickname' is a string, return only a
+           server with the appropriate nickname.  If 'nickname' is a
+           server descriptor, return that same server descriptor.
+
+           Raise 'MixError' if no appropriate descriptor is found. """
+        self.load()
 	if when is None:
 	    when = time.time()
 	if until is None:
 	    until = when+1
-	try:
-	    serverList = self.servers[nickname]
-	except KeyError, e:
-	    raise MixError("Nothing known about server %s"%nickname)
+	if type(nickname) == ServerInfo:
+	    serverList = [ nickname ]
+	else:
+	    try:
+		serverList = self.servers[nickname]
+	    except KeyError, e:
+		raise MixError("Nothing known about server %s"%nickname)
 	for info in serverList:
 	    #XXXX fail on DNE
 	    server = info['Server']
 	    if server['Valid-After'] <= when <= until <= server['Valid-Until']:
 		return info
-	raise MixError("No current information for server %s"%nickname)
+	raise MixError("No time-valid information for server %s"%nickname)
 
-    def getAllCurrentServers(when=None, until=0):
+    def getAllCurrentServers(when=None, until=None):
+	"""Return all ServerInfo objects valid during a given interval."""
+        self.load()
 	if when is None:
 	    when = time.time()
 	if until is None:
@@ -111,6 +130,8 @@ class DirectoryCache:
 	return result
 
     def importServerInfo(self, fname, force=1):
+	"""Import a server descriptor from an external file into the internal
+	   cache.  Return 1 on import; 0 on failure."""
 	self.load()
 	f = open(fname)
 	contents = f.read()
@@ -147,7 +168,10 @@ class DirectoryCache:
 	f.write(contents)
 	f.close()
 
+	return 1
+
 def installDefaultConfig(fname):
+    """Create a default, 'fail-safe' configuration in a given file"""
     getLog().warn("No configuration file found. Installing default file in %s",
 		  fname)
     f = open(os.path.expanduser(fname), 'w')
