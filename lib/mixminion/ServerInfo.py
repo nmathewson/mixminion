@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.79 2004/02/02 07:05:49 nickm Exp $
+# $Id: ServerInfo.py,v 1.80 2004/02/02 07:19:47 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -71,7 +71,7 @@ def displayServerByAddress(ip, port, hostname=None):
     if nickname is None:
         nickname = ""
     else:
-        nickname = " ('%s'?)" % nickname
+        nickname = " (%s?)" % nickname
     return "server at %s:%s%s" %(ip, port, nickname)
 
 def getNicknameByKeyID(keyid):

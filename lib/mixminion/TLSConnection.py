@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.7 2004/01/22 09:47:34 nickm Exp $
+# $Id: TLSConnection.py,v 1.8 2004/02/02 07:19:47 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -277,7 +277,7 @@ class TLSConnection:
                 while s != 0:
                     s = self.tls.read(_READLEN) # might raise TLSWant*
                     if s == 0:
-                        LOG.debug("read returned 0; shutdown to %s done",
+                        LOG.debug("Read returned 0; shutdown to %s done",
                                   self.address)
                     else:
                         self.__bytesReadOnShutdown += len(s)
@@ -368,7 +368,7 @@ class TLSConnection:
                 if s == 0:
                     # The other side sent us a shutdown; we'll shutdown too.
                     self.receivedShutdown()
-                    LOG.debug("read returned 0: shutting down connection to %s"
+                    LOG.trace("read returned 0: shutting down connection to %s"
                               , self.address)
                     self.startShutdown()
                     return
