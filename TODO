@@ -76,11 +76,11 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 		o Add examples to mixminiond.conf
 	o Refactor main loop to be event based
 	o Balance =-signs on "==ANONYMOUS MESSAGE BEGINS"
-	. Acknowledgments
+	o Acknowledgments
 	o Triage XXXX'S for 002.
-	. Fix all XXXX002's.
+	o Fix all XXXX002's.
 	. Document everything
-	- Clean whitespace
+	. Clean whitespace
 	o Make __version__ get set automatically, from only one place.
 	- Write a "whatsnew" as a part of the README.
 
@@ -136,6 +136,7 @@ Required for "1.0":
 		- Make zlib bomb prevention configurable.
 	- Configurability
 	  	- Support for one-side-only MMTP configurations.
+		- Add 'ALLOW' lines to blacklist.
 		o Make batching algorithm configurable
 		o Infer server IP
 		. Freak out properly on missing/unpublishable IP.

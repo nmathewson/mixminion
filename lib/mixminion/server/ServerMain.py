@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.18 2003/01/05 13:19:54 nickm Exp $
+# $Id: ServerMain.py,v 1.19 2003/01/06 03:29:46 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -405,9 +405,17 @@ def daemonize():
     sys.stdout = LogStream("STDOUT", "WARN")
     sys.stderr = LogStream("STDERR", "WARN")
 
+_SERVER_USAGE = """\
+Usage: %s [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than
+                                /etc/mixminiond.conf
+""".strip()
+
 def usageAndExit(cmd):
     executable = sys.argv[0]
-    print >>sys.stderr, "Usage: %s %s [-h] [-f configfile]" % (executable, cmd)
+    print >>sys.stderr, _SERVER_USAGE %cmd
     sys.exit(0)
 
 def configFromServerArgs(cmd, args):
@@ -472,6 +480,15 @@ def runServer(cmd, args):
     sys.exit(0)
 
 #----------------------------------------------------------------------
+_KEYGEN_USAGE = """\
+Usage: %s [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than
+                                /etc/mixminiond.conf
+  -n <n>, --keys=<n>         Generate <n> new keys. (Defaults to 1.)
+""".strip()
+
 def runKeygen(cmd, args):
     options, args = getopt.getopt(args, "hf:n:",
                                   ["help", "config=", "keys="])
@@ -493,7 +510,7 @@ def runKeygen(cmd, args):
                 print >>sys.stderr,("%s requires an integer" %opt)
                 usage = 1
     if usage:
-        print >>sys.stderr, "Usage: %s [-h] [-f configfile] [-n nKeys]"%cmd
+        print >>sys.stderr, _KEYGEN_USAGE % cmd
         sys.exit(1)
 
     config = readConfigFile(configFile)
@@ -507,6 +524,15 @@ def runKeygen(cmd, args):
         print >> sys.stderr, ".... (%s/%s done)" % (i+1,keys)
 
 #----------------------------------------------------------------------
+_REMOVEKEYS_USAGE = """\
+Usage: %s [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than
+                                /etc/mixminiond.conf
+  --remove-identity          Remove the identity key as well.  (DANGEROUS!)
+""".strip()
+
 def removeKeys(cmd, args):
     # FFFF Resist removing keys that have been published.
     # FFFF Generate 'suicide note' for removing identity key.
@@ -527,9 +553,8 @@ def removeKeys(cmd, args):
         elif opt == '--remove-identity':
             removeIdentity = 1
     if usage:
-        print >>sys.stderr, \
-              "Usage: %s [-h|--help] [-f configfile] [--remove-identity]"%cmd
-        sys.exit(1)
+        print >>sys.stderr, _REMOVEKEYS_USAGE % cmd
+        sys.exit(0)
 
     config = readConfigFile(configFile)
     mixminion.Common.configureShredCommand(config)

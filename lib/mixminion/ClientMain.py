@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.27 2003/01/05 13:19:53 nickm Exp $
+# $Id: ClientMain.py,v 1.28 2003/01/06 03:29:45 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -113,7 +113,10 @@ class ClientKeystore:
         # Start downloading the directory.
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
-        infile = urllib.FancyURLopener().open(url)
+        try:
+            infile = urllib.FancyURLopener().open(url)
+        except IOError, e:
+            raise MixError("Couldn't connect to directory server: %s"%e)
         # Open a temporary output file.
         if url.endswith(".gz"):
             fname = os.path.join(self.dir, "dir_new.gz")
@@ -344,6 +347,8 @@ class ClientKeystore:
         lines = []
         nicknames = self.byNickname.keys()
         nicknames.sort()
+        if not nicknames:
+            return [ "No servers known" ]
         longestnamelen = max(map(len, nicknames))
         fmtlen = min(longestnamelen, 20)
         format = "%"+str(fmtlen)+"s:"
@@ -929,25 +934,68 @@ def readConfigFile(configFile):
         sys.exit(1)
     return None #suppress pychecker warning
 
+
+_SEND_USAGE = """\
+Usage: %(cmd)s [options] <-t address>|<--to=address>
+Options:
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -D <yes|no>, --download-directory=<yes|no>
+                             Force the client to download/not to download a
+                               fresh directory.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+  -H <n>, --hops=<n>         Force the path to use <n> hops.
+  -i <file>, --input=<file>  Read the message to send from <file>.
+                               (Defaults to standard input.)
+  -P <path>, --path=<path>   Specify an explicit message path.
+  -t address, --to=address   Specify the recipient's address.
+  --swap-at=<n>              Spcecify an explicit swap point.
+
+EXAMPLES:
+  Send a message contained in a file <data> to user@domain.
+      %(cmd)s -t user@domain -i data
+  As above, but force 6 hops.
+      %(cmd)s -t user@domain -i data -H 6
+  As above, but use the server nicknamed Foo for the first hop and the server
+  whose descriptor is stored in bar/baz for the last hop.
+      %(cmd)s -t user@domain -i data -H 6 -P 'Foo,*,bar/baz'
+  As above, but switch legs of the path after the second hop.
+      %(cmd)s -t user@domain -i data -H 6 -P 'Foo,*,bar/baz' --swap-at=2
+  Specify an explicit path
+      %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux,Fee,Fie,Foe'
+  Specify an explicit path with a swap point
+      %(cmd)s -t user@domain -i data -P 'Foo,Bar,Baz,Quux:Fee,Fie,Foe'
+  Force a fresh directory download
+      %(cmd)s -D yes
+  Send a message without dowloading a new directory, even if the current
+  directory is out of date.
+      %(cmd)s -D no -t user@domain -i data
+""".strip()
+
 def usageAndExit(cmd, error=None):
-    #XXXX002 correct this.
     if error:
         print >>sys.stderr, "ERROR: %s"%error
-    print >>sys.stderr, """\
-Usage: %s [-h] [-v] [-f configfile] [-i inputfile]
-          [--path1=server1,server2,...]
-          [--path2=server1,server2,...] [-t <address>]"""%cmd
-    sys.exit(1)
+    print >>sys.stderr, _SEND_USAGE % { 'cmd' : cmd }
+    if error:
+        sys.exit(1)
+    else:
+        sys.exit(0)
 
 # NOTE: This isn't anything LIKE the final client interface.  Many or all
 #       options will change between now and 1.0.0
 def runClient(cmd, args):
-    # DOCDOC
+    if cmd.endswith(" client"):
+        print >>sys.stderr, \
+              "The 'client' command is deprecated.  Use 'send' instead."
+    
     options, args = getopt.getopt(args, "hvf:i:t:H:P:D:",
                                   ["help", "verbose", "config=", "input=",
                                    "to=", "hops=", "swap-at=", "path",
                                    "download-directory=",
                                   ])
+    if not options:
+        usageAndExit(cmd)
     configFile = '~/.mixminionrc'
     inFile = "-"
     verbose = 0
@@ -991,9 +1039,7 @@ def runClient(cmd, args):
                 usageAndExit(cmd, "Unrecognized value for %s"%opt)
 
     if args:
-        usageAndExit(cmd,"Unexpected options")
-    if address is None:
-        usageAndExit(cmd,"No recipient specified")
+        usageAndExit(cmd,"Unexpected arguments")
 
     config = readConfigFile(configFile)
     LOG.configure(config)
@@ -1010,6 +1056,10 @@ def runClient(cmd, args):
     keystore = ClientKeystore(userdir)
     if download != 0:
         keystore.updateDirectory(forceDownload=download)
+
+    if address is None:
+        print >>sys.stderr, "No recipients specified; exiting."
+        sys.exit(0)
 
     try:
         path1, path2 = parsePath(keystore, config, path, address, nHops, nSwap)
@@ -1033,12 +1083,19 @@ def runClient(cmd, args):
 
     print >>sys.stderr, "Message sent"
 
+_IMPORT_SERVER_USAGE = """\
+Usage: %s [options] <filename> ...
+Options:
+   -h, --help:             Print this usage message and exit.
+   -f FILE, --config=FILE  Use a configuration file other than ~/.mixminionrc
+""".strip()
+
 def importServer(cmd, args):
     options, args = getopt.getopt(args, "hf:", ['help', 'config='])
     configFile = None
     for o,v in options:
         if o in ('-h', '--help'):
-            print "Usage %s [--help] [--config=configFile] <filename> ..."
+            print _IMPORT_SERVER_USAGE % cmd
             sys.exit(1)
         elif o in ('-f', '--config'):
             configFile = v
@@ -1056,12 +1113,20 @@ def importServer(cmd, args):
 
     print "Done."
 
+_LIST_SERVERS_USAGE = """\
+Usage: %s [options]
+Options:
+  -h, --help:                Print this usage message and exit.
+  -f <file>, --config=<file> Use a configuration file other than ~/.mixminionrc
+                             (You can also use MIXMINIONRC=FILE)
+""".strip()
+
 def listServers(cmd, args):
     options, args = getopt.getopt(args, "hf:", ['help', 'config='])
     configFile = None
     for o,v in options:
         if o in ('-h', '--help'):
-            print "Usage %s [--help] [--config=configFile]"
+            print _LIST_SERVERS_USAGE % cmd
             sys.exit(1)
         elif o in ('-f', '--config'):
             configFile = v

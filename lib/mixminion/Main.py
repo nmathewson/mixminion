@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.20 2003/01/05 13:19:53 nickm Exp $
+# $Id: Main.py,v 1.21 2003/01/06 03:29:46 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -88,7 +88,7 @@ def correctPath(myself):
             foundEntry = 1; break
 
     if not foundEntry:
-        sys.stderr.write("Adding %s to PYTHONPATH\n" % parentdir)
+        #sys.stderr.write("Adding %s to PYTHONPATH\n" % parentdir)
         sys.path[0:0] = [ parentdir ]
 
     # Finally, we make sure it all works.
@@ -101,9 +101,9 @@ def correctPath(myself):
         sys.stderr.write("Unable to find correct path for mixminion.\n")
         sys.exit(1)
 
-# Global map from command name to 2-tuples of (module_name, function_name).
-# The function 'main' below uses this map to pick which module to import,
-# and which function to invoke.
+#   Global map from command name to 2-tuples of (module_name, function_name).
+#   The function 'main' below uses this map to pick which module to import,
+#   and which function to invoke.
 #
 #  'Main.py <cmd> arg1 arg2 arg3' will result in a call to <function_name>
 #   in <module_name>.  The function should take two arguments: a string to
@@ -112,9 +112,10 @@ def correctPath(myself):
 #   By convention, all commands must print a usage message and exit when
 #   invoked with a single argument, "--help"
 _COMMANDS = {
-    "version" :        ( 'mixminion.Main',       'printVersion'),
+    "version" :        ( 'mixminion.Main',       'printVersion' ),
     "unittests" :      ( 'mixminion.test',       'testAll' ),
     "benchmarks" :     ( 'mixminion.benchmark',  'timeAll' ),
+    "send" :           ( 'mixminion.ClientMain', 'runClient' ),
     "client" :         ( 'mixminion.ClientMain', 'runClient' ),
     "import-server" :  ( 'mixminion.ClientMain', 'importServer' ),
     "list-servers" :   ( 'mixminion.ClientMain', 'listServers' ),
@@ -124,13 +125,29 @@ _COMMANDS = {
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
 }
 
+_USAGE = (
+  "Usage: %s <command> [arguments]\n"+
+  "where <command> is one of:\n"+
+  "                              (For Everyone)\n"+
+  "       version        [Print the version of Mixminion and exit]\n"+
+  "       send           [Send an anonymous message]\n"+
+  "       import-server  [Tell the client about a new server]\n"+
+  "       list-servers   [Print a list of currently known servers]\n"+
+  "                               (For Servers)\n"+
+  "       server         [Begin running a Mixminon server]\n"+
+  "       server-keygen  [Generate keys for a Mixminion server]\n"+
+  "       setver-DELKEYS [Remove generated keys for a Mixminion server]\n"+
+  "                             (For Developers)\n"+
+  "       dir            [Administration for server directories]\n"+
+  "       unittests      [Run the mixminion unit tests]\n"+
+  "       benchmarks     [Time underlying cryptographic operations]\n"
+)
+
 def printVersion(cmd,args):
     import mixminion
     print "Mixminion version %s" % mixminion.__version__
     print ("Copyright 2002-2003 Nick Mathewson.  "+
            "See LICENSE for licensing information.")
-    print "Run '%s help' for more information." % cmd
-    sys.exit(0)
 
 def main(args):
     "Use <args> to fix path, pick a command and pass it arguments."
@@ -142,13 +159,8 @@ def main(args):
 
     # Check whether we have a recognized command.
     if len(args) == 1 or not _COMMANDS.has_key(args[1]):
-        # FFFF we could do better in generating a usage message here.
-        cmds = _COMMANDS.keys()
-        cmds.sort()
-        sys.stderr.write("Usage: %s <command> [arguments]\n" %args[0])
-        sys.stderr.write("Where <command> is one of:\n")
-        for c in cmds:
-            sys.stderr.write("     %s\n"%c)
+        printVersion(args[0],args[1:])
+        print _USAGE % args[0]
         sys.exit(1)
 
     # Read the module and function.

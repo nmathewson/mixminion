@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.6 2003/01/05 13:19:53 nickm Exp $
+# $Id: DirMain.py,v 1.7 2003/01/06 03:29:46 nickm Exp $
 
 """mixminion.directory.DirMain
 
@@ -19,7 +19,8 @@ from mixminion.Crypto import init_crypto, pk_fingerprint, pk_generate, \
      pk_PEM_load, pk_PEM_save
 from mixminion.directory.ServerList import ServerList
 
-USAGE = """%s -d <directory> command
+USAGE = """\
+Usage: %s -d <directory> command
    Where 'command' is one of:
       import <serverinfo>      [Import a descriptor for a known server]
       import-new <serverinfo>  [Import a descriptor for a new server]
@@ -27,7 +28,7 @@ USAGE = """%s -d <directory> command
       export <filename>        [Export the most recently generated directory]
       remove <nickname>        [Remove a server from storage]
       fingerprint              [Return the fingerprint of this directory's pk]
-"""
+""".strip()
 
 def getIdentity(baseDir):
     """Load the identity key stored under the base directory, creating it
@@ -113,7 +114,7 @@ SUBCOMMANDS = { 'import' : cmd_import,
                 'fingerprint' : cmd_fingerprint }
 
 def main(cmd, args):
-    if len(args) < 3 or args[0] != "-d":
+    if len(args) < 3 or args[0] != "-d" or args[0] in ('-h', '--help'):
         usageAndExit(cmd)
     baseDir = args[1]
     command = args[2]
