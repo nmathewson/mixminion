@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.127 2004/01/03 07:35:23 nickm Exp $
+# $Id: Common.py,v 1.128 2004/01/08 22:33:31 nickm Exp $
 
 """mixminion.Common
 
@@ -33,13 +33,6 @@ import sys
 import threading
 import time
 import traceback
-# Imported here so we can get it in mixminion.server without being shadowed
-# by the old Queue.py file.
-from Queue import Queue, Empty
-MessageQueue = Queue
-QueueEmpty = Empty
-del Queue
-del Empty
 
 O_BINARY = getattr(os, 'O_BINARY', 0)
 
@@ -1569,69 +1562,3 @@ def _warn_no_locks():
         _warned_no_locks = 1
         LOG.warn("Mixminion couldn't find a file locking implementation.")
         LOG.warn("  (Simultaneous accesses may lead to data corruption.")
-
-#----------------------------------------------------------------------
-# Threading operations
-
-class ClearableQueue(MessageQueue):
-    """Extended version of python's Queue class that supports removing
-       all the items from the queue."""
-    def clear(self):
-        """Remove all the items from this queue."""
-        # If the queue is empty, return.
-        if not self.esema.acquire(0):
-            return
-        self.mutex.acquire()
-        was_full = self._full()
-        self._clear()
-        assert self._empty()
-        # If the queue used to be full, it isn't anymore.
-        if was_full:
-            self.fsema.release()
-        self.mutex.release()
-
-    def _clear(self):
-        """Backend for _clear"""
-        del self.queue[:]
-
-try:
-    q = MessageQueue()
-    q.put(3)
-    q.get(timeout=10)
-    BUILTIN_QUEUE_HAS_TIMEOUT = 1
-except TypeError:
-    BUILTIN_QUEUE_HAS_TIMEOUT = 0
-del q
-
-if BUILTIN_QUEUE_HAS_TIMEOUT:
-    TimeoutQueue = ClearableQueue
-else:
-    class TimeoutQueue(ClearableQueue):
-        """Helper class for Python 2.2. and earlier: extends the 'get'
-           functionality of Queue.Queue to support a 'timeout' argument.
-           If 'block' is true and timeout is provided, wait for no more
-           than 'timeout' seconds before raising QueueEmpty.
-
-           In Python 2.3 and later, this interface is standard.
-        """
-        def get(self, block=1, timeout=None):
-            if timeout is None or not block:
-                return MessageQueue.get(self, block)
-
-            # This logic is adapted from 'Condition' in the Python
-            # threading module.
-            _time = time.time
-            _sleep = time.sleep
-            deadline = timeout+_time()
-            delay = .0005
-            while 1:
-                try:
-                    return MessageQueue.get(self,0)
-                except QueueEmpty:
-                    remaining = deadline-_time()
-                    if remaining <= 0:
-                        raise
-                    delay = min(delay*2,remaining,0.2)
-                    _sleep(delay)
-
-            raise AssertionError # unreached, appease pychecker

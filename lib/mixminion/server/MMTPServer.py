@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.68 2004/01/08 18:09:50 nickm Exp $
+# $Id: MMTPServer.py,v 1.69 2004/01/08 22:33:33 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -29,7 +29,7 @@ from types import StringType
 import mixminion.TLSConnection
 import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
-     LOG, stringContains, MessageQueue, QueueEmpty
+     LOG, stringContains
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Packet import PACKET_LEN, DIGEST_LEN, IPV4Info, MMTPHostInfo
 from mixminion.MMTPClient import PeerCertificateCache, MMTPClientConnection
@@ -37,6 +37,7 @@ from mixminion.NetUtils import getProtocolSupport, AF_INET, AF_INET6
 import mixminion.server.EventStats as EventStats
 from mixminion.Filestore import CorruptedFile
 from mixminion.ServerInfo import displayServer
+from mixminion.ThreadUtils import MessageQueue, QueueEmpty
 
 __all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
             'MMTPClientConnection' ]

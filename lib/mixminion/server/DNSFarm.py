@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.6 2004/01/08 18:09:50 nickm Exp $
+# $Id: DNSFarm.py,v 1.7 2004/01/08 22:33:33 nickm Exp $
 
 """mixminion.server.DNSFarm: code to implement asynchronous DNS resolves with
    background threads and cachhe the results.
@@ -9,8 +9,9 @@ import socket
 import threading
 import time
 import sys
-from mixminion.Common import LOG, TimeoutQueue, QueueEmpty
+from mixminion.Common import LOG
 from mixminion.NetUtils import getIP, nameIsStaticIP
+from mixminion.ThreadUtils import TimeoutQueue, QueueEmpty
 
 __all__ = [ 'DNSCache' ]
 

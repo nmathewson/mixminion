@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.112 2004/01/03 07:35:24 nickm Exp $
+# $Id: ServerMain.py,v 1.113 2004/01/08 22:33:33 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -50,10 +50,10 @@ import signal
 import time
 import threading
 from types import *
-# We pull this from mixminion.Common, just in case somebody still has
+# We pull this from mixminion.ThreadUtils just in case somebody still has
 # a copy of the old "mixminion/server/Queue.py" (since renamed to
 # ServerQueue.py)
-from mixminion.Common import MessageQueue, ClearableQueue, QueueEmpty
+from mixminion.ThreadUtils import MessageQueue, ClearableQueue, QueueEmpty
 
 import mixminion.Config
 import mixminion.Crypto
