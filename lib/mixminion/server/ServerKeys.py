@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.13 2003/02/20 16:57:40 nickm Exp $
+# $Id: ServerKeys.py,v 1.14 2003/03/26 16:34:08 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -372,7 +372,68 @@ class ServerKeyset:
     def getMMTPKeyID(self):
         "Return the sha1 hash of the asn1 encoding of the MMTP public key"
         return mixminion.Crypto.sha1(self.mmtpKey.encode_key(1))
+    def getServerDescriptor(self):
+        return ServerInfo(fname=self.descFile)
 
+def checkDescriptorConsistency(info, config, log=1):
+    """DOCDOC"""
+    ok = 1
+    if log:
+        warn = LOG.warn
+    else:
+        def warn(*_): pass
+
+    config_s = config['Server']
+    info_s = info['Server']
+    if config_s['Nickname'] and (info_s['Nickname'] != config_s['Nickname']):
+        warn("Mismatched nicknames: %s in configuration; %s published.",
+             config_s['Nickname'], info_s['Nickname'])
+        ok = 0
+    
+    idBits = info_s['Identity'].get_modulus_bytes()*8
+    confIDBits = config_s['IdentityKeyBits']
+    if idBits != confIDBits:
+        warn("Mismatched identity bits: %s in configuration; %s published.",
+             confIDBits, idBits)
+        ok = 0
+
+    if config_s['Contact-Email'] != info_s['Contact']:
+        warn("Mismatched contacts: %s in configuration; %s published.",
+             config_s['Contact-Email'], info_s['Contact'])
+        ok = 0
+
+    if info_s['Software'] and info_s['Software'] != mixminion.__version__:
+        warn("Mismatched versions: running %s; %s published.",
+             mixminion.__version__, info_s['Software'])
+        ok = 0
+
+    # XXXX Move IP here
+    info_im = info['Incoming/MMTP']
+    config_im = config['Incoming/MMTP']
+    if info_im['Port'] != config_im['Port']:
+        warn("Mismatched ports: %s configured; %s published.",
+             config_im['Port'], info_im['Port'])
+        ok = 0
+    # IP is tricky XXXX    
+    #if info['Server']['IP'] != info[
+
+    # XXXX Check protocols
+    # XXXX Check enabled
+
+    for section in ('Outgoing/MMTP', 'Delivery/MBOX', 'Delivery/SMTP'):
+        info_out = info[section].get('Version')
+        config_out = config[section].get('Enabled')
+        if not config_out and section == 'Delivery/SMTP':
+            config_out = config['Delivery/SMTP-Via-Mixmaster'].get("Enabled")
+        if info_out and not config_out:
+            warn("%s published, but not enabled.", section)
+            ok = 0
+        if config_out and not info_out:
+            warn("%s enabled, but not published.", section)
+            ok = 0
+
+    return ok
+        
 #----------------------------------------------------------------------
 # Functionality to generate keys and server descriptors
 
