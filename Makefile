@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.60 2003/12/14 03:25:24 weasel Exp $
+# $Id: Makefile,v 1.61 2003/12/19 01:13:32 weasel Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -173,10 +173,18 @@ signdist: sdist
 # Packaging related targets
 
 # create a Debian package
-# requires you installed at least build-essential, fakeroot, and
-# whatever is listed as Build-Depends: in debian/control.
+# requires you installed at least build-essential, devscripts,
+# fakeroot, and whatever is listed as Build-Depends: in debian/control.
 bdist_debian:
-	dpkg-buildpackage -rfakeroot -uc -us
+	if [ -e debian/changelog.shipped ]; then mv debian/changelog.shipped debian/changelog; fi
+	cp debian/changelog debian/changelog.shipped
+	VERSION=`grep '^VERSION = ' setup.py | sed -e "s/.*'\(.*\)'.*/\1/"`; \
+	debchange \
+		--newversion $$VERSION'-0.custom'\
+		--distribution unofficial \
+		--preserve \
+		'Build unofficial debian package.'
+	#dpkg-buildpackage -rfakeroot -uc -us
 
 #======================================================================
 # OpenSSL-related targets

@@ -6,6 +6,7 @@ It was downloaded from http://www.mixminion.net/
 Upstream Authors: Nick Mathewson <nickm@freehaven.net>
 
 Copyright: 2002-2003 Nick Mathewson <nickm@freehaven.net>
+Modifications for Debian: Copyright (C) 2003 Peter Palfrader <weasel@debian.org>
 
 Mixminion is licensed under the GNU Lesser General Public License 2.1 with the
 ammendment given below.  On a Debian system the full text of the LGPL can be
