@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.39 2003/02/09 22:30:58 nickm Exp $
+# $Id: BuildMessage.py,v 1.40 2003/03/05 21:21:20 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -172,6 +172,9 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
     if secretPRNG is None:
         secretPRNG = Crypto.getCommonPRNG()
     if expiryTime is None:
+        # XXXX This is dangerous, and should go away; the user should
+        # XXXX *always* specify an expiry time.
+        LOG.warn("Inferring expiry time for reply block")
         expiryTime = min([s.getValidUntil() for s in path])
 
     LOG.debug("Building reply block for path %s",
