@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
+# $Id: Crypto.py,v 1.3 2002/05/29 18:54:43 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -72,7 +72,7 @@ def lioness_encrypt(s,key):
     assert len(key) == 4
     key1,key2,key3,key4 = key
     assert len(key1)==len(key3)==20
-    assert len(key2)==len(key4)==16
+    assert len(key2)==len(key4)==20
     assert len(s) > 20
 
     left = s[:20]
@@ -81,12 +81,10 @@ def lioness_encrypt(s,key):
     # Performance note: This business with sha1("".join([key,right,key]))
     # may look slow, but it contributes only a 6% to the hashing step,
     # which in turn contributes under 11% of the time for LIONESS.
-
-    #XXXX This slice makes me nervous
-    right = ctr_crypt(right, _ml.strxor(left,key1)[:16])
-    left = _ml.strxor(left, _ml.sha1("".join([key2,right,key2])))
-    right = ctr_crypt(right, _ml.strxor(left,key3)[:16])
-    left = _ml.strxor(left, _ml.sha1("".join([key4,right,key4])))
+    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:16])
+    left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
+    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:16])
+    left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
     return left + right
 
 def lioness_decrypt(s,key):
@@ -98,17 +96,17 @@ def lioness_decrypt(s,key):
     assert len(key) == 4
     key1,key2,key3,key4 = key
     assert len(key1)==len(key3)==20
-    assert len(key2)==len(key4)==16
+    assert len(key2)==len(key4)==20
     assert len(s) > 20
 
     left = s[:20]
     right = s[20:]
     del s
     #XXXX This slice makes me nervous
-    left = _ml.strxor(left, _ml.sha1("".join([key4,right,key4])))
-    right = ctr_crypt(right, _ml.strxor(left, key3)[:16])
-    left = _ml.strxor(left, _ml.sha1("".join([key2,right,key2])))
-    right = ctr_crypt(right, _ml.strxor(left, key1)[:16])
+    left = _ml.strxor(left,  _ml.sha1("".join([key4,right,key4])))
+    right = ctr_crypt(right, _ml.sha1("".join([key3,left,key3]))[:16])
+    left = _ml.strxor(left,  _ml.sha1("".join([key2,right,key2])))
+    right = ctr_crypt(right, _ml.sha1("".join([key1,left,key1]))[:16])
     return left + right
 
 def openssl_seed(count):
@@ -210,10 +208,11 @@ class Keyset:
 
            Returns a set of 4 lioness keys, as described in the Mixminion
            specification."""
+        z19="\x00"*19
         key1 = sha1(self.master+mode)
-        key3 = key1[:-1]+_ml.strxor(key1[-1],"\x02")
-        key2 = key1[:AES_KEY_LEN-1] + _ml.strxor(key1[AES_KEY_LEN-1], "\x01")
-        key4 = key1[:AES_KEY_LEN-1] + _ml.strxor(key1[AES_KEY_LEN-1], "\x03")
+        key2 = _ml.strxor(sha1(self.master+mode), z19+"\x01")
+        key3 = _ml.strxor(sha1(self.master+mode), z19+"\x02")
+        key4 = _ml.strxor(sha1(self.master+mode), z19+"\x03")
         
         return (key1, key2, key3, key4)
 

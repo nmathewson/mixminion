@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Formats.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: Formats.py,v 1.2 2002/05/29 18:54:43 nickm Exp $
 """mixminion.Formats
 
    Functions, classes, and constants to parse and unparse Mixminion messages
@@ -100,8 +100,10 @@ class Header:
     def __getslice__(self, i, j):
         """header[i] -> str
 
-           Returns a slice of the i-j'th subheaders of this header,
-           for 0 <= i <= j <= 16"""
+           Returns a slice of the i-j'th subheaders of this header."""
+        if j > 16: j = 16
+        if i < 0: i=16+i
+        if j < 0: j=16-j   
         return self.contents[i*ENC_SUBHEADER_LEN:
                              j*ENC_SUBHEADER_LEN]
 

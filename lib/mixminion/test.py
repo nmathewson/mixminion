@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
+# $Id: test.py,v 1.3 2002/05/29 18:54:43 nickm Exp $
 
 import unittest
 
@@ -113,7 +113,7 @@ class MinionlibCryptoTests(unittest.TestCase):
         # Too short
         self.failUnlessRaises(_ml.SSLError,_ml.rsa_crypt,p,"X",1,1)
         # Too long
-        self.failUnlessRaises(_ml.SSLError,_ml.rsa_crypt,p,x+"XXX",1,1)
+        self.failUnlessRaises(_ml.SSLError,_ml.rsa_crypt,p,x+"ZZZ",1,1)
 
         padhello = _ml.add_oaep_padding("Hello", "B", 128)
         for public in (0,1):
@@ -195,7 +195,7 @@ class CryptoTests(unittest.TestCase):
     def test_lioness(self):
         enc = lioness_encrypt
         dec = lioness_decrypt
-        key = ("ABCDE"*4, "ABCD"*4, "VWXYZ"*4, "WXYZ"*4)
+        key = ("ABCDE"*4,) *4
         plain = mixminion.Crypto.OAEP_PARAMETER*100
         self.assertNotEquals(plain, enc(plain,key))
         self.assertNotEquals(plain, dec(plain,key))
@@ -203,6 +203,7 @@ class CryptoTests(unittest.TestCase):
         self.assertEquals(len(plain), len(dec(plain,key)))
         self.assertEquals(plain, dec(enc(plain,key),key))
         self.assertEquals(plain, enc(dec(plain,key),key))
+
         #XXXX check for correct values
 
     def test_keyset(self):
@@ -212,10 +213,10 @@ class CryptoTests(unittest.TestCase):
         eq = self.assertEquals
         eq(s("aFoo")[:10], k.get("Foo",10))
         eq(s("aBar")[:16], k.get("Bar"))
-        z15 = "\x00"*15
+
         z19 = "\x00"*19
-        eq( (s("aBaz"),               x(s("aBaz")[:16], z15+"\x01"),
-             x(s("aBaz"),z19+"\x02"), x(s("aBaz")[:16], z15+"\x03") ),
+        eq( (s("aBaz"),               x(s("aBaz"), z19+"\x01"),
+             x(s("aBaz"),z19+"\x02"), x(s("aBaz"), z19+"\x03") ),
             k.getLionessKeys("Baz"))
 
     def test_aesprng(self):
