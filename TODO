@@ -8,6 +8,7 @@ SPEC    - Spec not finalized
         D Deferred
         X Abandoned
 
+
 For a list of good beginner projects, check out HACKING.
 
 NEEDS TO BE WRITTEN:
@@ -168,83 +169,57 @@ For 0.0.4:
           right?
         . Resolve all the memory leaks.
         - Finish all documentation, resolve all XXXX004s
+        - Add a warning banner.
         - Remaining unit tests
-                - Tests for online key rotation
-                - Tests for ServerInbox and Directory.py
                 - Tests for remembering whether keys are published
                 - Tests for ServerKeyset.regenerate
                 - Tests for checkConsistency
 
-Deferred from 0.0.4:
-        . Good user error reporting strategy; use UIError uniformly.
-        - Quiet server startup; should be by default if daemon mode.
-        - Separate error/other log files. ????
-        - Notice when out of disk space, die more cleanly
-        - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
-           CLI'S AND MULTI-SERVER SITUATIONS.
-        - Tests for packet addressed to server with bogus IP.
-        - Finish port to Cygwin
+
+For 0.0.5:
+        - Background projects:
+                - Work on porting clients to cygwin, win32.
+                - Twisted port decision
+                - Website, FAQ
+        - Subject-and-from support
+        - Support for large messages and K-of-N
+        - UI improvements:
+                - Audit exceptions: which should be UIError
+                - Quiet server startup; should be by default if daemon
+                  mode.
+                - Notice when out of disk space, die more cleanly
+                - 'Iffy mode' messages are confusing
+        - Configurability:
+                - Ability to disable or relax directory paranoia.
+                - Trusted groups, trusted users for directory permissions
+        - Deferred tests
+                - Tests for online key rotation
+                - Tests for ServerInbox and Directory.py
+        - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
+
+
+For 0.0.6:
+        - Dummies and pinging
+
+Require for "0.1.0" (the in-theory-as-good-as-type-II release):
+[Release criteria: Workable replacement for type II.  At least as
+anonymous, useable, secure, and portable.  Nymservers aren't in, so
+not yet ready to replace type I.]
+
         - Full statistics
                 - Full statistics (ask Len what the list is.)
-        - MMTP
-                - Make MMTP bursty
-        - Configurability
-                - Put pid and lock and key and queues in different
-                  places; coalesce pid and lock.
-                - Make all filenames in server config relative to
-                  server home, if not absolute.
-        - Security:
-        	- Password-protect dirserver keys
-                - Client queues should be locked. (Aren't they?)
-        - Key mgt
-                - Consider linewrap protection on server descriptors,
-                  if demand warrants.  (None yet.)
-                - Trivial pinger: make a list of servers,
-                  check which are up, send 1-hop dummies, see
-                  which come back.
-.5                      - Get server list
-3                       - Do pinging, remember results
-2                       - Send messages with client
-1                       - Receive messages from an mbox? a directory?
-2                       - Recognize messages that come back
-2                       - Decide whom to include; make dirgen
-                          include them
-3                       - Tests
-
-        - Issues from 0.0.4:
-                - 'Iffy mode' messages are crappy.
-                - Trusted groups, trusted users for directory permissions
-                - Make 'SIGHUP' reload, 'SIGUSR' dump.
-
-Required for "1.0":
-         [These features must be in place before we can take the system out
-          of alpha.  We'll do a series of point releases between 0.0.1 and
-          the first beta.]
-
-        - Better CLIs
-                X Add another level of CLI commands. (E.g., mixminion server
-                  keygen, etc.)
-                - Add a --status-fd option similar to GPG's so that
-                  we can be more easily embedded.
-        - Key rotation and expiry
+        - Key management
                 - Document "DELKEYS"
                 - Password-protected private identity keys
                 - Password-protected private link/packet keys
+                - Password-protected dirserver keys
         - Security
                 - Make createPrivateDirs gripe about group-writable parent
                   dirs
-        - Performance:
-                X Directory servers should cache intermediate
-                  information. [Pointless for now: my laptop can validate
-                  1400 descriptors in 10 seconds.]
         - Modules and module support
-                - MBOX
-                        - Full config validation
-                        - Full boilerplate text
                 - Use ESMTP as available
                 - Move boilerplate into outside files.  Add some generic
                   'Boilerplate' functionality.
-                - Tell ModuleManager about async code (as soon as needed)
                 - Real SMTP module
                         - Abuse prevention of some undetermined kind.
                         X Support for setting 'Subject' and 'From' lines.
@@ -252,61 +227,26 @@ Required for "1.0":
                           content-type, too?)
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
-                - Incoming email gateway
-                        - Insert encoded packet into net.
-                        - Reply to a reply block
-                        - "Anonymize" is  ("Is?" Is what?)
-                - Some notion of 'client modules' would be a good idea.
-                - Put 'address' someplace more reasonable.
         - End-to-end issues
                 - K-of-N fragmentation and reassembly
-                - Make zlib bomb prevention configurable.
         - Configurability
                 - Better, documented support for http proxies for
                   downloading directories.
-                - Make pooling configurable and more sophisticated.
-                - Make SURB logging configurable.
+                - Make client-side pooling configurable and more
+                  sophisticated.
                 - Reload configuration on SIGHUP
                 - Support for one-side-only MMTP configurations.
-                - Add 'ALLOW' lines to blacklist.
                 . Freak out properly on missing/unpublishable IP.
-                - Make listening configurable for multiple ports/ips, not
-                  all of which need be published.  Perhaps allow different
-                  rules for each listener. ???? Maybe not really a good idea.
                 . Full validation function for client
                 . Full validation function for server
-                - Ability to disable directory paranoia.
+                - No support for non-clique topologies
         - Client support
                 - Support to remove servers from imported set, or to block
                   servers from directory.
-                o Check paths before reading from stdin.
                 - Avoid timing distinguishability attack related to
                   check-dir, gen-path, read-from-stdin: only download
                   directory *AFTER* reading?  Strongly recommend a cron job?
                   Write the whole thing off as not-really-an-attack?
-                - Some way to read a reply block *and* a message from stdin?
-                - Path selection
-                        - Watch out for servers that are really the
-                          same server
-                        - Only pick from the directory when picking
-                          random servers.
-                        - Notice Allow/Deny.
-                        - Notice MMTP protocol versions.
-                - Send message to user with known public key
-                - Real PKI for end-to-end encryption
-        - MMTP / async
-                - Timeout connections more aggressively under higher load.
-                - Bandwidth throttling
-                X Session management and resumption (security issues?)  Is this
-                  really useful for performance?
-                        X Server code to find out if clients have renegotiated.
-                - Tests for all cases:
-                        - Junk
-                        - Retry on bogus close.
-                        - Multiple senders
-                        - Bad senders
-                        - Bad recipients
-                        - Hunt down leaks
         - Build and install process
                 o Well-tested 'make install'
                 - A well-tested 'make uninstall'
@@ -316,7 +256,7 @@ Required for "1.0":
                         - Handle weirdness with directory permissions
                         - flock
                         - Installing to relative path
-                - "Somebody" should do a native Windows port of the client code
+                - "Somebody" should do a native Windows port
                         - Build process
                         - Any C porting as necessary
                         - Signal code may need to change.
@@ -326,7 +266,8 @@ Required for "1.0":
                 . An init.d script.
         - Testing
                 - Test on other (non-redhat, non-linux) systems
-                - Tests for nickname casei.
+                - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
+                  CLI'S AND MULTI-SERVER SITUATIONS.
                 - Integration tests
                         - Automated tests for several servers running
                           on one machine.
@@ -335,35 +276,90 @@ Required for "1.0":
                 - Repeatable CLI tests.
                         - For client
                         - For server
-        - Directories
-                . Autonomous directory server
+        - Support for multiple directories, no automated agreement.
                 - Configurable dirserver fingerprints and URLs.
-                - Support for full-blown multiple-server agreement mechanism
-                - Consider linewrap protection on server descriptors,
-                  if demand warrants.  (None yet.)
-                - Servers should download directories
-                - Servers should use downloaded directories to print useful
-                  nicknames for other servers rather than just IP addresses.
         - Full documentation
                 - Complete docs for all code, with comments and examples.
                 - Write guide for module developers
                 - Write complete user's manual
                 - Complete all other docs
                 - History.
-        - Cosmetic changes
-                - Perhaps "SMTP" should be renamed to "MAIL".
+        - Dummy messages (as in batching-taxonomy)
 
-Unspecified:
-        [We don't have any specification for this functionality, or any
-         mandate to include it in 1.0.  If it's specified before 1.0 is
-         done, however, it should go in.]
+        - DoS resistance strategy
+                - Bandwidth throttling
+                - Timeout connections more aggressively under heavy load
+                - What else?
+        - Disable heinously insecure operating modes.
 
-        - Generate link padding
-        - Generate dummy messages
-        - IPv6 support.
-        - Support for multiple directory servers
-        - Notice active attacks and block IPs dynamically.
+Other features for "1.0" (no research required): 
+        - Better CLIs
+                - Add a --status-fd option similar to GPG's so that
+                  we can be more easily embedded.
+        - Heavy-duty performance/DoS testing
+        - Modules and module support
+                - MBOX
+                        - Full config validation
+                        - Full boilerplate text
+                - Tell ModuleManager about async code (as soon as needed)
+        - Refactoring/cleanup
+                - Put 'address' someplace more reasonable.
+        - Configurability
+                - Put pid and lock and key and queues in different
+                  places; coalesce pid and lock.
+                - Make all filenames in server config relative to
+                  server home, if not absolute.
+                - Make zlib bomb prevention configurable.
+                - Separate error/other log files.
+                - Make SURB logging configurable.
+                - Add 'ALLOW' lines to blacklist.
+        - Client support
+                - Some way to read a reply block *and* a message from
+                stdin?
+        - Directory support
+                - Servers should download directories
+                - Servers should use downloaded directories to print useful
+                  nicknames for other servers rather than just IP addresses.
         - Port to Twisted, if reasonable (see HACKING)
+
+
+Features for "1.0" (some research/specification required):
+        - Nymservers
+        - Modules and module support
+                - Incoming email gateway
+                        - Insert encoded packet into net.
+                        - Reply to a reply block
+        - Configurability
+                - Make listening configurable for multiple ports/ips, not
+                  all of which need be published.  Perhaps allow different
+                  rules for each listener. ???? Maybe not really a good idea.
+        - Client support: Improved path selection
+                - Figure out how to deal with non-clique topologies
+                - Watch out for servers that are really the
+                  same server
+                - Only pick from the directory when picking
+                  random servers.
+                - Notice Allow/Deny.
+                - Notice MMTP protocol versions.
+        - Client support: other
+                - Send message to user with known public key
+                - Real PKI for end-to-end encryption
+        - MMTP / async
+                - Make MMTP bursty
+                - Tests for all cases:
+                        - Packet to server with bogus IP
+                        - Junk
+                        - Retry on bogus close.
+                        - Multiple senders
+                        - Bad senders
+                        - Bad recipients
+                        - Hunt down leaks
+        - Directories
+                - Support for full-blown multiple-server agreement mechanism
+        - IPv6 support (must solve non-clique problem)
+        - Generate link padding (if it helps)
+        - Notice active attacks and block IPs dynamically.
+
 
 WHEN WE GET THE CHANCE:
         [This stuff could be for any version 1.0 or later; it's not a
@@ -376,9 +372,6 @@ WHEN WE GET THE CHANCE:
                 - Memlockall wrapper
                 o Generic secure delete
                 - Support for loopback fs automation and shredding.
-        - Portability
-                - Server running on windows.
-        - Time the rest of the system
         - Make DB module choice configurable?
         - Consider dropping support for older Python versions?
 
