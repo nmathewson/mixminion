@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.12 2002/07/25 15:52:57 nickm Exp $
+# $Id: test.py,v 1.13 2002/07/26 15:47:20 nickm Exp $
 
 """mixminion.tests
 
@@ -64,6 +64,9 @@ def unlink_on_exit(*files):
     _unlink_on_exit_list.extend(files)
 
 atexit.register(try_unlink, _unlink_on_exit_list)    
+
+def floatEq(f1,f2):
+    return abs(f1-f2) < .00001
 
 #----------------------------------------------------------------------
 import mixminion._minionlib as _ml
@@ -1486,16 +1489,24 @@ class MMTPTests(unittest.TestCase):
 #----------------------------------------------------------------------
 # Config files
 
-from mixminion.Config import _ConfigFile, ConfigError
+from mixminion.Config import _ConfigFile, ConfigError, _parseInt
 
 class TestConfigFile(_ConfigFile):
     _syntax = { 'Sec1' : {'__SECTION__': ('REQUIRE', None, None),
                           'Foo': ('REQUIRE', None, None),
-                          'Bar': ('ALLOW', None, None),
+                          'Bar': ('ALLOW', None, "default"),
                           'Baz': ('ALLOW', None, None),},
                 'Sec2' : {'Fob': ('ALLOW*', None, None),
                           'Bap': ('REQUIRE', None, None),
-                          'Quz': ('REQUIRE*', None, None), }
+                          'Quz': ('REQUIRE*', None, None), },
+                'Sec3' : {'IntAS': ('ALLOW', _parseInt, None),
+                          'IntAS2': ('ALLOW', _parseInt, None),
+                          'IntASD': ('ALLOW', _parseInt, "5"),
+                          'IntASD2': ('ALLOW', _parseInt, "5"),
+                          'IntAM': ('ALLOW*', _parseInt, None),
+                          'IntAMD': ('ALLOW*', _parseInt, ["5", "2"]),
+                          'IntAMD2': ('ALLOW*', _parseInt, ["5", "2"]),
+                          'IntRS': ('REQUIRE', _parseInt, None) }
                 }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self,fname,string)
@@ -1530,6 +1541,13 @@ Fob=1
 Quz : 88
      88
 
+[Sec3]
+IntAS=9
+IntASD=10
+IntAMD=8
+IntAMD=10
+IntRS=5
+
   """
         
         f = TCF(string=longerString)
@@ -1548,7 +1566,8 @@ Quz : 88
         self.assertEquals(str(f),
            ("[Sec1]\nFoo: abcde f\nBar: bar\nBaz:  baz and more baz"+
             " and more baz\n\n[Sec2]\nBap: +\nQuz: 99 99\nFob: 1\n"+
-            "Quz: 88 88\n\n"))
+            "Quz: 88 88\n\n[Sec3]\nIntAS: 9\nIntASD: 10\nIntAMD: 8\n"+
+            "IntAMD: 10\nIntRS: 5\n\n"))
         # Test file input
         fn = tempfile.mktemp()
         unlink_on_exit(fn)
@@ -1559,6 +1578,15 @@ Quz : 88
         f = TCF(fname=fn)
         self.assertEquals(f['Sec1']['Bar'], 'bar')
         self.assertEquals(f['Sec2']['Quz'], ['99 99', '88 88'])
+
+        self.assertEquals(f['Sec3']['IntAS'], 9)
+        self.assertEquals(f['Sec3']['IntAS2'], None)
+        self.assertEquals(f['Sec3']['IntASD'], 10)
+        self.assertEquals(f['Sec3']['IntASD2'], 5)
+        self.assertEquals(f['Sec3']['IntAM'], [])
+        self.assertEquals(f['Sec3']['IntAMD'], [8,10])
+        self.assertEquals(f['Sec3']['IntAMD2'], [5,2])
+        self.assertEquals(f['Sec3']['IntRS'], 5)
 
         # Test failing reload
         file = open(fn, 'w')
@@ -1576,8 +1604,9 @@ Quz : 88
         file.close()
         f.reload()
         self.assertEquals(f['Sec1']['Foo'], 'a')
-        self.assertEquals(f['Sec1'].get('Bar', None), None)
+        self.assertEquals(f['Sec1']['Bar'], "default")
         self.assertEquals(f['Sec2'], {})
+
 
     def testBadFiles(self):
         TCF = TestConfigFile
@@ -1593,7 +1622,66 @@ Quz : 88
         fails("[Sec1]\nBaz: 3\n") # Missing key
         fails("[Sec2]\nBap = 9\nQuz=6\n") # Missing section
         fails("[Sec1]\nFoo 1\n[Sec2]\nBap = 9\n") # Missing require*
+        fails("[Sec1]\nFoo: Bar\n[Sec3]\nIntRS=Z\n") # Failed validation
 
+    def testValidationFns(self):
+        import mixminion.Config as C
+
+        self.assertEquals(C._parseBoolean("yes"), 1)
+        self.assertEquals(C._parseBoolean(" NO"), 0)
+        self.assertEquals(C._parseSeverity("error"), "ERROR")
+        self.assertEquals(C._parseServerMode(" relay "), "relay")
+        self.assertEquals(C._parseServerMode("Local"), "local")
+        self.assertEquals(C._parseInterval(" 1 sec "), (1,"second", 1))
+        self.assertEquals(C._parseInterval(" 99 sec "), (99,"second", 99))
+        self.failUnless(floatEq(C._parseInterval("1.5 minutes")[2],
+                                90))
+        self.assertEquals(C._parseInterval("2 houRS"), (2,"hour",7200))
+        self.assertEquals(C._parseInt("99"), 99)
+        self.assertEquals(C._parseIP("192.168.0.1"), "192.168.0.1")
+        # XXXX Won't work on Windows.
+        self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
+        self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
+        self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
+        self.failUnless(C._parseCommand("python")[0] is not None)
+        
+        def fails(fn, val, self=self):
+            self.failUnlessRaises(ConfigError, fn, val)
+
+        fails(C._parseBoolean, "yo")
+        fails(C._parseBoolean, "'yo'")
+        fails(C._parseBoolean, "")
+        fails(C._parseSeverity, "really bad")
+        fails(C._parseServerMode, "whatever")
+        fails(C._parseInterval, "seconds")
+        fails(C._parseInterval, "15")
+        fails(C._parseInterval, " 10 intervals")
+        fails(C._parseInt, "9.9")
+        fails(C._parseInt, "9abc")
+        fails(C._parseIP, "256.0.0.1")
+        fails(C._parseIP, "192.0.0")
+        fails(C._parseIP, "192.0.0.0.0")
+        fails(C._parseIP, "A.0.0.0")
+        nonexistcmd = '/file/that/does/not/exist'
+        if not os.path.exists(nonexistcmd):
+            fails(C._parseCommand, nonexistcmd)
+        else:
+            print 'Whoa. Kurt Go"del would be proud of you.'
+
+        # Nobody would ever have an executable named after my sister's
+        # cats, would they?
+        nonexistcmd = 'LindenAndPierre -meow'
+        try:
+            cmd, opts = C._parseCommand(nonexistcmd)
+            if os.path.exists(cmd):
+                # Ok, I guess they would.
+                self.failUnlessEquals(opts, ["-meow"])
+            else:
+                self.fail("_parseCommand is not working as expected")
+        except ConfigError, e:
+            # This is what we expect
+            pass
+  
 def testSuite():
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.9 2002/07/25 15:52:57 nickm Exp $
+# $Id: Common.py,v 1.10 2002/07/26 15:47:20 nickm Exp $
 
 """mixminion.Common
 
@@ -174,17 +174,20 @@ class Log:
         import mixminion.Config as Config
         config = Config.getConfig()
         self.handlers = []
-        if config == None or not config.has_section('Server'):
+        if config == None or not config.has_section("Server"):
             self.setMinSeverity("WARN")
             self.addHandler(ConsoleLogTarget(sys.stderr))
         else:
-            self.setMinSeverity(config['Server']['LogLevel'])
-            if config['Server']['EchoMessages']:
+            self.setMinSeverity(config['Server'].get('LogLevel', "WARN"))
+            logfile = config['Server'].get('LogFile',None)
+            if logfile is None:
+                homedir = config['Server']['Homedir']
+                if homedir:
+                    logfile = os.path.join(homedir, "log")
+            if not logfile or config['Server'].get('EchoMessages',0):
                 self.addHandler(ConsoleLogTarget(sys.stderr))
-            logfile = config['Server']['LogFile']
-            if  logfile is not None:   
-                logfile = os.path.join(config['Server']['Homedir'], "log")
-            self.addHandler(FileLogTarget(logfile))
+            if logfile:
+                self.addHandler(FileLogTarget(logfile))
             
     def setMinSeverity(self, minSeverity):
         self.severity = _SEVERITIES.get(minSeverity, 1)
@@ -254,7 +257,6 @@ def onReset(fn):
        this process next receives a SIGHUP."""
     resetHooks.append(fn)
 
-
 def onTerminate(fn):
     """Given a 0-argument function fn, cause fn to be invoked when
        this process next receives a SIGTERM."""
@@ -289,7 +291,6 @@ def _sigChldHandler(signal_num, _):
     #outcome, core, sig = status & 0xff00, status & 0x0080, status & 0x7f
     # FFFF Log if outcome wasn't as expected.
 
-
 def _sigHandler(signal_num, _):
     '''(Signal handler for SIGTERM and SIGHUP)'''
     signal.signal(signal_num, _sigHandler)
@@ -300,8 +301,7 @@ def _sigHandler(signal_num, _):
     else:
         for hook in resetHooks:
             hook()
-
-
+            
 def installSignalHandlers(child=1,hup=1,term=1):
     '''Register signal handlers for this process.  If 'child', registers
        a handler for SIGCHLD.  If 'hup', registers a handler for SIGHUP.

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.8 2002/06/25 11:41:08 nickm Exp $
+# $Id: Crypto.py,v 1.9 2002/07/26 15:47:20 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -8,10 +8,13 @@
    the functions in mixminion.Crypto, and not call _minionlib's crypto
    functionality themselves."""
 
+import os
+import stat
 from types import StringType
 
+import mixminion.Config
 import mixminion._minionlib as _ml
-from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv
+from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, getLog
 
 __all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
             'strxor', 'lioness_encrypt', 'lioness_decrypt', 'trng',
@@ -32,12 +35,12 @@ DIGEST_LEN = 160 >> 3
 
 def init_crypto():
     """Initialize the crypto subsystem."""
+    trng(1)
     try:
-        # Try to read /dev/urandom.
+        # Try to read /dev/urandom
         trng(1)
     except:
-        raise MixFatalError("Couldn't initialize entropy source "
-                            "(/dev/urandom)")
+        raise MixFatalError("Couldn't initialize entropy source")
     openssl_seed(40)
 
 def sha1(s):
@@ -406,9 +409,40 @@ def getCommonPRNG():
         _theSharedPRNG = AESCounterPRNG()
     return _theSharedPRNG
 
+_TRNG_FILENAME = None
+def _trng_set_filename():
+    global _TRNG_FILENAME
+    config = mixminion.Config.getConfig()
+    if config is not None:
+        file = config['Host'].get('EntropySource', "/dev/urandom")
+    else:
+        file = "/dev/urandom"
+
+    if not os.path.exists(file):
+        getLog().error("No such file as %s", file)
+        file = None
+    else:
+        st = os.stat(file)
+        if not (st.st_mode & stat.S_IFCHR):
+            getLog().error("Entropy source %s isn't a character device", file)
+            file = None
+
+    if file is None and _TRNG_FILENAME is None:
+        getLog().fatal("No entropy source available")
+        raise MixFatalError("No entropy source available")
+    elif file is None:
+        getLog().warn("Falling back to previous entropy source %s",
+                      _TRNG_FILENAME)
+    else:
+        _TRNG_FILENAME = file
+    
 def _trng_uncached(n):
     '''Underlying access to our true entropy source.'''
-    f = open('/dev/urandom')
+    if _TRNG_FILENAME is None:
+        _trng_set_filename()
+        mixminion.Config.addHook(_trng_set_filename)
+        
+    f = open(_TRNG_FILENAME)
     d = f.read(n)
     f.close()
     return d
