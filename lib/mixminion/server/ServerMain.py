@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.109 2003/12/14 01:29:25 nickm Exp $
+# $Id: ServerMain.py,v 1.110 2003/12/14 01:43:38 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -84,7 +84,12 @@ def getHomedirVersion(config):
        returns None."""
     homeDir = config.getBaseDir()
     versionFile = os.path.join(homeDir, "version")
-    workDir = os.path.join(homeDir, "work")
+    # Note: we actually don't want to use config.getWorkDir() or
+    # config.getKeyDir() here: we're testing for pre-0.0.5 versions of
+    # Mixminion.  Those versions didn't have a $HOMEDIR/version file, but
+    # always had a $HOMEDIR/work directory and a $HOMEDIR/keys directory.
+    wDir = os.path.join(homeDir, "work")
+    kDir = os.path.join(homeDir, "keys")
     if not os.path.exists(homeDir):
         return None
     else:
@@ -92,13 +97,13 @@ def getHomedirVersion(config):
             dirVersion = readFile(versionFile).strip()
         except (OSError, IOError), e:
             if e.errno == errno.ENOENT:
-                if os.path.exists(workDir):
-                    # The file doesn't exist, but the 'work' subdirectory does:
-                    # the version must be '1000'.
+                if os.path.exists(wDir) and os.path.exists(kDir):
+                    # The file doesn't exist, but the 'work' and 'keys'
+                    # subdirectories do: the version must be '1000'.
                     dirVersion = "1000"
                 else:
-                    # The version file doesn't exist, and neither does the 
-                    # 'work' subdirectory: There is no preexisting 
+                    # The version file doesn't exist, and neither do the 'work'
+                    # and 'keys' subdirectories: There is no preexisting
                     # installation.
                     dirVersion = None
             elif e.errno == errno.EACCES:
@@ -1054,6 +1059,8 @@ def configFromServerArgs(cmd, args, usage):
         # people probably want that.
         _ECHO_OPT = 1
     elif _QUIET_OPT:
+        # Don't even say we're silencing the log.
+        mixminion.Common.LOG.silenceNoted = 1 
         config['Server']['EchoMessages'] = 0
     if forceDaemon is not None:
         config['Server']['Daemon'] = forceDaemon
@@ -1080,7 +1087,8 @@ def readConfigFile(configFile):
             sys.exit(1)
 
     try:
-        print "Reading configuration from %s"%configFile
+        if not _QUIET_OPT:
+            print "Reading configuration from %s"%configFile
         return mixminion.server.ServerConfig.ServerConfig(fname=configFile)
     except (IOError, OSError), e:
         print >>sys.stderr, "Error reading configuration file %r:"%configFile
