@@ -22,12 +22,16 @@ For 0.0.8:
                         o Tests for per-destination queue
                         o Make MMTP delivery use per-destination queue.
                         o Test upgrade path.
-                - Implement pinging
-                        - Generate pings
-                        - Log pings, failed connects, successful connects
+                . Implement pinging
+                        . Generate pings
+                                o Link padding
+                                o One-hop pings
+                                . Two-hop pings
+                        o Log pings, failed connects, successful connects
                         - Grovel over ping logs as needed
                         - Generate statistics from logs; remember stats
                           across invocations.
+                        - Tests for pinging
         - Distributed directories
         . Bugs
                 o Make tests pass with bizarre umasks.  (Try 0077, 0000,
