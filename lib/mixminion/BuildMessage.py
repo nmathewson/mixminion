@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.67 2004/01/03 07:35:23 nickm Exp $
+# $Id: BuildMessage.py,v 1.68 2004/01/07 02:50:08 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -547,6 +547,10 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
            paddingPRNG: A pseudo-random number generator to generate padding
     """
     assert len(path) == len(secrets)
+
+    for info in path:
+        if not info.supportsPacketVersion():
+            raise MixError("Server %s does not support any recognized packet format."%info.getNickname())
 
     routing, sizes, totalSize = _getRouting(path, exitType, exitInfo)
     if totalSize > HEADER_LEN:

@@ -447,6 +447,8 @@ class ClientDirectory:
         for info, _  in lst:
             if not info.isValidFrom(startAt, endAt):
                 continue
+            if not info.supportsPacketVersion():
+                continue
             n = info.getNickname().lower()
             if u.has_key(n):
                 if u[n].isNewerThan(info):
@@ -759,6 +761,9 @@ class ClientDirectory:
         prevFixed = None
         for e in p:
             fixed = e.getFixedServer(self, startAt, endAt)
+            if fixed and not fixed.supportsPacketVersion():
+                raise UIError("We don't support any packet formats used by %s",
+                              fixed.getNickname())
             if prevFixed and fixed and not prevFixed.canRelayTo(fixed):
                 raise UIError("Server %s can't relay to %s" %
                               prevFixed.getNickname(), fixed.getNickname())
@@ -1120,7 +1125,8 @@ class ExitAddress:
         assert self.lastHop is None
         liveServers = directory.getLiveServers(startAt, endAt)
         result = [ desc for desc in liveServers
-                   if self.isSupportedByServer(desc) ]
+                   if self.isSupportedByServer(desc) and
+                      desc.supportsPacketVersion() ]
         return result
 
     def getRouting(self):

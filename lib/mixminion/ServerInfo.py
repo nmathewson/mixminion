@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.71 2004/01/03 07:35:23 nickm Exp $
+# $Id: ServerInfo.py,v 1.72 2004/01/07 02:50:08 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -118,8 +118,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Packet-Key": ("REQUIRE", "publicKey", None),
                      "Contact-Fingerprint": ("ALLOW", None, None),
                      "Packet-Formats": ("ALLOW", None, None),#XXXX007 remove
-                     # XXXX010 change these next few to "REQUIRE".
-                     "Packet-Versions": ("ALLOW", None, None),
+                     # XXXX008 change these next few to "REQUIRE".
+                     "Packet-Versions": ("ALLOW", None, '0.3'),
                      "Software": ("ALLOW", None, None),
                      "Secure-Configuration": ("ALLOW", "boolean", None),
                      "Why-Insecure": ("ALLOW", None, None),
@@ -373,6 +373,13 @@ class ServerInfo(mixminion.Config._ConfigFile):
         if not inc.get("Version"):
             return []
         return [ s.strip() for s in inc["Protocols"].split(",") ]
+
+    def supportsPacketVersion(self):
+        """Return true iff we can build packets in a format this server
+           recognizes."""
+        formatStr = self['Server'].get("Packet-Versions", "0.3")
+        formats = [ s.strip() for s in formatStr.split(",") ]
+        return mixminion.Packet.PACKET_VERSION in formats
 
     def canRelayTo(self, otherDesc):
         """Return true iff this server can relay packets to the server

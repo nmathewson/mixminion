@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.173 2004/01/03 07:35:23 nickm Exp $
+# $Id: test.py,v 1.174 2004/01/07 02:50:08 nickm Exp $
 
 """mixminion.tests
 
@@ -1796,6 +1796,7 @@ class FakeServerInfo:
     def getPort(self): return self.port
     def getPacketKey(self): return self.key
     def getKeyDigest(self): return self.keyid
+    def supportsPacketVersion(self): return 1
 
     def getRoutingInfo(self):
         return IPV4Info(self.addr, self.port, self.keyid)

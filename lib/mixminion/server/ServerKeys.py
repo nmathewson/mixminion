@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.61 2003/12/03 23:18:53 nickm Exp $
+# $Id: ServerKeys.py,v 1.62 2004/01/07 02:50:09 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -988,8 +988,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         "KeyID": identityKeyID,
         "MMTPProtocolsIn" : mmtpProtocolsIn,
         "MMTPProtocolsOut" : mmtpProtocolsOut,
-        "PacketFormat" : "%s.%s"%(mixminion.Packet.MAJOR_NO,
-                                  mixminion.Packet.MINOR_NO),
+        "PacketVersion" : mixminion.Packet.PACKET_VERSION,
         "mm_version" : mixminion.__version__,
         "Secure" : secure
         }
@@ -1031,7 +1030,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         Valid-After: %(ValidAfter)s
         Valid-Until: %(ValidUntil)s
         Packet-Key: %(PacketKey)s
-        Packet-Versions: %(PacketFormat)s
+        Packet-Versions: %(PacketVersion)s
         Software: Mixminion %(mm_version)s
         Secure-Configuration: %(Secure)s
         """ % fields

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.71 2004/01/03 07:35:23 nickm Exp $
+# $Id: Packet.py,v 1.72 2004/01/07 02:50:08 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -48,6 +48,7 @@ if sys.version_info[:3] < (2,2,0):
 
 # Major and minor number for the understood packet format.
 MAJOR_NO, MINOR_NO = 0,3
+PACKET_VERSION = "%s.%s"%(MAJOR_NO,MINOR_NO)
 
 # Length of a Mixminion packet
 PACKET_LEN = 1 << 15
