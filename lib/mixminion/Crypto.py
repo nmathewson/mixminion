@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.58 2003/12/04 05:02:50 nickm Exp $
+# $Id: Crypto.py,v 1.59 2003/12/04 05:53:13 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -702,6 +702,17 @@ def configure_trng(config):
        none is provided, tries some sane defaults."""
     global _TRNG_FILENAME
     global _theTrueRNG
+
+    if sys.platform == 'win32':
+        # We have two entropy sources on windows: openssl's built-in
+        # entropy generator that takes data from the screen, and
+        # Windows's CryptGenRandom function.  Because the former is
+        # insecure, and the latter is closed-source, we xor them.
+        _ml.win32_openssl_seed()
+        _ml.openssl_seed(_ml.win32_get_random_bytes(32))
+        _theTrueRNG = _XorRNG(_OpensslRNG(), _WinTrueRNG())
+        return
+
     if config is not None:
         requestedFile = config['Host'].get('EntropySource')
     else:
@@ -734,19 +745,9 @@ def configure_trng(config):
                 break
 
     if randFile is None and _TRNG_FILENAME is None:
-        #XXXX006 on win32, we should do this first.
-        if sys.platform == 'win32':
-            # We have two entropy sources on windows: openssl's built-in
-            # entropy generator that takes data from the screen, and
-            # Windows's CryptGenRandom function.  Because the former is
-            # insecure, and the latter is closed-source, we xor them.
-            _ml.win32_openssl_seed()
-            _ml.openssl_seed(_ml.win32_get_random_bytes(32))
-            _theTrueRNG = _XorRNG(_OpensslRNG(), _WinTrueRNG())
-        else:
-            LOG.fatal("No entropy source available: Tried all of %s",
-                      files)
-            raise MixFatalError("No entropy source available")
+        LOG.fatal("No entropy source available: Tried all of %s",
+                  files)
+        raise MixFatalError("No entropy source available")
     elif randFile is None:
         LOG.warn("Falling back to previous entropy source %s",
                  _TRNG_FILENAME)
@@ -799,6 +800,7 @@ class _OpensslRNG(RNG):
     """Random number generator that falls back to openssl's implementation."""
     def __init__(self):
         RNG.__init__(self, 1024)
+        self.getBytes(1)
     def _prng(self,n):
         return _ml.openssl_rand(n)
 
