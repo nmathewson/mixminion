@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.10 2002/09/10 20:06:26 nickm Exp $
+# $Id: Packet.py,v 1.11 2002/10/13 01:34:44 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -7,19 +7,22 @@
 
 __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseMessage', 'parseHeader', 'parseSubheader',
-            'getTotalBlocksForRoutingInfoLen', 'ReplyBlock',
+            'getTotalBlocksForRoutingInfoLen', 'parsePayload',
+            'SingletonPayload', 'FragmentPayload', 'ReplyBlock',
             'IPV4Info', 'SMTPInfo', 'MBOXInfo', 'parseIPV4Info',
             'parseSMTPInfo', 'parseMBOXInfo', 'ReplyBlock',
-            'parseReplyBlock', 'ENC_SUBHEADER_LEN',
-            'HEADER_LEN', 'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO',
-            'SECRET_LEN']
+            'parseReplyBlock', 'ENC_SUBHEADER_LEN', 'HEADER_LEN',
+            'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO', 'SECRET_LEN', 'TAG_LEN',
+	    'SINGLETON_PAYLOAD_OVERHEAD', 'OAEP_OVERHEAD',
+	    'FRAGMENT_PAYLOAD_OVERHEAD',
+	    'compressData', 'uncompressData']
 
+import zlib
 import struct
 from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, floorDiv
 
 # Major and minor number for the understood packet format.
-# ???? The spec needs to specify this.
 MAJOR_NO, MINOR_NO = 0,1
 
 # Length of a Mixminion message
@@ -42,6 +45,8 @@ ENC_SUBHEADER_LEN = 128
 DIGEST_LEN = 20
 # Length of a secret key
 SECRET_LEN = 16
+# Length of end-to-end message tag
+TAG_LEN = 20
 
 # Most info that fits in a single extened subheader
 ROUTING_INFO_PER_EXTENDED_SUBHEADER = ENC_SUBHEADER_LEN
@@ -49,6 +54,9 @@ ROUTING_INFO_PER_EXTENDED_SUBHEADER = ENC_SUBHEADER_LEN
 class ParseError(MixError):
     """Thrown when a message or portion thereof is incorrectly formatted."""
     pass
+
+#----------------------------------------------------------------------
+# PACKET-LEVEL STRUCTURES
 
 def parseMessage(s):
     """Given a 32K string, returns a Message object that breaks it into
@@ -82,7 +90,7 @@ def parseHeader(s):
     return Header(s)
 
 class Header:
-    """Represents a 2K Mixminion header"""
+    """Represents a 2K Mixminion header, containing up to 16 subheaders."""
     def __init__(self, contents):
         """Initialize a new header from its contents"""
         self.contents = contents
@@ -141,7 +149,7 @@ def getTotalBlocksForRoutingInfoLen(bytes):
         return 2 + floorDiv(extraBytes,ROUTING_INFO_PER_EXTENDED_SUBHEADER)
 
 class Subheader:
-    """Represents a decoded Mixminion header
+    """Represents a decoded Mixminion subheader
 
        Fields: major, minor, secret, digest, routinglen, routinginfo,
                routingtype.
@@ -228,9 +236,120 @@ class Subheader:
                 result.append(content)
             return result
 
+#----------------------------------------------------------------------
+# UNENCRYPTED PAYLOADS
 
-RB_UNPACK_PATTERN = "!4sBBL%ssHH" % (HEADER_LEN)
-MIN_RB_LEN = 14+HEADER_LEN
+# XXXX DOCUMENT CONTENTS
+FRAGMENT_MESSAGEID_LEN = 20
+MAX_N_FRAGMENTS = 0x7ffff
+
+SINGLETON_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN
+FRAGMENT_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
+OAEP_OVERHEAD = 42
+
+def parsePayload(payload):
+    "XXXX"
+    if len(payload) not in (PAYLOAD_LEN, PAYLOAD_LEN-OAEP_OVERHEAD):
+	raise ParseError("Payload has bad length")
+    bit0 = ord(payload[0]) & 0x80
+    if bit0:
+	# We have a fragment
+	idx, hash, msgID, msgLen = struct.unpack(FRAGMENT_UNPACK_PATTERN,
+					 payload[:FRAGMENT_PAYLOAD_OVERHEAD])
+	idx &= 0x7f
+	contents = payload[FRAGMENT_PAYLOAD_OVERHEAD:] 
+	if msgLen <= len(contents):
+	    raise ParseError("Payload has an invalid size field")
+	return FragmentPayload(idx,hash,msgID,msgLen,contents)
+    else:
+	# We have a singleton
+	size, hash = struct.unpack(SINGLETON_UNPACK_PATTERN, 
+				   payload[:SINGLETON_PAYLOAD_OVERHEAD])
+	contents = payload[SINGLETON_PAYLOAD_OVERHEAD:]
+	if size > len(contents):
+	    raise ParseError("Payload has invalid size field")
+	return SingletonPayload(size,hash,contents)
+
+# A singleton payload starts with a 0 bit, 15 bits of size, and a 20-byte hash
+SINGLETON_UNPACK_PATTERN = "!H%ds" % (DIGEST_LEN)
+
+# A fragment payload starts with a 1 bit, a 15-bit paket index, a 20-byte hash,
+# a 20-byte message ID, and 4 bytes of message size.
+FRAGMENT_UNPACK_PATTERN = "!H%ds%dsL" % (DIGEST_LEN, FRAGMENT_MESSAGEID_LEN)
+
+class SingletonPayload:
+    "XXXX"
+    def __init__(self, size, hash, data):
+	self.size = size
+	self.hash = hash
+	self.data = data
+
+    def isSingleton(self):
+	"XXXX"
+	return 1
+
+    def getContents(self):
+	"XXXX"
+	return self.data[:self.size]
+
+    def pack(self):
+	"XXXX"
+	assert (0x8000 & self.size) == 0
+	assert 0 <= self.size <= len(self.data)
+	assert len(self.hash) == DIGEST_LEN
+	assert (PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - len(self.data)) in \
+	       (0, OAEP_OVERHEAD)
+	header = struct.pack(SINGLETON_UNPACK_PATTERN, self.size, self.hash)
+	return "%s%s" % (header, self.data)
+
+class FragmentPayload:
+    "XXXX"
+    def __init__(self, index, hash, msgID, msgLen, data):
+	self.index = index
+	self.hash = hash
+	self.msgID = msgID
+	self.msgLen = msgLen
+	self.data = data
+
+    def isSingleton(self):
+	"XXXX"
+	return 0
+
+    def pack(self):
+	"XXXX"
+	assert 0 <= self.index <= MAX_N_FRAGMENTS
+	assert len(self.hash) == DIGEST_LEN
+	assert len(self.msgID) == FRAGMENT_MESSAGEID_LEN
+	assert len(self.data) < self.msgLen < 0x100000000L
+	assert (PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)) in \
+	       (0, OAEP_OVERHEAD)
+	idx = self.index | 0x8000
+	header = struct.pack(FRAGMENT_UNPACK_PATTERN, idx, self.hash,
+			     self.msgID, self.msgLen)
+	return "%s%s" % (header, self.data)
+
+#----------------------------------------------------------------------
+# COMPRESSION FOR PAYLOADS
+
+# FFFF Check for zlib acceptability.  Check for correct parameters in zlib
+# FFFF module
+
+def compressData(payload):
+    "XXXX"
+    return zlib.compress(payload, 9)
+
+def uncompressData(payload):
+    "XXXX"
+    try:
+	return zlib.decompress(payload)
+    except zlib.error, _:
+	raise ParseError("Error in compressed data")
+
+#----------------------------------------------------------------------
+# REPLY BLOCKS
+
+RB_UNPACK_PATTERN = "!4sBBL%dsHH%ss" % (HEADER_LEN, SECRET_LEN)
+MIN_RB_LEN = 30+HEADER_LEN
 
 def parseReplyBlock(s):
     """Return a new ReplyBlock object for an encoded reply block"""
@@ -238,7 +357,7 @@ def parseReplyBlock(s):
         raise ParseError("Reply block too short")
 
     try:
-        magic, major, minor, timestamp, header, rlen, rt = \
+        magic, major, minor, timestamp, header, rlen, rt, key = \
                struct.unpack(RB_UNPACK_PATTERN, s[:MIN_RB_LEN])
     except struct.error:
         raise ParseError("Misformatted reply block")
@@ -254,26 +373,29 @@ def parseReplyBlock(s):
     if len(ri) != rlen:
         raise ParseError("Misformatted reply block")
 
-    return ReplyBlock(header, timestamp, rt, ri)
+    return ReplyBlock(header, timestamp, rt, ri, key)
 
 class ReplyBlock:
     """A mixminion reply block, including the address of the first hop
        on the path, and the RoutingType and RoutingInfo for the server."""
-    # XXXXX Not in sync with spec
-    def __init__(self, header, useBy, rt, ri):
+    def __init__(self, header, useBy, rt, ri, key):
         """Construct a new Reply Block."""
         assert len(header) == HEADER_LEN
         self.header = header
         self.timestamp = useBy
         self.routingType = rt
         self.routingInfo = ri
+	self.encryptionKey = key
 
     def pack(self):
         """Returns the external representation of this reply block"""
         return struct.pack(RB_UNPACK_PATTERN,
-                           "SURB", 0x00, 0x01, self.timestamp,
-                           self.header, len(self.routingInfo),
-                           self.routingType)+self.routingInfo
+                           "SURB", 0x00, 0x01, self.timestamp, self.header, 
+                           len(self.routingInfo), self.routingType, 
+			   self.encryptionKey) + self.routingInfo
+                           
+#----------------------------------------------------------------------
+# Routing info
 
 # An IPV4 address (Used by SWAP_FWD and FWD) is packed as: four bytes
 # of IP address, a short for the portnum, and DIGEST_LEN bytes of keyid.
@@ -292,10 +414,11 @@ def parseIPV4Info(s):
     return IPV4Info(ip, port, keyinfo)
 
 class IPV4Info:
-    """An IPV4Info object represents the routinginfo for a FWD or SWAP_FWD hop.
+    """An IPV4Info object represents the routinginfo for a FWD or
+       SWAP_FWD hop.
 
-       Fields: ip (a dotted quad string), port (an int from 0..65535), and keyinfo
-       (a digest)."""
+       Fields: ip (a dotted quad string), port (an int from 0..65535),
+       and keyinfo (a digest)."""
     def __init__(self, ip, port, keyinfo):
         """Construct a new IPV4Info"""
         assert 0 <= port <= 65535
@@ -318,48 +441,40 @@ class IPV4Info:
 
 def parseSMTPInfo(s):
     """Convert the encoding of an SMTP routinginfo into an SMTPInfo object."""
-    lst = s.split("\000",1)
-    if len(lst) == 1:
-        return SMTPInfo(s,None)
-    else:
-        return SMTPInfo(lst[0], lst[1])
+    if len(s) <= TAG_LEN:
+	raise ParseError("SMTP routing info is too short")
+    return SMTPInfo(s[TAG_LEN:], s[:TAG_LEN])
 
 class SMTPInfo:
     """Represents the routinginfo for an SMTP hop.
 
-       Fields: email (an email address), tag (an arbitrary tag, optional)."""
+       Fields: email (an email address), tag (20 bytes)."""
     def __init__(self, email, tag):
+	assert len(tag) == TAG_LEN
         self.email = email
         self.tag = tag
 
     def pack(self):
         """Returns the wire representation of this SMTPInfo"""
-        if self.tag != None:
-            return self.email+"\000"+self.tag
-        else:
-            return self.email
+	return self.tag + self.email
 
 def parseMBOXInfo(s):
     """Convert the encoding of an MBOX routinginfo into an MBOXInfo
        object."""
-    lst = s.split("\000",1)
-    if len(lst) == 1:
-        return MBOXInfo(s,None)
-    else:
-        return MBOXInfo(lst[0], lst[1])
+    if len(s) < TAG_LEN:
+	raise ParseError("MBOX routing info is too short")
+    return MBOXInfo(s[TAG_LEN:], s[:TAG_LEN])
 
 class MBOXInfo:
     """Represents the routinginfo for an MBOX hop.
 
-       Fields: user (a user identifier), tag (an arbitrary tag, optional)."""
+       Fields: user (a user identifier), tag (20 bytes)."""
     def __init__(self, user, tag):
+	assert len(tag) == TAG_LEN
         self.user = user
-        assert user.find('\000') == -1
         self.tag = tag
 
     def pack(self):
         """Return the external representation of this routing info."""
-        if self.tag:
-            return self.user+"\000"+self.tag
-        else:
-            return self.user
+	return self.tag + self.user
+
