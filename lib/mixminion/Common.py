@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.94 2003/06/26 17:52:08 nickm Exp $
+# $Id: Common.py,v 1.95 2003/06/28 05:35:51 arma Exp $
 
 """mixminion.Common
 
@@ -365,7 +365,7 @@ def checkPrivateFile(fn, fix=1):
         myName = _uidToName(me)
         raise MixFilePermissionError(
             "File %s is owned by %s, but Mixminion is running as %s" 
-            % (fn, ownrerName, myName))
+            % (fn, ownerName, myName))
     mode = st[stat.ST_MODE] & 0777
     if _CHECK_MODE and mode not in (0700, 0600):
         if not fix:
