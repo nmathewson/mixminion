@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.20 2004/05/17 05:19:07 nickm Exp $
+# $Id: Filestore.py,v 1.21 2004/07/27 03:07:06 nickm Exp $
 
 """mixminion.Filestore
 
@@ -19,7 +19,6 @@ import cPickle
 import dumbdbm
 import errno
 import os
-import shelve
 import stat
 import threading
 import time
@@ -831,8 +830,17 @@ class BooleanJournaledDBBase(JournaledDBBase):
         return 1
 
 class WritethroughDict:
-    """DOCDOC"""
+    """A persistant mapping from string to pickleable object.  The entire
+       mapping is cached in memory, but all modifications are written through
+       to disk immediately.
+    """
+    ## Fields:
+    # db: A Python database object, as returned by openDB.
+    # _syncLog: A function to call to flush the database to disk, if possible.
+    # cache: A dictionary mapping strings to the objects in this mapping.
     def __init__(self, filename, purpose):
+        """Open a WritethroughDict to store a mapping in the file 'filename'.
+           Use the string 'purpose' in log and messages about this object."""
         self.db, self._syncLog = openDB(filename,purpose)
         self.cache = {}
         self.load()
@@ -860,9 +868,12 @@ class WritethroughDict:
         return self.cache.has_key(k)
 
     def sync(self):
+        """Flush changes in the underlying database to disk."""
         self._syncLog()
 
     def close(self):
+        """Release all resources held by this object.  Users of this class
+           should call this method before exiting if at all possible."""
         self._syncLog()
         self.db.close()
         del self.cache
@@ -879,7 +890,8 @@ class WritethroughDict:
         return self.cache.items()
 
     def load(self):
+        """Rescan the underlying database for this mapping."""
         keys = self.db.keys()
         self.cache = cache = {}
         for k in keys:
-            self.cache[k] = cPickle.loads(self.db[k])
+            cache[k] = cPickle.loads(self.db[k])
