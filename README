@@ -185,11 +185,11 @@ To specify a path manually, type:
              -P 'Foo,Bar,*,Quux'  [Path that starts with Foo and Bar,
                                    and ends with Quux]
 
-      {ADVANCED} By default, the swap point will be halfway through. To
-      specify a swap point explicitly, use a colon in your path, as in:
+      {ADVANCED} By default, the swap point will be halfway through
+      the path (rounding up). To specify a swap point explicitly, use
+      a colon in your path, as in:
              -P 'Foo,Bar:Baz,Quux'    [Swap headers at server Bar]
              --swap-at=<n>            [Swap headers at the n'th server]
-      By default, we swap halfway through the path, rounding up.
       If you don't know what a swap point is, don't worry. :)
 
 VI. HOW TO RUN YOUR OWN MIXMINION SERVER:
