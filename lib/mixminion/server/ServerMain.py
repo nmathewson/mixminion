@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.32 2003/01/13 06:35:52 nickm Exp $
+# $Id: ServerMain.py,v 1.33 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -48,15 +48,16 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
         self.packetHandler = packetHandler
         self.mixPool = None
         self.moduleManager = None
-        self._queue = MessageQueue()
-        for h in self.getAllMessages():
-            assert h is not None
-            self._queue.put(h)
 
-    def connectQueues(self, mixPool, manager):
+    def connectQueues(self, mixPool, manager, processingThread):
         """Sets the target mix queue"""
         self.mixPool = mixPool
         self.moduleManager = manager #XXXX003 refactor.
+        self.processingThread = processingThread
+        for h in self.getAllMessages():
+            assert h is not None
+            self.processingThread.addJob(
+                lambda self=self, h=h: self.__deliverMessage(h))
 
     def queueMessage(self, msg):
         """Add a message for delivery"""
@@ -64,12 +65,10 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
                   formatBase64(msg[:8]))
         h = mixminion.server.ServerQueue.Queue.queueMessage(self, msg)
         assert h is not None
-        self._queue.put(h)
+        self.processingThread.addJob(
+            lambda self=self, h=h: self.__deliverMessage(h))
 
-    def getMessageQueue(self):
-        return self._queue
-
-    def deliverMessage(self, handle):
+    def __deliverMessage(self, handle):
         """Process a single message with a given handle, and insert it into
            the Mix pool.  This function is called from within the processing
            thread."""
@@ -147,7 +146,7 @@ class MixPool:
 
     def queueObject(self, obj):
         """Insert an object into the queue."""
-        obj.isDelivery() #XXXX remove this implicit typecheck.
+        obj.isDelivery() #XXXX003 remove this implicit typecheck.
         self.queue.queueObject(obj)
 
     def count(self):
@@ -172,7 +171,7 @@ class MixPool:
         
         for h in handles:
             packet = self.queue.getObject(h)
-            #XXXX remove the first case
+            #XXXX remove the first case after 0.0.3
             if type(packet) == type(()):
                 LOG.debug("  (skipping message %s in obsolete format)", h)
             elif packet.isDelivery():
@@ -216,7 +215,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         "Implementation of abstract method from DeliveryQueue."
         # Map from addr -> [ (handle, msg) ... ]
         msgs = {}
-        # XXXX SKIP DEAD MESSAGES!!!!
+        # XXXX003 SKIP DEAD MESSAGES!!!!
         for handle, packet, n_retries in msgList:
             addr = packet.getAddress()
             message = packet.getPacket()
@@ -284,26 +283,31 @@ class CleaningThread(threading.Thread):
             LOG.error_exc(sys.exc_info(),
                           "Exception while cleaning; shutting down thread.")
 
-class PacketProcessingThread(threading.Thread):
+class ProcessingThread(threading.Thread):
+    class _Shutdown:
+        def __call__(self):
+            raise self
+    
     #DOCDOC
     def __init__(self, incomingQueue):
         threading.Thread.__init__(self)
-        # Clean up logic; maybe refactor. ????
-        self.incomingQueue = incomingQueue
-        self.mqueue = incomingQueue.getMessageQueue()
+        self.mqueue = MessageQueue()
 
     def shutdown(self):
         LOG.info("Telling processing thread to shut down.")
-        self.mqueue.put(None)
+        self.mqueue.put(ProcessingThread._Shutdown())
+
+    def addJob(self, job):
+        self.mqueue.put(job)
 
     def run(self):
         try:
             while 1:
-                handle = self.mqueue.get()
-                if handle is None:
-                    LOG.info("Processing thread shutting down.")
-                    return
-                self.incomingQueue.deliverMessage(handle)
+                job = self.mqueue.get()
+                job()
+        except ProcessingThread._Shutdown:
+            LOG.info("Processing thread shutting down.")
+            return
         except:
             LOG.error_exc(sys.exc_info(),
                           "Exception while processing; shutting down thread.")
@@ -417,19 +421,20 @@ class MixminionServer:
         LOG.debug("Found %d pending messages in outgoing queue",
                        self.outgoingQueue.count())
 
+        self.cleaningThread = CleaningThread()
+        self.processingThread = ProcessingThread(self.incomingQueue)
+
         LOG.debug("Connecting queues")
         self.incomingQueue.connectQueues(mixPool=self.mixPool,
-                                         manager=self.moduleManager)
+                                         manager=self.moduleManager,
+                                        processingThread=self.processingThread)
         self.mixPool.connectQueues(outgoing=self.outgoingQueue,
                                    manager=self.moduleManager)
         self.outgoingQueue.connectQueues(server=self.mmtpServer)
         self.mmtpServer.connectQueues(incoming=self.incomingQueue,
                                       outgoing=self.outgoingQueue)
 
-
-        self.cleaningThread = CleaningThread()
         self.cleaningThread.start()
-        self.processingThread = PacketProcessingThread(self.incomingQueue)
         self.processingThread.start()
         self.moduleManager.startThreading()
 
@@ -478,13 +483,6 @@ class MixminionServer:
                     LOG.fatal("One of our threads has halted; shutting down.")
                     return
                 
-##                 # Process any new messages that have come in, placing them
-##                 # into the mix pool.
-##                 self.incomingQueue.sendReadyMessages()
-##                  ##Prevent child processes from turning into zombies.
-##                  #???? I think we should just install a SIGCHLD handler.
-##                  waitForChildren(onceOnly=1,blocking=0)
-
                 # Calculate remaining time.
                 now = time.time()
                 timeLeft = nextEventTime - now
@@ -581,7 +579,7 @@ def daemonize():
         if pid != 0:
             os._exit(0)
     # Chdir to / so that we don't hold the CWD unnecessarily.
-    os.chdir(os.path.normpath("/")) #???? Is this right on Win32?
+    os.chdir(os.path.normpath("/")) # WIN32 Is this right on Windows?
     # Set umask to 000 so that we drop any (possibly nutty) umasks that
     # our users had before.
     os.umask(0000)

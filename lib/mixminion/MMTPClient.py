@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.17 2003/01/14 09:20:17 nickm Exp $
+# $Id: MMTPClient.py,v 1.18 2003/01/17 06:18:06 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -53,11 +53,11 @@ class BlockingClientConnection:
         self.tls = None
         self.sock = None
 
-    def connect(self, timeout=None):
+    def connect(self, connectTimeout=None):
         """Negotiate the handshake and protocol."""
         def sigalarmHandler(sig, _):
             assert sig == signal.SIGALRM
-        if timeout:
+        if connectTimeout:
             signal.signal(signal.SIGALRM, sigalarmHandler)
         
         # Connect to the server
@@ -66,15 +66,20 @@ class BlockingClientConnection:
         LOG.debug("Connecting to %s:%s", self.targetIP, self.targetPort)
 
         # Do the TLS handshaking
-        if timeout:
-            signal.alarm(timeout)
+        if connectTimeout:
+            signal.alarm(connectTimeout)
         try:
-            self.sock.connect((self.targetIP,self.targetPort))
-        except socket.error, e:
-            if e[0] == errno.EINTR:
-                raise TimeoutError("Connection timed out")
-            else:
-                raise e
+            try:
+                self.sock.connect((self.targetIP,self.targetPort))
+            except socket.error, e:
+                if e[0] == errno.EINTR:
+                    raise TimeoutError("Connection timed out")
+                else:
+                    raise e
+        finally:
+            if connectTimeout:
+                signal.alarm(0)
+            
         LOG.debug("Handshaking with %s:%s",self.targetIP, self.targetPort)
         self.tls = self.context.sock(self.sock.fileno())
         # FFFF session resumption
@@ -152,7 +157,8 @@ class BlockingClientConnection:
             self.sock.close()
         LOG.debug("Connection closed")
 
-def sendMessages(targetIP, targetPort, targetKeyID, packetList):
+def sendMessages(targetIP, targetPort, targetKeyID, packetList,
+                 connectTimeout=None):
     """Sends a list of messages to a server.
         DOCDOC arguments
         DOCDOC "JUNK", "RENEGOTIATE"
@@ -169,7 +175,7 @@ def sendMessages(targetIP, targetPort, targetKeyID, packetList):
     
     con = BlockingClientConnection(targetIP, targetPort, targetKeyID)
     try:
-        con.connect()
+        con.connect(connectTimeout=connectTimeout)
         for t,p in packets:
             if t == "JUNK":
                 con.sendJunkPacket(p)

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.43 2003/01/13 06:13:33 nickm Exp $
+# $Id: ClientMain.py,v 1.44 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -82,6 +82,7 @@ class ClientKeystore:
         self.__scanning = 0
         self.__load()
         self.clean()
+        #XXXX003 Check version against directory's Recommended-Software field.
 
         # Mixminion 0.0.1 used an obsolete directory-full-of-servers in
         #   DIR/servers.  If there's nothing there, we remove it.  Otherwise,
@@ -789,6 +790,9 @@ def installDefaultConfig(fname):
 [Security]
 PathLength: 4
 
+[Network]
+ConnectionTimeout: 20 seconds
+
 """)
     f.close()
 
@@ -844,19 +848,19 @@ class MixminionClient:
         """Given a list of packets and a ServerInfo object, sends the
            packets to the server via MMTP"""
         LOG.info("Connecting...")
-        con = mixminion.MMTPClient.BlockingClientConnection(server.getAddr(),
-                                                            server.getPort(),
-                                                            server.getKeyID())
+        timeout = self.config['Network'].get('ConnectionTimeout')
+        if timeout:
+            timeout = timeout[2]
+
         try:
-            try:
-                con.connect()
-                LOG.info("Sending packet(s)")
-                for msg in msgList:
-                    con.sendPacket(msg)
-            except socket.error, e:
-                raise MixError("Error sending packets: %s" % e)
-        finally:
-            con.shutdown()
+            # May raise TimeoutError
+            mixminion.MMTPClient.sendMessages(server.getAddr(),
+                                              server.getPort(),
+                                              server.getKeyID(),
+                                              msgList,
+                                              timeout)
+        except socket.error, e:
+            raise MixError("Error sending packets: %s" % e)
 
 def parseAddress(s):
     """Parse and validate an address; takes a string, and returns an Address
@@ -1077,7 +1081,7 @@ def runClient(cmd, args):
         keystore.updateDirectory(forceDownload=download)
 
     if address is None:
-        print "No recipients specified; exiting."
+        print >>sys.stderr, "No recipients specified; exiting."
         sys.exit(0)
 
     try:

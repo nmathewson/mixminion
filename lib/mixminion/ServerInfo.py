@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.36 2003/01/06 07:03:24 nickm Exp $
+# $Id: ServerInfo.py,v 1.37 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -43,6 +43,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     """A ServerInfo object holds a parsed server descriptor."""
     _restrictFormat = 1
+    _restrictKeys = 0
     _syntax = {
         "Server" : { "__SECTION__": ("REQUIRE", None, None),
                      "Descriptor-Version": ("REQUIRE", None, None),
@@ -57,6 +58,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Contact": ("ALLOW", None, None),
                      "Comments": ("ALLOW", None, None),
                      "Packet-Key": ("REQUIRE", C._parsePublicKey, None),
+                     "Packet-Formats": ("ALLOW", None, None),
+                     "Software": ("ALLOW", None, None),
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
@@ -335,12 +338,14 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
     # expectedDigest: the 20-byte digest we expect to find in this
     #    directory's header.
     _restrictFormat = 1
+    _restrictKeys = 0
     _syntax = {
         'Directory': { "__SECTION__": ("REQUIRE", None, None),
                        "Version": ("REQUIRE", None, None),
                        "Published": ("REQUIRE", C._parseTime, None),
                        "Valid-After": ("REQUIRE", C._parseDate, None),
                        "Valid-Until": ("REQUIRE", C._parseDate, None),
+                       "Recommended-Software": (None, None, None),
                        },
         'Signature': {"__SECTION__": ("REQUIRE", None, None),
                  "DirectoryIdentity": ("REQUIRE", C._parsePublicKey, None),

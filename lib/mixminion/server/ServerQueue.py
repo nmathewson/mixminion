@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.3 2003/01/13 06:35:52 nickm Exp $
+# $Id: ServerQueue.py,v 1.4 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -318,8 +318,6 @@ class DeliveryQueue(Queue):
        won't play nice if multiple instances are looking at the same
        directory.
     """
-    # XXXX separating addr was a mistake.
-    
     ###
     # Fields:
     #    sendable -- A list of handles for all messages
@@ -472,7 +470,6 @@ class TimedMixQueue(Queue):
     """A TimedMixQueue holds a group of files, and returns some of them
        as requested, according to a mixing algorithm that sends a batch
        of messages every N seconds."""
-    # FFFF : interval is unused.
     ## Fields:
     #   interval: scanning interval, in seconds.
     def __init__(self, location, interval=600):
@@ -493,7 +490,6 @@ class CottrellMixQueue(TimedMixQueue):
     """A CottrellMixQueue holds a group of files, and returns some of them
        as requested, according the Cottrell (timed dynamic-pool) mixing
        algorithm from Mixmaster."""
-    # FFFF : interval is unused.
     ## Fields:
     # interval: scanning interval, in seconds.
     # minPool: Minimum number of messages to keep in pool.

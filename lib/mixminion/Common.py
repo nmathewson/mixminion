@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.52 2003/01/10 20:12:05 nickm Exp $
+# $Id: Common.py,v 1.53 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.Common
 
@@ -534,8 +534,24 @@ class LogStream:
     def __init__(self, name, severity):
         self.name = name
         self.severity = severity
+        self.buf = [] #DOCDOC
     def write(self, s):
-        LOG.log(self.severity, "->%s: %s", self.name, s)
+        #DOCDOC justify this inefficiency.
+        #LOG.log(self.severity, "called with %r", s)
+        if "\n" not in s:
+            self.buf.append(s)
+            return
+
+        while "\n" in s:
+            idx = s.index("\n")
+            line = "%s%s" %("".join(self.buf), s[:idx])
+            LOG.log(self.severity, "->%s: %s", self.name, line)
+            del self.buf[:]
+            s = s[idx+1:]
+            
+        if s:
+            self.buf.append(s)
+                            
     def flush(self): pass
     def close(self): pass
 
@@ -767,7 +783,7 @@ def waitForChildren(onceOnly=0, blocking=1):
         options = os.WNOHANG
     while 1:
         try:
-            # FFFF This won't work on Windows.  What to do?
+            # WIN32 This won't work on Windows.  What to do?
             pid, status = os.waitpid(0, options)
         except OSError, e:
             break
@@ -784,7 +800,7 @@ def _sigChldHandler(signal_num, _):
 
     while 1:
         try:
-            # This waitpid call won't work on Windows.  What to do?
+            # WIN32 This waitpid call won't work on Windows.  What to do?
             pid, status = os.waitpid(0, os.WNOHANG)
             if pid == 0:
                 break

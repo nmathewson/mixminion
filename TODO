@@ -8,10 +8,12 @@ SPEC    - Spec not finalized
         D Deferred
         X Abandoned
 
-NEEDS TO BE WRITTEN
+For a list of good beginner projects, check out HACKING.
+
+NEEDS TO BE WRITTEN:
 
 For 0.0.3:
-       *- Write a list of good introductory projects
+        o Write a list of good introductory projects
         - Client
                 - Add "don't use me for anonymity" boilerplate.
                 - Client support for reply blocks.
@@ -23,20 +25,22 @@ For 0.0.3:
                         - Read message from reply block
                         - Examine reply block
                 - Read Base64-encoded messages and zbomb messages.
-                . Faster (adjustable?) timeout on client connect
+                o Faster (adjustable?) timeout on client connect
                   failure.
                         o Implement client timeout (sigalrm?)
-                        - Add configuration options and reasonable
-                          default.
-                        - Unit tests
+                        o Add configuration options and reasonable default.
+                        o Unit tests
                 - Client-side pooling.
+                - Make client code multiprocess-safe: locking on
+                  cache (if needed!); locking on pool.
+                        - Move lock functionality into Common.
         . Multithreaded server for better network behavior (no 10ms
           hiccups when receiving; no pauses to shred files or deliver
           messages.)
                 o Make all C functions use Py_BEGIN_ALLOW_THREADS and
                   Py_END_ALLOW_THREADS properly.
                 o Make all commonly used Python code threadsafe.
-                . Make Queues threadsafe.
+                o Make Queues threadsafe.
                         o Design
                         o Implement
                         o Rename Queue.py to ServerQueue.py
@@ -47,7 +51,6 @@ For 0.0.3:
                           whole thing is threadsafe as used, and
                           explain what "as used" means.  Add asserts
                           to check "as used".
-                        - Unit tests like mad.
                 o Make shredding happen in a separate thread.
                 o Make delivery happen in a separate thread.
                 o Make packet processing happen in a separate thread. 
@@ -65,6 +68,8 @@ For 0.0.3:
                           methods.
                 o Undaemonize threads; make them get shut
                   down explicitly so they can't die halfway.
+                o Processing thread should be thunk-based so it can
+                  do more than handle packets.
                 . Test like crazy
         . Signals
                 o Cleaner shutdown on TERM.
@@ -76,10 +81,10 @@ For 0.0.3:
                         - Check configuration file for changeable
                           things.  (First, decide what's changeable on
                           the fly.)
-        - Support maybe (for the alpha cycle only!) to get the mixminion
+        X Support maybe (for the alpha cycle only!) to get the mixminion
           version remotely ????
-        - Directories include an "allowable version" section.
-        . Saner retry logic: right now we retry once at each of the 10
+        . Directories include an "allowable version" section.
+        o Saner retry logic: right now we retry once at each of the 10
           next Mix intervals, regardless of interval length.  (Have a 
           separate retry timer that gets rounded to the nearest mix
           event.)
@@ -92,13 +97,13 @@ For 0.0.3:
                 o Tests for _parseIntervalList
                 o Test for new DeliveryQueue code
                 o Validation code for retry intervals.
-                - Test for module configuration
-                - Test for actual retrying
-                - Test for validation code
+                o Test for validation code
+                o Test for module configuration
         - Statistics of some kind (with a server: count messages
           received, errors, etc.)
+        o Tests for stdout/stderr replacement
         - Separate error/other log files. ????
-        - UI
+        . UI
                 - Good user error reporting strategy.
                 - Better error message when path+routinginfo won't fit 
                   into header.
@@ -125,7 +130,7 @@ For 0.0.3:
                   places; coalesce pid and lock.
                 - Make all filenames in server config relative to
                   server home, if not absolute.
-        . MMTP
+        o MMTP
                 o Code to send junk (connection padding)
                         o Implement for client
                         o Implement for nonblocking client
@@ -151,12 +156,22 @@ For 0.0.3:
                         o Test
         - SMTP
                 - Add an extra "this is anonymous" header.
-        - Make ServerInfo more forward-compatible in preparation for
-          changing it in 0.0.4.
-        - Fix aes_ctr128 and bump packet version.
+        . Make ServerInfo more forward-compatible.
+                - Skip sections completely if the version number isn't
+                  recognized.
+                o Support unrecognized keys
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
            CLI'S AND MULTI-SERVER SITUATIONS.
         - Tests for packet addressed to server with bogus IP.
+        - Break backward compatibility :P
+                - Fix aes_ctr128 and bump packet version and write
+                  unit tests for counter mode.
+                - Increment packet minor number; make client check
+                  packet minor number.
+                - Add fields to serverinfo, server directory.
+                - Make client check 'Recommended-Software' against
+                  current version.
+                
         - ????
 
 Required for "1.0":
@@ -297,8 +312,6 @@ Unspecified:
         - Generate dummy messages
         - IPv6 support.
         - Support for multiple directory servers
-        - Bodies for dummy messages?  We should specify so that different
-          peoples dummies are not different.
         - Notice active attacks and block IPs dynamically.
 
 WHEN WE GET THE CHANCE:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.10 2003/01/06 07:03:25 nickm Exp $
+# $Id: ServerList.py,v 1.11 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -190,6 +190,7 @@ class ServerList:
                formatDate(startAt),
                formatDate(endAt),
                formatBase64(pk_encode_public_key(identityKey)))
+        # XXXX003 add 'Recommended-software: Mixminion 0.0.3"
 
         directory = header+"".join(contents)
         directory = _getDirectoryDigestImpl(directory, identityKey)

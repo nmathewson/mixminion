@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.35 2003/01/13 06:15:10 nickm Exp $
+# $Id: Config.py,v 1.36 2003/01/17 06:18:06 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -497,6 +497,7 @@ class _ConfigFile:
 
     _syntax = None
     _restrictFormat = 0
+    _restrictKeys = 1 #DOCDOC
 
     def __init__(self, filename=None, string=None, assumeValid=0):
         """Create a new _ConfigFile.  If <filename> is set, read from
@@ -582,8 +583,12 @@ class _ConfigFile:
                 try:
                     rule, parseFn, default = secConfig[k]
                 except KeyError:
-                    raise ConfigError("Unrecognized key %s on line %s" %
-                                      (k, line))
+                    if self._restrictKeys:
+                        raise ConfigError("Unrecognized key %s on line %s" %
+                                          (k, line))
+                    else:
+                        LOG.warn("Unregognized key %s on line %s", k, line)
+                        continue
 
                 # Parse and validate the value of this entry.
                 if parseFn is not None:
@@ -711,6 +716,7 @@ class ClientConfig(_ConfigFile):
                        'SURBAddress' : ('ALLOW', None, None),
                        'SURBPathLength' : ('ALLOW', _parseInt, "8"),
                        'SURBLifetime' : ('ALLOW', _parseInterval, "7 days") },
+        'Network' : { 'ConnectionTimeout' : ('ALLOW', _parseInterval, None) }
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
@@ -725,6 +731,13 @@ class ClientConfig(_ConfigFile):
         if p < 4:
             LOG.warn("Your default path length is frighteningly low."
                           "  I'll trust that you know what you're doing.")
+
+        t = sections['Network'].get('ConnectionTimeout')
+        if t:
+            if t[2] < 5:
+                LOG.warn("Very short connection timeout")
+            elif t[2] > 60:
+                LOG.warn("Very long connection timeout")
 
 def _validateHostSection(sec):
     """Helper function: Makes sure that the shared [Host] section is correct;

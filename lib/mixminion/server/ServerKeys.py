@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.9 2003/01/13 06:18:55 nickm Exp $
+# $Id: ServerKeys.py,v 1.10 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -498,6 +498,10 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         Valid-Until: %(ValidUntil)s
         Packet-Key: %(PacketKey)s
         """ % fields
+    # XXXX003 add 'packet-formats'
+    #   Packet-Formats: 0.2
+    # XXXX003 add 'software'
+    #   Software: Mixminion %(version)s
     if contact:
         info += "Contact: %s\n"%contact
     if comments:

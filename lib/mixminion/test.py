@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.74 2003/01/14 09:20:17 nickm Exp $
+# $Id: test.py,v 1.75 2003/01/17 06:18:06 nickm Exp $
 
 """mixminion.tests
 
@@ -2523,6 +2523,25 @@ class LogTests(unittest.TestCase):
         self.assertEquals(readFile(t).count("\n") , 1)
         self.assertEquals(readFile(t1).count("\n"), 3)
 
+    def testLogStream(self):
+        stream = mixminion.Common.LogStream("STREAM", "WARN")
+        suspendLog()
+        try:
+            print >>stream, "Testing", 1,2,3
+            print >>stream
+            print >>stream, "A\nB\nC"
+            print >>stream, "X",
+            print >>stream, "Y"
+        finally:
+            r = resumeLog()
+        lines = [ l[20:] for l in r.split("\n") ]
+        self.assertEquals(lines[0], "[WARN] ->STREAM: Testing 1 2 3")
+        self.assertEquals(lines[1], "[WARN] ->STREAM: ")
+        self.assertEquals(lines[2], "[WARN] ->STREAM: A")
+        self.assertEquals(lines[3], "[WARN] ->STREAM: B")
+        self.assertEquals(lines[4], "[WARN] ->STREAM: C")
+        self.assertEquals(lines[5], "[WARN] ->STREAM: X Y")
+
 #----------------------------------------------------------------------
 # File paranoia
 
@@ -2704,7 +2723,6 @@ def _getMMTPServer():
     return server, listener, messagesIn, keyid
 
 class MMTPTests(unittest.TestCase):
-
     def doTest(self, fn):
         """Wraps an underlying test function 'fn' to make sure we kill the
            MMTPServer, but don't block."""
@@ -2764,6 +2782,19 @@ class MMTPTests(unittest.TestCase):
         while t.isAlive():
             server.process(0.1)
         t.join()
+
+    def testStallingTransmission(self):
+        now = time.time()
+        try:
+            mixminion.MMTPClient.sendMessages("0.0.0.1",
+                                              #Is there a better IP????
+                                              TEST_PORT, "Z"*20, ["JUNK"],
+                                              connectTimeout=1)
+            self.fail("Expected the connection to time out")
+        except mixminion.MMTPClient.TimeoutError:
+            pass
+        passed = time.time() - now
+        self.assert_(passed < 2)
 
     def _testNonblockingTransmission(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
@@ -3092,7 +3123,7 @@ IntRS=5
 
         # Command
         if not sys.platform == 'win32':
-            # FFFF This should get implemented for Windows.
+            # WIN32 This should get implemented for Windows.
             self.assertEquals(C._parseCommand("ls -l"), ("/bin/ls", ['-l']))
             self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
             self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
@@ -3190,6 +3221,24 @@ IntRS=5
             # This is what we expect
             pass
 
+        # IntervalSet validation
+        def warns(mixInterval, retryList, self=self):
+            ents = { "Section":
+               [('Retry', mixminion.Config._parseIntervalList(retryList))]}
+            try:
+                suspendLog()
+                mixminion.server.ServerConfig._validateRetrySchedule(
+                    mixInterval, ents, "Section")
+            finally:
+                r = resumeLog()
+            self.assert_(stringContains(r, "[WARN]"))
+        warns(30*60, "every .6 hour for 20 hours") # < 1day
+        warns(30*60, "every 4 days for 1 month") # > 2 weeks
+        warns(30*60, "every 2 days for 4 days") # < twice
+        warns(30*60, "every .2 hours for 1 hour, every 1 day for 1 week")#<mix
+        warns(30*60, "every 5 days for 1 week") # too few attempts
+        warns(30*60, "every 1 hour for 1 week") # too many attempts
+
         # Fractions
         fails(SC._parseFraction, "90")
         fails(SC._parseFraction, "-.01")
@@ -3224,9 +3273,11 @@ Allow: *
 [Outgoing/MMTP]
 Enabled = yes
 Allow: *
+Retry: every 1 hour for 1 day, every 1 day for 1 week
 
 [Delivery/MBOX]
 Enabled: no
+Retry: every 1 hour for 1 day, every 1 day for 1 week
 
 """
 
@@ -3333,6 +3384,11 @@ class ServerInfoTests(unittest.TestCase):
         inf2 = inf.replace("[Server]\n", "[Server] \r")
         inf2 = inf2.replace("b.c\n", "b.c\r\n")
         inf2 = inf2.replace("0.1\n", "0.1  \n")
+        mixminion.ServerInfo.ServerInfo(string=inf2)
+
+        # Make sure we accept an extra key.
+        inf2 = inf+"Unexpected-Key: foo\n"
+        inf2 = mixminion.ServerInfo.signServerInfo(inf2, identity)
         mixminion.ServerInfo.ServerInfo(string=inf2)
 
         # Now make sure everything was saved properly
@@ -4075,7 +4131,7 @@ Free to hide no more.
                            "AddressFile": addrfile,
                            "ReturnAddress": "returnaddress@x",
                            "RemoveContact": "removeaddress@x",
-                           "Retry": [0,0,0,0],
+                           "Retry": [0,0,0,3],
                            "SMTPServer" : "foo.bar.baz"}}, manager)
         # Check that the address file was read correctly.
         self.assertEquals({'mix-minion': 'mixminion@thishost',
@@ -4086,6 +4142,7 @@ Free to hide no more.
         # Stub out sendSMTPMessage.
         replaceFunction(mixminion.server.Modules, 'sendSMTPMessage',
                  lambda *args: mixminion.server.Modules.DELIVER_OK)
+        self.assertEquals(queue.retrySchedule, [0,0,0,3])
         try:
             # Try queueing a message...
             queue.queueDeliveryMessage(FDP('enc', MBOX_TYPE, 'mixdiddy', 
@@ -4415,11 +4472,13 @@ def getExampleServerDescriptors():
                 addrf = mix_mktemp()
                 writeFile(addrf,"")
                 conf += ("[Delivery/MBOX]\nEnabled: yes\nAddressFile: %s\n"+
-                         "ReturnAddress: a@b.c\nRemoveContact: b@c.d\n") %(
+                         "ReturnAddress: a@b.c\nRemoveContact: b@c.d\n"+
+                         "Retry: every 2 hours for 1 week\n") %(
                     addrf)
             elif t == SMTP_TYPE:
                 conf += ("[Delivery/SMTP]\nEnabled: yes\n"+
-                         "ReturnAddress: a@b.c\n")
+                         "ReturnAddress: a@b.c\n"+
+                         "Retry: every 2 hours for 1 week\n")
             else:
                 raise MixFatalError("Unrecognized type: %04x"%t)
         try:
@@ -5050,8 +5109,9 @@ class ClientMainTests(unittest.TestCase):
                 self.keyid = keyid
                 self.packets = []
                 self.connected = 0
-            def connect(self):
+            def connect(self, connectTimeout):
                 self.connected = 1
+                self.timeout = connectTimeout
             def sendPacket(self, msg):
                 assert self.connected
                 self.packets.append(msg)
@@ -5103,7 +5163,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(BuildMessageTests))
+        suite.addTest(tc(MMTPTests))
         return suite
 
     suite.addTest(tc(MiscTests))

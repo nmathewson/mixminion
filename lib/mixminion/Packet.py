@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.22 2002/12/16 02:40:11 nickm Exp $
+# $Id: Packet.py,v 1.23 2003/01/17 06:18:06 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -28,7 +28,7 @@ from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, floorDiv, isSMTPMailbox
 
 # Major and minor number for the understood packet format.
-MAJOR_NO, MINOR_NO = 0,1
+MAJOR_NO, MINOR_NO = 0,1  #XXXX003 Bump minor_no for 0.0.3
 
 # Length of a Mixminion message
 MESSAGE_LEN = 1 << 15
