@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.74 2003/05/21 18:03:33 nickm Exp $
+# $Id: ClientMain.py,v 1.75 2003/05/23 22:49:29 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -11,16 +11,18 @@ __all__ = [ 'Address', 'ClientKeyring', 'ClientDirectory', 'MixminionClient',
 
 import anydbm
 import binascii
+import errno
 import cPickle
 import getopt
 import getpass
 import os
 import re
+import signal
 import stat
 import string
 import sys
 import time
-import urllib
+import urllib2
 from types import ListType
 
 import mixminion.BuildMessage
@@ -70,13 +72,6 @@ def configureClientLock(filename):
     _CLIENT_LOCKFILE = Lockfile(filename)
 
 #----------------------------------------------------------------------
-
-class MyURLOpener(urllib.FancyURLopener):
-    def http_error_default(self, url, fp, errcode, errmsg, headers):
-        message = fp.read()
-        fp.close()
-        raise UIError("Error connecting to %s: %s %s\n(Server said:\n%s)" % (url, errcode, errmsg, message))
-
 class ClientDirectory:
     """A ClientDirectory manages a list of server descriptors, either
        imported from the command line or from a directory."""
@@ -149,15 +144,30 @@ class ClientDirectory:
     def downloadDirectory(self):
         """Download a new directory from the network, validate it, and
            rescan its servers."""
+        # FFFF Make configurable
+        DIRECTORY_TIMEOUT = 15
         # Start downloading the directory.
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
+        def sigalrmHandler(sig, _):
+            pass
+        signal.signal(signal.SIGALRM, sigalrmHandler)
         try:
-            infile = MyURLOpener().open(url)
-        except IOError, e:
-            raise UIError(
-                ("Couldn't connect to directory server: %s.\n"
-                 "Try '-D no' to run without downloading a directory.")%e)
+            try:
+                infile = urllib2.urlopen(url)
+            except IOError, e:
+                raise UIError(
+                    ("Couldn't connect to directory server: %s.\n"
+                     "Try '-D no' to run without downloading a directory.")%e)
+            except socket.error, e:
+                if e.errno == errno.EINTR:
+                    raise UIError("Connection to directory server timed out")
+                else:
+                    raise UIError("Error connecting: %s",e)
+                raise UIError
+        finally:
+            signal.alarm(0)
+        
         # Open a temporary output file.
         if url.endswith(".gz"):
             fname = os.path.join(self.dir, "dir_new.gz")

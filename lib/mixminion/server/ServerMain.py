@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.53 2003/05/23 07:54:12 nickm Exp $
+# $Id: ServerMain.py,v 1.54 2003/05/23 22:49:30 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -539,6 +539,7 @@ class MixminionServer(_Scheduler):
         #XXXX004 Check whether config matches serverinfo
         self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
         self.keyring.createKeysAsNeeded()
+        self.keyring.publishKeys()
 
         LOG.debug("Initializing packet handler")
         self.packetHandler = mixminion.server.PacketHandler.PacketHandler()
@@ -606,7 +607,7 @@ class MixminionServer(_Scheduler):
                      " updateKeys delaying for 2 minutes")
             # This will cause getNextKeyRotation to return 2 minutes later
             # than now.
-            self.keyring.nextUpdate = time.time() += 120
+            self.keyring.nextUpdate = time.time() + 120
             return
 
         try:
@@ -619,7 +620,8 @@ class MixminionServer(_Scheduler):
         def c(self=self):
             self.keyring.lock()
             try:
-                self.keyring.createKeysAsNeeded
+                self.keyring.createKeysAsNeeded()
+                self.keyring.publishKeys()
             finally:
                 self.keyring.unlock()
         self.processingThread.addJob(c)
@@ -651,13 +653,13 @@ class MixminionServer(_Scheduler):
                                       self.mmtpServer.getNextTimeoutTime)
 
         self.scheduleRecurringComplex(self.keyring.getNextKeyRotation(),
-                                      self.updateKeys,
                                       "KEY_ROTATE",
+                                      self.updateKeys,
                                       self.keyring.getNextKeyRotation)
 
         self.scheduleRecurringComplex(self.keyring.getNextKeygen(),
-                                      self.generateKeys,
                                       "KEY_GEN",
+                                      self.generateKeys,
                                       self.keyring.getNextKeygen)
 
         nextMix = self.mixPool.getNextMixTime(now)

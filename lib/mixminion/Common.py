@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.76 2003/05/21 18:03:33 nickm Exp $
+# $Id: Common.py,v 1.77 2003/05/23 22:49:30 nickm Exp $
 
 """mixminion.Common
 
@@ -402,12 +402,12 @@ def readPickled(fn):
     finally:
         f.close()
 
-def writePickled(fn, obj):
+def writePickled(fn, obj, mode=0600):
     """Given a filename and an object to be pickled, pickles the object into
        a temporary file, then replaces the file with the temporary file.
     """
     tmpname = fn + ".tmp"
-    f, tmpname = openUnique(tmpname, 'wb')
+    f, tmpname = openUnique(tmpname, 'wb', mode)
     try:
         try:
             cPickle.dump(obj, f, 1)
@@ -1167,7 +1167,7 @@ def readPossiblyGzippedFile(fname, mode='r'):
         if f is not None:
             f.close()
 
-def openUnique(fname, mode='w'):
+def openUnique(fname, mode='w', perms=0600):
     """Helper function. Returns a file open for writing into the file named
        'fname'.  If fname already exists, opens 'fname.1' or 'fname.2' or
        'fname.3' or so on."""
@@ -1175,7 +1175,7 @@ def openUnique(fname, mode='w'):
     idx = 0
     while 1:
         try:
-            fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0600)
+            fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL, perms)
             return os.fdopen(fd, mode), fname
         except OSError:
             pass

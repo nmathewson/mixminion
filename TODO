@@ -99,6 +99,7 @@ For 0.0.4:
                   simply die.
                 - Analyze logic: how can a timeout cause deliveryFailed
                   on a nonexistent handle?
+                - "Iffy mode" is iffy message
         o Improved path selection
                 o Better syntax
                 o Improved implementation
@@ -126,7 +127,7 @@ For 0.0.4:
                         o Ability to delete PK.
                         o Trigger all of the above as timed events occur.
                         o Generate new SD's as needed
-1-2                     - Publish as needed
+                        o Publish as needed
 2.5                     - Somehow test the whole business.
                 . Rudimentary directory automation (with trivial pinging)
                         o CGI to receive server descriptors:
@@ -134,13 +135,13 @@ For 0.0.4:
                                   reject them if invalid,
                                   and queue them if unrecognized.
 2                               - Tests for above
-.5-1.5                          - The actual CGI
+.5-1.5                          . The actual CGI
                         o Ability to move servers from queue to good-list.
 0.5                             - Tests
-1                       - Code to publish directories
-2-3                     . Code to remember whether descriptors are published,
-                          and republish as needed, and retry if directory
-                          is down.
+                        . Code to remember whether descriptors are published,
+                          and republish as needed
+                                o Implement
+1                               - Add explicit 'republish' command.
 1                               - Tests
                         - Trivial pinger: make a list of servers,
                           check which are up, send 1-hop dummies, see

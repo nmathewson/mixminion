@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.22 2003/05/23 07:54:12 nickm Exp $
+# $Id: ServerKeys.py,v 1.23 2003/05/23 22:49:30 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -12,9 +12,12 @@ __all__ = [ "ServerKeyring", "generateServerDescriptorAndKeys",
 
 import os
 import socket
+import re
 import sys
 import time
 import threading
+import urllib
+import urllib2
 
 import mixminion._minionlib
 import mixminion.Crypto
@@ -27,7 +30,7 @@ from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
      signServerInfo
 
 from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
-     createPrivateDir, \
+     ceilDiv, createPrivateDir, \
      checkPrivateFile, formatBase64, formatDate, formatTime, previousMidnight,\
      secureDelete
 
@@ -43,6 +46,12 @@ PUBLICATION_LATENCY = 3*24*60*60
 #
 #FFFF Make this configurable?  (Set to 2 weeks).
 PREPUBLICATION_INTERVAL = 14*24*60*60
+
+# DOCDOC
+#
+#FFFF Make this configurable
+#DIRECTORY_UPLOAD_URL = "http://mixminion.net/cgi-bin/publish"
+DIRECTORY_UPLOAD_URL = "http://192.168.0.1/cgi-bin/publish"
 
 #----------------------------------------------------------------------
 class ServerKeyring:
@@ -99,6 +108,7 @@ class ServerKeyring:
         self.hashDir = os.path.join(self.homeDir, 'work', 'hashlogs')
         self.keyOverlap = config['Server']['PublicKeyOverlap'].getSeconds()
         self.nextUpdate = None
+        self.currentKeys = None
         self.checkKeys()
 
     def checkKeys(self):
@@ -113,8 +123,6 @@ class ServerKeyring:
         if not os.path.exists(self.keyDir):
             LOG.info("Creating server keystore at %s", self.keyDir)
             createPrivateDir(self.keyDir)
-
-        unpublished = []
         
         # Iterate over the entires in HOME/keys
         for dirname in os.listdir(self.keyDir):
@@ -144,11 +152,6 @@ class ServerKeyring:
                 
             LOG.debug("Found key %s (valid from %s to %s)",
                       dirname, formatDate(t1), formatDate(t2))
-
-            if not keyset.isPublished():
-                unpublished.append(keysetname)
-
-        self.unpublished = unpublished
 
         # Now, sort the key intervals by starting time.
         self.keySets.sort()
@@ -188,6 +191,35 @@ class ServerKeyring:
 
         return key
 
+    def publishKeys(self, allKeys=0):
+        """DOCDOC"""
+        keySets = [ ks for _, _, ks in self.keySets ]
+        if allKeys:
+            LOG.info("Republishing all known keys to directory server")
+        else:
+            keySets = [ ks for ks in keySets if not ks.isPublished() ]
+            if not keySets:
+                LOG.debug("publishKeys: no unpublished keys found")
+                return
+            LOG.info("Publishing %s keys to directory server...",len(keySets))
+
+        rejected = 0
+        for ks in keySets:
+            status = ks.publish(DIRECTORY_UPLOAD_URL)
+            if status == 'error':
+                LOG.info("Error publishing a key; giving up")
+                return 0
+            elif status == 'reject':
+                rejected += 1
+            else:
+                assert status == 'accept'
+        if rejected == 0:
+            LOG.info("All keys published successfully.")
+            return 1
+        else:
+            LOG.info("%s/%s keys were rejected." , rejected, len(keySets))
+            return 0
+
     def removeIdentityKey(self):
         """Remove this server's identity key."""
         fn = os.path.join(self.keyDir, "identity.key")
@@ -212,10 +244,17 @@ class ServerKeyring:
         if self.getNextKeygen() > now-10: # 10 seconds of leeway
             return
 
-        lastExpiry = self.keySets[-1][1]
-        lifetime = self.config['Server']['PublicKeyLifetime'].getSeconds()
-        nKeys = ceilDiv(PREPUBLICATION_INTERVAL, lifetime)
+        if self.keySets:
+            lastExpiry = self.keySets[-1][1]
+        else:
+            lastExpiry = now
 
+        timeToCover = lastExpiry + PREPUBLICATION_INTERVAL - now
+        
+        lifetime = self.config['Server']['PublicKeyLifetime'].getSeconds()
+        nKeys = ceilDiv(timeToCover, lifetime)
+
+        LOG.debug("Creating %s keys", nKeys)
         self.createKeys(num=nKeys)
 
     def createKeys(self, num=1, startAt=None):
@@ -277,8 +316,10 @@ class ServerKeyring:
         # PREPUBLICATION_INTERVAL seconds after that, and we assume that
         # a key takes up to PUBLICATION_LATENCY seconds to make it into the
         # directory.
-        nextKeygen = lastExpiry - PUBLICATION_LATENCY - PREPUBLICATION_INTERVAL
+        nextKeygen = lastExpiry - PUBLICATION_LATENCY
 
+        LOG.info("Last expiry at %s; next keygen at %s",
+                 formatTime(lastExpiry,1), formatTime(nextKeygen, 1))
         return nextKeygen
 
     def removeDeadKeys(self, now=None):
@@ -326,13 +367,13 @@ class ServerKeyring:
         return [ (va,vu,k) for (va,vu,k) in self.keySets
                  if va < now and vu > cutoff ]
 
-    def getServerKeysets(self):
+    def getServerKeysets(self, now=None):
         """Return a ServerKeyset object for the currently live key.
 
            DOCDOC"""
         # FFFF Support passwords on keys
         keysets = [ ]
-        for va, vu, ks in self._getLiveKeys():
+        for va, vu, ks in self._getLiveKeys(now):
             ks.load()
             keysets.append(ks)
 
@@ -382,7 +423,7 @@ class ServerKeyring:
                 packetKeys.append(k.getPacketKey())
                 hashLogs.append(mixminion.server.HashLog.HashLog(
                     k.getHashLogFileName(), k.getPacketKeyID()))
-            packetHandler.setKeys(packetkeys, hashLogs)
+            packetHandler.setKeys(packetKeys, hashLogs)
 
         self.nextUpdate = None
         self.getNextKeyRotation(keys)
@@ -512,13 +553,19 @@ class ServerKeyset:
         return self.published
     def markAsPublished(self):
         """DOCDOC"""
-        f = open(self.published, 'w')
+        f = open(self.publishedFile, 'w')
         try:
             f.write(formatTime(time.time(), 1))
             f.write("\n")
         finally:
             f.close()
         self.published = 1
+    def markAsUnpublished(self):
+        try:
+            os.unlink(self.publishedFile)
+        except OSError:
+            pass
+        self.published = 0
     def regenerateServerDescriptor(self, config, identityKey, validAt=None):
         """DOCDOC"""
         self.load()
@@ -532,6 +579,49 @@ class ServerKeyset:
                          self.keyroot, self.keyname, self.hashroot,
                          validAt=validAt, useServerKeys=1)
         self.serverinfo = self.validAfter = self.validUntil = None
+
+    def publish(self, url):
+        """ Returns 'accept', 'reject', 'error'. """
+        fname = self.getDescriptorFileName()
+        f = open(fname, 'r')
+        try:
+            descriptor = f.read()
+        finally:
+            f.close()
+        fields = urllib.urlencode({"desc" : descriptor})
+        try:
+            try:
+                f = urllib2.urlopen(url, fields)
+                info = f.info()
+                reply = f.read()
+            except:
+                LOG.error_exc(sys.exc_info(),
+                              "Error publishing server descriptor")
+                return 'error'
+        finally:
+            f.close()
+
+        if info.get('Content-Type') != 'text/plain':
+            LOG.error("Bad content type %s from directory"%info.get(
+                'Content-Type'))
+            return 'error'
+        m = DIRECTORY_RESPONSE_RE.search(reply)
+        if not m:
+            LOG.error("Didn't understand reply from directory: %r",
+                      reply[:100])
+            return 'error'
+        ok = int(m.group(1))
+        msg = m.group(2)
+        if not ok:
+            LOG.error("Directory rejected descriptor: %r", msg)
+            return 'reject'
+
+        LOG.info("Directory accepted descriptor: %r", msg)
+        self.markAsPublished()
+        return 'accept'
+            
+DIRECTORY_RESPONSE_RE = re.compile(r'^Status: (0|1)[ \t]*\nMessage: (.*)$',
+                                   re.M)
 
 class _WarnWrapper:
     """Helper for 'checkDescriptorConsistency' to keep its implementation
