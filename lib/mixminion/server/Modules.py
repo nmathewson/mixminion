@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.17 2003/01/07 03:31:30 nickm Exp $
+# $Id: Modules.py,v 1.18 2003/01/07 05:33:07 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -900,6 +900,10 @@ message encrypted to you; or 3) junk.\n\n"""
 This message is compressed with zlib.  Ordinarily, I would have decompressed
 it, but it was compressed by more than a factor of 20, which makes me nervous.
 \n"""
+    elif code == 'BIN':
+        junk_msg = """\
+This message contains nonprinting characters, so I encoded it with Base64
+before sending it to you.\n\n"""
     else:
         junk_msg = ""
 
