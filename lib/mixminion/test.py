@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.61 2003/01/05 06:49:25 nickm Exp $
+# $Id: test.py,v 1.62 2003/01/05 12:36:23 nickm Exp $
 
 """mixminion.tests
 
@@ -212,7 +212,8 @@ class MiscTests(unittest.TestCase):
 
     def test_isSMTPMailbox(self):
         # Do we accept good addresses?
-        for addr in "Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z":
+        for addr in ("Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z",
+                     "$@com"):
             self.assert_(isSMTPMailbox(addr))
 
         # Do we reject bad addresses?
