@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.2 2003/01/10 20:12:05 nickm Exp $
+# $Id: ServerQueue.py,v 1.3 2003/01/13 06:35:52 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -29,10 +29,6 @@ _NEW_MESSAGE_FLAGS += getattr(os, 'O_BINARY', 0)
 # Any inp_* files older than INPUT_TIMEOUT seconds old are assumed to be
 # trash.
 INPUT_TIMEOUT = 6000
-
-## # If we've been cleaning for more than CLEAN_TIMEOUT seconds, assume the
-## # old clean is dead.
-## CLEAN_TIMEOUT = 120
 
 class Queue:
     """A Queue is an unordered collection of files with secure insert, move,
@@ -257,39 +253,6 @@ class Queue:
         # We don't need to hold the lock here; we synchronize via the
         # filesystem.
 
-# XXXX this logic never worked anyway; now we do all our cleaning in a separate
-# XXXX thread anyway.
-
-##         now = time.time()
-##         cleanFile = os.path.join(self.dir,".cleaning")
-##
-##         cleaning = 1
-##         while cleaning:
-##             try:
-##                 # Try to get the .cleaning lock file.  If we can create it,
-##                 # we're the only cleaner around.
-##                 fd = os.open(cleanFile, os.O_WRONLY+os.O_CREAT+os.O_EXCL, 0600)
-##                 os.write(fd, str(now))
-##                 os.close(fd)
-##                 cleaning = 0
-##             except OSError:
-##                 try:
-##                     # If we can't create the file, see if it's too old.  If it
-##                     # is too old, delete it and try again.  If it isn't, there
-##                     # may be a live clean in progress.
-##                     s = os.stat(cleanFile)
-##                     if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
-##                         os.unlink(cleanFile)
-##                     else:
-##                         return 1
-##                 except OSError:
-##                     # If the 'stat' or 'unlink' calls above fail, then
-##                     # .cleaning must not exist, or must not be readable
-##                     # by us.
-##                     if os.path.exists(cleanFile):
-##                         # In the latter case, bail out.
-##                         return 1
-
         rmv = []
         allowedTime = int(time.time()) - INPUT_TIMEOUT
         for m in os.listdir(self.dir):
@@ -364,9 +327,16 @@ class DeliveryQueue(Queue):
     #    pending -- Dict from handle->1, for all messages that we're
     #           currently sending.
 
-    def __init__(self, location):
+    def __init__(self, location, retrySchedule=None):
         Queue.__init__(self, location, create=1, scrub=1)
         self._rescan()
+        if retrySchedule is None:
+            self.retrySchedule = None
+        else:
+            self.retrySchedule = retrySchedule[:]
+
+    def setRetrySchedule(self, schedule):#DOCDOC
+        self.retrySchedule = schedule[:]
 
     def _rescan(self):
         """Rebuild the internal state of this queue from the underlying
@@ -381,15 +351,16 @@ class DeliveryQueue(Queue):
     def queueMessage(self, msg):
         if 1: raise MixError("Tried to call DeliveryQueue.queueMessage.")
 
-    def queueDeliveryMessage(self, addr, msg, retry=0):
+    def queueDeliveryMessage(self,  msg, retry=0, nextAttempt=0):
         """Schedule a message for delivery.
              addr -- An object to indicate the message's destination
              msg -- the message itself
-             retry -- how many times so far have we tried to send?"""
-
+             retry -- how many times so far have we tried to send?
+             DOCDOC"""
         try:
             self._lock.acquire()
-            handle = self.queueObject( (retry, addr, msg) )
+            #DOCDOC nextAttempt 
+            handle = self.queueObject( (retry, None, msg, nextAttempt) )
             self.sendable.append(handle)
         finally:
             self._lock.release()
@@ -397,22 +368,29 @@ class DeliveryQueue(Queue):
         return handle
 
     def get(self,handle):
-        """Returns a (n_retries, addr, msg) payload for a given
+        """Returns a (n_retries, addr, msg, nextAttempt?) payload for a given
            message handle."""
-        return self.getObject(handle)
+        o = self.getObject(handle)
+        if len(o) == 3:# XXXX For legacy queues; delete after 0.0.3
+            o = o + (0,)
+        return o[0], o[2], o[3]
 
-    def sendReadyMessages(self):
+    def sendReadyMessages(self, now=None):
         """Sends all messages which are not already being sent."""
-
+        if now is None:
+            now = time.time()
         try:
             self._lock.acquire()
             handles = self.sendable
             messages = []
             self.sendable = []
             for h in handles:
-                retries, addr, msg = self.getObject(h)
-                messages.append((h, addr, msg, retries))
-                self.pending[h] = 1
+                retries,msg, nextAttempt = self.get(h)
+                if nextAttempt <= now:
+                    messages.append((h, msg, retries))
+                    self.pending[h] = now
+                else:
+                    self.sendable.append(h)
         finally:
             self._lock.release()
         if messages:
@@ -420,7 +398,7 @@ class DeliveryQueue(Queue):
 
     def _deliverMessages(self, msgList):
         """Abstract method; Invoked with a list of
-           (handle, addr, message, n_retries) tuples every time we have a batch
+           (handle, message, n_retries) tuples every time we have a batch
            of messages to send.
 
            For every handle in the list, delierySucceeded or deliveryFailed
@@ -440,6 +418,7 @@ class DeliveryQueue(Queue):
         """
         try:
             self._lock.acquire()
+            #XXXX003 be more robust in the presence of errors here.
             self.removeMessage(handle)
             del self.pending[handle]
         finally:
@@ -451,16 +430,40 @@ class DeliveryQueue(Queue):
            invoked after the corresponding message has been
            successfully delivered."""
         try:
+            #XXXX003 be more robust in the presence of errors here.
             self._lock.acquire()
+            lastAttempt = self.pending[handle]
             del self.pending[handle]
             if retriable:
                 # Queue the new one before removing the old one, for
-                # crash-proofness
-                retries, addr, msg = self.getObject(handle)
-                # FFFF This test makes us never retry past the 10th attempt.
-                # FFFF That's wrong; we should be smarter.
-                if retries <= 10:
-                    self.queueDeliveryMessage(addr, msg, retries+1)
+                # crash-proofness.  First, fetch the old information...
+                retries, msg, schedAttempt = self.get(handle)
+
+                # Multiple retry intervals may have passed in between the most
+                # recent failed delivery attempt (lastAttempt) and the time
+                # it was schedule (schedAttempt).  Increment 'retries' and
+                # efore it (prevAttempt).  Increment 'retries' to reflect the
+                # number of retry intervals that have passed between first
+                # sending the message and nextAttempt.
+                #DOCDOC
+                if self.retrySchedule and retries < len(self.retrySchedule):
+                    nextAttempt = schedAttempt
+                    if nextAttempt == 0:
+                        nextAttempt = lastAttempt
+                    while retries < len(self.retrySchedule):
+                        nextAttempt += self.retrySchedule[retries]
+                        retries += 1
+                        if nextAttempt > lastAttempt:
+                            break
+                    if retries <= len(self.retrySchedule):
+                        self.queueDeliveryMessage(msg, retries, nextAttempt)
+                elif not self.retrySchedule:
+                    #LEGACY XXXX003
+                    retries += 1
+                    nextAttempt = 0
+                    if retries < 10:
+                        self.queueDeliveryMessage(msg, retries, nextAttempt)
+                                              
             self.removeMessage(handle)
         finally:
             self._lock.release()

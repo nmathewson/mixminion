@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.14 2003/01/06 12:57:48 nickm Exp $
+# $Id: ServerConfig.py,v 1.15 2003/01/13 06:35:52 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -63,7 +63,8 @@ class ServerConfig(mixminion.Config._ConfigFile):
         if _haveEntry(entries, 'Server', 'Mode'):
             LOG.warn("Mode specification is not yet supported.")
 
-        if server['MixInterval'][2] < 30*60:
+        mixInterval = server['MixInterval'][2]
+        if mixInterval < 30*60:
             LOG.warn("Dangerously low MixInterval")
         if server['MixAlgorithm'] == 'TimedMixQueue':
             if _haveEntry(entries, 'Server', 'MixPoolRate'):
@@ -88,6 +89,8 @@ class ServerConfig(mixminion.Config._ConfigFile):
         if [e for e in entries['Outgoing/MMTP'] if e[0] in ('Allow', 'Deny')]:
             LOG.warn("Allow/deny are not yet supported")
 
+        _validateRetrySchedule(mixInterval, entries, "Outgoing/MMTP")
+
         self.moduleManager.validate(sections, entries, lines, contents)
 
     def __loadModules(self, section, sectionEntries):
@@ -104,6 +107,41 @@ class ServerConfig(mixminion.Config._ConfigFile):
     def getModuleManager(self):
         "Return the module manager initialized by this server."
         return self.moduleManager
+
+def _validateRetrySchedule(mixinterval, entries, sectionname,
+                           entryname='Retry'):
+    #XXXX writeme.
+    entry = [e for e in entries.get(sectionname,[]) if e[0] == entryname]
+    if not entry:
+        return
+    assert len(entry) == 1
+    sched = entry[0][1]
+    total = reduce(operator.add, sched, 0)
+
+    # Warn if we try for less than a day.
+    if total < 24*60*60:
+        LOG.warn("Dangerously low retry timeout for %s (<1 day)", sectionname)
+        
+    # Warn if we try for more than two weeks.
+    if total > 2*7*24*60*60:
+        LOG.warn("Very high retry timeout for %s (>14 days)", sectionname)
+
+    # Warn if any of our intervals are less than the mix interval...
+    if min(sched) < mixInterval-2:
+        LOG.warn("Rounding retry intervals for %s to the nearest mix interval",
+                 sectionname)
+
+    # ... or less than 5 minutes.
+    elif min(sched) < 5*60:
+        LOG.warn("Very fast retry intervals for %s (< 5 minutes)", sectionname)
+
+    # Warn if we make fewer than 5 attempts.
+    if len(sched) < 5:
+        LOG.warn("Dangerously low number of retries for %s (<5)", sectionname)
+
+    # Warn if we make more than 50 attempts.
+    if len(sched) > 50:
+        LOG.warn("Very high number of retries for %s (>50)", sectionname)
 
 #======================================================================
 
@@ -192,6 +230,8 @@ SERVER_SYNTAX =  {
                           'Deny' : ('ALLOW*', C._parseAddressSet_deny, None)
 			 },
         'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', C._parseBoolean, "no"),
+                            'Retry' : ('ALLOW', C._parseIntervalList,
+                                    ".5 hour for 1 day, 7 hours for 5 days"),
                           'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
                           'Deny' : ('ALLOW*', C._parseAddressSet_deny, None) },
         # FFFF Missing: Queue-Size / Queue config options

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.31 2003/01/10 20:12:05 nickm Exp $
+# $Id: ServerMain.py,v 1.32 2003/01/13 06:35:52 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -180,11 +180,9 @@ class MixPool:
                           formatBase64(packet.getContents()[:8]))
                 self.moduleManager.queueDecodedMessage(packet)
             else:
-                ipv4 = packet.getAddress()
-                msg = packet.getPacket()
                 LOG.debug("  (sending message %s to MMTP server)",
-                          formatBase64(msg[:8]))
-                self.outgoingQueue.queueDeliveryMessage(ipv4, msg)
+                          formatBase64(packet.getPacket()[:8]))
+                self.outgoingQueue.queueDeliveryMessage(packet)
             self.queue.removeMessage(h)
 
     def getNextMixTime(self, now):
@@ -194,8 +192,8 @@ class MixPool:
 
 class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
     """DeliveryQueue to send messages via outgoing MMTP connections.  All
-       methods on this class are called from the main thread.  The addresses
-       in this queue are pickled IPV4Info objects.
+       methods on this class are called from the main thread.  The underlying
+       objects in this queue are instances of RelayedPacket.
 
        All methods in this class are run from the main thread.
     """
@@ -204,6 +202,10 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
            location."""
         mixminion.server.ServerQueue.DeliveryQueue.__init__(self, location)
         self.server = None
+
+    def configure(self, config):
+        retry = config['Outgoing/MMTP']['Retry']
+        self.setRetrySchedule(retry)
 
     def connectQueues(self, server):
         """Set the MMTPServer that this OutgoingQueue informs of its
@@ -214,7 +216,10 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         "Implementation of abstract method from DeliveryQueue."
         # Map from addr -> [ (handle, msg) ... ]
         msgs = {}
-        for handle, addr, message, n_retries in msgList:
+        # XXXX SKIP DEAD MESSAGES!!!!
+        for handle, packet, n_retries in msgList:
+            addr = packet.getAddress()
+            message = packet.getPacket()
             msgs.setdefault(addr, []).append( (handle, message) )
         for addr, messages in msgs.items():
             handles, messages = zip(*messages)
@@ -408,6 +413,7 @@ class MixminionServer:
         outgoingDir = os.path.join(queueDir, "outgoing")
         LOG.debug("Initializing outgoing queue")
         self.outgoingQueue = OutgoingQueue(outgoingDir)
+        self.outgoingQueue.configure(config)
         LOG.debug("Found %d pending messages in outgoing queue",
                        self.outgoingQueue.count())
 

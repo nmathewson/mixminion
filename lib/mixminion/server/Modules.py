@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.24 2003/01/10 20:12:05 nickm Exp $
+# $Id: Modules.py,v 1.25 2003/01/13 06:35:52 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -30,7 +30,9 @@ import mixminion.BuildMessage
 import mixminion.Config
 import mixminion.Packet
 import mixminion.server.ServerQueue
-from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
+import mixminion.server.ServerConfig
+from mixminion.Config import ConfigError, _parseBoolean, _parseCommand, \
+     _parseIntervalList
 from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
      isPrintingAscii
 from mixminion.BuildMessage import CompressedDataTooLong
@@ -58,6 +60,10 @@ class DeliveryModule:
     def __init__(self):
         "Zero-argument constructor, as required by Module protocol."
         pass
+
+    def getRetrySchedule(self):
+        "DOCDOC"
+        return None
 
     def getConfigSyntax(self):
         """Return a map from section names to section syntax, as described
@@ -102,7 +108,8 @@ class DeliveryModule:
            Otherwise, the message is either a reply or an encrypted
            forward message.
            """
-        return SimpleModuleDeliveryQueue(self, queueDir)
+        return SimpleModuleDeliveryQueue(self, queueDir,
+                                   retrySchedule=self.getRetrySchedule())
 
     def processMessage(self, packet):
         """Given a DeliveryPacket object, try to delier it.  Return one of:
@@ -124,10 +131,9 @@ class ImmediateDeliveryQueue:
     def __init__(self, module):
         self.module = module
 
-    def queueDeliveryMessage(self, addr, packet, retry=0):
+    def queueDeliveryMessage(self, packet, retry=0, lastAttempt=0):
         """Instead of queueing our message, pass it directly to the underlying
            DeliveryModule."""
-        assert addr is None
         try:
             res = self.module.processMessage(packet)
             if res == DELIVER_OK:
@@ -153,13 +159,13 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
        don't care about batching messages to like addresses."""
     ## Fields:
     # module: the underlying module.
-    def __init__(self, module, directory):
-        mixminion.server.ServerQueue.DeliveryQueue.__init__(self, directory)
+    def __init__(self, module, directory, retrySchedule=None):
+        mixminion.server.ServerQueue.DeliveryQueue.__init__(self, directory,
+                                                            retrySchedule)
         self.module = module
 
     def _deliverMessages(self, msgList):
-        for handle, addr, packet, n_retries in msgList:
-            assert addr is None
+        for handle, packet, n_retries in msgList:
             try:
                 result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
@@ -173,11 +179,6 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 LOG.error_exc(sys.exc_info(),
                                    "Exception delivering message")
                 self.deliveryFailed(handle, 0)
-
-    def queueDeliveryMessage(self, addr, packet, retry=0):
-        assert addr is None
-        mixminion.server.ServerQueue.DeliveryQueue.queueDeliveryMessage(
-            self, None, packet, retry)
 
 class DeliveryThread(threading.Thread):
     def __init__(self, moduleManager):
@@ -375,9 +376,6 @@ class ModuleManager:
         if self.enabled.has_key(module.getName()):
             del self.enabled[module.getName()]
 
-    def queueMessage2(self, packet):
-        self.queueDecodedMessage(packet)
-
     def queueDecodedMessage(self, packet):
         #DOCDOC
         exitType = packet.getExitType()
@@ -391,7 +389,7 @@ class ModuleManager:
         LOG.debug("Delivering message %r (type %04x) via module %s",
                   packet.getContents()[:8], exitType, mod.getName())
        
-        queue.queueDeliveryMessage(None, packet)
+        queue.queueDeliveryMessage(packet)
         
     #DOCDOC
     def shutdown(self):
@@ -422,6 +420,8 @@ class DropModule(DeliveryModule):
     """Null-object pattern: drops all messages it receives."""
     def getConfigSyntax(self):
         return { }
+    def getRetrySchedule(self):
+        return [ ]
     def getServerInfoBlock(self):
         return ""
     def configure(self, config, manager):
@@ -590,11 +590,16 @@ class MBoxModule(DeliveryModule):
         DeliveryModule.__init__(self)
         self.addresses = {}
 
+    def getRetrySchedule(self):
+        return self.retrySchedule #DOCDOC
+
     def getConfigSyntax(self):
         # FFFF There should be some way to say that fields are required
         # FFFF if the module is enabled.
         return { "Delivery/MBOX" :
                  { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
+                   'Retry': ('ALLOW', _parseIntervalList,
+                             "7 hours for 6 days"),
                    'AddressFile' : ('ALLOW', None, None),
                    'ReturnAddress' : ('ALLOW', None, None),
                    'RemoveContact' : ('ALLOW', None, None),
@@ -617,6 +622,10 @@ class MBoxModule(DeliveryModule):
                 LOG.warn("Value of %s (%s) doesn't look like an email address",
                          field, sec[field])
 
+        mixInterval = sections['Server']['MixInterval'][2]
+        mixminion.server.ServerConfig._validateRetrySchedule(
+            mixInterval, entries, "Delivery/MBOX")
+
     def configure(self, config, moduleManager):
         if not config['Delivery/MBOX'].get("Enabled", 0):
             moduleManager.disableModule(self)
@@ -627,6 +636,7 @@ class MBoxModule(DeliveryModule):
         self.addressFile = sec['AddressFile']
         self.returnAddress = sec['ReturnAddress']
         self.contact = sec['RemoveContact']
+        self.retrySchedule = sec['Retry']
         # validate should have caught these.
         assert (self.server and self.addressFile and self.returnAddress
                 and self.contact)
@@ -735,9 +745,14 @@ class DirectSMTPModule(SMTPModule):
     def __init__(self):
         SMTPModule.__init__(self)
 
+    def getRetrySchedule(self):
+        return self.retrySchedule #DOCDOC
+
     def getConfigSyntax(self):
         return { "Delivery/SMTP" :
                  { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
+                   'Retry': ('ALLOW', _parseIntervalList,
+                             "7 hours for 6 days"),
                    'BlacklistFile' : ('ALLOW', None, None),
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
                    'Message' : ('ALLOW', None, ""),
@@ -762,6 +777,10 @@ class DirectSMTPModule(SMTPModule):
             LOG.warn("Return address (%s) doesn't look like an email address",
                      sec['ReturnAddress'])
 
+        mixInterval = sections['Server']['MixInterval'][2]
+        mixminion.server.ServerConfig._validateRetrySchedule(
+            mixInterval, entries, "Delivery/SMTP")
+
     def configure(self, config, manager):
         sec = config['Delivery/SMTP']
         if not sec.get('Enabled'):
@@ -769,6 +788,7 @@ class DirectSMTPModule(SMTPModule):
             return
 
         self.server = sec['SMTPServer']
+        self.retrySchedule = sec['Retry']
         if sec['BlacklistFile']:
             self.blacklist = EmailAddressSet(fname=sec['BlacklistFile'])
         else:
@@ -824,9 +844,14 @@ class MixmasterSMTPModule(SMTPModule):
     def __init__(self):
         SMTPModule.__init__(self)
 
+    def getRetrySchedule(self):
+        return self.retrySchedule #DOCDOC
+
     def getConfigSyntax(self):
         return { "Delivery/SMTP-Via-Mixmaster" :
                  { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
+                   'Retry': ('ALLOW', _parseIntervalList,
+                             "7 hours for 6 days"),
                    'MixCommand' : ('REQUIRE', _parseCommand, None),
                    'Server' : ('REQUIRE', None, None),
                    'SubjectLine' : ('ALLOW', None,
@@ -835,9 +860,14 @@ class MixmasterSMTPModule(SMTPModule):
                  }
 
     def validateConfig(self, sections, entries, lines, contents):
-        # Currently, we accept any configuration options that the config allows
-        pass
-
+        #XXXX write more
+        sec = sections['Delivery/SMTP-Via-Mixmaster']
+        if not sec.get("Enabled"):
+            return
+        mixInterval = sections['Server']['MixInterval'][2]
+        mixminion.server.ServerConfig._validateRetrySchedule(
+            mixInterval, entries, "Delivery/SMTP-Via-Mixmaster")
+        
     def configure(self, config, manager):
         sec = config['Delivery/SMTP-Via-Mixmaster']
         if not sec.get("Enabled", 0):
@@ -846,6 +876,7 @@ class MixmasterSMTPModule(SMTPModule):
         cmd = sec['MixCommand']
         self.server = sec['Server']
         self.subject = sec['SubjectLine']
+        self.retrySchedule = sec['Retry']
         self.command = cmd[0]
         self.options = tuple(cmd[1]) + ("-l", self.server,
                                         "-s", self.subject)
