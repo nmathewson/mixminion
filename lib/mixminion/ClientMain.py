@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.56 2003/02/13 10:56:40 nickm Exp $
+# $Id: ClientMain.py,v 1.57 2003/02/13 12:02:39 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -1418,7 +1418,6 @@ class MixminionClient:
            the message, and we don't pool it.
            """
         #XXXX004 write unit tests
-        LOG.info("Connecting...")
         timeout = self.config['Network'].get('ConnectionTimeout')
         if timeout:
             timeout = timeout[2]
@@ -1428,20 +1427,29 @@ class MixminionClient:
         else:
             handles = self.poolMessages(msgList, routingInfo)
 
+        if len(msgList) > 1:
+            mword = "messages"
+        else:
+            mword = "message"
+
         try:
             try:
                 # May raise TimeoutError
+                LOG.info("Connecting...")
                 mixminion.MMTPClient.sendMessages(routingInfo,
                                                   msgList,
                                                   timeout)
+                LOG.info("... %s sent", mword)
             except:
                 if noPool and warnIfLost:
-                    LOG.error("Error with pooling disabled: message lost")
+                    LOG.error("Error with pooling disabled: %s lost", mword)
                 elif lazyPool:
-                    LOG.info("Error while delivering message; message pooled")
+                    LOG.info("Error while delivering %s; %s pooled",
+                             mword,mword)
                     self.poolMessages(msgList, routingInfo)
                 else:
-                    LOG.info("Error while delivering message; leaving in pool")
+                    LOG.info("Error while delivering %s; leaving in pool",
+                             mword)
                 raise
             try:
                 clientLock()
@@ -1478,7 +1486,6 @@ class MixminionClient:
             handles = [ h for _, h in messagesByServer[routing] ] 
             try:
                 self.sendMessages(msgs, routing, noPool=1, warnIfLost=0)
-                LOG.info("... messages sent.")
                 try:
                     clientLock()
                     for h in handles:
