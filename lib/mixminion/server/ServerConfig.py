@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.26 2003/05/28 07:36:24 nickm Exp $
+# $Id: ServerConfig.py,v 1.27 2003/05/29 01:46:45 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -253,7 +253,7 @@ SERVER_SYNTAX =  {
                                           "5 minutes"),
                      'EncryptPrivateKey' : ('ALLOW', C._parseBoolean, "no"),
                      'Mode' : ('REQUIRE', C._parseServerMode, "local"),
-                     'Nickname': ('ALLOW', C._parseNickname, None),
+                     'Nickname': ('REQUIRE', C._parseNickname, None),
                      'Contact-Email': ('ALLOW', None, None),
                      'Comments': ('ALLOW', None, None),
                      'ModulePath': ('ALLOW', None, None),
