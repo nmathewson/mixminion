@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.18 2004/04/25 00:22:37 nickm Exp $
+# $Id: Filestore.py,v 1.19 2004/05/14 23:43:04 nickm Exp $
 
 """mixminion.Filestore
 
@@ -19,9 +19,11 @@ import cPickle
 import dumbdbm
 import errno
 import os
+import shelve
 import stat
 import threading
 import time
+import types
 import whichdb
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
@@ -527,6 +529,49 @@ class MixedMetadataStore(BaseMetadataStore, StringMetadataStoreMixin,
 # ======================================================================
 # Database wrappers
 
+def openDB(filename, purpose):
+    """DOCDOC"""
+    parent = os.path.split(filename)[0]
+    createPrivateDir(parent)
+
+    # If the file can't be read, bail.
+    try:
+        st = os.stat(filename)
+    except OSError, e:
+        if e.errno != errno.ENOENT:
+            raise
+        st = None
+    # If the file is empty, delete it and start over.
+    if st and st[stat.ST_SIZE] == 0:
+        LOG.warn("Half-created database %s found; cleaning up.", filename)
+        tryUnlink(filename)
+
+    LOG.debug("Opening %s database at %s", purpose, filename)
+    try:
+        db = anydbm.open(filename, 'c')
+    except anydbm.error, e:
+        raise MixFatalError("Can't open %s database: %s"%(purpose,e))
+    except ImportError:
+        dbtype = whichdb.whichdb(filename)
+        raise MixFatalError("Unsupported type for %s database: %s"
+                            %(purpose, dbtype))
+
+    if hasattr(db, 'sync'):
+        syncLog = db.sync
+    elif hasattr(db, '_commit'):
+        # Workaround for dumbdbm to allow syncing. (Standard in
+        # Python 2.3.)
+        syncLog = db._commit
+    else:
+        # Otherwise, force a no-op sync method.
+        syncLog = lambda : None
+
+    if isinstance(db, dumbdbm._Database):
+        LOG.warn("Warning: using a flat file for %s database", purpose)
+
+    return db, syncLog
+
+
 class DBBase:
     """A DBBase is a persistant store that maps keys to values, using
        a Python anydbm object.
@@ -552,43 +597,8 @@ class DBBase:
            creating the underlying database if needed."""
         self._lock = threading.RLock()
         self.filename = filename
-        parent = os.path.split(filename)[0]
-        createPrivateDir(parent)
 
-        # If the file can't be read, bail.
-        try:
-            st = os.stat(filename)
-        except OSError, e:
-            if e.errno != errno.ENOENT:
-                raise
-            st = None
-        # If the file is empty, delete it and start over.
-        if st and st[stat.ST_SIZE] == 0:
-            LOG.warn("Half-created database %s found; cleaning up.", filename)
-            tryUnlink(filename)
-
-        LOG.debug("Opening %s database at %s", purpose, filename)
-        try:
-            self.log = anydbm.open(filename, 'c')
-        except anydbm.error, e:
-            raise MixFatalError("Can't open %s database: %s"%(purpose,e))
-        except ImportError:
-            dbtype = whichdb.whichdb(filename)
-            raise MixFatalError("Unsupported type for %s database: %s"
-                                %(purpose, dbtype))
-
-        if hasattr(self.log, 'sync'):
-            self._syncLog = self.log.sync
-        elif hasattr(self.log, '_commit'):
-            # Workaround for dumbdbm to allow syncing. (Standard in
-            # Python 2.3.)
-            self._syncLog = self.log._commit
-        else:
-            # Otherwise, force a no-op sync method.
-            self._syncLog = lambda : None
-
-        if isinstance(self.log, dumbdbm._Database):
-            LOG.warn("Warning: using a flat file for %s database", purpose)
+        self.log, self._syncLog = openDB(filename, purpose)
 
         # Subclasses may want to check whether this is the right database,
         # flush the journal, and so on.
@@ -819,3 +829,51 @@ class BooleanJournaledDBBase(JournaledDBBase):
         return "1"
     def _decodeVal(self, v):
         return 1
+
+class WritethroughDict:
+    """DOCDOC"""
+    def __init__(self, filename, purpose):
+        self.db, self._syncLog = openDB(filename,purpose)
+        self.cache = {}
+        self.load()
+
+    def __setitem__(self, k, v):
+        assert type(k) == types.StringType
+        self.cache[k] = v
+        self.db[k] = cPickle.dumps(v,1)
+
+    def __getitem__(self, k):
+        assert type(k) == types.StringType
+        return self.cache[k]
+
+    def get(self, k, vOther=None):
+        try:
+            return self.cache[k]
+        except KeyError:
+            return vOther
+
+    def __delitem__(self, k):
+        del self.cache[k]
+        del self.db[k]
+
+    def has_key(self, k):
+        return self.cache.has_key(k)
+
+    def sync(self):
+        self._syncLog()
+
+    def close(self):
+        self._syncLog()
+        self.db.close()
+        del self.cache
+        del self.db
+        del self._syncLog
+
+    def keys(self):
+        return self.cache.keys()
+
+    def load(self):
+        keys = self.db.keys()
+        self.cache = cache = {}
+        for k in keys:
+            self.cache[k] = cPickle.loads(self.db[k])
