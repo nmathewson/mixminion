@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.81 2004/03/18 04:48:22 nickm Exp $
+# $Id: Config.py,v 1.82 2004/03/23 00:13:55 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -752,9 +752,11 @@ class _ConfigFile:
 
         if filename:
             contents = mixminion.Common.readPossiblyGzippedFile(filename)
+            self.fname = filename
             self.__load(contents)
         else:
             assert string is not None
+            self.fname = None
             self.__load(string)
 
     def __load(self, fileContents):
@@ -988,7 +990,9 @@ class ClientConfig(_ConfigFile):
                        'BlockEntries' : ('ALLOW*', 'list', ""),
                        'BlockExits' : ('ALLOW*', 'list', ""),
                        },
-        'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", "2 minutes")}
+        'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", None),
+                      'Timeout' : ('ALLOW', "interval", None) }
+
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
@@ -1011,11 +1015,27 @@ class ClientConfig(_ConfigFile):
         _validateHostSection(self['Host'])
 
         t = self['Network'].get('ConnectionTimeout')
-        if t:
-            if int(t) < 5:
-                LOG.warn("Very short connection timeout")
-            elif int(t) > 60:
-                LOG.warn("Very long connection timeout")
+        if t is not None:
+            LOG.warn("The ConnectionTimout option in your .mixminionrc is deprecated; use Timeout instead.")
+        t = self.getTimeout()
+        if int(t) < 5:
+            LOG.warn("Very short network timeout")
+        elif int(t) > 120:
+            LOG.warn("Very long network timeout")
+
+    def getTimeout(self):
+        """Return the network timeout in this configuration."""
+        network = self.get("Network",{})
+        # The variable is now called 'Timeout'...
+        t = network.get("Timeout",None)
+        if t is not None:
+            return int(t)
+        # ...but older code may call it 'ConnectionTimout'.
+        t = network.get("ConnectionTimeout",None)
+        if t is not None:
+            return int(t)
+        # ...default to 2 minutes.
+        return 120
 
 def _validateHostSection(sec):
     """Helper function: Makes sure that the shared [Host] section is correct;

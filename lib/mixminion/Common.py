@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.135 2004/03/18 05:55:50 nickm Exp $
+# $Id: Common.py,v 1.136 2004/03/23 00:13:55 nickm Exp $
 
 """mixminion.Common
 
@@ -753,6 +753,7 @@ def secureDelete(fnames, blocking=0):
     for i in xrange(0, len(fnames), 250-len(_SHRED_OPTS)):
         files = fnames[i:i+250-len(_SHRED_OPTS)]
         try:
+            #XXXX008 if blocking, we should just call this with P_WAIT.
             pid = os.spawnl(os.P_NOWAIT,
                             _SHRED_CMD, _SHRED_CMD, *(_SHRED_OPTS+files))
         except OSError, e:

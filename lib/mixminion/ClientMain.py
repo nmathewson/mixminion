@@ -192,7 +192,7 @@ DirectoryTimeout: 1 minute
 #BlockServers: example5,example6,example7
 
 [Network]
-ConnectionTimeout: 60 seconds
+Timeout: 2 minutes
 """ % fields)
 
 class MixminionClient:
@@ -441,12 +441,7 @@ class MixminionClient:
     def pingServer(self, routingInfo):
         """Given an IPV4Info, try to connect to a server and find out if
            it's up.  Returns a boolean and a status message."""
-        timeout = self.config['Network'].get('ConnectionTimeout')
-        if timeout:
-            timeout = int(timeout)
-        else:
-            timeout = 60
-
+        timeout = self.config.getTimeout()
         try:
             mixminion.MMTPClient.pingServer(routingInfo, timeout)
             return 1, "Server seems to be running"
@@ -472,17 +467,12 @@ class MixminionClient:
            XXXX return 1 if all delivered
            """
         #XXXX write unit tests
-        timeout = self.config['Network'].get('ConnectionTimeout')
-        if timeout:
-            timeout = int(timeout)
-        else:
-            timeout = 60
+        timeout = self.config.getTimeout()
 
         if noQueue or lazyQueue:
             handles = []
         else:
             handles = self.queuePackets(pktList, routingInfo)
-
 
         packetsSentByIndex = {}
         def callback(idx, packetsSentByIndex=packetsSentByIndex):
@@ -681,10 +671,12 @@ class MixminionClient:
                                                          userKeys=surbKeys,
                                                          retNym=nym)
                 if p:
-                    if nym:
-                        nym=nym[0]
+                    if nym == []:
+                        nym = "---"
+                    elif nym[0] in (None, ""):
+                        nym = "default identity"
                     else:
-                        nym="default"
+                        nym = nym[0]
                     if p.isSingleton():
                         results.append(p.getUncompressedContents())
                     else:
@@ -1312,7 +1304,7 @@ def runPing(cmd, args):
     client = parser.client
 
     for arg in args:
-        if '.' in arg:
+        if '.' in arg and not os.path.exists(arg):
             addrport = arg.split(":",1)
             if len(addrport) == 2:
                 try:
@@ -1406,7 +1398,8 @@ EXAMPLES:
 """.strip()
 
 def listServers(cmd, args):
-    """[Entry point] Print info about """
+    """[Entry point] Print info about servers in the directory, or on
+       the command line."""
     options, args = getopt.getopt(args, "hf:D:vQF:JTRs:cC",
                                   ['help', 'config=', "download-directory=",
                                    'verbose', 'quiet', 'feature=', 'justify',
