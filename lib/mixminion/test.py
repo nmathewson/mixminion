@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.107 2003/05/25 23:11:43 nickm Exp $
+# $Id: test.py,v 1.108 2003/05/26 20:04:22 nickm Exp $
 
 """mixminion.tests
 
@@ -2393,6 +2393,10 @@ class QueueTests(unittest.TestCase):
         self.d2 = mix_mktemp("q2")
         self.d3 = mix_mktemp("q3")
 
+    def unlink(self, fns):
+        for f in fns:
+            os.unlink(f)
+
     def testCreateQueue(self):
         # Nonexistent dir.
         self.failUnlessRaises(MixFatalError, Queue, self.d1)
@@ -2422,7 +2426,7 @@ class QueueTests(unittest.TestCase):
         queue.removeMessage(h2)
         self.assertEquals(1, queue.count())
 
-        queue.removeAll()
+        queue.removeAll(self.unlink)
 
     def testQueueOps(self):
         queue1 = Queue(self.d2, create=1)
@@ -2513,10 +2517,10 @@ class QueueTests(unittest.TestCase):
         self.assertEquals(obj, cPickle.loads(queue1.messageContents(h1)))
 
         # Scrub both queues.
-        queue1.removeAll()
-        queue2.removeAll()
-        queue1.cleanQueue()
-        queue2.cleanQueue()
+        queue1.removeAll(self.unlink)
+        queue2.removeAll(self.unlink)
+        queue1.cleanQueue(self.unlink)
+        queue2.cleanQueue(self.unlink)
 
     def testDeliveryQueues(self):
         d_d = mix_mktemp("qd")
@@ -2559,7 +2563,7 @@ class QueueTests(unittest.TestCase):
         queue.deliveryFailed(h3, retriable=0, now=now+4)
         allHandles = queue.getAllMessages()
         h4 = allHandles[0]
-        queue.cleanQueue()
+        queue.cleanQueue(self.unlink)
         files = os.listdir(d_d)
         files.sort()
         self.assertEquals(files, ["meta_"+h4, "msg_"+h4])
@@ -2604,8 +2608,8 @@ class QueueTests(unittest.TestCase):
         # Now Message 2 is timed out.
         self.assertEquals([], queue.getAllMessages())
 
-        queue.removeAll()
-        queue.cleanQueue()
+        queue.removeAll(self.unlink)
+        queue.cleanQueue(self.unlink)
 
         # Make sure old-style messages get nuked.
         writePickled(os.path.join(d_d, "msg_ABCDEFGH"),
@@ -2662,6 +2666,7 @@ class QueueTests(unittest.TestCase):
         for x in xrange(10):
             self.assertEquals(30, len(cmq.getBatch()))
 
+
         # Binomial Cottrell pool
         bcmq = BinomialCottrellMixPool(d_m, 600, 6, sendRate=.3)
         # (Just make sure that we don't always return the same number of
@@ -2676,8 +2681,8 @@ class QueueTests(unittest.TestCase):
         self.assert_(messageLens[0] <= 30)
         self.assert_(messageLens[-1] >= 30)
 
-        bcmq.removeAll()
-        bcmq.cleanQueue()
+        bcmq.removeAll(self.unlink)
+        bcmq.cleanQueue(self.unlink)
 
 #---------------------------------------------------------------------
 # LOGGING
@@ -3321,6 +3326,7 @@ class TestConfigFile(_ConfigFile):
 
 class ConfigFileTests(unittest.TestCase):
     def testValidFiles(self):
+        
         TCF = TestConfigFile
         # Try a minimal file.
         shorterString = """[Sec1]\nFoo a\n"""
@@ -4765,7 +4771,7 @@ Free to hide no more.
             queue.sendReadyMessages()
         finally:
             m = resumeLog()
-        self.assert_(m.endswith("[ERROR] Unable to deliver message\n"))
+        self.assert_(stringContains(m,"[ERROR] Unable to deliver message"))
         # After delivery: 91 and 92 go through, 93 stays, and 94 gets dropped.
         self.assertEquals(1, queue.count())
         self.assertEquals(5, len(os.listdir(dir)))
@@ -5720,7 +5726,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientMainTests))
+        suite.addTest(tc(QueueTests))
         return suite
 
     suite.addTest(tc(MiscTests))

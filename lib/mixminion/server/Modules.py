@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.37 2003/05/17 00:08:45 nickm Exp $
+# $Id: Modules.py,v 1.38 2003/05/26 20:04:25 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -150,6 +150,8 @@ class ImmediateDeliveryQueue:
                                "Exception delivering message")
             EventStats.log.unretriableDeliery() #XXXX
 
+        return "<nil>"
+
     def sendReadyMessages(self):
         # We do nothing here; we already delivered the messages
         pass
@@ -167,6 +169,7 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
         mixminion.server.ServerQueue.DeliveryQueue.__init__(self, directory,
                                                             retrySchedule)
         self.module = module
+        
 
     def _deliverMessages(self, msgList):
         for handle, packet in msgList:
@@ -174,14 +177,18 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 EventStats.log.attemptedDelivery() #XXXX
                 result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
+                    LOG.debug("Successfully delivered message MOD:%s", handle)
                     self.deliverySucceeded(handle)
                     EventStats.log.successfulDelivery() #XXXX
                 elif result == DELIVER_FAIL_RETRY:
+                    LOG.debug("Unable to deliver message MOD:%s; will retry",
+                              handle)
                     self.deliveryFailed(handle, 1)
                     EventStats.log.failedDelivery() #XXXX
                 else:
                     assert result == DELIVER_FAIL_NORETRY
-                    LOG.error("Unable to deliver message")
+                    LOG.error("Unable to deliver message MOD:%s; giving up",
+                              handle)
                     self.deliveryFailed(handle, 0)
                     EventStats.log.unretriableDelivery() #XXXX
             except:
@@ -404,12 +411,12 @@ class ModuleManager:
         if mod is None:
             LOG.error("Unable to handle message with unknown type %s",
                       exitType)
-            return
+            return "<nil>"
         queue = self.queues[mod.getName()]
         LOG.debug("Delivering message %r (type %04x) via module %s",
                   packet.getContents()[:8], exitType, mod.getName())
 
-        queue.queueDeliveryMessage(packet)
+        return queue.queueDeliveryMessage(packet)
 
     def shutdown(self):
         """Tell the delivery thread (if any) to stop."""

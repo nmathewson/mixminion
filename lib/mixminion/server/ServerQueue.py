@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.14 2003/05/17 00:08:45 nickm Exp $
+# $Id: ServerQueue.py,v 1.15 2003/05/26 20:04:27 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -151,7 +151,7 @@ class Queue:
         """Given a handle, removes the corresponding message from the queue."""
         self.__changeState(handle, "msg", "rmv") # handles locking.
 
-    def removeAll(self):
+    def removeAll(self, secureDeleteFn=None):
         """Removes all messages from this queue."""
         try:
             self._lock.acquire()
@@ -159,7 +159,7 @@ class Queue:
                 if m[:4] in ('inp_', 'msg_'):
                     self.__changeState(m[4:], m[:3], "rmv")
             self.n_entries = 0
-            self.cleanQueue()
+            self.cleanQueue(secureDeleteFn)
         finally:
             self._lock.release()
 
@@ -548,7 +548,8 @@ class DeliveryQueue(Queue):
             ds = self.deliveryState[handle] = _DeliveryState(now)
             self.nextAttempt[handle] = \
                      ds.getNextAttempt(self.retrySchedule, now)
-            #self._saveState()
+            LOG.trace("ServerQueue got message %s for %s",
+                      handle, self.dir)
             self._writeState(handle)
         finally:
             self._lock.release()
@@ -633,28 +634,40 @@ class DeliveryQueue(Queue):
         try:
             self._lock.acquire()
             Queue.removeMessage(self, handle)
-            for d in self.pending, self.deliveryState, self.nextAttempt:
-                try:
-                    del d[handle]
-                except KeyError:
-                    pass
+            try:
+                del self.pending[handle]
+                pending = 1
+            except KeyError:
+                pending = 0
+
+            try:
+                del self.deliveryState[handle]
+            except KeyError:
+                LOG.error("Removing message %s with no delivery state", handle)
+            try:
+                del self.nextAttempt[handle]
+            except KeyError:
+                LOG.error("Removing message %s with no nextAttempt", handle)
+
             try:
                 del self.sendable[self.sendable.index(handle)]
             except ValueError:
-                pass
+                if not pending:
+                    LOG.error("Removing message %s in neither "
+                              "'sendable' nor 'pending' list", handle)
 
             self._writeState(handle)
         finally:
             self._lock.release()
 
-    def removeAll(self):
+    def removeAll(self, secureDeleteFn=None):
         try:
             self._lock.acquire()
-            Queue.removeAll(self)
             for m in os.listdir(self.dir):
                 if m[:5] == 'meta_':
                     os.rename(os.path.join(self.dir, m),
                               os.path.join(self.dir, "rmv_"+m))
+            Queue.removeAll(self, secureDeleteFn)
             self.deliveryState = {}
             self.pending = {}
             self.nextAttempt = {}
@@ -708,7 +721,7 @@ class DeliveryQueue(Queue):
                 ds.setLastAttempt(lastAttempt)
                 nextAttempt = ds.getNextAttempt(self.retrySchedule, now)
                 if nextAttempt is not None:
-                    LOG.trace("     (We'll %s try again at %s)", handle,
+                    LOG.trace("     (We'll try %s again at %s)", handle,
                               formatTime(nextAttempt, 1))
                     # There is another scheduled delivery attempt.  Remember
                     # it, mark the message sendable again, and save our state.

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.42 2003/05/25 20:55:29 nickm Exp $
+# $Id: Makefile,v 1.43 2003/05/26 20:04:10 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -234,8 +234,10 @@ pychecker: do_build
 	( export PYTHONPATH=.; cd build/lib*; pychecker -F ../../pycheckrc \
 	  ./mixminion/*.py ./mixminion/*/*.py )
 
-lines: clean
-	wc -l src/*.[ch] lib/*/*.py lib/*/*/*.py
+lines: 
+	@$(FINDPYTHON);                                                      \
+	$$PYTHON etc/countlines.py src/*.[ch] lib/mixminion/[A-Z_]*.py       \
+	         lib/mixminion/*/*.py --noncode lib/mixminion/[a-z]*.py
 
 xxxx:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \

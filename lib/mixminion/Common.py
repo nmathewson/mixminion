@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.77 2003/05/23 22:49:30 nickm Exp $
+# $Id: Common.py,v 1.78 2003/05/26 20:04:16 nickm Exp $
 
 """mixminion.Common
 
@@ -23,6 +23,7 @@ import calendar
 import cPickle
 import errno
 import fcntl
+import grp
 import gzip
 import os
 import re
@@ -352,8 +353,9 @@ def checkPrivateDir(d, recurse=1):
         if (mode & 020) and not (mode & stat.S_ISVTX):
             # FFFF We may want to give an even stronger error here.
             if not _WARNED_DIRECTORIES.has_key(d):
-                LOG.warn("Iffy mode %o on directory %s (Writable by gid %s)",
-                         mode, d, st[stat.ST_GID])
+                group = grp.getgrgid(st[stat.ST_GID])[0]
+                LOG.warn("Directory %s is writable by group %s (mode %o)",
+                         d, group, mode&0777)
             _WARNED_DIRECTORIES[d] = 1
 
 #----------------------------------------------------------------------

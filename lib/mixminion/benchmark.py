@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.34 2003/05/17 00:08:43 nickm Exp $
+# $Id: benchmark.py,v 1.35 2003/05/26 20:04:19 nickm Exp $
 
 """mixminion.benchmark
 
@@ -903,6 +903,10 @@ def testLeaks6_2():
 
 #----------------------------------------------------------------------
 def timeAll(name, args):
+    if 1:
+        serverQueueTiming()
+        return
+    
     cryptoTiming()
     rsaTiming()
     buildMessageTiming()

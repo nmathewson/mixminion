@@ -93,13 +93,13 @@ For 0.0.4:
                   "server not there." Log accordingly.
                 o The retry scheduling logic is bogus.
                 o Attach debugging log calls to DeliveryQueue.
-                - Add more logging code to track fds with MMTPServer.
-                - Make sure that deliveryFailed/deliverySucceeded
+                o "Iffy mode" is iffy message
+                o Add more logging code to track fds with MMTPServer.
+                o Make sure that deliveryFailed/deliverySucceeded
                   with a nonexistent handle give a warning, and don't
                   simply die.
-                - Analyze logic: how can a timeout cause deliveryFailed
+                o Analyze logic: how can a timeout cause deliveryFailed
                   on a nonexistent handle?
-                - "Iffy mode" is iffy message
         o Improved path selection
                 o Better syntax
                 o Improved implementation
@@ -112,13 +112,13 @@ For 0.0.4:
                         o Tests
                 . Ability to generate new serverdesc with old keys.
                         o Implement
-                        o Test backend
-                        - Automate
+?                       o Test backend
+.5                     *- Automate
                 . Ability to notice discrepancies between SD and
                   server configuration.
                         o Implement
 .5                      - Test backend
-.5                      - Integrate with frontend
+.5                     *- Integrate with frontend
                 . Online key rotation
                         o Function to determine time for next rotation event.
                         o Ability to add PK to packethandler
@@ -135,20 +135,20 @@ For 0.0.4:
                                   reject them if invalid,
                                   and queue them if unrecognized.
 2                               - Tests for above
-.5-1.5                          . The actual CGI
+.5-1.5                         *. The actual CGI
                         o Ability to move servers from queue to good-list.
 0.5                             - Tests
                         . Code to remember whether descriptors are published,
                           and republish as needed
                                 o Implement
-.5                              - Add 'publish' option
-1                               - Add explicit 'republish' command.
+.5                             *- Add 'publish' option
+1                              *- Add explicit 'republish' command.
 1                               - Tests
                         o Design directory liveness format.  Maybe include
                           all servers in "live" list for now?
-1                       - Add code to make directory list some servers
+1                      *- Add code to make directory list some servers
                           as 'ungood'
-0.5                     - Code to automatically regenerate directories as
+0.5                    *- Code to automatically regenerate directories as
                           needed.
         o Make "=== BEGIN" stuff comply with openpgp rfc: why rock
           the boat?

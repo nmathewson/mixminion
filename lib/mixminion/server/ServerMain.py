@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.54 2003/05/23 22:49:30 nickm Exp $
+# $Id: ServerMain.py,v 1.55 2003/05/26 20:04:25 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -65,9 +65,8 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
 
     def queueMessage(self, msg):
         """Add a message for delivery"""
-        LOG.trace("Inserted message %s into incoming queue",
-                  formatBase64(msg[:8]))
         h = mixminion.server.ServerQueue.Queue.queueMessage(self, msg)
+        LOG.trace("Inserting message IN:%s into incoming queue", h)
         assert h is not None
         self.processingThread.addJob(
             lambda self=self, h=h: self.__deliverMessage(h))
@@ -82,32 +81,29 @@ class IncomingQueue(mixminion.server.ServerQueue.Queue):
             res = ph.processMessage(message)
             if res is None:
                 # Drop padding before it gets to the mix.
-                LOG.debug("Padding message %s dropped",
-                          formatBase64(message[:8]))
+                LOG.debug("Padding message IN:%s dropped", handle)
                 self.removeMessage(handle)
             else:
                 if res.isDelivery():
                     res.decode()
-                LOG.debug("Processed message %s; inserting into pool",
-                          formatBase64(message[:8]))
-                self.mixPool.queueObject(res)
+
+                h2 = self.mixPool.queueObject(res)
                 self.removeMessage(handle)
+                LOG.debug("Processed message IN:%s; inserting into mix pool as MIX:%s",
+                          handle, h2)
         except mixminion.Crypto.CryptoError, e:
-            LOG.warn("Invalid PK or misencrypted header in message %s: %s",
-                     formatBase64(message[:8]), e)
+            LOG.warn("Invalid PK or misencrypted header in message IN:%s: %s",
+                     handle, e)
             self.removeMessage(handle)
         except mixminion.Packet.ParseError, e:
-            LOG.warn("Malformed message %s dropped: %s",
-                     formatBase64(message[:8]), e)
+            LOG.warn("Malformed message IN:%s dropped: %s", handle, e)
             self.removeMessage(handle)
         except mixminion.server.PacketHandler.ContentError, e:
-            LOG.warn("Discarding bad packet %s: %s",
-                     formatBase64(message[:8]), e)
+            LOG.warn("Discarding bad packet IN:%s: %s", handle, e)
             self.removeMessage(handle)
         except:
             LOG.error_exc(sys.exc_info(),
-                    "Unexpected error when processing message %s (handle %s)",
-                          formatBase64(message[:8]), handle)
+                    "Unexpected error when processing IN:%s", handle)
             self.removeMessage(handle) # ???? Really dump this message?
 
 class MixPool:
@@ -156,7 +152,7 @@ class MixPool:
 
     def queueObject(self, obj):
         """Insert an object into the pool."""
-        self.queue.queueObject(obj)
+        return self.queue.queueObject(obj)
 
     def count(self):
         "Return the number of messages in the pool"
@@ -182,15 +178,16 @@ class MixPool:
             packet = self.queue.getObject(h)
             if type(packet) == type(()):
                 #XXXX005 remove this case.
-                LOG.error("  (skipping message %s in obsolete format)", h)
+                LOG.error("  (skipping message MIX:%s in obsolete format)", h)
             elif packet.isDelivery():
-                LOG.debug("  (sending message %s to exit modules)",
-                          formatBase64(packet.getContents()[:8]))
-                self.moduleManager.queueDecodedMessage(packet)
+                h2 = self.moduleManager.queueDecodedMessage(packet)
+                LOG.debug("  (sending message MIX:%s to exit modules as MOD:%s)"
+                          , h, h2)
+
             else:
-                LOG.debug("  (sending message %s to MMTP server)",
-                          formatBase64(packet.getPacket()[:8]))
-                self.outgoingQueue.queueDeliveryMessage(packet)
+                h2 = self.outgoingQueue.queueDeliveryMessage(packet)
+                LOG.debug("  (sending message MIX:%s to MMTP server as OUT:%s)"
+                          , h, h2)
             # In any case, we're through with this message now.
             self.queue.removeMessage(h)
 
@@ -238,7 +235,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         for handle, packet in msgList:
             if not isinstance(packet,
                               mixminion.server.PacketHandler.RelayedPacket):
-                LOG.warn("Skipping packet in obsolete format")
+                LOG.warn("Skipping packet OUT:%s in obsolete format", handle)
                 self.deliverySucceeded(handle)
                 continue
             addr = packet.getAddress()
@@ -249,13 +246,14 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 if self.addr[2] != addr.keyinfo:
                     LOG.warn("Delivering messages to myself with bad KeyID")
                 for h,m in messages:
-                    LOG.trace("Delivering message %s to myself.",
-                              formatBase64(m[:8]))
+                    LOG.trace("Delivering message OUT:%s to myself.", h)
                     self.incomingQueue.queueMessage(m)
                     self.deliverySucceeded(h)
                 continue
 
             handles, messages = zip(*messages)
+            LOG.trace("Delivering messages OUT:[%s] to %s:%s",
+                      " ".join(handles), addr.ip,addr.port)
             self.server.sendMessages(addr.ip, addr.port, addr.keyinfo,
                                      list(messages), list(handles))
 
@@ -308,7 +306,7 @@ class CleaningThread(threading.Thread):
 
     def deleteFile(self, fname):
         """Schedule the file named 'fname' for deletion"""
-        LOG.trace("Scheduling %s for deletion", fname)
+        #LOG.trace("Scheduling %s for deletion", fname)
         assert fname is not None
         self.mqueue.put(fname)
 
@@ -334,7 +332,7 @@ class CleaningThread(threading.Thread):
                     LOG.info("Cleanup thread shutting down.")
                     return
                 if os.path.exists(fn):
-                    LOG.trace("Deleting %s", fn)
+                    #LOG.trace("Deleting %s", fn)
                     secureDelete(fn, blocking=1)
                 else:
                     LOG.warn("Delete thread didn't find file %s",fn)
