@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.60 2003/11/19 09:48:10 nickm Exp $
+# $Id: Modules.py,v 1.61 2003/11/20 08:50:19 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -37,7 +37,7 @@ import mixminion.server.EventStats as EventStats
 import mixminion.server.PacketHandler
 from mixminion.Config import ConfigError
 from mixminion.Common import LOG, MixError, ceilDiv, createPrivateDir, \
-     encodeBase64, isPrintingAscii, isSMTPMailbox, previousMidnight, \
+     encodeBase64, floorDiv, isPrintingAscii, isSMTPMailbox, previousMidnight,\
      readFile, waitForChildren
 from mixminion.Packet import ParseError, CompressedDataTooLong, uncompressData
 
@@ -552,11 +552,31 @@ class FragmentModule(DeliveryModule):
     
     def validateConfig(self, config, lines, contents):
         frag = config.get('Delivery/Fragmented', {}).get("Enabled")
-        mbox = config.get('Delivery/MBOX', {}).get("Enabled")
-        smtp = config.get('Delivery/SMTP', {}).get("Enabled")
-        smtpmm = config.get('Delivery/SMTP-Via-Mixmaster', {}).get("Enabled")
-        if frag and not (mbox or smtp or smtpmm):
+        if not frag:
+            return
+
+        # There are two concerns with making fragment config match up with
+        # the other delivery modules: first, we need to make sure that if
+        # we defragment, we have some way to reassemble fragmented messages.
+        deliverySecs = [ 'Delivery/MBOX', 'Delivery/SMTP',
+                         'Delivery/SMTP-Via-Mixmaster' ]
+        enabled = [ config.get(s,{}).get("Enabled") for s in deliverySecs ]
+        if not max(enabled):
             raise ConfigError("You've specified Fragmented delivery, but no actual delivery method.  This doesn't make much sense.")
+
+        # Second, we warn if our MaximumSize settings aren't wildly out of
+        # line.  We allow some leeway since fragment size is measured
+        # before decompressing, and delivery size is measured after.  A
+        # factor of 20 seem adequate.
+        maxSize = config.get('Delivery/Fragmented',{})['MaximumSize']
+        for ds, e in zip(deliverySecs, enabled):
+            if not e: continue
+            deliverSize = config.get(ds,{}).get('MaximumSize')
+
+            if maxSize > deliverSize:
+                LOG.warn("Delivery/Fragmented MaximumSize is larger than can be delivered with %s MaximumSize",ds)
+            elif deliverSize > maxSize*10:
+                LOG.warn("%s MaximumSize is larger than is likely to be reassembled from Delivery/Fragmented MaximumSize")
         
     def getRetrySchedule(self):
         return [ ]
@@ -758,7 +778,7 @@ class _FragmentedDeliveryMessage:
             self.headers = {}
             self.tp = 'err'
         del self.m
-        
+
 #----------------------------------------------------------------------
 class EmailAddressSet:
     """A set of email addresses stored on disk, for use in blacklisting email
@@ -889,6 +909,18 @@ class EmailAddressSet:
         return 0
 
 #----------------------------------------------------------------------
+
+def _cleanMaxSize(sz,modname):
+    """DOCDOC"""
+    if sz < 32*1024:
+        LOG.warn("Ignoring low maximum message size for %s",modname)
+        sz = 32*1024
+    if sz & 0x3FF:
+        kb = floorDiv(sz,1024)+1
+        LOG.warn("Rounding %s maximum message size up to %s KB",modname,kb)
+        sz = 1024*kb
+    return sz
+
 class MailBase:
     """Implementation class: contains code shared by modules that send email
        messages (such as mbox and smtp)."""
@@ -939,7 +971,6 @@ class MailBase:
             address, fromAddr, subject, "".join(morelines), self.header, msg)
 
         return msg
-
 
 #----------------------------------------------------------------------
 class MBoxModule(DeliveryModule, MailBase):
@@ -1022,10 +1053,8 @@ class MBoxModule(DeliveryModule, MailBase):
         if not self.nickname:
             self.nickname = socket.gethostname()
         self.addr = config['Incoming/MMTP'].get('IP', "<Unknown IP>")
-        self.maxMessageSize = sec['MaximumSize']
-        if self.maxMessageSize < 32*1024:
-            LOG.warn("Ignoring low maximum message sze")
-            self.maxMessageSize = 32*1024
+        self.maxMessageSize = _cleanMaxSize(sec['MaximumSize'],
+                                            "Delivery/MBOX")
 
         # These fields are needed by MailBase
         self.subject = "Type III Anonymous Message"
@@ -1072,8 +1101,9 @@ and you will be removed.""" %(self.nickname, self.addr, self.contact)
         return """\
                   [Delivery/MBOX]
                   Version: 0.1
+                  Maximum-Size: %s
                   Allow-From: %s
-               """ % (allowFrom)
+               """ % (floorDiv(self.maxMessageSize,1024), allowFrom)
 
     def getName(self):
         return "MBOX"
@@ -1112,7 +1142,7 @@ class SMTPModule(DeliveryModule, MailBase):
             allowFrom = "no"
         return ("[Delivery/SMTP]\nVersion: 0.1\n"
                 "Maximum-Size: %s\nAllow-From: %s\n") % (
-                    ceilDiv(self.maxMessageSize,1024), allowFrom)
+                    floorDiv(self.maxMessageSize,1024), allowFrom)
     def getName(self):
         return "SMTP"
     def getExitTypes(self):
@@ -1191,10 +1221,8 @@ class DirectSMTPModule(SMTPModule):
         else:
             self.header = "X-Anonymous: yes"
 
-        self.maxMessageSize = sec['MaximumSize']
-        if self.maxMessageSize < 32*1024:
-            LOG.warn("Ignoring low maximum message sze")
-            self.maxMessageSize = 32*1024
+        self.maxMessageSize = _cleanMaxSize(sec['MaximumSize'],
+                                            "Delivery/SMTP")
 
         manager.enableModule(self)
 
@@ -1282,10 +1310,8 @@ class MixmasterSMTPModule(SMTPModule):
         self.options = tuple(cmd[1]) + ("-l", self.server)
         self.returnAddress = "nobody"
         self.header = "X-Anonymous: yes"
-        self.maxMessageSize = sec['MaximumSize']
-        if self.maxMessageSize < 32*1024:
-            LOG.warn("Ignoring low maximum message sze")
-            self.maxMessageSize = 32*1024
+        self.maxMessageSize = _cleanMaxSize(sec['MaximumSize'],
+                                            "Delivery/SMTP-Via-Mixmaster")
         manager.enableModule(self)
 
     def getName(self):
