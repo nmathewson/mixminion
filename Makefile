@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.7 2002/08/29 03:30:21 nickm Exp $
+# $Id: Makefile,v 1.8 2002/09/06 20:43:22 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -18,11 +18,11 @@ PYTHON_CANDIDATES = python2.2 python2.2x python2.1 python2.1x python2.0      \
 FINDPYTHON = \
 	for n in $(PYTHON_CANDIDATES) ; do                                   \
 	  if [ 'x' = "x$$PYTHON" ]; then                                     \
-            if [ -x `which $$n 2>&1` ]; then                                 \
-	    PYTHON=$$n;                                                      \
-	    fi;                                                              \
-          fi ;                                                               \
-	done ;                                                               \
+            if [ -x "`which $$n 2>&1`" ]; then                               \
+	            PYTHON=$$n;                                              \
+                fi;                                                          \
+            fi;                                                              \
+	done;                                                                \
 	if [ 'x' = "x$$PYTHON" ]; then                                       \
 	    echo 'ERROR: couldn't find any of $(PYTHON_CANDIDATES) in PATH"; \
 	    echo '   Please install python in your path, or set the PYTHON"; \
