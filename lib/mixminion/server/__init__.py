@@ -1,9 +1,9 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.1 2002/12/11 06:58:55 nickm Exp $
+# $Id: __init__.py,v 1.2 2002/12/31 04:36:12 nickm Exp $
 
-"""mixminion
+"""mixminion.server
 
-   Client and server code for type III anonymous remailers.
+   Server code for type III anonymous remailers.
    """
 
 __all__ = [ ]
