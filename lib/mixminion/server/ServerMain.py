@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.67 2003/06/02 17:56:34 nickm Exp $
+# $Id: ServerMain.py,v 1.68 2003/06/05 02:18:11 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1022,6 +1022,12 @@ def runServer(cmd, args):
         LOG.fatal_exc(info,"Exception while configuring server")
         LOG.fatal("Shutting down because of exception: %s", info[0])
         sys.exit(1)
+
+    # Undocumented feature to cajole python into dumping gc info.
+    if config['Server']['__DEBUG_GC']:
+        import gc
+        gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_COLLECTABLE|gc.DEBUG_UNCOLLECTABLE
+                     |DEBUG_INSTANCES|DEBUG_OBJECTS)
 
     daemonMode = config['Server'].get("Daemon",1)
     if daemonMode:
