@@ -400,6 +400,44 @@ class ClientDirectory:
                 lines.append(line)
         return lines
 
+    def listServers2(self, features, at=None, goodOnly=0):
+        """DOCDOC
+           Returns a dict from nickname to (va,vu) to feature to value."""
+        result = {}
+        if not self.fullServerList:
+            return {}
+        dirFeatures = [ 'status' ]
+        resFeatures = []
+        for f in features:
+            if f.lower() in dirFeatures:
+                resFeatures.append((f, ('+', f.lower())))
+            else:
+                feature = mixminion.Config.resolveFeatureName(
+                    f, mixminion.ServerInfo.ServerInfo)
+                resFeatures.append((f, feature))
+        for sd, _ in self.fullServerList:
+            if at and not sd.isValidAt(at):
+                continue
+            nickname = sd.getNickname()
+            isGood = self.goodServerNicknames.get(nickname, 0)
+            if goodOnly and not isGood:
+                continue
+            va, vu = sd['Server']['Valid-After'], sd['Server']['Valid-Until']
+            d = result.setdefault(nickname, {}).setdefault((va,vu), {})
+            for feature,(sec,ent) in resFeatures:
+                if sec == '+':
+                    if ent == 'status':
+                        if isGood:
+                            d['status'] = "(ok)"
+                        else:
+                            d['status'] = "(not recommended)"
+                    else:
+                        assert 0
+                else:
+                    d[feature] = str(sd.getFeature(sec,ent))
+
+        return result
+
     def __find(self, lst, startAt, endAt):
         """Helper method.  Given a list of (ServerInfo, where), return all
            elements that are valid for all time between startAt and endAt.
@@ -755,6 +793,87 @@ class ClientDirectory:
         else:
             LOG.warn("This software is newer than any version "
                      "on the recommended list.")
+
+#----------------------------------------------------------------------
+def compressServerList(featureMap, ignoreGaps=0, terse=0):
+    """DOCDOC
+        featureMap is nickname -> va,vu -> feature -> value .
+        result is  same format, but time is compressed.
+    """
+    result = {}
+    for nickname in featureMap.keys():
+        byStartTime = featureMap[nickname].items()
+        byStartTime.sort()
+        r = []
+        for (va,vu),features in byStartTime:
+            if not r:
+                r.append((va,vu,features))
+                continue
+            lastva, lastvu, lastfeatures = r[-1]
+            if (ignoreGaps or lastvu == va) and lastfeatures == features:
+                r[-1] = lastva, vu, features
+            else:
+                r.append((va,vu,features))
+        result[nickname] = {}
+        for va,vu,features in r:
+            result[nickname][(va,vu)] = features
+
+        if not terse: continue
+        if not result[nickname]: continue
+        
+        ritems = result[nickname].items()
+        minva = min([ va for (va,vu),features in ritems ])
+        maxvu = max([ vu for (va,vu),features in ritems ])
+        rfeatures = {}
+        for (va,vu),features in ritems:
+            for f,val in features.items():
+                if rfeatures.setdefault(f,val) != val:
+                    rfeatures[f] += " / %s"%val
+        result[nickname] = { (minva,maxvu) : rfeatures }
+    
+    return result
+
+def formatFeatureMap(features, featureMap, showTime=0, cascade=0, sep=" "):
+    # No cascade:
+    # nickname:time1: value value value
+    # nickname:time2: value value value
+
+    # Cascade=1:
+    # nickname:
+    #     time1: value value value
+    #     time2: value value value
+
+    # Cascade = 2:
+    # nickname:
+    #     time:
+    #       feature:value
+    #       feature:value
+    #       feature:value
+    nicknames = [ (nn.lower(), nn) for nn in featureMap.keys() ]
+    nicknames.sort()
+    lines = []
+    if not nicknames: return lines
+    for _, nickname in nicknames:
+        d = featureMap[nickname]
+        if not d: continue
+        items = d.items()
+        items.sort()
+        if cascade: lines.append("%s:"%nickname)
+        for (va,vu),fmap in items:
+            ftime = "%s to %s"%(formatDate(va),formatDate(vu))
+            if cascade and showTime:
+                lines.append("  %s:"%ftime)
+            if cascade:
+                for f in features:
+                    v = fmap[f]
+                    lines.append("    %s:%s"%(f,v))
+            elif showTime:
+                lines.append("%s:%s:%s" %(nickname,ftime,
+                   sep.join([fmap[f] for f in features])))
+            else:
+                lines.append("%s:%s" %(nickname,
+                   sep.join([fmap[f] for f in features])))
+    return lines
 
 #----------------------------------------------------------------------
 

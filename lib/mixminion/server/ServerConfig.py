@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.38 2003/10/19 03:12:02 nickm Exp $
+# $Id: ServerConfig.py,v 1.39 2003/11/07 07:03:28 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -20,10 +20,12 @@ class ServerConfig(mixminion.Config._ConfigFile):
     #   moduleManager
     #
     _restrictFormat = 0
+    
     def __init__(self, fname=None, string=None, moduleManager=None):
         # We use a copy of SERVER_SYNTAX, because the ModuleManager will
         # mess it up.
         self._syntax = SERVER_SYNTAX.copy()
+        self.CODING_FNS = CODING_FNS
 
         if moduleManager is None:
             self.moduleManager = mixminion.server.Modules.ModuleManager()
@@ -255,65 +257,69 @@ def _parseFraction(frac):
     return ratio
 
 # alias to make the syntax more terse.
-C = mixminion.Config
 
 SERVER_SYNTAX =  {
-        'Host' : C.ClientConfig._syntax['Host'],
+        'Host' : mixminion.Config.ClientConfig._syntax['Host'],
         'Server' : { '__SECTION__' : ('REQUIRE', None, None),
                      'Homedir' :
-                         ('ALLOW', C._parseFilename, "/var/spool/minion"),
+                         ('ALLOW', "filename", "/var/spool/minion"),
                      'LogFile' : ('ALLOW', None, None),
-                     'LogLevel' : ('ALLOW', C._parseSeverity, "WARN"),
-                     'EchoMessages' : ('ALLOW', C._parseBoolean, "no"),
-                     'Daemon' : ('ALLOW', C._parseBoolean, "no"),
-                     'LogStats' : ('ALLOW', C._parseBoolean, 'yes'),
-                     'StatsInterval' : ('ALLOW', C._parseInterval,
+                     'LogLevel' : ('ALLOW', "severity", "WARN"),
+                     'EchoMessages' : ('ALLOW', "boolean", "no"),
+                     'Daemon' : ('ALLOW', "boolean", "no"),
+                     'LogStats' : ('ALLOW', "boolean", 'yes'),
+                     'StatsInterval' : ('ALLOW', "interval",
                                         "1 day"),
                      'StatsFile' : ('ALLOW', None, None),
-                     'EncryptIdentityKey' :('ALLOW', C._parseBoolean, "no"),
-                     'IdentityKeyBits': ('ALLOW', C._parseInt, "2048"),
-                     'PublicKeyLifetime' : ('ALLOW', C._parseInterval,
+                     'EncryptIdentityKey' :('ALLOW', "boolean", "no"),
+                     'IdentityKeyBits': ('ALLOW', "int", "2048"),
+                     'PublicKeyLifetime' : ('ALLOW', "interval",
                                             "30 days"),
-                     'PublicKeyOverlap': ('ALLOW', C._parseInterval,
+                     'PublicKeyOverlap': ('ALLOW', "interval",
                                           "24 hours"),
-                     'EncryptPrivateKey' : ('ALLOW', C._parseBoolean, "no"),
-                     'Mode' : ('REQUIRE', C._parseServerMode, "local"),
-                     'Nickname': ('REQUIRE', C._parseNickname, None),
+                     'EncryptPrivateKey' : ('ALLOW', "boolean", "no"),
+                     'Mode' : ('REQUIRE', "serverMode", "local"),
+                     'Nickname': ('REQUIRE', "nickname", None),
                      'Contact-Email': ('ALLOW', None, None),
                      'Comments': ('ALLOW', None, None),
                      'ModulePath': ('ALLOW', None, None),
                      'Module': ('ALLOW*', None, None),
-                     'MixAlgorithm' : ('ALLOW', _parseMixRule, "Timed"),
-                     'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
-                     'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
-                     'MixPoolMinSize' : ('ALLOW', C._parseInt, "5"),
-		     'Timeout' : ('ALLOW', C._parseInterval, "5 min"),
+                     'MixAlgorithm' : ('ALLOW', "mixRule", "Timed"),
+                     'MixInterval' : ('ALLOW', "interval", "30 min"),
+                     'MixPoolRate' : ('ALLOW', "fraction", "60%"),
+                     'MixPoolMinSize' : ('ALLOW', "int", "5"),
+		     'Timeout' : ('ALLOW', "interval", "5 min"),
                      #XXXX006 remove this.
-                     '__DEBUG_GC' : ('ALLOW', C._parseBoolean, "no"),
+                     '__DEBUG_GC' : ('ALLOW', "boolean", "no"),
                      },
         'DirectoryServers' : { # '__SECTION__' : ('REQUIRE', None, None),
                                'ServerURL' : ('ALLOW*', None, None),
                                'PublishURL' : ('ALLOW*', None, None),
-                               'Publish' : ('ALLOW', C._parseBoolean, "no"),
-                               'MaxSkew' : ('ALLOW', C._parseInterval,
+                               'Publish' : ('ALLOW', "boolean", "no"),
+                               'MaxSkew' : ('ALLOW', "interval",
                                             "10 minutes",) },
         # FFFF Generic multi-port listen/publish options.
-        'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', C._parseBoolean, "no"),
+        'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', "boolean", "no"),
                             #XXXX007 deprecate or remove IP.
-                            'IP' : ('ALLOW', C._parseIP, "0.0.0.0"),
-                          'Hostname' : ('ALLOW', C._parseHost, None),
-                          'Port' : ('ALLOW', C._parseInt, "48099"),
-                          'ListenIP' : ('ALLOW', C._parseIP, None),
-                          'ListenPort' : ('ALLOW', C._parseInt, None),
-                          'ListenIP6' : ('ALLOW', C._parseIP6, None),
-  		          'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
-                          'Deny' : ('ALLOW*', C._parseAddressSet_deny, None)
+                            'IP' : ('ALLOW', "IP", "0.0.0.0"),
+                          'Hostname' : ('ALLOW', "host", None),
+                          'Port' : ('ALLOW', "int", "48099"),
+                          'ListenIP' : ('ALLOW', "IP", None),
+                          'ListenPort' : ('ALLOW', "int", None),
+                          'ListenIP6' : ('ALLOW', "IP6", None),
+  		          'Allow' : ('ALLOW*', "addressSet_allow", None),
+                          'Deny' : ('ALLOW*', "addressSet_deny", None)
 			 },
-        'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', C._parseBoolean, "no"),
-                            'Retry' : ('ALLOW', C._parseIntervalList,
+        'Outgoing/MMTP' : { 'Enabled' : ('REQUIRE', "boolean", "no"),
+                            'Retry' : ('ALLOW', "intervalList",
                                  "every 1 hour for 1 day, 7 hours for 5 days"),
-                          'Allow' : ('ALLOW*', C._parseAddressSet_allow, None),
-                          'Deny' : ('ALLOW*', C._parseAddressSet_deny, None) },
+                          'Allow' : ('ALLOW*', "addressSet_allow", None),
+                          'Deny' : ('ALLOW*', "addressSet_deny", None) },
         # FFFF Missing: Queue-Size / Queue config options
         # FFFF         listen timeout??
         }
+
+CODING_FNS = mixminion.Config._ConfigFile.CODING_FNS.copy()
+CODING_FNS.update({'mixRule':(_parseMixRule,str),
+                   'fraction':(_parseFraction,
+                               lambda r: "%.2f%%"%(100.*r))})

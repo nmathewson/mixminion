@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.13 2003/07/30 22:38:03 nickm Exp $
+# $Id: Directory.py,v 1.14 2003/11/07 07:03:28 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -157,18 +157,18 @@ class DirectoryConfig(C._ConfigFile):
         'Host' : C.ClientConfig._syntax['Host'],
         "Directory-Store" : {
            "__SECTION__" : ("REQUIRE", None, None ),
-           "Homedir" : ('REQUIRE', C._parseFilename, None),
+           "Homedir" : ('REQUIRE', "filename", None),
            "DirUser" : ('REQUIRE', None, None),
            "CGIUser" : ('REQUIRE', None, None),
            "CGIGroup" : ('REQUIRE', None, None),
         },
         'Directory' : {
            "BadServer" : ("ALLOW*", None, None),
-           "BadServerFile" : ("ALLOW*", C._parseFilename, None)
+           "BadServerFile" : ("ALLOW*", "filename", None)
         },
         'Publishing' : {
            "__SECTION__": ('REQUIRE', None, None),
-           "Location" : ('REQUIRE', C._parseFilename, None)
+           "Location" : ('REQUIRE', "filename", None)
         } }
     def __init__(self, filename=None, string=None):
         C._ConfigFile.__init__(self, filename, string)

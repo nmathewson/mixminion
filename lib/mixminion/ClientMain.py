@@ -444,8 +444,16 @@ class MixminionClient:
         """
         #XXXX write unit tests
 
+        class MessageProxy:
+            def __init__(self,h,queue):
+                self.h = h
+                self.queue = queue
+            def __str__(self):
+                return self.queue.getPacket(self.h)[0]
+            def __cmp__(self,other):
+                return cmp(id(self),id(other))
+
         LOG.info("Flushing message queue")
-        # XXXX This is inefficient in space!
         clientLock()
         try:
             handles = self.queue.getHandles()
@@ -457,9 +465,10 @@ class MixminionClient:
             messagesByServer = {}
             for h in handles:
                 try:
-                    message, routing, _ = self.queue.getPacket(h)
+                    routing = self.queue.getRoutingt(h)
                 except mixminion.Filestore.CorruptedFile: 
                     continue
+                message = MessageProxy(h,self.queue)
                 messagesByServer.setdefault(routing, []).append((message, h))
         finally:
             clientUnlock()
@@ -512,7 +521,7 @@ class MixminionClient:
         try:
             clientLock()
             for msg in msgList:
-                h = self.queue.queuePacket(msg, routing)
+                h = self.queue.queuePacket(str(msg), routing)
                 handles.append(h)
         finally:
             clientUnlock()
@@ -1193,7 +1202,13 @@ def listServers(cmd, args):
     parser.init()
     directory = parser.directory
 
-    for line in directory.listServers():
+    #for line in directory.listServers():
+    #    print line
+    features = ["caps", "status", "secure-configuration"]
+    fm = directory.listServers2(features)
+    #fm = mixminion.ClientDirectory.compressServerList(fm)
+    for line in mixminion.ClientDirectory.formatFeatureMap(
+        features,fm,1,cascade=1):
         print line
 
 _UPDATE_SERVERS_USAGE = """\

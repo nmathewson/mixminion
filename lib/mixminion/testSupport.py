@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.21 2003/10/02 21:46:23 nickm Exp $
+# $Id: testSupport.py,v 1.22 2003/11/07 07:03:28 nickm Exp $
 
 """mixminion.testSupport
 
@@ -46,8 +46,8 @@ class DirectoryStoreModule(DeliveryModule):
     def getConfigSyntax(self):
         return { 'Testing/DirectoryDump':
                  { 'Location' : ('REQUIRE', None, None),
-                   'UseQueue': ('REQUIRE', _parseBoolean, None),
-                   'Retry' : ('ALLOW', _parseIntervalList,
+                   'UseQueue': ('REQUIRE', "boolean", None),
+                   'Retry' : ('ALLOW', "intervalList",
                               "every 1 min for 10 min") } }
 
     def validateConfig(self, config, lines, contents):

@@ -324,6 +324,7 @@ class ClientQueue:
     #           )
     # XXXX change this to be OO; add nicknames.
     # XXXX006 write unit tests
+    # XXXX Switch to use metadata.
     def __init__(self, directory, prng=None):
         """Create a new ClientQueue object, storing packets in 'directory'
            and generating random filenames using 'prng'."""
@@ -339,8 +340,10 @@ class ClientQueue:
                 fname_new = os.path.join(directory, "msg_"+handle)
                 os.rename(fname_old, fname_new)
         
-        self.store = mixminion.Filestore.ObjectStore(
+        self.store = mixminion.Filestore.ObjectMetadataStore(
             directory, create=1, scrub=1)
+
+        self.metadataLoaded = 0
 
     def queuePacket(self, message, routing):
         """Insert the 32K packet 'message' (to be delivered to 'routing')
@@ -348,7 +351,8 @@ class ClientQueue:
         mixminion.ClientMain.clientLock()
         try:
             fmt = ("PACKET-0", message, routing, previousMidnight(time.time()))
-            return self.store.queueObject(fmt)
+            meta = ("V0", routing, previousMidnight(time.time()))
+            return self.store.queueObjectAndMetadata(fmt,meta)
         finally:
             mixminion.ClientMain.clientUnlock()
 
@@ -361,9 +365,14 @@ class ClientQueue:
         finally:
             mixminion.ClientMain.clientUnlock()
 
+    def getRouting(self, handle):
+        """DOCDOC"""
+        self.loadMetadata()
+        return self.getMetadata(handle)[1]
+
     def getPacket(self, handle):
         """Given a handle, return a 3-tuple of the corresponding
-           32K packet, IPV4Info, and time of first queueing.  (The time
+           32K packet, {IPV4/Host}Info, and time of first queueing.  (The time
            is rounded down to the closest midnight GMT.)  May raise 
            CorruptedFile."""
         obj = self.store.getObject(handle)
@@ -384,6 +393,7 @@ class ClientQueue:
     def removePacket(self, handle):
         """Remove the packet named with the handle 'handle'."""
         self.store.removeMessage(handle)
+        # XXXX006 This cleanQueue shouldn't need to happen so often!
         self.store.cleanQueue()
 
     def inspectQueue(self, now=None):
@@ -395,10 +405,11 @@ class ClientQueue:
         if not handles:
             print "[Queue is empty.]"
             return
+        self.loadMetadata()
         timesByServer = {}
         for h in handles:
             try:
-                _, routing, when = self.getPacket(h)
+                _, routing, when = self.store.getMetadata(h)
             except mixminion.Filestore.CorruptedFile:
                 continue
             timesByServer.setdefault(routing, []).append(when)
@@ -418,9 +429,10 @@ class ClientQueue:
             now = time.time()
         cutoff = now - maxAge
         remove = []
+        self.loadMetadata()
         for h in self.getHandles():
             try:
-                when = self.getPacket(h)[2]
+                when = self.store.getMetadata(h)[2]
             except mixminion.Filestore.CorruptedFile:
                 continue
             if when < cutoff:
@@ -429,3 +441,16 @@ class ClientQueue:
         for h in remove:
             self.store.removeMessage(h)
         self.store.cleanQueue()
+
+    def loadMetadata(self):
+        """DOCDOC"""
+        if self.metadataLoaded:
+            return
+
+        def fixupHandle(h,self=self):
+            packet, routing, when = self.getPacket(h)
+            return "V0", routing, when
+
+        self.store.loadAllMetadata(fixupHandle)
+
+        self.metadataLoaded = 1

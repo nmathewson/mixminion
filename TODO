@@ -24,12 +24,13 @@ TCP latency, and me.)
                         o Implement
                         o Integrate
                         . Test
+                - Switch ClientQueue to use metadata
         . Infrastructure -- high level
                 o Separate directory downloading, directory caching, path
                   parsing, and path generation into a new module.
                 o Separate SURB logging, keystores, and client queues into
                   client support module.
-                o Refactor path selection to have a nicer interface.
+                . Refactor path selection to have a nicer interface.
                         X Generic, cross-module notion of "address".
                         X Better capability infrastructure.
                         o Better ExitAddress notion.
@@ -37,25 +38,37 @@ TCP latency, and me.)
                           checking specifier list for sanity, and generating
                           path from specifier list.
                         o Switch unit tests to test new interface to ClientDir
+                        - New unit tests for multiple converging paths.
                 . Rewrite ClientMain path generation to do the right
                   thing with multi-packet messages
+                        o Write the code
                         - Hand-test multi-packet and single-packet fwd
                           messages and replies.
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
-                - Make processing thread and module thread general
-                  cases of a thread pool abstraction
+                D Make processing thread and module thread general
+                  cases of a thread pool abstraction.?
         - UI improvements:
                 . Add some convenient way to list arbitrary server features.
+                        o Refactor Config to have a richer idea of types
+                        o Add 'features' to Config.
+                        o Add featureMap manipulation functionality to 
+                          ClientDirectory.
+                        . Formatting for featuremap
+                        - CLI for new listservers
+                        - Replace old listservers
+                        - Unit tests for features
+                        - Unit tests for featureMaps
                 - Timeouts should say 'timeout', not EINTR.
                 - Timeouts should be user-configurable.
-                - Logging UIErrors isn't a bad idea.
+                D Logging UIErrors isn't a bad idea.
+                o Make UIErrors _look_ like log messages when they hit the
+                  console.
                 - Separate 'mixminiond' wrapper; 'mixminion server-foo'
                   confuses folk.
-
                 - SSL's "Unexpected error: wrong version number"
                   message is confusing.
-                - Better error message when opening db with unsupported
+                o Better error message when opening db with unsupported
                   database type.
                 . List servers by nickname, not by IP.
                 - Make TRACE mode less verbose, or make DEBUG mode more useful.
@@ -108,6 +121,7 @@ TCP latency, and me.)
                         o Don't use Key-Digest; mark it for removal in 0.0.7.
                         - Make sure Maximum-Size and Allow-From are obeyed
                           for all types
+                - Support SURB secret exchange format.
          - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS
@@ -170,6 +184,8 @@ not yet ready to replace type I.]
                 - Add jurisdictions to pathgen?
                 - Make createPrivateDirs gripe about group-writable parent
                   dirs
+                - There's no need to ever store MMTP keys to disk; we should
+                  also rotate them more often.
         - Modules and module support
                 - Use ESMTP as available
                 - Move boilerplate into outside files.  Add some generic

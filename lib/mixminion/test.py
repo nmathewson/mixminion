@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.159 2003/11/07 05:44:40 nickm Exp $
+# $Id: test.py,v 1.160 2003/11/07 07:03:28 nickm Exp $
 
 """mixminion.tests
 
@@ -3888,14 +3888,14 @@ class TestConfigFile(_ConfigFile):
                 'Sec2' : {'Fob': ('ALLOW*', None, None),
                           'Bap': ('REQUIRE', None, None),
                           'Quz': ('REQUIRE*', None, None), },
-                'Sec3' : {'IntAS': ('ALLOW', _parseInt, None),
-                          'IntAS2': ('ALLOW', _parseInt, None),
-                          'IntASD': ('ALLOW', _parseInt, "5"),
-                          'IntASD2': ('ALLOW', _parseInt, "5"),
-                          'IntAM': ('ALLOW*', _parseInt, None),
-                          'IntAMD': ('ALLOW*', _parseInt, ["5", "2"]),
-                          'IntAMD2': ('ALLOW*', _parseInt, ["5", "2"]),
-                          'IntRS': ('REQUIRE', _parseInt, None),
+                'Sec3' : {'IntAS': ('ALLOW', "int", None),
+                          'IntAS2': ('ALLOW', "int", None),
+                          'IntASD': ('ALLOW', "int", "5"),
+                          'IntASD2': ('ALLOW', "int", "5"),
+                          'IntAM': ('ALLOW*', "int", None),
+                          'IntAMD': ('ALLOW*', "int", ["5", "2"]),
+                          'IntAMD2': ('ALLOW*', "int", ["5", "2"]),
+                          'IntRS': ('REQUIRE', "int", None),
                           'Quz' : ('ALLOW', None, None) }
                 }
     def __init__(self, fname=None, string=None, restrict=0):
@@ -4878,8 +4878,7 @@ class TestModule(mixminion.server.Modules.DeliveryModule):
     def getName(self):
         return "TestModule"
     def getConfigSyntax(self):
-        return { "Example" : { "Foo" : ("REQUIRE",
-                                        mixminion.Config._parseInt, None) } }
+        return { "Example" : { "Foo" : ("REQUIRE", "int", None) } }
     def validateConfig(self, cfg, lines, contents):
         if cfg['Example'] is not None:
             if cfg['Example'].get('Foo',1) % 2 == 0:

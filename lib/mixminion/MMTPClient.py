@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.40 2003/10/20 18:19:56 nickm Exp $
+# $Id: MMTPClient.py,v 1.41 2003/11/07 07:03:28 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -246,7 +246,7 @@ def sendMessages(routing, packetList, connectTimeout=None, callback=None):
             elif t == "RENEGOTIATE":
                 con.renegotiate()
             else:
-                con.sendPacket(p)
+                con.sendPacket(str(p))
             if callback is not None:
                 callback(idx)
     finally:

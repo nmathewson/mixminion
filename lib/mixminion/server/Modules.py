@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.58 2003/10/13 17:12:58 nickm Exp $
+# $Id: Modules.py,v 1.59 2003/11/07 07:03:28 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -35,8 +35,7 @@ import mixminion.server.ServerQueue
 import mixminion.server.ServerConfig
 import mixminion.server.EventStats as EventStats
 import mixminion.server.PacketHandler
-from mixminion.Config import ConfigError, _parseBoolean, _parseCommand, \
-     _parseInterval, _parseIntervalList, _parseSize
+from mixminion.Config import ConfigError
 from mixminion.Common import LOG, MixError, ceilDiv, createPrivateDir, \
      encodeBase64, isPrintingAscii, isSMTPMailbox, previousMidnight, \
      readFile, waitForChildren
@@ -546,9 +545,9 @@ class FragmentModule(DeliveryModule):
         self.lock = threading.RLock()
     def getConfigSyntax(self):
         return { "Delivery/Fragmented" :
-                 { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
-                   'MaximumSize' : ('REQUIRE', _parseSize, None),
-                   'MaximumInterval' : ('ALLOW', _parseInterval, "2 days" )
+                 { 'Enabled' : ('REQUIRE',  "boolean", "no"),
+                   'MaximumSize' : ('REQUIRE', "size", None),
+                   'MaximumInterval' : ('ALLOW', "interval", "2 days" )
                    } }
     def getRetrySchedule(self):
         return [ ]
@@ -964,15 +963,15 @@ class MBoxModule(DeliveryModule, MailBase):
         # FFFF There should be some way to say that fields are required
         # FFFF if the module is enabled.
         return { "Delivery/MBOX" :
-                 { 'Enabled' : ('REQUIRE',  _parseBoolean, "no"),
-                   'Retry': ('ALLOW', _parseIntervalList,
+                 { 'Enabled' : ('REQUIRE',  "boolean", "no"),
+                   'Retry': ('ALLOW', "intervalList",
                              "7 hours for 6 days"),
                    'AddressFile' : ('ALLOW', None, None),
                    'ReturnAddress' : ('ALLOW', None, None),
                    'RemoveContact' : ('ALLOW', None, None),
-                   'AllowFromAddress' : ('ALLOW', _parseBoolean, 'yes'),
+                   'AllowFromAddress' : ('ALLOW', "boolean", 'yes'),
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
-                   'MaximumSize' : ('ALLOW', _parseSize, "100K"),
+                   'MaximumSize' : ('ALLOW', "size", "100K"),
                    }
                  }
 
@@ -1130,18 +1129,18 @@ class DirectSMTPModule(SMTPModule):
 
     def getConfigSyntax(self):
         return { "Delivery/SMTP" :
-                 { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-                   'Retry': ('ALLOW', _parseIntervalList,
+                 { 'Enabled' : ('REQUIRE', "boolean", "no"),
+                   'Retry': ('ALLOW', "intervalList",
                              "7 hours for 6 days"),
                    'BlacklistFile' : ('ALLOW', None, None),
                    'SMTPServer' : ('ALLOW', None, 'localhost'),
-                   'AllowFromAddress': ('ALLOW', _parseBoolean, "yes"),
+                   'AllowFromAddress': ('ALLOW', "boolean", "yes"),
                    'Message' : ('ALLOW', None, ""),
                    'ReturnAddress': ('ALLOW', None, None), #Required on e
                    'FromTag' : ('ALLOW', None, "[Anon]"),
                    'SubjectLine' : ('ALLOW', None,
                                     'Type III Anonymous Message'),
-                   'MaximumSize' : ('ALLOW', _parseSize, "100K"),
+                   'MaximumSize' : ('ALLOW', "size", "100K"),
                    }
                  }
 
@@ -1239,16 +1238,16 @@ class MixmasterSMTPModule(SMTPModule):
 
     def getConfigSyntax(self):
         return { "Delivery/SMTP-Via-Mixmaster" :
-                 { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-                   'Retry': ('ALLOW', _parseIntervalList,
+                 { 'Enabled' : ('REQUIRE', "boolean", "no"),
+                   'Retry': ('ALLOW', "intervalList",
                              "7 hours for 6 days"),
-                   'MixCommand' : ('REQUIRE', _parseCommand, None),
+                   'MixCommand' : ('REQUIRE', "command", None),
                    'Server' : ('REQUIRE', None, None),
                    'FromTag' : ('ALLOW', None, "[Anon]"),
                    'SubjectLine' : ('ALLOW', None,
                                     'Type III Anonymous Message'),
-                   'MaximumSize' : ('ALLOW', _parseSize, "100K"),
-                   'AllowFromAddress' : ('ALLOW', _parseBoolean, "yes"),
+                   'MaximumSize' : ('ALLOW', "size", "100K"),
+                   'AllowFromAddress' : ('ALLOW', "boolean", "yes"),
                    }
                  }
 

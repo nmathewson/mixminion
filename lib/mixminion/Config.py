@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.61 2003/10/19 03:12:02 nickm Exp $
+# $Id: Config.py,v 1.62 2003/11/07 07:03:28 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -68,7 +68,7 @@ import mixminion.Common
 import mixminion.Crypto
 
 from mixminion.Common import MixError, LOG, ceilDiv, englishSequence, \
-   isPrintingAscii, stripSpace, stringContains, UIError
+     formatBase64, isPrintingAscii, stripSpace, stringContains, UIError
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -166,6 +166,27 @@ def _parseIntervalList(s):
             ilist.append(interval)
     return ilist
 
+def _unparseIntervalList(lst):
+    if lst == []:
+        return ""
+    r = [ (lst[0], 1) ]
+    for dur in lst[1:]:
+        if dur == r[-1][0]:
+            r[-1] = (dur, r[-1][1]+1)
+        else:
+            r.append((dur,1))
+    result = []
+    for dur, reps in r:
+        d = mixminion.Common.Duration(dur)
+        t = mixminion.Common.Duration(dur*reps)
+        d.reduce()
+        t.reduce()
+        if reps>1:
+            result.append("every %s for %s"%(d,t))
+        else:
+            result.append(str(d))
+    return ", ".join(result)
+
 def _parseInt(integer):
     """Validation function.  Converts a config value to an int.
        Raises ConfigError on failure."""
@@ -193,6 +214,16 @@ def _parseSize(size):
         return long(float(val)*unit)
     else:
         return long(val)*unit
+
+def _unparseSize(size):
+    names = ["b", "KB", "MB", "GB"]
+    idx = 0
+    while 1:
+        if (size & 1023) or names[idx] == "GB":
+            return "%s %s"%(size,names[idx])
+        else:
+            idx += 1
+            size >>= 10
 
 # Regular expression to match a dotted quad.
 _ip_re = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
@@ -260,7 +291,6 @@ def _parseIP6(ip6):
         raise ConfigError("IPv6 address %r is too long"%ip)
             
     return ip
-
 
 def _parseHost(host):
     """DOCDOC"""
@@ -587,6 +617,46 @@ def _formatEntry(key,val,w=79,ind=4):
     lines.append("") # so the last line ends with \n
     return "\n".join(lines)
 
+
+def resolveFeatureName(name, klass):
+    """DOCDOC"""
+    #XXXX006 this should be case insensitive.
+    syn = klass._syntax
+    name = name.lower()
+    if klass._features.has_key(name):
+        return "-", name
+    elif ':' in name:
+        idx = name.index(':')
+        sec, ent = name[:idx], name[idx+1:]
+        goodSection = None
+        for section, entries in syn.items():
+            if section.lower() == sec:
+                goodSection = section
+                for entry in entries.keys():
+                    if entry.lower() == ent:
+                        return section, entry
+        if goodSection:
+            raise UIError("Section %s has no entry %r"%(section,ent))
+        else:
+            raise UIError("No such section as %s"%sec)
+    else:
+        result =  []
+        for secname, secitems in syn.items():
+            if secname.lower() == name:
+                raise UIError("No key given for section %s"%secname)
+            for entname in secitems.keys():
+                if entname.lower() == name:
+                    result.append((secname, entname))
+        if len(result) == 0:
+            raise UIError("No key named %r found"%name)
+        elif len(result) > 1:
+            secs = [ "%s:%s"%(secname,entname) for secname,entname
+                     in result ]
+            raise UIError("%r is ambiguous.  Did you mean %s?",
+                          name, englishSequence(secs,compound="or"))
+        else:
+            return result[0]
+
 class _ConfigFile:
     """Base class to parse, validate, and represent configuration files.
     """
@@ -603,7 +673,7 @@ class _ConfigFile:
     # Fields to be set by a subclass:
     #     _syntax is map from sec->{key:
     #                               (ALLOW/REQUIRE/ALLOW*/REQUIRE*,
-    #                                 parseFn,
+    #                                 type,
     #                                 default, ) }
     #     _restrictFormat is 1/0: do we allow full RFC822ness, or do
     #         we insist on a tight data format?
@@ -623,6 +693,30 @@ class _ConfigFile:
     # If the entry is (permissibly) absent, and default is set, then
     #   the entry's value will be set to default.  Otherwise, the value
     #   will be set to None.
+
+    CODING_FNS = {
+        "boolean" :  (_parseBoolean, lambda b: b and "yes" or "no"),
+        "severity" : (_parseSeverity, str),
+        "serverMode"  : (_parseServerMode, str),
+        "interval" : (_parseInterval, str),
+        "intervalList" : (_parseIntervalList, _unparseIntervalList),
+        "int" : (_parseInt, str),
+        "size" : (_parseSize, _unparseSize),
+        "IP" : (_parseIP, str),
+        "IP6" : (_parseIP6, str),
+        "host" : (_parseHost, str),
+        "addressSet_allow" : (_parseAddressSet_allow, str), #XXXX
+        "addressSet_deny" : (_parseAddressSet_deny, str), #XXXX
+        "command" : (_parseCommand, lambda c,o: " ".join([c," ".join(o)])),
+        "base64" : (_parseBase64, mixminion.Common.formatBase64),
+        "hex" : (_parseHex, binascii.b2a_hex),
+        "publicKey" : (_parsePublicKey, lambda r: "<public key>"),
+        "date" : (_parseDate, mixminion.Common.formatDate),
+        "time" : (_parseTime, mixminion.Common.formatTime),
+        "nickname" : (_parseNickname, str),
+        "filename" : (_parseFilename, str),
+        "user" : (_parseUser, str),
+        }
 
     _syntax = None
     _features = {}
@@ -698,7 +792,7 @@ class _ConfigFile:
             # as we go.
             for k,v,line in secEntries:
                 try:
-                    rule, parseFn, default = secConfig[k]
+                    rule, parseType, default = secConfig[k]
                 except KeyError:
                     msg = "Unrecognized key %s on line %s"%(k,line)
                     acceptedIn = [ sn for sn,sc in self._syntax.items()
@@ -713,6 +807,8 @@ class _ConfigFile:
                     else:
                         LOG.warn(msg)
                         continue
+
+                parseFn, _ = self.CODING_FNS.get(parseType,(None,None))
 
                 # Parse and validate the value of this entry.
                 if parseFn is not None:
@@ -741,7 +837,7 @@ class _ConfigFile:
 
             # Check for missing entries, setting defaults and detecting
             # missing requirements as we go.
-            for k, (rule, parseFn, default) in secConfig.items():
+            for k, (rule, parseType, default) in secConfig.items():
                 if k == '__SECTION__':
                     continue
                 elif not section.has_key(k):
@@ -749,6 +845,7 @@ class _ConfigFile:
                         raise ConfigError("Missing entry %s from section %s"
                                           % (k, secName))
                     else:
+                        parseFn, _ = self.CODING_FNS.get(parseType,(None,None))
                         if parseFn is None or default is None:
                             if rule == 'ALLOW*':
                                 section[k] = []
@@ -792,40 +889,16 @@ class _ConfigFile:
         """
         return contents
 
-    def resolveFeatureName(self, name):
-        """DOCDOC"""
-        #XXXX006 this should be case insensitive.
-        syn = self._syntax
-        if self._features.has_key(name):
-            return "-", name
-        elif ':' in name:
-            idx = name.index(':')
-            sec, ent = name[:idx], name[idx+1:]
-            if not syn.has_key(sec) or not syn[sec].has_key[ent]:
-                raise UIError("Section %s has no entry %s"%(sec,ent))
-            return sec,ent
-        elif syn.has_key(name):
-            raise UIError("No key given for section %s"%name)
-        else:
-            secs = []
-            for secname, secitems in syn.items():
-                if secitems.has_key(name):
-                    secs.append(name)
-            if len(secs) == 0:
-                raise UIError("No key named %s found"%name)
-            elif len(secs) > 1:
-                secs = [ "%s/%s"%(name, sec) for sec in secs ]
-                raise UIError("%s is ambiguous.  Did you mean %s?",
-                              name, englishSequence(secs,compound="or"))
-            else:
-                return secs[0],name
-
     def getFeature(self,sec,name):
         """DOCDOC"""
-        if sec == "-":
-            return "XXXX" #XXXX006 insert magic.
-        else:
-            return self[sec].get(name,"<none>")
+        assert sec not in ("+","-")
+        parseType = self._syntax[sec].get(name)[1]
+        _, unparseFn = self.CODING_FNS[parseType]
+        try:
+            v = self[sec][name]
+        except KeyError:
+            return "<none>"
+        return unparseFn(v)
 
     def validate(self, entryLines, fileContents):
         """Check additional semantic properties of a set of configuration
@@ -872,25 +945,25 @@ class ClientConfig(_ConfigFile):
     _restrictKeys = _restrictSections = 1
     _syntax = {
         'Host' : { '__SECTION__' : ('ALLOW', None, None),
-                   'ShredCommand': ('ALLOW', _parseCommand, None),
-                   'EntropySource': ('ALLOW', _parseFilename, "/dev/urandom"),
-                   'TrustedUser': ('ALLOW*', _parseUser, None),
-                   'FileParanoia': ('ALLOW', _parseBoolean, "yes"),
+                   'ShredCommand': ('ALLOW', "command", None),
+                   'EntropySource': ('ALLOW', "filename", "/dev/urandom"),
+                   'TrustedUser': ('ALLOW*', "user", None),
+                   'FileParanoia': ('ALLOW', "boolean", "yes"),
                    },
         'DirectoryServers' :
                    { '__SECTION__' : ('REQUIRE', None, None),
                      'ServerURL' : ('ALLOW*', None, None),
-                     'MaxSkew' : ('ALLOW', _parseInterval, "10 minutes") },
-        'User' : { 'UserDir' : ('ALLOW', _parseFilename, "~/.mixminion" ) },
-        'Security' : { 'PathLength' : ('ALLOW', _parseInt, "8"),
+                     'MaxSkew' : ('ALLOW', "interval", "10 minutes") },
+        'User' : { 'UserDir' : ('ALLOW', "filename", "~/.mixminion" ) },
+        'Security' : { 'PathLength' : ('ALLOW', "int", "8"),
                        'SURBAddress' : ('ALLOW', None, None),
-                       'SURBPathLength' : ('ALLOW', _parseInt, "4"),
-                       'SURBLifetime' : ('ALLOW', _parseInterval, "7 days"),
+                       'SURBPathLength' : ('ALLOW', "int", "4"),
+                       'SURBLifetime' : ('ALLOW', "interval", "7 days"),
                        'ForwardPath' : ('ALLOW', None, "*"),
                        'ReplyPath' : ('ALLOW', None, "*"),
                        'SURBPath' : ('ALLOW', None, "*"),
                        },
-        'Network' : { 'ConnectionTimeout' : ('ALLOW', _parseInterval, None) }
+        'Network' : { 'ConnectionTimeout' : ('ALLOW', "interval", None) }
         }
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)

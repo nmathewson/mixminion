@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.59 2003/10/19 03:12:02 nickm Exp $
+# $Id: ServerInfo.py,v 1.60 2003/11/07 07:03:28 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -53,56 +53,56 @@ class ServerInfo(mixminion.Config._ConfigFile):
     _syntax = {
         "Server" : { "__SECTION__": ("REQUIRE", None, None),
                      "Descriptor-Version": ("REQUIRE", None, None),
-                     "Nickname": ("REQUIRE", C._parseNickname, None),
-                     "Identity": ("REQUIRE", C._parsePublicKey, None),
-                     "Digest": ("REQUIRE", C._parseBase64, None),
-                     "Signature": ("REQUIRE", C._parseBase64, None),
-                     "Published": ("REQUIRE", C._parseTime, None),
-                     "Valid-After": ("REQUIRE", C._parseDate, None),
-                     "Valid-Until": ("REQUIRE", C._parseDate, None),
+                     "Nickname": ("REQUIRE", "nickname", None),
+                     "Identity": ("REQUIRE", "publicKey", None),
+                     "Digest": ("REQUIRE", "base64", None),
+                     "Signature": ("REQUIRE", "base64", None),
+                     "Published": ("REQUIRE", "time", None),
+                     "Valid-After": ("REQUIRE", "date", None),
+                     "Valid-Until": ("REQUIRE", "date", None),
                      "Contact": ("ALLOW", None, None),
                      "Comments": ("ALLOW", None, None),
-                     "Packet-Key": ("REQUIRE", C._parsePublicKey, None),
+                     "Packet-Key": ("REQUIRE", "publicKey", None),
                      "Contact-Fingerprint": ("ALLOW", None, None),
                      # XXXX010 change these next few to "REQUIRE".
                      "Packet-Formats": ("ALLOW", None, None),#XXXX007 remove
                      "Packet-Versions": ("ALLOW", None, None),
                      "Software": ("ALLOW", None, None),
-                     "Secure-Configuration": ("ALLOW", C._parseBoolean, None),
+                     "Secure-Configuration": ("ALLOW", "boolean", None),
                      "Why-Insecure": ("ALLOW", None, None),
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     "IP": ("ALLOW", C._parseIP, None),#XXXX007 remove
-                     "Hostname": ("ALLOW", C._parseHost, None),#XXXX008 require
-                     "Port": ("REQUIRE", C._parseInt, None),
-                     "Key-Digest": ("ALLOW", C._parseBase64, None),#XXXX007 rmv
+                     "IP": ("ALLOW", "IP", None),#XXXX007 remove
+                     "Hostname": ("ALLOW", "host", None),#XXXX008 require
+                     "Port": ("REQUIRE", "int", None),
+                     "Key-Digest": ("ALLOW", "base64", None),#XXXX007 rmv
                      "Protocols": ("REQUIRE", None, None),
-                     "Allow": ("ALLOW*", C._parseAddressSet_allow, None),
-                     "Deny": ("ALLOW*", C._parseAddressSet_deny, None),
+                     "Allow": ("ALLOW*", "addressSet_allow", None),
+                     "Deny": ("ALLOW*", "addressSet_deny", None),
                      },
         "Outgoing/MMTP" : {
                      "Version": ("REQUIRE", None, None),
                      "Protocols": ("REQUIRE", None, None),
-                     "Allow": ("ALLOW*", C._parseAddressSet_allow, None),
-                     "Deny": ("ALLOW*", C._parseAddressSet_deny, None),
+                     "Allow": ("ALLOW*", "addressSet_allow", None),
+                     "Deny": ("ALLOW*", "addressSet_deny", None),
                      },
         "Delivery/MBOX" : {
                      "Version": ("REQUIRE", None, None),
                      # XXXX006 change to 'REQUIRE'
-                     "Maximum-Size": ("ALLOW", C._parseInt, "32"),
+                     "Maximum-Size": ("ALLOW", "int", "32"),
                      # XXXX006 change to 'REQUIRE'
-                     "Allow-From": ("ALLOW", C._parseBoolean, "yes"),
+                     "Allow-From": ("ALLOW", "boolean", "yes"),
                      },
         "Delivery/SMTP" : {
                      "Version": ("REQUIRE", None, None),
                      # XXXX006 change to 'REQUIRE'
-                     "Maximum-Size": ("ALLOW", C._parseInt, "32"),
-                     "Allow-From": ("ALLOW", C._parseBoolean, "yes"),
+                     "Maximum-Size": ("ALLOW", "int", "32"),
+                     "Allow-From": ("ALLOW", "boolean", "yes"),
                      },
         "Delivery/Fragmented" : {
                      "Version": ("REQUIRE", None, None),
-                     "Maximum-Fragments": ("REQUIRE", C._parseInt, None),
+                     "Maximum-Fragments": ("REQUIRE", "int", None),
                      },
         # We never read these values, except to see whether we should
         # regenerate them.  Depending on these options would violate
@@ -112,6 +112,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Configuration": ("ALLOW", None, None),
                      },
         }
+    _features = { "capabilities" : 1, "caps" : 1 }
     expected_versions = {
          "Server" : ( "Descriptor-Version", "0.2"),
          "Incoming/MMTP" : ("Version", "0.1"),
@@ -417,6 +418,15 @@ class ServerInfo(mixminion.Config._ConfigFile):
                 valid -= o.getIntervalSet()
         return valid.isEmpty()
 
+    def getFeature(self,sec,name):
+        """DOCDOC"""
+        if sec == '-':
+            if name in ("caps", "capabilities"):
+                return " ".join(self.getCaps())
+            assert 0
+        else:
+            return mixminion.Config._ConfigFile.getFeature(self,sec,name)
+
 #----------------------------------------------------------------------
 # Server Directories
 
@@ -501,15 +511,15 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
     _syntax = {
         'Directory': { "__SECTION__": ("REQUIRE", None, None),
                        "Version": ("REQUIRE", None, None),
-                       "Published": ("REQUIRE", C._parseTime, None),
-                       "Valid-After": ("REQUIRE", C._parseDate, None),
-                       "Valid-Until": ("REQUIRE", C._parseDate, None),
+                       "Published": ("REQUIRE", "time", None),
+                       "Valid-After": ("REQUIRE", "date", None),
+                       "Valid-Until": ("REQUIRE", "date", None),
                        "Recommended-Servers": ("REQUIRE", None, None),
                        },
         'Signature': {"__SECTION__": ("REQUIRE", None, None),
-                 "DirectoryIdentity": ("REQUIRE", C._parsePublicKey, None),
-                 "DirectoryDigest": ("REQUIRE", C._parseBase64, None),
-                 "DirectorySignature": ("REQUIRE", C._parseBase64, None),
+                 "DirectoryIdentity": ("REQUIRE", "publicKey", None),
+                 "DirectoryDigest": ("REQUIRE", "base64", None),
+                 "DirectorySignature": ("REQUIRE", "base64", None),
                       },
         'Recommended-Software': {"__SECTION__": ("ALLOW", None, None),
                 "MixminionClient": ("ALLOW", None, None),
