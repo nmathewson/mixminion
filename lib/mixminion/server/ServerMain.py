@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.25 2003/01/07 19:19:54 nickm Exp $
+# $Id: ServerMain.py,v 1.26 2003/01/08 03:56:54 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -297,7 +297,7 @@ class MixminionServer:
         #  'MIX', 'SHRED', and 'TIMEOUT'.  Kept in sorted order.
         scheduledEvents = []
         now = time.time()
-        scheduledEvents.append( (now + 6000, "SHRED") )#FFFF make configurable
+        scheduledEvents.append( (now + 600, "SHRED") )#FFFF make configurable
         scheduledEvents.append( (self.mmtpServer.getNextTimeoutTime(now),
                                  "TIMEOUT") )
         nextMix = self.mixPool.getNextMixTime(now)
@@ -315,7 +315,8 @@ class MixminionServer:
         # ????   Possible solutions:  Multiple threads or processes...?
         while 1:
             nextEventTime = scheduledEvents[0][0]
-            timeLeft = nextEventTime - time.time()
+            now = time.time()
+            timeLeft = nextEventTime - now
             while timeLeft > 0:
                 # Handle pending network events
                 self.mmtpServer.process(timeLeft)
@@ -340,7 +341,7 @@ class MixminionServer:
                 LOG.debug("Overwriting deleted files")
                 self.cleanQueues()
                 insort(scheduledEvents,
-                       (now + 6000, "SHRED"))
+                       (now + 600, "SHRED"))
             elif event == 'MIX':
                 # Before we mix, we need to log the hashes to avoid replays.
                 # FFFF We need to recover on server failure.
