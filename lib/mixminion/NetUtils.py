@@ -69,7 +69,7 @@ def getIP(name, preferIP4=PREFER_INET4):
         inet4 = [ addr for addr in r if addr[0] == AF_INET ]
         inet6 = [ addr for addr in r if addr[0] == AF_INET6 ]
         if not (inet4 or inet6):
-            LOG.error("getIP returned no inet addresses!")
+            LOG.warn("getIP returned no inet addresses for %r",name)
             return ("NOENT", "No inet addresses returned", time.time())
         best4=best6=None
         if inet4: best4=inet4[0]
@@ -79,6 +79,8 @@ def getIP(name, preferIP4=PREFER_INET4):
         else:
             res = best6 or best4
         assert res
+        assert res[0] in (AF_INET, AF_INET6)
+        assert nameIsStaticIP(res[1])
         protoname = (res[0] == AF_INET) and "inet" or "inet6"
         LOG.trace("Result for getIP(%r): %s:%s (%d others dropped)",
                   name,protoname,res[1],len(r)-1)
@@ -89,6 +91,7 @@ def getIP(name, preferIP4=PREFER_INET4):
             return ("NOENT", str(e[1]), time.time())
         else:
             return ("NOENT", str(e), time.time())
+
 #----------------------------------------------------------------------
 
 _SOCKETS_SUPPORT_TIMEOUT = hasattr(socket.SocketType, "settimeout")

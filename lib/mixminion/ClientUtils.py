@@ -666,7 +666,7 @@ class ClientQueue:
                 os.rename(fname_old, fname_new)
 
         self.store = mixminion.Filestore.ObjectMetadataStore(
-            directory, create=1, scrub=1)
+            directory, create=1)
 
         self.metadataLoaded = 0
 
@@ -765,6 +765,7 @@ class ClientQueue:
             for h in remove:
                 self.store.removeMessage(h)
         self.store.cleanQueue()
+        self.store.cleanMetadata()
 
     def loadMetadata(self):
         """Ensure that we've loaded metadata for this queue from disk."""

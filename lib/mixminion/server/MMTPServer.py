@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.63 2003/12/13 19:10:16 nickm Exp $
+# $Id: MMTPServer.py,v 1.63.2.1 2003/12/18 23:13:55 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -1182,7 +1182,7 @@ class MMTPAsyncServer(AsyncServer):
             def lookupDone(name, (family, addr, when),
                            self=self, routing=routing, deliverable=deliverable,
                            serverName=serverName):
-                if addr == "NOENT":
+                if family == "NOENT":
                     # The lookup failed, so tell all of the message objects.
                     for m in deliverable:
                         try:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.124 2003/12/08 06:37:15 nickm Exp $
+# $Id: Common.py,v 1.124.2.1 2003/12/18 23:13:55 nickm Exp $
 
 """mixminion.Common
 
@@ -682,14 +682,20 @@ def _overwriteFile(f):
         sz = _BLKSIZEMAP[parent]
     except KeyError:
         if hasattr(os, 'statvfs'):
-            sz = os.statvfs(f)[statvfs.F_BSIZE]
+            try:
+                sz = os.statvfs(parent)[statvfs.F_BSIZE]
+            except OSError:
+                sz = 8192 # Should be a safe guess? (????)
         else:
             sz = 8192 # Should be a safe guess? (????)
         _BLKSIZEMAP[parent] = sz
         if sz > len(_NILSTR):
             _NILSTR = '\x00' * sz
     nil = _NILSTR[:sz]
-    fd = os.open(f, os.O_WRONLY|O_BINARY)
+    try:
+        fd = os.open(f, os.O_WRONLY|O_BINARY)
+    except OSError:
+        return
     try:
         size = os.fstat(fd)[stat.ST_SIZE]
         blocks = ceilDiv(size, sz)
