@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.53 2003/10/20 18:20:28 nickm Exp $
+# $Id: ServerKeys.py,v 1.54 2003/10/20 18:49:11 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -34,6 +34,7 @@ from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
      ceilDiv, createPrivateDir, checkPrivateFile, formatBase64, formatDate, \
      formatTime, previousMidnight, readFile, secureDelete, tryUnlink, \
      UIError, writeFile
+from mixminion.Config import ConfigError
 
 #----------------------------------------------------------------------
 
@@ -96,6 +97,7 @@ class ServerKeyring:
            are invalid.
            """
         self.keySets = []
+        badKeySets = []
         firstKey = sys.maxint
         lastKey = 0
 
@@ -104,7 +106,7 @@ class ServerKeyring:
         if not os.path.exists(self.keyDir):
             LOG.info("Creating server keystore at %s", self.keyDir)
             createPrivateDir(self.keyDir)
-        
+
         # Iterate over the entires in HOME/keys
         for dirname in os.listdir(self.keyDir):
             # Skip any that aren't directories named "key_INT"
@@ -127,13 +129,38 @@ class ServerKeyring:
 
             # Find the server descriptor...
             keyset = ServerKeyset(self.keyDir, keysetname, self.hashDir)
-            t1, t2 = keyset.getLiveness()
-            self.keySets.append( (t1, t2, keyset) )
-                
-            LOG.trace("Found key %s (valid from %s to %s)",
-                      dirname, formatDate(t1), formatDate(t2))
+            ok = 1
+            try:
+                keyset.checkKeys()
+            except MixError:
+                LOG.warn("Error checking private keys in keyset %s: %s",
+                         keysetname, val)
+                ok = 0
 
-        LOG.debug("Found %s keys.", len(self.keySets))
+            try:
+                if ok:
+                    keyset.getServerDescriptor()
+            except (ConfigError, IOError), e:
+                LOG.warn("Key set %s has invalid/missing descriptor: %s",
+                         keysetname, str(e))
+                ok = 0
+
+            if ok:
+                t1, t2 = keyset.getLiveness()
+                self.keySets.append( (t1, t2, keyset) )
+                
+                LOG.trace("Found key %s (valid from %s to %s)",
+                          dirname, formatDate(t1), formatDate(t2))
+            else:
+                badKeySets.append(keyset)
+
+        LOG.debug("Found %s keysets: %s were incomplete or invalid.",
+                  len(self.keySets), len(badKeySets))
+
+        if badKeySets:
+            LOG.warn("Removing %s invalid keysets")
+        for b in badKeySets:
+            b.delete()
 
         # Now, sort the key intervals by starting time.
         self.keySets.sort()
@@ -591,11 +618,15 @@ class ServerKeyset:
         mixminion.server.HashLog.deleteHashLog(self.hashlogFile)
         os.rmdir(self.keydir)
 
+    def checkKeys(self):
+        """DOCDOC"""
+        checkPrivateFile(self.packetKeyFile)
+        checkPrivateFile(self.mmtpKeyFile)        
+
     def load(self, password=None):
         """Read the short-term keys from disk.  Must be called before
            getPacketKey or getMMTPKey."""
-        checkPrivateFile(self.packetKeyFile)
-        checkPrivateFile(self.mmtpKeyFile)
+        self.checkKeys()
         self.packetKey = mixminion.Crypto.pk_PEM_load(self.packetKeyFile,
                                                       password)
         self.mmtpKey = mixminion.Crypto.pk_PEM_load(self.mmtpKeyFile,
@@ -606,6 +637,11 @@ class ServerKeyset:
                                      password)
         mixminion.Crypto.pk_PEM_save(self.mmtpKey, self.mmtpKeyFile,
                                      password)
+
+    def clear(self):
+        """DOCDOC"""
+        self.packetKey = self.mmtpKey = None
+
     def getCertFileName(self): return self.certFile
     def getHashLogFileName(self): return self.hashlogFile
     def getDescriptorFileName(self): return self.descFile
