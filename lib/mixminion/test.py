@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.190 2004/03/06 00:33:09 nickm Exp $
+# $Id: test.py,v 1.191 2004/03/06 05:33:55 nickm Exp $
 
 """mixminion.tests
 
@@ -587,7 +587,7 @@ class MiscTests(TestCase):
             self.assertRaises(LockfileLocked, LF2.acquire, blocking=0)
         LF1.release()
         LF2.acquire("LF2",1)
-        if not ON_WIN32:
+        if not ON_WINDOWS:
             self.assertEquals("LF2", readFile(fn))
             self.assertRaises(LockfileLocked, LF1.acquire, blocking=0)
 
@@ -3481,7 +3481,7 @@ class FileParanoiaTests(TestCase):
             return st[stat.ST_MODE]&0777, st[stat.ST_UID], os.path.isdir(f)
 
         # Now we test a directory we don't own...
-        if not ON_WIN32 and os.getuid() == 0:
+        if not ON_WINDOWS and os.getuid() == 0:
             # If we're root, we can play with chown!
             # We don't own the directory
             os.chown(subdir, 1, 1)
@@ -3491,7 +3491,7 @@ class FileParanoiaTests(TestCase):
             os.chown(noia, 1, 1)
             self.failUnlessRaises(MixFatalError, checkPrivateDir, subdir)
             os.chown(noia, 0, os.getgid())
-        elif not ON_WIN32:
+        elif not ON_WINDOWS:
             # We're not root.  We can't reliably find or make a directory
             # that's non-root and non-us.  Let's just make sure we don't
             # own temp.
