@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.78 2004/02/15 23:25:34 nickm Exp $
+# $Id: MMTPServer.py,v 1.79 2004/02/16 22:27:41 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -154,16 +154,29 @@ class SelectAsyncServer:
             if con.tryTimeout(cutoff):
                 self.remove(con,fd)
 
-    def setBandwidth(self, n):
+    def setBandwidth(self, n, maxBucket=None):
         """DOCDOC - n is bytes per second."""
         if n is None:
             self.bandwidthPerTick = None
+            self.maxBucket = None
         else:
             self.bandwidthPerTick = int(n * self.TICK_INTERVAL)
+            if maxBucket is None:
+                self.maxBucket = self.bandwidthPerTick*10
+            else:
+                self.maxBucket = maxBucket
 
     def tick(self):
         """DOCDOC"""
-        self.bucket = self.bandwidthPerTick
+        bwpt = self.bandwidthPerTick
+        if bwpt is None:
+            self.bucket = None
+        else:
+            bucket = self.bucket + bwpt
+            if bucket > self.maxBucket:
+                self.bucket = self.maxBucket
+            else:
+                self.bucket = bucket
 
 class PollAsyncServer(SelectAsyncServer):
     """Subclass of SelectAsyncServer that uses 'poll' where available.  This
@@ -196,6 +209,7 @@ class PollAsyncServer(SelectAsyncServer):
             cap = None
         else:
             cap = floorDiv(self.bucket,len(events))
+        #print events, self.connections.keys()
         for fd, mask in events:
             c = self.connections[fd]
             wr,ww,isopen,n = c.process(mask&select.POLLIN, mask&select.POLLOUT,
@@ -204,24 +218,32 @@ class PollAsyncServer(SelectAsyncServer):
             if cap is not None:
                 self.bucket -= n
             if not isopen:
+                #print "unregister",fd
                 self.poll.unregister(fd)
                 del self.connections[fd]
                 continue
+            #print "register",fd
             self.poll.register(fd,self.EVENT_MASK[wr,ww])
+
     def register(self,c):
         fd = c.fileno()
         wr, ww, isopen = c.getStatus()
         if not isopen: return
         self.connections[fd] = c
         mask = self.EVENT_MASK[(wr,ww)]
+        #print "register",fd
         self.poll.register(fd, mask)
     def remove(self,c,fd=None):
         if fd is None:
             fd = c.fileno()
+        #print "unregister",fd
         self.poll.unregister(fd)
         del self.connections[fd]
 
-if hasattr(select,'poll'):
+if hasattr(select,'poll') and not _ml.POLL_IS_EMULATED:
+    # Prefer 'poll' to 'select', except on MacOS and other platforms where
+    # where 'poll' is just a wrapper around 'select'.  (The poll wrapper is
+    # sometimes buggy.)
     AsyncServer = PollAsyncServer
 else:
     AsyncServer = SelectAsyncServer
@@ -490,7 +512,8 @@ class MMTPAsyncServer(AsyncServer):
         self._lock = threading.Lock()
         self.maxClientConnections = config['Outgoing/MMTP'].get(
             'MaxConnections', 16)
-        self.setBandwidth(config['Server'].get('MaxBandwidth', None))
+        maxbw = config['Server'].get('MaxBandwidth', None)
+        self.setBandwidth(maxbw)
 
         # Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs

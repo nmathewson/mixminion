@@ -1,5 +1,5 @@
 /* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.23 2004/01/17 04:21:40 nickm Exp $ */
+/* $Id: main.c,v 1.24 2004/02/16 22:28:13 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -31,6 +31,18 @@
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
+#endif
+
+#if defined(HAVE_POLL_H)
+#include <poll.h>
+#elif defined(HAVE_SYS_POLL_H)
+#include <sys/poll.h>
+#endif
+
+#ifdef _POLL_EMUL_H_
+#define POLL_IS_EMULATED 1
+#else
+#define POLL_IS_EMULATED 0
 #endif
 
 /* Macros to declare function tables for Python. */
@@ -168,15 +180,18 @@ init_minionlib(void)
 
         /* For some reason, Python's socket module doesn't export
          * IPTOS_*.  IPTOS_THROUGHPUT should always be "0x08" on any
-         * sane sockets implementation, but life is always more complicated 
+         * sane sockets implementation, but life is always more complicated
          * than that.
         */
 #ifdef IPTOS_THROUGHPUT
         if (PyDict_SetItemString(d, "IPTOS_THROUGHPUT",
                                  PyInt_FromLong(IPTOS_THROUGHPUT)))
-                return;        
+                return;
 #endif
-        
+
+        if (PyDict_SetItemString(d, "POLL_IS_EMULATED",
+                                 PyInt_FromLong(POLL_IS_EMULATED)))
+                return;
 }
 
 /*
