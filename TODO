@@ -33,7 +33,7 @@ For 0.0.3:
                           to check "as used".
                 o Make shredding happen in a separate thread.
                 o Make delivery happen in a separate thread.
-                o Make packet processing happen in a separate thread. 
+                o Make packet processing happen in a separate thread.
                 o Move message decoding into packet handler thread.
                 o Document
                 o Refactor until sane -- possibly along with
@@ -60,7 +60,7 @@ For 0.0.3:
         X Support maybe (for the alpha cycle only!) to get the mixminion
           version remotely ????
         o Saner retry logic: right now we retry once at each of the 10
-          next Mix intervals, regardless of interval length.  (Have a 
+          next Mix intervals, regardless of interval length.  (Have a
           separate retry timer that gets rounded to the nearest mix
           event.)
                 o Make 'retry' delivery rates independent and
@@ -81,7 +81,7 @@ For 0.0.3:
                         o Implement for nonblocking client
                         o Debug server
                         o Bump protocol version to 0.2
-                        o Implement protocol negotiation. 
+                        o Implement protocol negotiation.
                         o Advertise protocols in server descriptor.
                         o Tests
                 o Renegotiate connections
@@ -169,11 +169,10 @@ For 0.0.3:
                         o Document how to use new features
                         o Installation insns for weird OpenSSL situations
                         o Note that we break backward compatibility
-        . Release
+        o Release
                 o Resolve XXXX003's.
                 o Better (more prominent) error messages when missing
                   openssl.
-                - Better errors when missing pythondev.
                 o Figure out flock problem. at least say, "blocking on
                   pid #x".
                 o Add 'stop-server', 'reload-server' functions.
@@ -181,16 +180,21 @@ For 0.0.3:
                 o Come up with way to deal with servers as they
                   upgrade.
                 o Rename X-server to server-X.
-                - Go over CVS commit logs for all contents of 'what's
+                o Rename Type-III to Type III.
+                o Better errors when missing pythondev.
+                o Keep building when 'which' is borked.
+                o Go over CVS commit logs for all contents of 'what's
                   new?'
 
 Originally scheduled for 0.0.3, but delayed:
         - UI
                 . Good user error reporting strategy.
                 - Beautify list-servers output.
-                - Better error message when path+routinginfo won't fit 
+                - Better error message when path+routinginfo won't fit
                   into header.
                 - Better concept of too-short paths.
+                - Change behavior on binary messages; don't dump 'em
+                  to terminals.
         - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.
@@ -201,7 +205,7 @@ Originally scheduled for 0.0.3, but delayed:
                 . Ability to generate new serverdesc with old keys.
                 - Ability to notice discrepancies between SD and
                   server configuration.
-                - Consider linewrap protection on server descriptors, 
+                - Consider linewrap protection on server descriptors,
                   if demand warrants.  (None yet.)
         - Security:
         	- Password-protect dirserver keys
@@ -250,14 +254,14 @@ Required for "1.0":
                 - Real SMTP module
                         - Abuse prevention of some undetermined kind.
                         X Support for setting 'Subject' and 'From' lines.
-                        - Support for setting 'Subject' line.  (Maybe 
+                        - Support for setting 'Subject' line.  (Maybe
                           content-type, too?)
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
                 - Incoming email gateway
                         - Insert encoded packet into net.
                         - Reply to a reply block
-                        - "Anonymize" is 
+                        - "Anonymize" is
                 - Some notion of 'client modules' would be a good idea.
                 - Put 'address' someplace more reasonable.
         - End-to-end issues
@@ -370,10 +374,10 @@ WHEN WE GET THE CHANCE:
         - License-friendliness:
                 - Switch from OpenSSL to NSS or GNUTLS
         - GUI
-        - Multithreaded design to scale to multiple CPUs
+        . Multithreaded design to scale to multiple CPUs
         - Security
                 - Memlockall wrapper
-                - Generic secure delete
+                o Generic secure delete
                 - Support for loopback fs automation and shredding.
         - Portability
                 - Server running on windows.

@@ -1,4 +1,4 @@
-$Id: README,v 1.35 2003/02/20 06:33:03 nickm Exp $
+$Id: README,v 1.36 2003/02/20 06:38:27 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3
 
@@ -77,6 +77,8 @@ NEW IN VERSION 0.0.3rc1:
       - We now time out faster when servers are down.
       - Many error messages are far friendlier.
       - It's now safe to run multiple instances of the client at once.
+      - Numerous UI improvements and typo fixes; error reporting is better in
+        many ways.
    BUILD:
       - It's easier to build with different OpenSSL installations.
    SERVERS:
