@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.23 2002/12/31 17:40:54 nickm Exp $
+# $Id: Makefile,v 1.24 2003/01/03 03:16:43 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -55,6 +55,7 @@ clean:
 	echo $$PYTHON setup.py clean; \
 	$$PYTHON setup.py clean
 	rm -rf build dist
+	rm -f MANIFEST
 	rm -f lib/mixminion/_unittest.py
 	rm -f lib/mixminion/_textwrap.py
 	rm -f lib/mixminion/_zlibutil.py
