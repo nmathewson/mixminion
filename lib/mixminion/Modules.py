@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.21 2002/12/02 10:13:49 nickm Exp $
+# $Id: Modules.py,v 1.22 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.Modules
 
@@ -148,7 +148,6 @@ class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
 		if result == DELIVER_OK:
 		    self.deliverySucceeded(handle)
 		elif result == DELIVER_FAIL_RETRY:
-		    # XXXX We need to drop undeliverable messages eventually!
 		    self.deliveryFailed(handle, 1)
 		else:
 		    getLog().error("Unable to deliver message")
@@ -159,13 +158,17 @@ class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
 		self.deliveryFailed(handle, 0)
 
 class ModuleManager:
-    """A ModuleManager knows about all of the modules in the systems.
+    """A ModuleManager knows about all of the server modules in the system.
 
        A module may be in one of three states: unloaded, registered, or
        enabled.  An unloaded module is just a class in a python module.
        A registered module has been loaded, configured, and listed with
-       the ModuleManager, but will not receive messags until it has been
-       enabled."""
+       the ModuleManager, but will not receive messags until it is
+       enabled.
+
+       Because modules need to tell the ServerConfig object aboutt their
+       configuration options, initializing the ModuleManager is usually done
+       through ServerConfig.  See ServerConfig.getModuleManager()."""
     ##
     # Fields
     #    syntax: extensions to the syntax configuration in Config.py
@@ -178,8 +181,8 @@ class ModuleManager:
     #    queues: a map from module name to queue (Queue objects must support
     #            queueMessage and sendReadyMessages as in DeliveryQueue.)
 
-
     def __init__(self):
+	"Create a new ModuleManager"
         self.syntax = {}
         self.modules = []
         self.enabled = {}
@@ -231,6 +234,7 @@ class ModuleManager:
         pyPkg = ".".join(ids[:-1])
         pyClassName = ids[-1]
 	orig_path = sys.path[:]
+	getLog().info("Loading module %s", className)
         try:
 	    sys.path[0:0] = self.path
 	    try:
@@ -260,7 +264,8 @@ class ModuleManager:
             m.configure(config, self)
 
     def enableModule(self, module):
-	"""Maps all the types for a module object."""
+	"""Sets up the module manager to deliver all messages whose exitTypes
+            are returned by <module>.getExitTypes() to the module."""
         for t in module.getExitTypes():
             if (self.typeToModule.has_key(t) and
                 self.typeToModule[t].getName() != module.getName()):
@@ -299,6 +304,8 @@ class ModuleManager:
                            exitType)
 	    return
 	queue = self.queues[mod.getName()]
+	getLog().debug("Delivering message %r (type %04x) via module %s",
+		       message[:8], exitType, mod.getName())
 	try:
 	    payload = mixminion.BuildMessage.decodePayload(message, tag)
 	except MixError, _:
@@ -357,11 +364,11 @@ class MBoxModule(DeliveryModule):
                  }
 
     def validateConfig(self, sections, entries, lines, contents):
-        # XXXX write this.  Parse address file.
+        # XXXX001 write this.  Parse address file.
         pass
 
     def configure(self, config, moduleManager):
-        # XXXX Check this.  Conside error handling
+        # XXXX001 Check this.  Conside error handling
 	
         self.enabled = config['Delivery/MBOX'].get("Enabled", 0)
 	if not self.enabled:
@@ -492,7 +499,7 @@ class MixmasterSMTPModule(SMTPModule):
                  }
                    
     def validateConfig(self, sections, entries, lines, contents):
-        #FFFF implement
+        #FFFF001 implement
         pass
     def configure(self, config, manager):
         sec = config['Delivery/SMTP-Via-Mixmaster']
@@ -546,6 +553,7 @@ class _MixmasterSMTPModuleDeliveryQueue(SimpleModuleDeliveryQueue):
         
 #----------------------------------------------------------------------
 def sendSMTPMessage(server, toList, fromAddr, message):
+    getLog().trace("Sending message via SMTP host %s to %s", server, toList)
     con = smtplib.SMTP(server)
     try:
 	con.sendmail(fromAddr, toList, message)
@@ -564,7 +572,7 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 # DOCDOC
 _allChars = "".join(map(chr, range(256)))
 # DOCDOC
-# ???? Are there any nonprinting chars >= 0x7f to worry about now?
+# ????001 Are there any nonprinting chars >= 0x7f to worry about now?
 _nonprinting = "".join(map(chr, range(0x00, 0x07)+range(0x0E, 0x20)))
 def isPrintable(s):
     """Return true iff s consists only of printable characters."""

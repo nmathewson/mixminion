@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.9 2002/12/02 10:13:48 nickm Exp $
+# $Id: ClientMain.py,v 1.10 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -34,7 +34,7 @@ import types
 from mixminion.Common import getLog, floorDiv, createPrivateDir, MixError, \
      MixFatalError
 import mixminion.Crypto
-from mixminion.BuildMessage import buildForwardMessage
+import mixminion.BuildMessage
 import mixminion.MMTPClient
 import mixminion.Modules
 from mixminion.ServerInfo import ServerInfo
@@ -87,6 +87,7 @@ class TrivialKeystore:
 		    "Ignoring descriptor %s with duplicate prefix %s",
 		    p, f)
 		continue
+	    getLog().info("Loaded server %s from %s", nickname, f)
 	    self.byNickname[nickname] = info
 	    self.byFilename[f] = info
 
@@ -183,13 +184,17 @@ class MixminionClient:
 	self.sendMessages([message], firstHop)
 
     def generateForwardMessage(self, address, payload, path1, path2):
+	if not path1:
+	    raise MixError("No servers in first leg of path")
+	if not path2:
+	    raise MixError("No servers in second leg of path")
+
 	servers1 = self.keystore.getPath(path1)
 	servers2 = self.keystore.getPath(path2)
 
 	routingType, routingInfo, lastHop = address.getRouting()
 	if lastHop is None:
             lastServer = servers2[-1]
-            print path2[-1], routingType
 	    # FFFF This is only a temporary solution.  It needs to get
 	    # FFFF rethought, or refactored into ServerInfo, or something.
 	    if routingType == SMTP_TYPE:
@@ -202,9 +207,8 @@ class MixminionClient:
 		    raise MixError("Last hop doesn't support MBOX")
 	else:
 	    servers2.append(self.keystore.getServerInfo(lastHop))
-	msg = buildForwardMessage(payload,
-				  routingType, routingInfo,
-				  servers1, servers2)
+	msg = mixminion.BuildMessage.buildForwardMessage(
+	    payload, routingType, routingInfo, servers1, servers2)
 	return msg, servers1[0]
 
     def sendMessages(self, msgList, server):

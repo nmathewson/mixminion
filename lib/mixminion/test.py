@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.41 2002/12/02 20:18:44 nickm Exp $
+# $Id: test.py,v 1.42 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.tests
 
@@ -868,6 +868,7 @@ class FakeServerInfo:
         self.key = key
         self.keyid = keyid
 
+    def getNickname(self): return "N(%s:%s)"%(self.addr,self.port)
     def getAddr(self): return self.addr
     def getPort(self): return self.port
     def getPacketKey(self): return self.key
@@ -930,18 +931,18 @@ class BuildMessageTests(unittest.TestCase):
 		self.assert_(BuildMessage._checkPayload(pld))
 		self.assertEquals(len(comp), ord(pld[0])*256+ord(pld[1]))
 		self.assertEquals(0, ord(pld[0])&0x80)
-		self.assertEquals(m, BuildMessage.decodePayloadImpl(pld))
+		self.assertEquals(m, BuildMessage._decodePayloadImpl(pld))
 
-	self.failUnlessRaises(MixError, BuildMessage.decodePayloadImpl, b)
+	self.failUnlessRaises(MixError, BuildMessage._decodePayloadImpl, b)
 
 	# Check fragments (not yet supported)
 	pldFrag = chr(ord(pld[0])|0x80)+pld[1:]
-	self.failUnlessRaises(MixError, BuildMessage.decodePayloadImpl,pldFrag)
+	self.failUnlessRaises(MixError,BuildMessage._decodePayloadImpl,pldFrag)
 
 	# Check impossibly long messages
 	pldSize = "\x7f\xff"+pld[2:] #sha1(pld[22:])+pld[22:]
 	self.failUnlessRaises(ParseError,
-			      BuildMessage.decodePayloadImpl,pldSize)
+			      BuildMessage._decodePayloadImpl,pldSize)
 
     def test_buildheader_1hop(self):
         bhead = BuildMessage._buildHeader
@@ -1187,7 +1188,7 @@ class BuildMessageTests(unittest.TestCase):
             p = lioness_decrypt(p,ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
 
 	if decoder is None:
-	    p = BuildMessage.decodeForwardPayload(p)
+	    p = BuildMessage._decodeForwardPayload(p)
 	else:
 	    p = decoder(p, tag)
 
@@ -1221,7 +1222,7 @@ class BuildMessageTests(unittest.TestCase):
 
 	def decoder0(p,t,messages=messages):
 	    messages['fwd'] = (p,t)
-	    return BuildMessage.decodeForwardPayload(p)
+	    return BuildMessage._decodeForwardPayload(p)
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
@@ -1243,7 +1244,7 @@ class BuildMessageTests(unittest.TestCase):
 		     rsakey)
 	    def decoder(p,t,key=rsakey,messages=messages):
 		messages['efwd'+str(key.get_modulus_bytes())] = (p,t)
-		return BuildMessage.decodeEncryptedForwardPayload(p,t,key)
+		return BuildMessage._decodeEncryptedForwardPayload(p,t,key)
 
 	    self.do_message_test(m,
 				 ( (self.pk1, self.pk2), None,
@@ -1310,7 +1311,7 @@ class BuildMessageTests(unittest.TestCase):
 	messages = {}
 	def decoder(p,t,secrets=secrets_1,messages=messages):
 	    messages['repl'] = p,t
-	    return BuildMessage.decodeReplyPayload(p,secrets)
+	    return BuildMessage._decodeReplyPayload(p,secrets)
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
@@ -1351,7 +1352,7 @@ class BuildMessageTests(unittest.TestCase):
 
 	def decoder2(p,t,messages=messages):
 	    messages['srepl'] = p,t
-	    return BuildMessage.decodeStatelessReplyPayload(p,t,
+	    return BuildMessage._decodeStatelessReplyPayload(p,t,
 							 "Tyrone Slothrop")
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
@@ -1402,7 +1403,7 @@ class BuildMessageTests(unittest.TestCase):
 	encoded1 = (comp+ "RWE/HGW"*4096)[:28*1024-22]
 	encoded1 = '\x00\x6D'+sha1(encoded1)+encoded1
 	# Forward message.
-	self.assertEquals(payload, BuildMessage.decodeForwardPayload(encoded1))
+	self.assertEquals(payload, BuildMessage._decodeForwardPayload(encoded1))
 
 	# Encoded forward message
 	efwd = (comp+"RWE/HGW"*4096)[:28*1024-22-38]
@@ -1414,7 +1415,7 @@ class BuildMessageTests(unittest.TestCase):
 	efwd_t = efwd_rsa[:20]
 	efwd_p = efwd_rsa[20:]+efwd_lioness
 	self.assertEquals(payload,
-	     BuildMessage.decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1))
+	     BuildMessage._decodeEncryptedForwardPayload(efwd_p,efwd_t,rsa1))
 
 	# Stateful reply
 	secrets = [ "Is that you, Des","troyer?Rinehart?" ]
@@ -1423,7 +1424,7 @@ class BuildMessageTests(unittest.TestCase):
 	m = lioness_decrypt(encoded1, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
 	ks = Keyset(secrets[0])
 	m = lioness_decrypt(m, ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE))
-	self.assertEquals(payload, BuildMessage.decodeReplyPayload(m,secrets))
+	self.assertEquals(payload, BuildMessage._decodeReplyPayload(m,secrets))
 	repl1 = m
 
 	# Stateless reply
@@ -1439,7 +1440,7 @@ class BuildMessageTests(unittest.TestCase):
 	    key = Keyset(k).getLionessKeys(PAYLOAD_ENCRYPT_MODE)
 	    m = lioness_decrypt(m,key)
 	self.assertEquals(payload,
-		     BuildMessage.decodeStatelessReplyPayload(m,tag,passwd))
+		     BuildMessage._decodeStatelessReplyPayload(m,tag,passwd))
 	repl2, repl2tag = m, tag
 
 	#
@@ -1498,7 +1499,7 @@ class BuildMessageTests(unittest.TestCase):
 	# Bad efwd
 	efwd_pbad = efwd_p[:-1] + chr(ord(efwd_p[-1])^0xaa)
 	self.failUnlessRaises(MixError,
-			      BuildMessage.decodeEncryptedForwardPayload,
+			      BuildMessage._decodeEncryptedForwardPayload,
 			      efwd_pbad, efwd_t, self.pk1)
 	for d in (sdict, None):
 	    for p in (passwd, None):
@@ -1516,7 +1517,7 @@ class BuildMessageTests(unittest.TestCase):
 			 decodePayload, repl1_bad, "tag1"*5, pk, sd, p)
 		sd = sdict.copy()
 		self.failUnlessRaises(MixError,
-			 BuildMessage.decodeReplyPayload, repl1_bad,
+			 BuildMessage._decodeReplyPayload, repl1_bad,
 				      sd["tag1"*5])
 	# Bad srepl
 	repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
@@ -1576,7 +1577,7 @@ class PacketHandlerTests(unittest.TestCase):
 
 		#tag = res[1][3]
 		p = res[1][4]
-		p = BuildMessage.decodeForwardPayload(p)
+		p = BuildMessage._decodeForwardPayload(p)
                 self.assert_(p.startswith(payload))
                 break
 
@@ -3184,24 +3185,13 @@ class ServerMainTests(unittest.TestCase):
 	# Test getPacketHandler
 	_ = keyring.getPacketHandler()
 
-    def testIncomingQueue(self):
-	# Test _deliverMessage.
-	pass
-
-    def testMixPool(self):
-	# Test 'mix' method
-	pass
-
-    def testOutgoingQueue(self):
-	# Test _deliverMessage
-	pass
-
 #----------------------------------------------------------------------
 
 _EXAMPLE_DESCRIPTORS = {} # name->list of str
 EX_SERVER_CONF_TEMPLATE = """
 [Server]
 Mode: relay
+Homedir: %(homedir)s
 EncryptIdentityKey: No
 PublicKeyLifetime: %(lifetime)s days
 IdentityKeyBits: 2048
@@ -3216,12 +3206,12 @@ Enabled: yes
 
 _EXAMPLE_DESCRIPTORS_INP = [
     # name        days         ip?        validAt
-    [ "Fred",	  "10 days", "10.0.0.6", (-19,-9,1,11) ],
-    [ "Lola",	  "5 days",  "10.0.0.7", (-2,0,5) ],
-    [ "Joe",	  "20 days", "10.0.0.8", (-15,5,25) ],
-    [ "Alice",	  "8 days",  "10.0.0.9", (-3,5,13) ],
-    [ "Bob",	  "11 days", "10.0.0.10", (-10,-1,6) ],
-    [ "Lisa",	  "3 days",  "10.0.0.11", (-10,-1,5) ],
+    [ "Fred",	  "10 days", "10.0.0.6", (-19,-9,1,11), () ],
+    [ "Lola",	  "5 days",  "10.0.0.7", (-2,0,5),      (MBOX_TYPE,) ],
+    [ "Joe",	  "20 days", "10.0.0.8", (-15,5,25),    (SMTP_TYPE,) ],
+    [ "Alice",	  "8 days",  "10.0.0.9", (-3,5,13),     () ],
+    [ "Bob",	  "11 days", "10.0.0.10", (-10,-1,6),   () ],
+    [ "Lisa",	  "3 days",  "10.0.0.11", (-10,-1,5),   () ],
 ]
 
 _EXAMPLE_DESCRIPTORS_TIME = 0
@@ -3236,13 +3226,26 @@ def getExampleServerDescriptors():
 
     sys.stdout.flush()
 
-    for (nickname, lifetime, ip, starting) in _EXAMPLE_DESCRIPTORS_INP:
+    for (nickname, lifetime, ip, starting, types) in _EXAMPLE_DESCRIPTORS_INP:
+	homedir = mix_mktemp()
 	conf = EX_SERVER_CONF_TEMPLATE % locals()
+	for t in types:
+	    if t == MBOX_TYPE:
+		addrf = mix_mktemp()
+		writeFile(addrf,"")
+		conf += ("[Delivery/MBOX]\nEnabled: yes\nAddressFile: %s\n"+
+			 "ReturnAddress: a@b.c\nRemoveContact: b@c.d\n") %(
+		    addrf)
+	    elif t == SMTP_TYPE:
+		conf += ("[Delivery/SMTP-Via-Mixmaster]\nEnabled: yes\n"+
+			 "MixCommand: /bin/ls\nServer: foobar\n")
 	try:
 	    suspendLog()
 	    conf = mixminion.Config.ServerConfig(string=conf)
+	    conf.getModuleManager().configure(conf)
 	finally:
 	    resumeLog()
+	    pass
 
 	_EXAMPLE_DESCRIPTORS[nickname] = []
 	for n in xrange(len(starting)):
@@ -3365,6 +3368,140 @@ class ClientMainTests(unittest.TestCase):
 	parseFails("0x9999")
 	parseFails("0xFFFFF:zymurgy")
 
+    def testMixminionClient(self):
+	parseAddress = mixminion.ClientMain.parseAddress
+	userdir = mix_mktemp()
+	usercfgstr = "[User]\nUserDir: %s\n[DirectoryServers]\n"%userdir
+	usercfg = mixminion.Config.ClientConfig(string=usercfgstr)
+	client = mixminion.ClientMain.MixminionClient(usercfg)
+	
+	# Make sure client sets its directories up correctly.
+	serverdir = os.path.join(userdir, 'servers')
+	self.assert_(os.path.exists(serverdir))
+	self.assertEquals([], os.listdir(serverdir))
+
+	# Now try with some servers...
+	edesc = getExampleServerDescriptors()
+	writeFile(os.path.join(serverdir,"lola1"), edesc["Lola"][1])
+	writeFile(os.path.join(serverdir,"joe1"), edesc["Joe"][0])
+	writeFile(os.path.join(serverdir,"alice1"), edesc["Alice"][0])
+
+	# ... and for now, we need to restart the client.
+	client = mixminion.ClientMain.MixminionClient(usercfg)
+
+	##  Test generateForwardMessage.
+	# We replace 'buildForwardMessage' to make this easier to test.
+	replaceFunction(mixminion.BuildMessage, "buildForwardMessage", 
+			lambda *a:"X")
+	try:
+	    getCalls = getReplacedFunctionCallLog
+	    clearCalls = clearReplacedFunctionCallLog
+	    # First, two forward messages that end with 'joe' and go via
+	    # SMTP
+	    payload = "Hey Joe, where you goin' with that gun in your hand?"
+	    m1 = client.generateForwardMessage(
+		parseAddress("joe@cledonism.net"),
+		payload,
+		path1=["Lola", "Joe"], path2=["Alice", "Joe"])
+	    m2 = client.generateForwardMessage(
+		parseAddress("smtp:joe@cledonism.net"),
+		"Hey Joe, where you goin' with that gun in your hand?",
+		path1=["Lola", "Joe"], path2=["Alice", "Joe"])
+
+	    for fn, args, kwargs in getCalls():
+		self.assertEquals(fn, "buildForwardMessage")
+		self.assertEquals(args[0:3], 
+				  (payload, SMTP_TYPE, "joe@cledonism.net"))
+		self.assert_(len(args[3]) == len(args[4]) == 2)
+		self.assertEquals(["Lola", "Joe", "Alice", "Joe"],
+		     [x['Server']['Nickname'] for x in args[3]+args[4]])
+	    clearCalls()
+	    
+	    # Now try an mbox message, with an explicit last hop.
+	    payload = "Hey, Lo', where you goin' with that pun in your hand?"
+	    m1 = client.generateForwardMessage(
+		parseAddress("mbox:granola"),
+		payload,
+		path1=["Lola", "Joe"], path2=["Alice", "Lola"])
+	    # And an mbox message with a last hop implicit in the address
+	    m1 = client.generateForwardMessage(
+		parseAddress("mbox:granola@Lola"),
+		payload,
+		path1=["Lola", "Joe"], path2=["Alice"])	    
+
+	    for fn, args, kwargs in getCalls():
+		self.assertEquals(fn, "buildForwardMessage")
+		self.assertEquals(args[0:3], 
+				  (payload, MBOX_TYPE, "granola"))
+		self.assert_(len(args[3]) == len(args[4]) == 2)
+		self.assertEquals(["Lola", "Joe", "Alice", "Lola"],
+		     [x['Server']['Nickname'] for x in args[3]+args[4]])
+	    clearCalls()
+	finally:
+	    undoReplacedAttributes()
+	    clearCalls()
+
+	### Now try some failing cases for generateForwardMessage:
+	# Empty path...
+	self.assertRaises(MixError, 
+			  client.generateForwardMessage, 
+			  parseAddress("0xFFFF:zed"),
+			  "Z", [], ["Alice"])
+	# Nonexistant servers...
+	self.assertRaises(MixError, 
+			  client.generateForwardMessage,
+			  parseAddress("0xFFFF:zed"),
+			  "Z", ["Marvin"], ["Fred"])
+	# Lola doesn't support SMTP...
+	self.assertRaises(MixError, 
+			  client.generateForwardMessage,
+			  parseAddress("smtp:joe@cledonism.net"),
+			  "Z", ["Joe"], ["Lola"])
+	# Joe doesn't support MBOX...
+	self.assertRaises(MixError, 
+			  client.generateForwardMessage,
+			  parseAddress("mbox:wahoo"),
+			  "Z", ["Lola"], ["Joe"])
+	
+	
+	# Temporarily replace BlockingClientConnection so we can try the client
+	# without hitting the network.
+	class FakeBCC:
+	    def __init__(self, addr, port, keyid):
+		global BCC_INSTANCE
+		BCC_INSTANCE = self
+		self.addr = addr
+		self.port = port
+		self.keyid = keyid
+		self.packets = []
+		self.connected = 0
+	    def connect(self):
+		self.connected = 1
+	    def sendPacket(self, msg):
+		assert self.connected
+		self.packets.append(msg)
+	    def shutdown(self):
+		self.connected = 0
+
+	replaceAttribute(mixminion.MMTPClient, "BlockingClientConnection",
+			 FakeBCC)
+	try:
+	    client.sendForwardMessage(
+		parseAddress("mbox:granola@Lola"),
+		"You only give me your information.",
+		["Alice", "Lola", "Joe", "Alice"], ["Joe", "Alice"])
+	    bcc = BCC_INSTANCE
+	    # first hop is alice
+	    self.assertEquals(bcc.addr, "10.0.0.9")
+	    self.assertEquals(bcc.port, 48099)
+	    self.assertEquals(0, bcc.connected)
+	    self.assertEquals(1, len(bcc.packets))
+	    self.assertEquals(32*1024, len(bcc.packets[0]))
+
+	finally:
+	    undoReplacedAttributes()
+	    clearCalls()
+
     def isSameServerDesc(self, s1, s2):
 	"""s1 and s2 are either ServerInfo objects or strings containing server
 	   descriptors. Returns 1 iff their digest fields match"""
@@ -3380,12 +3517,13 @@ class ClientMainTests(unittest.TestCase):
 
 #----------------------------------------------------------------------
 def testSuite():
+    """Return a PyUnit test suite containing all the unit test cases."""
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     tc = loader.loadTestsFromTestCase
 
-    suite.addTest(tc(ModuleTests))
     if 0:
+	suite.addTest(tc(ClientMainTests))
 	return suite
 
     suite.addTest(tc(MiscTests))
@@ -3399,6 +3537,7 @@ def testSuite():
     suite.addTest(tc(BuildMessageTests))
     suite.addTest(tc(PacketHandlerTests))
     suite.addTest(tc(QueueTests))
+    suite.addTest(tc(ModuleTests))
 
     suite.addTest(tc(ClientMainTests))
     suite.addTest(tc(ServerMainTests))

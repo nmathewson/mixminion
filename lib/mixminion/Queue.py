@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.21 2002/12/02 03:27:52 nickm Exp $
+# $Id: Queue.py,v 1.22 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.Queue
 
@@ -27,11 +27,11 @@ _NEW_MESSAGE_MODE += getattr(os, 'O_BINARY', 0)
 
 # Any inp_* files older than INPUT_TIMEOUT seconds old are assumed to be
 # trash.
-INPUT_TIMEOUT = 600
+INPUT_TIMEOUT = 6000
 
 # If we've been cleaning for more than CLEAN_TIMEOUT seconds, assume the
 # old clean is dead.
-CLEAN_TIMEOUT = 60
+CLEAN_TIMEOUT = 120
 
 class Queue:
     """A Queue is an unordered collection of files with secure remove and
@@ -205,8 +205,8 @@ class Queue:
            Returns 1 if a clean is already in progress; otherwise
            returns 0.
         """
-	# XXXX This is race-prone if multiple processes sometimes try to clean
-	# XXXX   the same queue.
+	# XXXX001 This is race-prone if multiple processes sometimes try to 
+	# XXXX001   clean the same queue.  Use O_EXCL, Luke.
         now = time.time()
 
         cleanFile = os.path.join(self.dir,".cleaning")
@@ -366,6 +366,7 @@ class TimedMixQueue(Queue):
     """A TimedMixQueue holds a group of files, and returns some of them
        as requested, according to a mixing algorithm that sends a batch
        of messages every N seconds."""
+    # FFFF : interval is unused.
     def __init__(self, location, interval=600):
 	"""Create a TimedMixQueue that sends its entire batch of messages
 	   every 'interval' seconds."""
@@ -384,6 +385,7 @@ class CottrellMixQueue(TimedMixQueue):
     """A CottrellMixQueue holds a group of files, and returns some of them
        as requested, according the Cottrell (timed dynamic-pool) mixing
        algorithm from Mixmaster."""
+    # FFFF : interval is unused.
     def __init__(self, location, interval=600, minPool=6, minSend=1,
 		 sendRate=.7):
 	"""Create a new queue that yields a batch of message every 'interval'

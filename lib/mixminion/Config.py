@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.20 2002/12/02 03:30:07 nickm Exp $
+# $Id: Config.py,v 1.21 2002/12/07 04:03:35 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -686,6 +686,7 @@ SERVER_SYNTAX =  {
 	# FFFF         timeout options
 	# FFFF         listen timeout??
 	# FFFF         Retry options
+	# FFFF         pool options
         }
 
 class ServerConfig(_ConfigFile):
@@ -755,6 +756,6 @@ class ServerConfig(_ConfigFile):
 	return self.moduleManager
 
 def _validateHostSection(sec):
-    # FFFF
+    # FFFF001
     pass
 

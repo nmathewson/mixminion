@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.16 2002/12/02 10:13:49 nickm Exp $
+# $Id: ServerMain.py,v 1.17 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -19,7 +19,7 @@ import mixminion._minionlib
 import mixminion.Crypto
 import mixminion.Queue
 import mixminion.MMTPServer
-from mixminion.ServerInfo import ServerKeyset, ServerInfo, _date, \
+from mixminion.ServerInfo import ServerKeyset, ServerInfo, _date, _time, \
      generateServerDescriptorAndKeys
 from mixminion.Common import getLog, MixFatalError, MixError, secureDelete, \
      createPrivateDir, previousMidnight, ceilDiv
@@ -45,7 +45,8 @@ class ServerKeyring:
     """A ServerKeyRing remembers current and future keys, descriptors, and
        hash logs for a mixminion server.
 
-       FFFF: We need a way to generate keys as needed
+       FFFF We need a way to generate keys as needed, not just a month's
+       FFFF worth of keys up front. 
        """
     # homeDir: server home directory
     # keyDir: server key directory
@@ -76,7 +77,10 @@ class ServerKeyring:
 	firstKey = sys.maxint
 	lastKey = 0
 
+	getLog().debug("Scanning server keystore at %s", self.keyDir)
+
 	if not os.path.exists(self.keyDir):
+	    getLog().info("Creating server keystore at %s", self.keyDir)
 	    createPrivateDir(self.keyDir)
 
         for dirname in os.listdir(self.keyDir):
@@ -103,6 +107,8 @@ class ServerKeyring:
                 t1 = inf['Server']['Valid-After']
                 t2 = inf['Server']['Valid-Until']
                 self.keyIntervals.append( (t1, t2, keysetname) )
+		getLog().debug("Found key %s (valid from %s to %s)",
+			       dirname, _date(t1), _date(t2))
 	    else:
 		getLog().warn("No server descriptor found for key %s"%dirname)
 
@@ -258,7 +264,7 @@ class ServerKeyring:
         return self.nextKeyRotation
 
     def getServerKeyset(self):
-	"""Return a ServerKeyset object for  the currently live key."""
+	"""Return a ServerKeyset object for the currently live key."""
 	# FFFF Support passwords on keys
 	_, _, name = self._getLiveKey()
 	keyset = ServerKeyset(self.keyDir, name, self.hashDir)
@@ -275,6 +281,9 @@ class ServerKeyring:
             getLog().info("Generating Diffie-Helman parameters for TLS...")
             mixminion._minionlib.generate_dh_parameters(dhfile, verbose=0)
             getLog().info("...done")
+	else:
+	    getLog().debug("Using existing Diffie-Helman parameter from %s",
+			   dhfile)
 
         return dhfile
 
@@ -311,6 +320,7 @@ class IncomingQueue(mixminion.Queue.DeliveryQueue):
 
     def queueMessage(self, msg):
 	"""Add a message for delivery"""
+	getLog().trace("Inserted message %r into incoming queue", msg[:8])
 	self.queueDeliveryMessage(None, msg)
 
     def _deliverMessages(self, msgList):
@@ -321,18 +331,22 @@ class IncomingQueue(mixminion.Queue.DeliveryQueue):
 		res = ph.processMessage(message)
 		if res is None:
 		    # Drop padding before it gets to the mix.
-		    getLog().info("Padding message dropped")
+		    getLog().debug("Padding message %r dropped", 
+				   message[:8])
 		else:
+		    getLog().debug("Processed message %r; inserting into pool",
+				   message[:8])
 		    self.mixPool.queueObject(res)
 		    self.deliverySucceeded(handle)
 	    except mixminion.Crypto.CryptoError, e:
-		getLog().warn("Invalid PK or misencrypted packet header:"+str(e))
+		getLog().warn("Invalid PK or misencrypted packet header: %s",
+			      e)
 		self.deliveryFailed(handle)
 	    except mixminion.Packet.ParseError, e:
-		getLog().warn("Malformed message dropped:"+str(e))
+		getLog().warn("Malformed message dropped: %s", e)
 		self.deliveryFailed(handle)
 	    except mixminion.PacketHandler.ContentError, e:
-		getLog().warn("Discarding bad packet:"+str(e))
+		getLog().warn("Discarding bad packet: %s", e)
 		self.deliveryFailed(handle)
 
 class MixPool:
@@ -348,6 +362,10 @@ class MixPool:
 	"""Insert an object into the queue."""
 	self.queue.queueObject(obj)
 
+    def count(self):
+	"Return the number of messages in the queue"
+	return self.queue.count()
+
     def connectQueues(self, outgoing, manager):
 	"""Sets the queue for outgoing mixminion packets, and the
   	   module manager for deliverable messages."""
@@ -358,15 +376,20 @@ class MixPool:
 	"""Get a batch of messages, and queue them for delivery as
 	   appropriate."""
 	handles = self.queue.getBatch()
-	getLog().trace("Mixing %s messages", len(handles))
+	getLog().debug("Mixing %s messages out of %s", 
+		       len(handles), self.queue.count())
 	for h in handles:
 	    tp, info = self.queue.getObject(h)
 	    if tp == 'EXIT':
 		rt, ri, app_key, tag, payload = info
+		getLog().debug("  (sending message %r to exit modules)", 
+			       payload[:8])
 		self.moduleManager.queueMessage(payload, tag, rt, ri)
 	    else:
 		assert tp == 'QUEUE'
 		ipv4, msg = info
+		getLog().debug("  (sending message %r to MMTP server)", 
+			       msg[:8])
 		self.outgoingQueue.queueDeliveryMessage(ipv4, msg)
 	    self.queue.removeMessage(h)
 
@@ -418,6 +441,7 @@ class MixminionServer:
        all timed events."""
     def __init__(self, config):
 	"""Create a new server from a ServerConfig."""
+	getLog().debug("Initializing server")
 	self.config = config
 	self.keyring = ServerKeyring(config)
 	if self.keyring._getLiveKey() is None:
@@ -428,27 +452,42 @@ class MixminionServer:
 	    nKeys = ceilDiv(30*24*60*60, keylife)
 	    self.keyring.createKeys(nKeys)
 
+	getLog().trace("Initializing packet handler")
 	self.packetHandler = self.keyring.getPacketHandler()
+	getLog().trace("Initializing TLS context")
 	tlsContext = self.keyring.getTLSContext()
+	getLog().trace("Initializing MMTP server")
 	self.mmtpServer = _MMTPServer(config, tlsContext)
 
 	# FFFF Modulemanager should know about async so it can patch in if it
 	# FFFF needs to.
+	getLog().trace("Initializing delivery module")
 	self.moduleManager = config.getModuleManager()
+	self.moduleManager.configure(config)
 
 	homeDir = config['Server']['Homedir']
 	queueDir = os.path.join(homeDir, 'work', 'queues')
 
 	incomingDir = os.path.join(queueDir, "incoming")
+	getLog().trace("Initializing incoming queue")
 	self.incomingQueue = IncomingQueue(incomingDir, self.packetHandler)
+	getLog().trace("Found %d pending messages in incoming queue", 
+		       self.incomingQueue.count())
 
 	mixDir = os.path.join(queueDir, "mix")
 	# FFFF The choice of mix algorithm should be configurable
+	getLog().trace("Initializing Mix pool")
 	self.mixPool = MixPool(mixminion.Queue.TimedMixQueue(mixDir, 60))
+	getLog().trace("Found %d pending messages in Mix pool",
+		       self.mixPool.count())
 
 	outgoingDir = os.path.join(queueDir, "outgoing")
+	getLog().trace("Initializing outgoing queue")
 	self.outgoingQueue = OutgoingQueue(outgoingDir)
+	getLog().trace("Found %d pending messages in outgoing queue",
+		       self.outgoingQueue.count())
 
+	getLog().trace("Connecting queues")
 	self.incomingQueue.connectQueues(mixPool=self.mixPool)
 	self.mixPool.connectQueues(outgoing=self.outgoingQueue,
 				   manager=self.moduleManager)
@@ -458,7 +497,8 @@ class MixminionServer:
 
     def run(self):
 	"""Run the server; don't return unless we hit an exception."""
-	# FFFF Use heapq to schedule events?
+	# FFFF Use heapq to schedule events? [I don't think so; there are only
+	# FFFF   two events, after all!]
 	now = time.time()
 	MIX_INTERVAL = 20  # FFFF Configurable!
 	nextMix = now + MIX_INTERVAL
@@ -466,6 +506,7 @@ class MixminionServer:
 	#FFFF Unused
 	#nextRotate = self.keyring.getNextKeyRotation()
 	while 1:
+	    getLog().trace("Next mix at %s", _time(nextMix))
 	    while time.time() < nextMix:
 		# Handle pending network events
 		self.mmtpServer.process(1)
@@ -492,7 +533,7 @@ class MixminionServer:
 
 	    if now > nextShred:
 		# FFFF Configurable shred interval
-		getLog().trace("Expunging queues")
+		getLog().trace("Expunging deleted messages from queues")
 		self.incomingQueue.cleanQueue()
 		self.mixPool.queue.cleanQueue()
 		self.outgoingQueue.cleanQueue()
@@ -544,13 +585,12 @@ def runServer(cmd, args):
 	getLog().debug("Configuring server")
 	mixminion.Common.configureShredCommand(config)
 	mixminion.Crypto.init_crypto(config)
-	config.getModuleManager().configure(config)
 
 	server = MixminionServer(config)
     except:
 	getLog().fatal_exc(sys.exc_info(),"Exception while configuring server")
 	print >>sys.stderr, "Shutting down because of exception"
-        #XXXX print stack trace
+        #XXXX print stack trace as well as logging?
 	sys.exit(1)
 
     getLog().info("Starting server")
@@ -560,7 +600,7 @@ def runServer(cmd, args):
 	pass
     except:
 	getLog().fatal_exc(sys.exc_info(),"Exception while running server")
-        #XXXX print stack trace
+        #XXXX print stack trace as well as logging?
     getLog().info("Server shutting down")
     server.close()
     getLog().info("Server is shut down")

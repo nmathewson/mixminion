@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.13 2002/12/03 00:40:26 nickm Exp $
+# $Id: HashLog.py,v 1.14 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.HashLog
 
@@ -56,6 +56,7 @@ class HashLog:
         parent = os.path.split(filename)[0]
 	createPrivateDir(parent)
         self.log = anydbm.open(filename, 'c')
+	getLog().debug("Opening database %s for packet digests", filename)
         if isinstance(self.log, dumbdbm._Database):
             getLog().warn("Warning: logging packet digests to a flat file.")
         try:
@@ -74,7 +75,7 @@ class HashLog:
 	    f.close()
 
 	self.journalFile = os.open(self.journalFileName, 
-		    _JOURNAL_OPEN_MODE|os.O_APPEND, 0700)
+		    _JOURNAL_OPEN_MODE|os.O_APPEND, 0600)
 
     def seenHash(self, hash):
         """Return true iff 'hash' has been logged before."""
@@ -101,7 +102,7 @@ class HashLog:
             self.log.sync()
 	os.close(self.journalFile)
 	self.journalFile = os.open(self.journalFileName,
-		   _JOURNAL_OPEN_MODE|os.O_TRUNC, 0700)
+		   _JOURNAL_OPEN_MODE|os.O_TRUNC, 0600)
 	self.journal = {}
 
     def close(self):

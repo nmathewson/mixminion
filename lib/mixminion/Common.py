@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.28 2002/12/03 00:39:51 nickm Exp $
+# $Id: Common.py,v 1.29 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.Common
 
@@ -127,8 +127,6 @@ def checkPrivateDir(d, recurse=1):
 #----------------------------------------------------------------------
 # Secure filesystem operations.
 #
-
-
 _SHRED_CMD = "---"
 _SHRED_OPTS = None
     
@@ -164,7 +162,7 @@ def _overwriteFile(f):
     global _NILSTR
     if not _BLKSIZE:
 	#???? this assumes that all filesystems we are using have the same
-	#??? block size.
+	#???? block size.
 	if hasattr(os, 'statvfs'):
 	    _BLKSIZE = os.statvfs(f)[statvfs.F_BSIZE]
 	else:

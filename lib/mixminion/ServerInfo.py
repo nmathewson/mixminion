@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.21 2002/12/02 03:30:07 nickm Exp $
+# $Id: ServerInfo.py,v 1.22 2002/12/07 04:03:35 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -80,7 +80,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def __init__(self, fname=None, string=None, assumeValid=0):
 	mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
-	getLog().trace("Read server %s from %s",
+	getLog().trace("Reading server descriptor %s from %s",
 		       self['Server']['Nickname'],
 		       fname or "<string>")
 
@@ -117,7 +117,10 @@ class ServerInfo(mixminion.Config._ConfigFile):
 							 identityKey):
 	    raise ConfigError("Invalid signature")
 
-	#### XXXX CHECK OTHER SECTIONS
+	#### XXXX001 CHECK OTHER SECTIONS
+
+    def getNickname(self):
+	return self['Server']['Nickname']
 
     def getAddr(self):
 	return self['Server']['IP']
@@ -448,6 +451,8 @@ def _guessLocalIP():
     for ip in ip_set.keys():
 	if ip.startswith("127.") or ip.startswith("0."):
 	    del ip_set[ip]
+
+    # FFFF reject 192.168, 10., 176.16.x
 
     if len(ip_set) == 0:
 	raise IPGuessError("No address found")

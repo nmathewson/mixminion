@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.17 2002/12/02 10:20:18 nickm Exp $
+# $Id: Packet.py,v 1.18 2002/12/07 04:03:35 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -185,13 +185,13 @@ class Subheader:
                 "routinglen=%(routinglen)r)")% self.__dict__
 
     def getExitAddress(self):
-	# XXXX SPEC This is not explicit in the spec.
+	# XXXX001 SPEC This is not explicit in the spec.
 	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
 	assert len(self.routinginfo) >= TAG_LEN
 	return self.routinginfo[TAG_LEN:]
     
     def getTag(self):
-	# XXXX SPEC This is not explicit in the spec.
+	# XXXX001 SPEC This is not explicit in the spec.
 	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
 	assert len(self.routinginfo) >= TAG_LEN
 	return self.routinginfo[:TAG_LEN]
@@ -268,7 +268,7 @@ FRAGMENT_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
 # Number of bytes taken up from OAEP padding in an encrypted forward
 # payload, minus bytes saved by spilling the RSA-encrypted block into the
 # tag, minus the bytes taken by the session key.
-# XXXX (The e2e note is off by 4.)
+# XXXX001 (The e2e note is off by 4.)
 ENC_FWD_OVERHEAD = OAEP_OVERHEAD - TAG_LEN + SECRET_LEN
 
 def parsePayload(payload):
@@ -454,7 +454,7 @@ class IPV4Info:
 		self.port == other.port and self.keyinfo == other.keyinfo)
 
 #DOCDOC
-# FFFF Support subdomains and quotesd strings
+# FFFF Support subdomains and quoted strings
 _ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
 _LOCAL_PART_PAT = r"(?:%s)(?:\.(?:%s))*" % (_ATOM_PAT, _ATOM_PAT)
 _RFC822_PAT = r"\A%s@%s\Z" % (_LOCAL_PART_PAT, _LOCAL_PART_PAT)
