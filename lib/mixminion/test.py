@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.34 2002/10/30 02:19:39 nickm Exp $
+# $Id: test.py,v 1.35 2002/10/30 02:25:19 nickm Exp $
 
 """mixminion.tests
 
@@ -2740,6 +2740,9 @@ ModulePath = %s
 Module ExampleMod.TestModule
 [Example]
 Foo: 99
+[Incoming/MMTP]
+Enabled: yes
+IP: 1.0.0.1
 """ % (home_dir, mod_dir)
 
         try:
