@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.62 2004/01/03 05:45:25 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Makefile,v 1.63 2004/01/03 07:35:22 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets

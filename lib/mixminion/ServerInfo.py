@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.70 2004/01/03 05:45:26 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ServerInfo.py,v 1.71 2004/01/03 07:35:23 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,15 +15,14 @@ import time
 import types
 
 import mixminion.Config
-import mixminion.Crypto
 import mixminion.MMTPClient
 import mixminion.Packet
 
 from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
-    formatBase64, formatDate, formatTime, readPossiblyGzippedFile
+     formatBase64, formatDate, formatTime, readPossiblyGzippedFile
 from mixminion.Config import ConfigError
-from mixminion.Packet import IPV4Info, MMTPHostInfo
-from mixminion.Crypto import CryptoError, DIGEST_LEN, pk_check_signature
+from mixminion.Crypto import CryptoError, DIGEST_LEN, pk_check_signature, \
+     pk_encode_public_key, pk_sign, sha1
 
 # Longest allowed Contact email
 MAX_CONTACT = 256
@@ -327,8 +326,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def getKeyDigest(self):
         """Returns a hash of this server's MMTP key"""
-        return mixminion.Crypto.sha1(
-            mixminion.Crypto.pk_encode_public_key(self['Server']['Identity']))
+        return sha1(pk_encode_public_key(self['Server']['Identity']))
 
     def getIPV4Info(self):
         """Returns a mixminion.Packet.IPV4Info object for routing messages
@@ -336,7 +334,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
            or earlier.)"""
         ip = self.getIP()
         if ip is None: return None
-        return IPV4Info(ip, self.getPort(), self.getKeyDigest())
+        return mixminion.Packet.IPV4Info(ip, self.getPort(), self.getKeyDigest())
 
     def getMMTPHostInfo(self):
         """Returns a mixminion.Packet.MMTPHostInfo object for routing messages
@@ -344,7 +342,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
            or later.)"""
         host = self.getHostname()
         if host is None: return None
-        return MMTPHostInfo(host, self.getPort(), self.getKeyDigest())
+        return mixminion.Packet.MMTPHostInfo(
+            host, self.getPort(), self.getKeyDigest())
 
     def getRoutingInfo(self):
         """Return whichever of MMTPHostInfo or IPV4 info is best for
@@ -696,12 +695,12 @@ def _getDigestImpl(info, regex, digestField=None, sigField=None, rsa=None):
         s = m.group(0)
         return s[:s.index(':')+1]
     info = regex.sub(replaceFn, info, 2)
-    digest = mixminion.Crypto.sha1(info)
+    digest = sha1(info)
 
     if rsa is None:
         return digest
 
-    signature = mixminion.Crypto.pk_sign(digest,rsa)
+    signature = pk_sign(digest,rsa)
     digest = formatBase64(digest)
     signature = formatBase64(signature)
     def replaceFn2(s, digest=digest, signature=signature,

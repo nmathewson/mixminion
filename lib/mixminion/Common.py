@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.126 2004/01/03 05:45:26 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Common.py,v 1.127 2004/01/03 07:35:23 nickm Exp $
 
 """mixminion.Common
 
@@ -1124,10 +1124,10 @@ class Duration:
             self.nUnits = seconds
 
     def __str__(self):
-        s = ""
+        plural = ""
         if self.nUnits != 1:
-            s = "s"
-        return "%s %s%s" % (self.nUnits, self.unitName, s)
+            plural = "s"
+        return "%s %s%s" % (self.nUnits, self.unitName, plural)
 
     def __repr__(self):
         return "Duration(%r, %r, %r)" % (self.seconds, self.unitName,
@@ -1633,3 +1633,5 @@ else:
                         raise
                     delay = min(delay*2,remaining,0.2)
                     _sleep(delay)
+
+            raise AssertionError # unreached, appease pychecker

@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.67 2003/12/14 01:43:25 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Modules.py,v 1.68 2004/01/03 07:35:24 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -624,6 +624,8 @@ class FragmentModule(DeliveryModule):
                 self._queue = None
         finally:
             self.lock.release()
+    def processMessage(self, packet):
+        raise AssertionError
 
 class FragmentDeliveryQueue:
     """Delivery queue for FragmentModule.

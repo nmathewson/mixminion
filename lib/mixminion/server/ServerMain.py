@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.111 2003/12/14 02:15:20 weasel Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ServerMain.py,v 1.112 2004/01/03 07:35:24 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -1031,7 +1031,6 @@ def configFromServerArgs(cmd, args, usage):
         sys.exit(0)
     configFile = None
     forceDaemon = None
-    echo = 0
     severity = None
     for o,v in options:
         if o in ('-h', '--help'):
@@ -1303,7 +1302,6 @@ def runDELKEYS(cmd, args):
 
     checkHomedirVersion(config)
 
-    homeDir = config.getBaseDir()
     keyDir = config.getKeyDir()
     hashDir = os.path.join(config.getWorkDir(), 'hashlogs')
     if not os.path.exists(keyDir):
@@ -1350,11 +1348,11 @@ def signalServer(cmd, args):
     """[Entry point] Send a SIGHUP or a SIGTERM to a running mixminion
        server."""
     if cmd.endswith("server-stop"):
-        reload = 0
+        sig_reload = 0
         usage = _SIGNAL_SERVER_USAGE % ("server-stop", "shut down")
     else:
         assert cmd.endswith("server-reload")
-        reload = 1
+        sig_reload = 1
         usage = _SIGNAL_SERVER_USAGE % ("server-reload",
                                         "rescan its configuration")
 
@@ -1363,14 +1361,13 @@ def signalServer(cmd, args):
 
     checkHomedirVersion(config)
 
-    _signalServer(config, reload)
+    _signalServer(config, sig_reload)
 
 def _signalServer(config, reload):
     """Given a configuration file, sends a signal to the corresponding
        server if it's running.  If 'reload', the signal is HUP.  Else,
        the signal is TERM.
     """
-    homeDir = config.getBaseDir()
     pidFile = config.getPidFile()
     if not os.path.exists(pidFile):
         raise UIError("No server seems to be running.")

@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.73 2004/01/03 05:45:26 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Config.py,v 1.74 2004/01/03 07:35:23 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -60,8 +60,6 @@ try:
     import pwd
 except ImportError:
     pwd = None
-
-from cStringIO import StringIO
 
 import mixminion.Common
 import mixminion.Crypto

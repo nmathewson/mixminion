@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.34 2003/12/08 02:22:56 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: PacketHandler.py,v 1.35 2004/01/03 07:35:24 nickm Exp $
 
 """mixminion.server.PacketHandler: Code to process mixminion packets"""
 
@@ -10,15 +10,14 @@ import types
 from mixminion.Common import encodeBase64, formatBase64, LOG
 import mixminion.Crypto as Crypto
 import mixminion.Packet as Packet
-import mixminion.Common as Common
 import mixminion.BuildMessage
 
 from mixminion.ServerInfo import PACKET_KEY_BYTES
-from mixminion.Common import MixError, isPrintingAscii
+from mixminion.Common import MixError, MixFatalError, isPrintingAscii
 
 __all__ = [ 'PacketHandler', 'ContentError', 'DeliveryPacket', 'RelayedPacket']
 
-class ContentError(Common.MixError):
+class ContentError(MixError):
     """Exception raised when a packed is malformatted or unacceptable."""
     pass
 
@@ -61,7 +60,7 @@ class PacketHandler:
             for k in keys:
                 newKeys[k.encode_key(1)] = 1
                 if k.get_modulus_bytes() != PACKET_KEY_BYTES:
-                    raise Common.MixFatalError("Incorrect packet key length")
+                    raise MixFatalError("Incorrect packet key length")
             # For all old public keys, if they aren't in the new set, close
             # their hashlogs.
             for k, h in self.privatekeys:

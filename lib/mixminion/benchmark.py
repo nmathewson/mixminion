@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.50 2003/12/12 22:37:13 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: benchmark.py,v 1.51 2004/01/03 07:35:23 nickm Exp $
 
 """mixminion.benchmark
 
@@ -99,7 +99,6 @@ def spacestr(n):
 short = "Hello, Dali!"
 s20b = "ABCDEFGHIJKLMNOPQRST"
 s64b = "8charstr"*8
-s128b = s64b*2
 s70b = "10character"*7
 s1K = "8charstr"*128
 s2K = s1K*2
@@ -107,8 +106,6 @@ s4K = s2K*2
 s8K = s4K*2
 s28K = s1K*28
 s32K = s8K*4
-
-s120b = 'z'*120
 
 def cryptoTiming():
     print "#==================== CRYPTO ======================="
@@ -345,23 +342,23 @@ def _hashlogTiming(fname, load):
     print "Add entry (up to %s entries)" %load, timestr(t/float(load))
 
     t = time()
-    for hash in hashes[0:1000]:
-        h.seenHash(hash)
+    for hash_ in hashes[0:1000]:
+        h.seenHash(hash_)
     t = time()-t
     print "Check entry [hit] (%s entries)" %load, timestr(t/1000.0)
 
     hashes =[ prng.getBytes(20) for _ in xrange(1000) ]
     t = time()
-    for hash in hashes:
-        h.seenHash(hash)
+    for hash_ in hashes:
+        h.seenHash(hash_)
     t = time()-t
     print "Check entry [miss] (%s entries)" %load, timestr(t/1000.0)
 
     hashes =[ prng.getBytes(20) for _ in xrange(1000) ]
     t = time()
-    for hash in hashes:
-        h.seenHash(hash)
-        h.logHash(hash)
+    for hash_ in hashes:
+        h.seenHash(hash_)
+        h.logHash(hash_)
     t = time()-t
     print "Check entry [miss+add] (%s entries)" %load, timestr(t/1000.0)
 
@@ -724,8 +721,8 @@ def fileOpsTiming():
 
     lst = [ os.path.join(dname,str(i)) for i in range(100,200) ]
     t1 = time()
-    for file in lst:
-        secureDelete(file)
+    for fname in lst:
+        secureDelete(fname)
     t = time()-t1
     print "secureDelete (1)", timestr(t/100)
 

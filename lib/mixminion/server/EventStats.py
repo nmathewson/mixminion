@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.13 2003/12/03 23:18:53 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: EventStats.py,v 1.14 2004/01/03 07:35:24 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -324,6 +324,8 @@ def configureLog(config):
         workfile = os.path.join(config.getWorkDir(), "stats.tmp")
         log = EventLog(
            workfile, statsfile, config['Server']['StatsInterval'].getSeconds())
+        import mixminion.MMTPClient
+        mixminion.MMTPClient.useEventStats()
         LOG.info("Statistics logging enabled")
     else:
         log = NilEventLog()

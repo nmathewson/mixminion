@@ -1,4 +1,4 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
 # Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ClientUtils
@@ -376,9 +376,9 @@ class _KeyringImpl:
     # surbKeys: A map from lowercase keyid to a list of (expiry-time, secret)
     #    for all of the SURB keys in the keyring.
     SURB_KEY_TYPE = 0x00
-    def __init__(self, input="", now=None):
+    def __init__(self, s="", now=None):
         """Initialize this keyring representation from the encoded string
-           'input'.  If any keys are set to expire before 'now', delete them.
+           's'.  If any keys are set to expire before 'now', delete them.
         """
         if now is None: now = time.time()
 
@@ -386,18 +386,18 @@ class _KeyringImpl:
         self.unrecognized = []
         rec = []
         self.dirty = 0
-        while input:
-            if len(input) < 3:
+        while s:
+            if len(s) < 3:
                 raise MixError("Corrupt keyring: truncated entry.")
-            tp,length = struct.unpack("!BH", input[:3])
-            if len(input) < 3+length:
+            tp,length = struct.unpack("!BH", s[:3])
+            if len(s) < 3+length:
                 raise MixError("Corrupt keyring: truncated entry.")
-            val = input[3:3+length]
+            val = s[3:3+length]
             if tp == self.SURB_KEY_TYPE:
                 rec.append((tp,val))
             else:
                 self.unrecognized.append((tp,val))
-            input = input[3+length:]
+            s = s[3+length:]
 
         # Now, extract all the SURB keys from the keyring, and remove all
         # expired SURB keys from self.recognized.

@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.23 2003/11/28 04:14:04 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: testSupport.py,v 1.24 2004/01/03 07:35:23 nickm Exp $
 
 """mixminion.testSupport
 
@@ -66,11 +66,7 @@ class DirectoryStoreModule(DeliveryModule):
         if not os.path.exists(self.loc):
             createPrivateDir(self.loc)
 
-        max = -1
-        for f in os.listdir(self.loc):
-            if int(f) > max:
-                max = int(f)
-        self.next = max+1
+        self.next = 1 + max([-1]+[int(f) for f in os.listdir(self.loc)])
 
         self.retry = config['Testing/DirectoryDump']['Retry']
         manager.enableModule(self)

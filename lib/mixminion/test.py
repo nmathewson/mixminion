@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.172 2004/01/03 05:45:26 nickm Exp $
+# $Id: test.py,v 1.173 2004/01/03 07:35:23 nickm Exp $
 
 """mixminion.tests
 
@@ -260,7 +260,7 @@ class MiscTests(TestCase):
     def testVersions(self):
         vstr = mixminion.version_tuple_to_string
         parse = mixminion.parse_version_string
-        cmp = mixminion.cmp_versions
+        cmp_v = mixminion.cmp_versions
         last = None
         for t,s,c in [((1,0,0,100,-1),   "1.0.0",       None),
                       ((0,0,3,0,-1),     "0.0.3alpha",  '<'),
@@ -284,11 +284,11 @@ class MiscTests(TestCase):
             if c == 'EX':
                 self.assertRaises(ValueError, cmp, last, t)
             elif c == '<':
-                self.assertEquals(cmp(last,t), -1)
+                self.assertEquals(cmp_v(last,t), -1)
             elif c == '=':
-                self.assertEquals(cmp(last,t), 0)
+                self.assertEquals(cmp_v(last,t), 0)
             elif c == '>':
-                self.assertEquals(cmp(last,t), 1)
+                self.assertEquals(cmp_v(last,t), 1)
             else:
                 print "Huh?"
 
@@ -620,11 +620,11 @@ class MiscTests(TestCase):
         d64 = encodeBase64(longish, lineWidth=64)
         self.assertEquals(longish, base64.decodestring(d32))
         self.assertEquals(longish, base64.decodestring(d64))
-        for enc, max in ((d32, 33), (d64,65)):
+        for enc, maxlen in ((d32, 33), (d64,65)):
             lines = enc.split("\n")
             for line in lines[-1]:
-                self.assertEquals(len(line), max)
-            self.assert_(len(lines[-1]) <= max)
+                self.assertEquals(len(line), maxlen)
+            self.assert_(len(lines[-1]) <= maxlen)
 
     def test_armor(self):
         inp1 = "xyzzy111"*10
@@ -6480,7 +6480,6 @@ class ClientUtilTests(TestCase):
         cq = CQ(d)
         p1 = "Z"*(32*1024)
         p2 = mixminion.Crypto.getCommonPRNG().getBytes(32*1024)
-        p3 = p2[:1024]*32
         ipv4 = mixminion.Packet.IPV4Info("10.20.30.40",48099,"KZ"*10)
         host = mixminion.Packet.MMTPHostInfo("bliznerty.potrzebie",48099,
                                              "KZ"*10)
@@ -7181,9 +7180,6 @@ class ClientMainTests(TestCase):
         # Now try with some servers...
         edesc = getExampleServerDescriptors()
         ServerInfo = mixminion.ServerInfo.ServerInfo
-        Lola = ServerInfo(string=edesc["Lola"][1], assumeValid=1)
-        Joe = ServerInfo(string=edesc["Joe"][0], assumeValid=1)
-        Alice = ServerInfo(string=edesc["Alice"][1], assumeValid=1)
 
         # ... and for now, we need to restart the client.
         client = mixminion.ClientMain.MixminionClient(usercfg)
@@ -7259,26 +7255,6 @@ class ClientMainTests(TestCase):
             args.append((routing,packetList,timeout,callback))
             for i in xrange(len(packetList)):
                 callback(i)
-
-        class FakeBCC:
-            PROTOCOL_VERSIONS=["0.3"]
-            def __init__(self, family, addr, port, keyid, serverName=None):
-                global BCC_INSTANCE
-                BCC_INSTANCE = self
-                self.family = family
-                self.addr = addr
-                self.port = port
-                self.keyid = keyid
-                self.packets = []
-                self.connected = 0
-            def connect(self, connectTimeout):
-                self.connected = 1
-                self.timeout = connectTimeout
-            def sendPacket(self, msg):
-                assert self.connected
-                self.packets.append(msg)
-            def shutdown(self):
-                self.connected = 0
 
         replaceAttribute(mixminion.MMTPClient, "sendPackets", fakeSendPackets)
         overrideDNS({'alice' : "10.0.0.100"})
@@ -7461,6 +7437,7 @@ class FragmentTests(TestCase):
             pool.addFragment(pkts3[60])
         finally:
             s = resumeLog()
+
         self.assert_(stringContains(s, "Found inconsistent fragment"))
         self.assertEquals(pool.store.count(), 4+4)
         for i in xrange(40,55):
@@ -7518,7 +7495,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientMainTests))
+        suite.addTest(tc(FragmentTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

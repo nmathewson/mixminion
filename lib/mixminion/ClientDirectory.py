@@ -1,4 +1,4 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
 # Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ClientDirectory: Code to handle the 'client' side of
@@ -25,7 +25,6 @@ import mixminion.ClientMain #XXXX -- it would be better not to need this.
 import mixminion.Config
 import mixminion.Crypto
 import mixminion.NetUtils
-import mixminion.Packet
 import mixminion.ServerInfo
 
 from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
@@ -33,7 +32,8 @@ from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
      previousMidnight, readPickled, readPossiblyGzippedFile, \
      replaceFile, tryUnlink, writePickled, floorDiv, isSMTPMailbox
 from mixminion.Packet import MBOX_TYPE, SMTP_TYPE, DROP_TYPE, FRAGMENT_TYPE, \
-     parseMBOXInfo, parseSMTPInfo, ParseError
+     parseMBOXInfo, parseRelayInfoByType, parseSMTPInfo, ParseError, \
+     ServerSideFragmentedMessage
 
 # FFFF This should be made configurable and adjustable.
 MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
@@ -470,8 +470,7 @@ class ClientDirectory:
            nickname of the corresponding server.  If no such server is
            known, return a string representation of the routingInfo.
         """
-        routingInfo = mixminion.Packet.parseRelayInfoByType(
-            routingType, routingInfo)
+        routingInfo = parseRelayInfoByType(routingType, routingInfo)
         nn = self.getNicknameByKeyID(routingInfo.keyinfo)
         if nn is None:
             return routingInfo.format()
@@ -1010,8 +1009,7 @@ class ExitAddress:
         """Return the prefix to be prepended to server-side fragmented
            messages"""
         routingType, routingInfo, _ = self.getRouting()
-        return mixminion.Packet.ServerSideFragmentedMessage(
-            routingType, routingInfo, "").pack()
+        return ServerSideFragmentedMessage(routingType, routingInfo, "").pack()
 
     def setFragmented(self, isSSFragmented, nFragments):
         """Set the fragmentation parameters of this exit address

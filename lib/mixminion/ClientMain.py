@@ -1,4 +1,4 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
 # Id: ClientMain.py,v 1.89 2003/06/05 18:41:40 nickm Exp $
 
 """mixminion.ClientMain
@@ -21,7 +21,6 @@ import mixminion.Config
 import mixminion.Crypto
 import mixminion.Filestore
 import mixminion.MMTPClient
-import mixminion.ServerInfo
 
 from mixminion.Common import LOG, Lockfile, LockfileLocked, MixError, \
      MixFatalError, MixProtocolBadAuth, MixProtocolError, UIError, \
@@ -29,9 +28,9 @@ from mixminion.Common import LOG, Lockfile, LockfileLocked, MixError, \
      stringContains, succeedingMidnight, writeFile, previousMidnight, floorDiv
 from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
-     parseTextReplyBlocks, ReplyBlock, MBOX_TYPE, SMTP_TYPE, DROP_TYPE, \
-     parseMessageAndHeaders
-from mixminion.ServerInfo import displayServer
+     parseTextReplyBlocks, ReplyBlock, parseMessageAndHeaders
+
+from mixminion.ServerInfo import displayServer, ServerInfo
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
@@ -225,7 +224,7 @@ class MixminionClient:
         """
         d = {}
         for packet, firstHop in packets:
-            if isinstance(firstHop, mixminion.ServerInfo.ServerInfo):
+            if isinstance(firstHop, ServerInfo):
                 ri = firstHop.getRoutingInfo()
             else:
                 assert (isinstance(firstHop, mixminion.Packet.MMTPHostInfo) or
@@ -1353,8 +1352,7 @@ def listServers(cmd, args):
             listFeatures = 1
 
     if listFeatures:
-        features = mixminion.Config.getFeatureList(
-            mixminion.ServerInfo.ServerInfo)
+        features = mixminion.Config.getFeatureList(ServerInfo)
         features.append(("caps",))
         features.append(("status",))
         for f in features:

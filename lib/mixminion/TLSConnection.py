@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: TLSConnection.py,v 1.1 2004/01/03 05:58:54 nickm Exp $
+# $Id: TLSConnection.py,v 1.2 2004/01/03 07:35:23 nickm Exp $
 """mixminion.TLSConnection
 
    Generic functions for wrapping bidirectional asynchronous TLS connections.
@@ -193,6 +193,8 @@ class TLSConnection:
                             del self.inbuf[0]
                         self.inbuflen -= maxBytes
                     return r
+
+            raise AssertionError # unreached; appease pychecker
 
     def getInbufLine(self, maxBytes=None, terminator="\r\n", clear=0,
                      allowExtra=0):

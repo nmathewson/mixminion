@@ -1,5 +1,5 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.10 2003/11/28 04:14:04 nickm Exp $
+# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Fragments.py,v 1.11 2004/01/03 07:35:23 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -126,7 +126,7 @@ class FragmentPool:
            old messages in 'dir_db'.
            """
         self.store = mixminion.Filestore.StringMetadataStore(
-            dir,create=1,scrub=1)
+            dir,create=1)
         self.db = FragmentDB(dir+"_db")
         self.rescan()
 

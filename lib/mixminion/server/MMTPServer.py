@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.65 2004/01/03 05:45:26 nickm Exp $
+# $Id: MMTPServer.py,v 1.66 2004/01/03 07:35:24 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -23,7 +23,6 @@ import errno
 import socket
 import select
 import re
-import sys
 import time
 from types import StringType
 
@@ -34,7 +33,7 @@ from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Packet import PACKET_LEN, DIGEST_LEN, IPV4Info, MMTPHostInfo
 from mixminion.MMTPClient import PeerCertificateCache, MMTPClientConnection
-from mixminion.NetUtils import IN_PROGRESS_ERRNOS, getProtocolSupport, AF_INET, AF_INET6
+from mixminion.NetUtils import getProtocolSupport, AF_INET, AF_INET6
 import mixminion.server.EventStats as EventStats
 from mixminion.Filestore import CorruptedFile
 from mixminion.ServerInfo import displayServer
@@ -271,7 +270,7 @@ class MMTPServerConnection(mixminion.TLSConnection.TLSConnection):
         if s is None:
             return
         elif s == -1:
-            self.startShudown()
+            self.startShutdown()
             #failed
             return
 
@@ -373,12 +372,8 @@ RECEIVED_CONTROL     = "RECEIVED\r\n"
 REJECTED_CONTROL     = "REJECTED\r\n"
 SEND_CONTROL_LEN     = len(SEND_CONTROL)
 RECEIVED_CONTROL_LEN = len(RECEIVED_CONTROL)
-SEND_RECORD_LEN      = len(SEND_CONTROL) + PACKET_LEN + DIGEST_LEN
-RECEIVED_RECORD_LEN  = RECEIVED_CONTROL_LEN + DIGEST_LEN
 
 #----------------------------------------------------------------------
-
-NULL_KEYID = "\x00"*20
 
 class DeliverablePacket(mixminion.MMTPClient.DeliverableMessage):
     """Implementation of DeliverableMessage.
@@ -420,7 +415,7 @@ class MMTPAsyncServer(AsyncServer):
 
     def __init__(self, config, servercontext):
         AsyncServer.__init__(self)
-
+        
         self.serverContext = servercontext
         self.clientContext = _ml.TLSContext_new()
         # FFFF Don't always listen; don't always retransmit!

@@ -1,5 +1,5 @@
-# Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.16 2003/11/28 04:14:04 nickm Exp $
+# Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Directory.py,v 1.17 2004/01/03 07:35:24 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -11,7 +11,7 @@ __all__ = [ 'ServerList', 'MismatchedID', 'DirectoryConfig', 'Directory' ]
 import os
 import stat
 
-import mixminion.Config as C
+import mixminion.Config
 import mixminion.Crypto
 
 from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
@@ -149,12 +149,12 @@ class Directory:
         else:
             return mixminion.Crypto.pk_PEM_load(fname)
 
-class DirectoryConfig(C._ConfigFile):
+class DirectoryConfig(mixminion.Config._ConfigFile):
     """Configuration file for a directory server."""
     _restrictFormat = 0
     _restrictKeys = _restrictSections = 1
     _syntax = {
-        'Host' : C.ClientConfig._syntax['Host'],
+        'Host' : mixminion.Config.ClientConfig._syntax['Host'],
         "Directory-Store" : {
            "__SECTION__" : ("REQUIRE", None, None ),
            "Homedir" : ('REQUIRE', "filename", None),
@@ -172,7 +172,7 @@ class DirectoryConfig(C._ConfigFile):
            "Location" : ('REQUIRE', "filename", None)
         } }
     def __init__(self, filename=None, string=None):
-        C._ConfigFile.__init__(self, filename, string)
+        mixminion.Config._ConfigFile.__init__(self, filename, string)
 
     def validate(self, lines, contents):
         import pwd
@@ -186,15 +186,15 @@ class DirectoryConfig(C._ConfigFile):
         try:
             dir_pwent = pwd.getpwnam(diruser)
         except KeyError:
-            raise C.ConfigError("No such user: %r"%diruser)
+            raise mixminion.Config.ConfigError("No such user: %r"%diruser)
         try:
             cgi_pwent = pwd.getpwnam(cgiuser)
         except KeyError:
-            raise C.ConfigError("No such user: %r"%cgiuser)
+            raise mixminion.Config.ConfigError("No such user: %r"%cgiuser)
         try:
             cgi_grpent = grp.getgrnam(cgigrp)
         except KeyError:
-            raise C.ConfigError("No such group: %r"%cgigrp)
+            raise mixminion.Config.ConfigError("No such group: %r"%cgigrp)
 
         self.dir_uid = dir_pwent[2]
         self.dir_gid = dir_pwent[3]
@@ -212,10 +212,10 @@ class DirectoryConfig(C._ConfigFile):
         # Make sure that the directory user and the CGI user are both in
         # the CGI group.
         if diruser not in groupMembers:
-            raise C.ConfigError("User %s is not in group %s"
+            raise mixminion.Config.ConfigError("User %s is not in group %s"
                                 %(diruser, cgigrp))
         if cgiuser not in groupMembers:
-            raise C.ConfigError("User %s is not in group %s"
+            raise mixminion.Config.ConfigError("User %s is not in group %s"
                                 %(cgiuser, cgigrp))
 
 class MismatchedID(Exception):

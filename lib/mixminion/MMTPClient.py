@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.46 2004/01/03 05:45:26 nickm Exp $
+# $Id: MMTPClient.py,v 1.47 2004/01/03 07:35:23 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -19,14 +19,12 @@ import socket
 import time
 import mixminion._minionlib as _ml
 import mixminion.NetUtils
-import mixminion.Packet
 import mixminion.ServerInfo
 import mixminion.TLSConnection
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Common import MixProtocolError, MixProtocolReject, \
      MixProtocolBadAuth, LOG, MixError, formatBase64, TimeoutError
 from mixminion.Packet import IPV4Info, MMTPHostInfo
-
 
 def _noop(*k,**v): pass
 class EventStatsDummy:
@@ -42,8 +40,6 @@ def useEventStats():
 
 class DeliverableMessage:
     """Interface to be implemented by messages deliverable by MMTP"""
-    def __init__(self):
-        pass
     def getContents(self):
         raise NotImplementedError
     def isJunk(self):
@@ -95,7 +91,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
             context = _ml.TLSContext_new()
         if serverName is None:
             serverName = mixminion.ServerInfo.displayServer(
-                mixminion.Packet.IPV4Info(targetAddr, targetPort, targetKeyID))
+                IPV4Info(targetAddr, targetPort, targetKeyID))
         if certCache is None:
             certCache = PeerCertificateCache()
 
@@ -428,8 +424,8 @@ def sendPackets(routing, packetList, timeout=300, callback=None):
     # Use select to run the connection until it's done.
     import select
     fd = con.fileno()
-    wr,ww,open = con.getStatus()
-    while open:
+    wr,ww,isopen = con.getStatus()
+    while isopen:
         if wr:
             rfds = [fd]
         else:
@@ -445,8 +441,8 @@ def sendPackets(routing, packetList, timeout=300, callback=None):
 
         rfds,wfds,xfds=select.select(rfds,wfds,xfds,3)
         now = time.time()
-        wr,ww,open=con.process(fd in rfds, fd in wfds)
-        if open:
+        wr,ww,isopen=con.process(fd in rfds, fd in wfds)
+        if isopen:
             con.tryTimeout(now-timeout)
 
     # If anything wasn't delivered, raise MixProtocolError.
@@ -464,7 +460,7 @@ def pingServer(routing, timeout=5):
 
        May raise MixProtocolBadAuth, or other MixProtocolError if server
        isn't up."""
-    sendPackets(routing, ["JUNK"], connectTimeout=timeout)
+    sendPackets(routing, ["JUNK"], timeout=timeout)
 
 class PeerCertificateCache:
     """A PeerCertificateCache validates certificate chains from MMTP servers,
