@@ -1,6 +1,6 @@
-$Id: README,v 1.58 2003/09/03 16:43:09 nickm Exp $
+$Id: README,v 1.59 2003/09/05 21:45:19 nickm Exp $
 ======================================================================
-This is Mixminion version 0.0.5, release candidate 2.
+This is Mixminion version 0.0.5.
 
 CONTENTS:
         I.    Overview
@@ -37,6 +37,10 @@ to trace your message through the system.
 
 II. WHAT'S NEW IN THIS VERSION?
 ===============================
+
+NEW IN VERSION 0.0.5:
+   - Fix a harmless but hard-to-detect bug that showed up when running
+     unittests on certain platforms.
 
 NEW IN VERSION 0.0.5rc2:
    - Fix for a bug that would crash exit servers trying to upgrade from
@@ -121,9 +125,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5rc2.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.5.tar.gz>
 
-  % cd Mixminion-0.0.5rc2
+  % cd Mixminion-0.0.5
   % make download-openssl
   % make build-openssl
   % make

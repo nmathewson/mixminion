@@ -96,14 +96,14 @@ For 0.0.5:
                 o Notice [...]s in test encoded messages
                 o Handle corrupt pickled data
                 D Handle server time moving backward
-        . Release
+        o Release
                 o Fix all XXXX005 and DOCDOC comments
                 o Update README
-                . Manually test all new functionality
-                . Manually test all old functionality
-                . Test old servers with new client code
-                . Test old clients with new servers
-                - Update manual page
+                o Manually test all new functionality
+                o Manually test all old functionality
+                o Test old servers with new client code
+                o Test old clients with new servers
+                D Update manual page
 
 For 0.0.6:  (The release for integrators, Windows users, senders of
 large replies, people with dynamically assigned IPs, people with high
