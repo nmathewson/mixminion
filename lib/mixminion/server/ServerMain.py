@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.97 2003/10/20 19:54:11 nickm Exp $
+# $Id: ServerMain.py,v 1.98 2003/10/20 22:10:33 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -357,7 +357,7 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     # outgoingQueue -- a DeliveryQueue to hold messages to be sent.
     def __init__(self, config, servercontext):
         mixminion.server.MMTPServer.MMTPAsyncServer.__init__(
-            self, config, servercontext, clientcontext)
+            self, config, servercontext)
 
     def connectQueues(self, incoming, outgoing):
         self.incomingQueue = incoming
