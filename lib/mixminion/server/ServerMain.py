@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.7 2002/12/16 04:01:14 nickm Exp $
+# $Id: ServerMain.py,v 1.8 2002/12/20 23:52:07 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -77,9 +77,28 @@ class IncomingQueue(mixminion.server.Queue.DeliveryQueue):
 class MixPool:
     """Wraps a mixminion.server.Queue.*MixQueue to send messages to an exit
        queue and a delivery queue."""
-    def __init__(self, queue):
-        """Create a new MixPool to wrap a given *MixQueue."""
-        self.queue = queue
+    def __init__(self, config, queueDir):
+        """Create a new MixPool, based on this server's configuration and
+           queue location."""
+
+        server = config['Server']
+        interval = server['MixInterval'][2]
+        if server['MixAlgorithm'] == 'TimedMixQueue':
+            self.queue = mixminion.server.Queue.TimedMixQueue(
+                location=queueDir, interval=interval)
+        elif server['MixAlgorithm'] == 'CottrellMixQueue':
+            self.queue = mixminion.server.Queue.CottrellMixQueue(
+                location=queueDir, interval=interval, 
+                minPool=server.get("MixPoolMinSize", 5),
+                sendRate=server.get("MixPoolRate", 0.6))
+        elif server['MixAlgorithm'] == 'BinomialCottrellMixQueue':
+            self.queue = mixminion.server.Queue.BinomialCottrellMixQueue(
+                location=queueDir, interval=interval, 
+                minPool=server.get("MixPoolMinSize", 5),
+                sendRate=server.get("MixPoolRate", 0.6))
+        else:
+            raise MixFatalError("Got impossible mix queue type from config")
+
         self.outgoingQueue = None
         self.moduleManager = None
 
@@ -117,6 +136,11 @@ class MixPool:
                           formatBase64(msg[:8]))
                 self.outgoingQueue.queueDeliveryMessage(ipv4, msg)
             self.queue.removeMessage(h)
+
+    def getNextMixTime(self, now):
+        """Given the current time, return the time at which we should next
+           mix."""
+        return now + self.queue.getInterval()
 
 class OutgoingQueue(mixminion.server.Queue.DeliveryQueue):
     """DeliveryQueue to send messages via outgoing MMTP connections."""
@@ -235,7 +259,7 @@ class MixminionServer:
         mixDir = os.path.join(queueDir, "mix")
         # FFFF The choice of mix algorithm should be configurable
         LOG.trace("Initializing Mix pool")
-        self.mixPool =MixPool(mixminion.server.Queue.TimedMixQueue(mixDir, 60))
+        self.mixPool = MixPool(config, mixDir)
         LOG.trace("Found %d pending messages in Mix pool",
                        self.mixPool.count())
 
@@ -266,8 +290,7 @@ class MixminionServer:
         self.cleanQueues()
 
         now = time.time()
-        MIX_INTERVAL = 600  # FFFF Configurable!
-        nextMix = now + MIX_INTERVAL
+        nextMix = self.mixPool.getNextMixTime(now)
         nextShred = now + 6000
         #FFFF Unused
         #nextRotate = self.keyring.getNextKeyRotation()
@@ -297,7 +320,7 @@ class MixminionServer:
 
             # Choose next mix interval
             now = time.time()
-            nextMix = now + MIX_INTERVAL
+            nextMix = self.mixPool.getNextMixTime(now)
 
             if now > nextShred:
                 # FFFF Configurable shred interval

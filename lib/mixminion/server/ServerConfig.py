@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.3 2002/12/16 02:40:11 nickm Exp $
+# $Id: ServerConfig.py,v 1.4 2002/12/20 23:52:07 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -32,6 +32,9 @@ class ServerConfig(mixminion.Config._ConfigFile):
         mixminion.Config._ConfigFile.__init__(self, fname, string)
 
     def validate(self, sections, entries, lines, contents):
+        def _haveEntry(entries, section, ent):
+            return len([e for e in entries[section] if e[0] == ent]) != 0
+
         # Pre-emptively configure the log before validation, so we don't
         # write to the terminal if we've been asked not to.
         if not sections['Server'].get("EchoMessages", 0):
@@ -42,6 +45,7 @@ class ServerConfig(mixminion.Config._ConfigFile):
         mixminion.Config._validateHostSection(sections.get('Host', {}))
         # Server section
         server = sections['Server']
+        serverents = entries['Server']
         bits = server['IdentityKeyBits']
         if not (2048 <= bits <= 4096):
             raise ConfigError("IdentityKeyBits must be between 2048 and 4096")
@@ -53,8 +57,23 @@ class ServerConfig(mixminion.Config._ConfigFile):
             raise ConfigError("PublicKeyLifetime must be at least 1 day.")
         if server['PublicKeySloppiness'][2] > 20*60:
             raise ConfigError("PublicKeySloppiness must be <= 20 minutes.")
-        if [e for e in entries['Server'] if e[0]=='Mode']:
+        if _haveEntry(entries, 'Server', 'Mode'):
             LOG.warn("Mode specification is not yet supported.")
+
+        if server['MixInterval'][2] < 30*60:
+            LOG.warn("Dangerously low MixInterval")
+        if server['MixAlgorithm'] == 'TimedMixQueue':
+            if _haveEntry(entries, 'Server', 'MixPoolRate'):
+                LOG.warn("Option MixPoolRate is not used for Timed mixing.")
+            if _haveEntry(entries, 'Server', 'MixPoolMinSize'):
+                LOG.warn("Option MixPoolMinSize is not used for Timed mixing.")
+        else:
+            rate = server['MixPoolRate']
+            minSize = server['MixPoolMinSize']
+            if rate < 0.05:
+                LOG.warn("Unusually low MixPoolRate %s", rate)
+            if minSize < 0:
+                raise ConfigError("MixPoolMinSize %s must be nonnegative.")
 
         if not sections['Incoming/MMTP'].get('Enabled'):
             LOG.warn("Disabling incoming MMTP is not yet supported.")
@@ -83,6 +102,42 @@ class ServerConfig(mixminion.Config._ConfigFile):
         "Return the module manager initialized by this server."
         return self.moduleManager
 
+#======================================================================
+
+_MIX_RULE_NAMES = {
+    'timed' : "TimedMixQueue",
+    'cottrell'     : "CottrellMixQueue",
+    'mixmaster'    : "CottrellMixQueue",
+    'dynamicpool'  : "CottrellMixQueue",
+    'binomial'            : "BinomialCottrellMixQueue",
+    'binomialcottrell'    : "BinomialCottrellMixQueue",
+    'binomialdynamicpool' : "BinomialCottrellMixQueue",
+}
+
+def _parseMixRule(s):
+    """Validation function.  Given a string representation of a mixing
+       algorithm, return the name of the Mix queue class to be used."""
+    name = s.strip().lower()
+    v = _MIX_RULE_NAMES.get(name)
+    if not v:
+        raise ConfigError("Unrecognized mix algorithm %s"%s)
+    return v
+
+def _parseFraction(frac):
+    """Validation function.  Converts a percentage or a number into a 
+       number between 0 and 1."""
+    s = frac.strip().lower()
+    try:
+        if s.endswith("%"):
+            ratio = float(s[:-1].strip())/100.0
+        else:
+            ratio = float(s)
+    except ValueError:
+        raise ConfigError("%s is not a fraction" %frac)
+    if not 0 <= ratio <= 1:
+        raise ConfigError("%s is not in range (between 0%% and 100%%)"%frac)
+    return ratio
+
 # alias to make the syntax more terse.
 C = mixminion.Config
 
@@ -107,6 +162,10 @@ SERVER_SYNTAX =  {
                      'Comments': ('ALLOW', None, None),
                      'ModulePath': ('ALLOW', None, None),
                      'Module': ('ALLOW*', None, None),
+                     'MixAlgorithm' : ('ALLOW', _parseMixRule, "Cottrell"),
+                     'MixInterval' : ('ALLOW', C._parseInterval, "30 min"),
+                     'MixPoolRate' : ('ALLOW', _parseFraction, "60%"),
+                     'MixPoolMinSize' : ('ALLOW', C._parseInt, "5"),
                      },
         'DirectoryServers' : { 'ServerURL' : ('ALLOW*', None, None),
                                'Publish' : ('ALLOW', C._parseBoolean, "no"),

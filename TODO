@@ -9,6 +9,31 @@ SPEC	- Spec not finalized
 
 NEEDS TO BE WRITTEN
 
+For 0.0.2: [The 'desireable features' release.  This should contain
+    user-visible improvements to address the most glaring defects in 0.0.1.]
+
+	- Real SMTP module
+	- Interface for reply blocks
+	- Minimal directory support
+		- Client-side directory support
+		- Server-side directory generation (not automated;
+	          still no automatic rotation.)	 
+	- Path support
+	- Minimal DOS prevention
+		- SMTP-address blacklisting (for SMTP module)
+		o Prevent zlib bombing: minimal version.
+		        o Implement
+			o Tests for BuildMessage functionality
+			o Tests for ModuleManager functionality
+			o Mention in the spec.
+		- Timeout connections.
+	o Configurable mix algorithm, defaulting to cottrell-style
+	  mixing with a medium-long interval.
+	  	o Implement
+		o Tests for configuration
+		o Tests for new validation functions.
+		o Add examples to mixminiond.conf
+
 Required for "1.0":
 	 [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
@@ -52,17 +77,17 @@ Required for "1.0":
 		- Put 'address' someplace more reasonable.
 	- End-to-end issues
 	        - K-of-N fragmentation and reassembly
-		- Cap output size to prevent zlib bombing
+		- Make zlib bomb prevention configurable.
 	- Configurablity
 	  	- Support for one-side-only MMTP configurations.
-		- Make batching algorithm configurable
+		o Make batching algorithm configurable
 		o Infer server IP
 		. Freak out properly on missing/unpublishable IP.
 		- Make listening configurable for multiple ports/ips, not
 		  all of which need be published.  Perhaps allow different
 		  rules for each listener.
-		- Full validation function for client
-		- Full validation function for server
+		. Full validation function for client
+		. Full validation function for server
 		- Make 'push' and 'retry' delivery rates independant and
 		  module-adjustable
 		- Make 'drop undeliverable' rate configurable.
@@ -131,7 +156,7 @@ SPEC		o Patch to address George's 15August attack
 		- Implementation for directory servers
 		- Publishing to directory servers
 			- Support
-			- Automation
+		 	- Automation
 		- Downloading from directory servers
 			- Support
 			- Automation

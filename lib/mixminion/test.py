@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.49 2002/12/16 02:40:11 nickm Exp $
+# $Id: test.py,v 1.50 2002/12/20 23:52:07 nickm Exp $
 
 """mixminion.tests
 
@@ -97,7 +97,10 @@ def findFirstDiff(s1, s2):
 
 def floatEq(f1,f2):
     """Return true iff f1 is very close to f2."""
-    return abs(f1-f2)/min(f1,f2) < .00001
+    if min(f1, f2) != 0:
+        return abs(f1-f2)/min(f1,f2) < .00001
+    else:
+        return abs(f1-f2) < .00001
 
 def readFile(fname):
     """Return the contents of the file named 'fname'.  We could just say
@@ -1514,7 +1517,6 @@ class BuildMessageTests(unittest.TestCase):
         encoded1 = '\x00\x6D'+sha1(encoded1)+encoded1
         # Forward message.
         self.assertEquals(payload, BuildMessage._decodeForwardPayload(encoded1))
-
         # Encoded forward message
         efwd = (comp+"RWE/HGW"*4096)[:28*1024-22-38]
         efwd = '\x00\x6D'+sha1(efwd)+efwd
@@ -1553,7 +1555,6 @@ class BuildMessageTests(unittest.TestCase):
                      BuildMessage._decodeStatelessReplyPayload(m,tag,passwd))
         repl2, repl2tag = m, tag
 
-        #
         # Okay, now let's try out 'decodePayload' (and thereby test its
         # children).  First, we test all the cases that succeed; or that
         # fail and return None to indicate that another key might decrypt
@@ -1602,6 +1603,15 @@ class BuildMessageTests(unittest.TestCase):
                             decodePayload(repl2, repl2tag, pk, "Bliznerty"))
                 self.assertEquals(None,
                             decodePayload(repl2, repl2tag, pk, None))
+
+
+        # Try decoding a payload that looks like a zlib bomb.  An easy way to
+        # get such a payload is to compress 25K of zeroes.
+        nils = "\x00"*(25*1024)
+        overcompressed_payload = \
+             BuildMessage._encodePayload(nils, 0, AESCounterPRNG())
+        self.failUnlessRaises(BuildMessage.CompressedDataTooLong, 
+             BuildMessage.decodePayload, overcompressed_payload, "X"*20)
 
         # And now the cases that fail hard.  This can only happen on:
         #   1) *: Hash checks out, but zlib or size is wrong.  Already tested.
@@ -2662,6 +2672,21 @@ IntRS=5
         tm = C._parseTime("2001/12/25 06:15:10")
         self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
 
+        SC = mixminion.server.ServerConfig
+        # Fractions
+        self.assert_(floatEq(SC._parseFraction("90 %"), .90))
+        self.assert_(floatEq(SC._parseFraction(" 90%"), .90))
+        self.assert_(floatEq(SC._parseFraction(".02"), .02))
+        self.assert_(floatEq(SC._parseFraction("1"), 1))
+        self.assert_(floatEq(SC._parseFraction("0"), 0))
+        self.assert_(floatEq(SC._parseFraction("100%"), 1))
+        self.assert_(floatEq(SC._parseFraction("0%"), 0))
+        # Mix algorithms
+        self.assertEquals(SC._parseMixRule(" Cottrell"), "CottrellMixQueue")
+        self.assertEquals(SC._parseMixRule("binomialCottrell"), 
+                          "BinomialCottrellMixQueue")
+        self.assertEquals(SC._parseMixRule("TIMED"), "TimedMixQueue")
+
         ##
         # Now, try the failing cases.
         def fails(fn, val, self=self):
@@ -2713,6 +2738,15 @@ IntRS=5
             # This is what we expect
             pass
 
+        # Fractions
+        fails(SC._parseFraction, "90")
+        fails(SC._parseFraction, "-.01")
+        fails(SC._parseFraction, "101%")
+        fails(SC._parseFraction, "1.01")
+        fails(SC._parseFraction, "5")
+        # Mix algorithms
+        fails(SC._parseMixRule, "")
+        fails(SC._parseMixRule, "nonesuch")
 
 #----------------------------------------------------------------------
 # Server descriptors
@@ -3005,6 +3039,22 @@ IP: 1.0.0.1
         self.assert_(pos is not None)
         self.assertEquals(exampleMod.processedAll[i],
                           ("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches"))
+
+        # Now a message that compressed too much.
+        # (first, erase the pending message.)
+        manager.queues[exampleMod.getName()].removeAll()
+        manager.queues[exampleMod.getName()]._rescan()
+        
+        p = "For whom is the funhouse fun?"*8192
+        msg = mixminion.BuildMessage._encodePayload(
+            p, 0, Crypto.getCommonPRNG())
+        manager.queueMessage(msg, "Z"*20, 1234, "Buenas noches")
+        exampleMod.processedAll = []
+        self.assertEquals(len(exampleMod.processedAll), 0)
+        manager.sendReadyMessages()
+        self.assertEquals(len(exampleMod.processedAll), 1)
+        self.assertEquals(exampleMod.processedAll[0], 
+            (BuildMessage.compressData(p), 'long', 1234, "Buenas noches"))
 
         # Check serverinfo generation.
         try:
@@ -3413,6 +3463,50 @@ class ServerKeysTests(unittest.TestCase):
         # Test getPacketHandler
         _ = keyring.getPacketHandler()
 
+
+#----------------------------------------------------------------------
+
+class ServerMainTests(unittest.TestCase):
+    def testMixPool(self):
+        ServerConfig = mixminion.server.ServerConfig.ServerConfig
+        MixPool = mixminion.server.ServerMain.MixPool
+        baseDir = mix_mktemp()
+        mixDir = mix_mktemp()
+        cfg = SERVER_CONFIG_SHORT % baseDir
+
+        configTimed = ServerConfig(string=(cfg+
+               "MixAlgorithm: timed\nMixInterval: 2 hours\n"))
+        configCottrell = ServerConfig(string=(cfg+
+               "MixAlgorithm: Mixmaster\nMixInterval: .5 days\n"+
+               "MixPoolMinSize: 10\nMixPoolRate: 40%\n"))
+        configBCottrell = ServerConfig(string=(cfg+
+               "MixAlgorithm: BinomialCottrell\nMixInterval: .25 days\n"+
+               "MixPoolMinSize: 10\nMixPoolRate: 40%\n"))
+
+        # Test pool configuration
+        pool = MixPool(configTimed, mixDir)
+        self.assert_(isinstance(pool.queue, 
+                                mixminion.server.Queue.TimedMixQueue))
+        self.assertEquals(pool.getNextMixTime(100), 100+2*60*60)
+
+        pool = MixPool(configCottrell, mixDir)
+        self.assert_(isinstance(pool.queue, 
+                                mixminion.server.Queue.CottrellMixQueue))
+        self.assertEquals(pool.getNextMixTime(100), 100+12*60*60)
+        self.assertEquals(pool.queue.minPool, 10)
+        self.assertEquals(pool.queue.minSend, 1)
+        self.assert_(floatEq(pool.queue.sendRate, .4))
+
+        pool = MixPool(configBCottrell, mixDir)
+        self.assert_(isinstance(pool.queue, 
+                             mixminion.server.Queue.BinomialCottrellMixQueue))
+        self.assertEquals(pool.getNextMixTime(100), 100+6*60*60)
+        self.assertEquals(pool.queue.minPool, 10)
+        self.assertEquals(pool.queue.minSend, 1)
+        self.assert_(floatEq(pool.queue.sendRate, .4))
+        
+        # FFFF test other mix pool behavior
+
 #----------------------------------------------------------------------
 
 _EXAMPLE_DESCRIPTORS = {} # name->list of str
@@ -3786,6 +3880,7 @@ def testSuite():
 
     suite.addTest(tc(ClientMainTests))
     suite.addTest(tc(ServerKeysTests))
+    suite.addTest(tc(ServerMainTests))
 
     # These tests are slowest, so we do them last.
     suite.addTest(tc(ModuleManagerTests))
