@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.41 2003/02/09 22:30:57 nickm Exp $
+# $Id: setup.py,v 1.42 2003/02/11 23:34:08 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -18,28 +18,89 @@ except ImportError:
     print "Zlib support seems to be missing; install python with zlib support."
     sys.exit(0)
 
-import os, re, struct, shutil
+import os, re, shutil, string, struct
 
 os.umask(022)
 
 VERSION = '0.0.3alpha'
+# System: 0==alpha, 1==beta, 99==release candidate, 100==release
 VERSION_INFO = (0,0,3,'a',0)
 
+# Function to pull openssl version number out of opensslv.h
+_define_version_line = re.compile(
+    r'\s*#\s*define\s+OPENSSL_VERSION_NUMBER\s+(\S+)$')
+def getOpenSSLVersion(filename):
+    if not os.path.exists(filename):
+        print "Uh oh; can't open %s"%filename
+        return None
+    f = open(filename, 'r')
+    version = None
+    for l in f.readlines():
+        m = _define_version_line.match(l)
+        if m:
+            version = m.group(1)
+            break
+    f.close()
+    if not version:
+        print "Uh oh; can't find a version in %s"%filename
+        return None
+    version = version.lower()
+    try:
+        return string.atol(version, 0)
+    except ValueError:
+        print "Can't parse version from %s"%filename
+
 USE_OPENSSL=1
+MIN_OPENSSL_VERSION = 0x00907003L
+
+OPENSSL_CFLAGS = []
+OPENSSL_LDFLAGS = []
 
 if USE_OPENSSL:
-    # For now, we assume that openssl-0.9.7 hasn't been released.  When this
-    # changes, we can fix this rigamarole.
-    if os.path.exists("./contrib/openssl"):
+    # For now, we assume that openssl-0.9.7 isn't generally deployed.
+    if os.environ.get("OPENSSL_CFLAGS") or os.environ.get("OPENSSL_LDFLAGS"):
+        OPENSSL_CFLAGS = os.environ.get("OPENSSL_CFLAGS", "").split()
+        OPENSSL_LDFLAGS = os.environ.get("OPENSSL_LDFLAGS", "").split()
+        print "Using OpenSSL as specified in OPENSSL_CFLAGS/OPENSSL_LDFLAGS."
+        INCLUDE_DIRS = []
+        STATIC_LIBS = []
+        LIBRARY_DIRS = []
+        LIBRARIES = []
+    elif os.path.exists("./contrib/openssl"):
         print "Using OpenSSL from ./contrib/openssl"
         openssl_inc = "./contrib/openssl/include"
         INCLUDE_DIRS = [openssl_inc]
         STATIC_LIBS=['./contrib/openssl/libssl.a',
                      './contrib/openssl/libcrypto.a']
+        LIBRARY_DIRS=[]
         LIBRARIES=[]
+        v = getOpenSSLVersion("./contrib/openssl/include/openssl/opensslv.h")
+        if not v or v < MIN_OPENSSL_VERSION:
+            print "\nBizarrely, ./contrib/openssl contains an obsolete version"
+            print "of OpenSSL.  Try removing ./contrib/openssl, then running"
+            print "make download-openssl; make build-openssl again.\n"
+            sys.exit(0)
     else:
-        print "Using platform OpenSSL."
-        INCLUDE_DIRS=[]
+        print "Searching for platform OpenSSL."
+        found = 0
+        for prefix in ("/usr/local", "/usr", "/"):
+            incdir = os.path.join(prefix, "include")
+            opensslv_h = os.path.join(incdir, "openssl", "opensslv.h")
+            if os.path.exists(opensslv_h):
+                v = getOpenSSLVersion(opensslv_h)
+                if v and v >= MIN_OPENSSL_VERSION:
+                    INCLUDE_DIRS = [incdir]
+                    LIBRARY_DIRS = [os.path.join(prefix,"lib")]
+                    print "Using version of OpenSSL in %s"%prefix
+                    break
+                print "Skipping old version of OpenSSL in %s"%prefix
+        if not found:
+            print "\nI couldn't find any version of OpenSSL > 0.9.7.  I'm"
+            print "going to hope that your default C compiler knows something"
+            print "that I don't.\n"
+            INCLUDE_DIRS=[]
+            LIBRARY_DIRS=[]
+        
         STATIC_LIBS=[]
         LIBRARIES=['ssl','crypto']
 
@@ -96,9 +157,9 @@ elif little_endian:
     print "Host is little-endian"
     MACROS.append( ("MM_L_ENDIAN", 1) )
 elif other_endian:
-    print "Wild!  Your machine seems to be middle-endian, and yet you've"
+    print "\nWild!  Your machine seems to be middle-endian, and yet you've"
     print "somehow made it run Python.  Despite your perversity, I admire"
-    print "your nerve, and will try to soldier on."
+    print "your nerve, and will try to soldier on.\n"
     MACROS.append( ("MM_O_ENDIAN", 1)  )
 
 #======================================================================
@@ -149,7 +210,7 @@ def _haveCmd(cmdname):
 try:
     from distutils.core import Command
 except ImportError:
-    print "Uh oh.  You have Python installed, but I didn't find the distutils"
+    print "\nUh oh. You have Python installed, but I didn't find the distutils"
     print "module, which is supposed to come with the standard library."
     if os.path.exists("/etc/debian_version"):
         v = sys.version[:3]
@@ -223,14 +284,16 @@ if 'install' in sys.argv:
 
 INCLUDE_DIRS.append("src")
 
-extmodule = Extension("mixminion._minionlib",
-                      ["src/crypt.c", "src/aes_ctr.c", "src/main.c",
-                       "src/tls.c" ],
-                      include_dirs=INCLUDE_DIRS,
-                      extra_objects=STATIC_LIBS,
-                      extra_compile_args=["-Wno-strict-prototypes" ],
-                      libraries=LIBRARIES,
-                      define_macros=MACROS)
+extmodule = Extension(
+    "mixminion._minionlib",
+    ["src/crypt.c", "src/aes_ctr.c", "src/main.c","src/tls.c" ],
+    include_dirs=INCLUDE_DIRS,
+    extra_objects=STATIC_LIBS,
+    extra_compile_args=["-Wno-strict-prototypes"]+OPENSSL_CFLAGS,
+    extra_link_args=OPENSSL_LDFLAGS,
+    library_dirs=LIBRARY_DIRS,
+    libraries=LIBRARIES,
+    define_macros=MACROS)
 
 setup(name='Mixminion',
       version=VERSION,
