@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.9 2003/08/28 18:43:44 nickm Exp $
+# $Id: Filestore.py,v 1.10 2003/09/19 04:06:04 nickm Exp $
 
 """mixminion.Filestore
 
@@ -533,6 +533,7 @@ class DBBase:
     #       database implementations (such as dumdbm) create multiple files,
     #       using <filename> as a prefix.
     # log -- The underlying anydbm object.
+    # _syncLog -- no-arguments function to flush self.log to disk.
     def __init__(self, filename, purpose=""):
         """Create a DBBase object for a database stored in 'filename',
            creating the underlying database if needed."""
@@ -555,14 +556,15 @@ class DBBase:
 
         LOG.debug("Opening %s database at %s", purpose, filename)
         self.log = anydbm.open(filename, 'c')
-        if not hasattr(self.log, 'sync'):
-            if hasattr(self.log, '_commit'):
-                # Workaround for dumbdbm to allow syncing. (Standard in 
-                # Python 2.3.)
-                self.log.sync = self.log._commit
-            else:
-                # Otherwise, force a no-op sync method.
-                self.log.sync = lambda : None
+        if hasattr(self.log, 'sync'):
+            self._syncLog = self.log.sync
+        elif hasattr(self.log, '_commit'):
+            # Workaround for dumbdbm to allow syncing. (Standard in 
+            # Python 2.3.)
+            self._syncLog = self.log._commit
+        else:
+            # Otherwise, force a no-op sync method.
+            self._syncLog = lambda : None
 
         if isinstance(self.log, dumbdbm._Database):
             LOG.warn("Warning: using a flat file for %s database", purpose)
@@ -633,7 +635,7 @@ class DBBase:
         """Flush all pending changes to disk"""
         self._lock.acquire()
         try:
-            self.log.sync()
+            self._syncLog()
         finally:
             self._lock.release()
 
@@ -758,7 +760,7 @@ class JournaledDBBase(DBBase):
                 ek = self._encodeKey(self._jDecodeKey(jk))
                 ev = self._encodeVal(self._jDecodeVal(self.journal[jk]))
                 self.log[ek] = ev
-            self.log.sync()
+            self._syncLog()
             os.close(self.journalFile)
             self.journalFile = os.open(self.journalFileName,
                                        _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
