@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.8 2003/01/08 08:00:40 nickm Exp $
+# $Id: ServerKeys.py,v 1.9 2003/01/13 06:18:55 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -19,6 +19,7 @@ import mixminion._minionlib
 import mixminion.Crypto
 import mixminion.server.HashLog
 import mixminion.server.PacketHandler
+import mixminion.server.MMTPServer
 
 from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, signServerInfo
 from mixminion.Common import LOG, MixError, MixFatalError, createPrivateDir, \
@@ -447,6 +448,15 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
                                        "MMTP certificate for %s" %nickname,
                                        certStarts, certEnds)
 
+    mmtpProtocolsIn = mixminion.server.MMTPServer.MMTPServerConnection \
+                      .PROTOCOL_VERSIONS[:]
+    mmtpProtocolsOut = mixminion.server.MMTPServer.MMTPClientConnection \
+                       .PROTOCOL_VERSIONS[:]
+    mmtpProtocolsIn.sort()
+    mmtpProtocolsOut.sort()
+    mmtpProtocolsIn = ",".join(mmtpProtocolsIn)
+    mmtpProtocolsOut = ",".join(mmtpProtocolsOut)
+
     fields = {
         "IP": config['Incoming/MMTP'].get('IP', "0.0.0.0"),
         "Port": config['Incoming/MMTP'].get('Port', 0),
@@ -460,6 +470,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
            formatBase64(mixminion.Crypto.pk_encode_public_key(packetKey)),
         "KeyID":
            formatBase64(serverKeys.getMMTPKeyID()),
+        "MMTPProtocolsIn" : mmtpProtocolsIn,
+        "MMTPProtocolsOut" : mmtpProtocolsOut,        
         }
 
     # If we don't know our IP address, try to guess
@@ -498,7 +510,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
             Version: 0.1
             Port: %(Port)s
             Key-Digest: %(KeyID)s
-            Protocols: 0.1
+            Protocols: %(MMTPProtocolsIn)s
             """ % fields
         for k,v in config.getSectionItems("Incoming/MMTP"):
             if k not in ("Allow", "Deny"):
@@ -510,8 +522,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         info += """\
             [Outgoing/MMTP]
             Version: 0.1
-            Protocols: 0.1
-            """
+            Protocols: %(MMTPProtocolsOut)s
+            """ % fields
         for k,v in config.getSectionItems("Outgoing/MMTP"):
             if k not in ("Allow", "Deny"):
                 continue
