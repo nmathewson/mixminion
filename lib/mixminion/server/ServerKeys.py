@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.7 2003/01/05 13:19:54 nickm Exp $
+# $Id: ServerKeys.py,v 1.8 2003/01/08 08:00:40 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -381,7 +381,8 @@ class ServerKeyset:
 CERTIFICATE_EXPIRY_SLOPPINESS = 5*60
 
 def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
-                                    hashdir, validAt=None, now=None):
+                                    hashdir, validAt=None, now=None,
+                                    useServerKeys=None):
     """Generate and sign a new server descriptor, and generate all the keys to
        go with it.
 
@@ -390,18 +391,29 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
           keydir -- The root directory for storing key sets.
           keyname -- The name of this new key set within keydir
           hashdir -- The root directory for storing hash logs.
-          validAt -- The starting time (in seconds) for this key's lifetime."""
+          validAt -- The starting time (in seconds) for this key's lifetime.
 
-    # First, we generate both of our short-term keys...
-    packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
-    mmtpKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
+          DOCDOC  useServerKeys
+          XXXX test useServerKeys
+          """
 
-    # ...and save them to disk, setting up our directory structure while
-    # we're at it.
-    serverKeys = ServerKeyset(keydir, keyname, hashdir)
-    serverKeys.packetKey = packetKey
-    serverKeys.mmtpKey = mmtpKey
-    serverKeys.save()
+    if useServerKeys is None:
+        # First, we generate both of our short-term keys...
+        packetKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
+        mmtpKey = mixminion.Crypto.pk_generate(PACKET_KEY_BYTES*8)
+
+        # ...and save them to disk, setting up our directory structure while
+        # we're at it.
+        serverKeys = ServerKeyset(keydir, keyname, hashdir)
+        serverKeys.packetKey = packetKey
+        serverKeys.mmtpKey = mmtpKey
+        serverKeys.save()
+    else:
+        #XXXX drop this once we've tested and added more validation logic.
+        LOG.warn("EXPERIMENTAL FEATURE: Regenerating server descriptor from old keys")
+        serverKeys = useServerKeys
+        packetKey = serverKeys.getPacketKey()
+        mmtpKey = serverKeys.getMMTPKey()
 
     # FFFF unused
     # allowIncoming = config['Incoming/MMTP'].get('Enabled', 0)
@@ -428,11 +440,12 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     certEnds = validUntil + CERTIFICATE_EXPIRY_SLOPPINESS + \
                config['Server']['PublicKeySloppiness'][2]
 
-    # Create the X509 certificate.
-    mixminion.Crypto.generate_cert(serverKeys.getCertFileName(),
-                                   mmtpKey,
-                                   "MMTP certificate for %s" %nickname,
-                                   certStarts, certEnds)
+    if useServerKeys is None:
+        # Create the X509 certificate.
+        mixminion.Crypto.generate_cert(serverKeys.getCertFileName(),
+                                       mmtpKey,
+                                       "MMTP certificate for %s" %nickname,
+                                       certStarts, certEnds)
 
     fields = {
         "IP": config['Incoming/MMTP'].get('IP', "0.0.0.0"),
