@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.13 2002/12/16 19:20:49 nickm Exp $
+# $Id: __init__.py,v 1.14 2002/12/31 04:34:16 nickm Exp $
 
 """mixminion
 
@@ -7,7 +7,7 @@
    """
 
 __version__ = "0.0.2a0"
-__all__ = [ 'server' ]
+__all__ = [ 'server', 'directory' ]
 
 ## import mixminion.BuildMessage
 ## import mixminion.Crypto
