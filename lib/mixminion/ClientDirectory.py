@@ -410,7 +410,7 @@ class ClientDirectory:
             if at and not sd.isValidAt(at):
                 continue
             nickname = sd.getNickname()
-            isGood = self.goodServerNicknames.get(nickname, 0)
+            isGood = self.goodServerNicknames.get(nickname.lower(), 0)
             if goodOnly and not isGood:
                 continue
             va, vu = sd['Server']['Valid-After'], sd['Server']['Valid-Until']
