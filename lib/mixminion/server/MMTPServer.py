@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.20 2003/02/20 16:57:40 nickm Exp $
+# $Id: MMTPServer.py,v 1.20.2.1 2003/05/05 02:52:09 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -655,6 +655,8 @@ class MMTPClientConnection(SimpleTLSConnection):
            failCallback -- None, or a function of (msg, handle, retriable)
               to be called when messages can't be sent."""
 
+        assert len(messageList) == len(handleList)
+               
         # Generate junk before connecting to avoid timing attacks
         self.junk = [] #XXXX doc this field.
         for m in messageList:
@@ -682,6 +684,7 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.sentCallback = sentCallback
         self.failCallback = failCallback
         self.protocol = None
+        self._curMessage = self._curHandle = None
 
         debug("Opening client connection (fd %s)", self.fd)
 
@@ -736,14 +739,15 @@ class MMTPClientConnection(SimpleTLSConnection):
         if not self.messageList:
             self.shutdown(0)
             return
-        msg = self.messageList[0]
+        msg = self._curMessage = self.messageList[0]
+        handle = self._curHandle = self.handleList[0]
+        del self.messageList[0]
+        del self.handleList[0]
         if msg == 'RENEGOTIATE':
-            del self.messageList[0]
             self.finished = self.beginNextMessage
             self.startRenegotiate()
             return
         elif msg == 'JUNK':
-            del self.messageList[0]
             msg = self.junk[0]
             del self.junk[0]
             if self.protocol == '0.1':
@@ -790,20 +794,21 @@ class MMTPClientConnection(SimpleTLSConnection):
 
        debug("Received valid ACK for message from %s", self.address)
        if not self.isJunk:
-           justSent = self.messageList[0]
-           justSentHandle = self.handleList[0]
-           del self.messageList[0]
-           del self.handleList[0]
            if self.sentCallback is not None:
-               self.sentCallback(justSent, justSentHandle)
+               self.sentCallback(self._curMessage, self._curHandle)
+
+       self._curMessage = self._curHandle = None
 
        self.beginNextMessage()
 
     def handleFail(self, retriable):
         """Invoked when a message is not deliverable."""
         if self.failCallback is not None:
+            if self._curHandle is not None:
+                self.failCallback(self._curMessage,self._curHandle,retriable)
             for msg, handle in zip(self.messageList, self.handleList):
-                self.failCallback(msg,handle,retriable)
+                if handle is not None:
+                    self.failCallback(msg,handle,retriable)
 
 LISTEN_BACKLOG = 128
 class MMTPAsyncServer(AsyncServer):

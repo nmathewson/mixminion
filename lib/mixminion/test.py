@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.94.2.1 2003/05/05 00:43:30 nickm Exp $
+# $Id: test.py,v 1.94.2.2 2003/05/05 02:52:09 nickm Exp $
 
 """mixminion.tests
 
@@ -3045,7 +3045,7 @@ class MMTPTests(unittest.TestCase):
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid,
            [messages[0],"JUNK","RENEGOTIATE","JUNK",messages[1]],
-           [None, None], None)
+           [None]*5, None)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():
