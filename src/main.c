@@ -1,5 +1,5 @@
 /* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.22 2004/01/12 04:48:16 nickm Exp $ */
+/* $Id: main.c,v 1.23 2004/01/17 04:21:40 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -28,6 +28,8 @@
 #else /* not windows */
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <netinet/in.h>
+#include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #endif
 
