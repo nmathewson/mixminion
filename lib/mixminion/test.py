@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.179 2004/01/22 05:42:06 nickm Exp $
+# $Id: test.py,v 1.180 2004/01/27 05:14:31 nickm Exp $
 
 """mixminion.tests
 
@@ -3405,7 +3405,7 @@ class LogTests(TestCase):
             print >>stream, "Y"
         finally:
             r = resumeLog()
-        lines = [ l[20:] for l in r.split("\n") ]
+        lines = [ l[26:] for l in r.split("\n") ]
         self.assertEquals(lines[0], "[WARN] ->STREAM: Testing 1 2 3")
         self.assertEquals(lines[1], "[WARN] ->STREAM: ")
         self.assertEquals(lines[2], "[WARN] ->STREAM: A")
@@ -4456,6 +4456,7 @@ EncryptPrivateKey: no
 Homedir: %s
 Mode: relay
 Nickname: fred-the-bunny
+Contact-Email: a@b.c
 """
 
 class ServerInfoTests(TestCase):
@@ -5917,6 +5918,7 @@ PublicKeyLifetime: 10 days
 IdentityKeyBits: 2048
 EncryptPrivateKey: no
 Nickname: mac-the-knife
+Contact-Email: a@b.c
 [Incoming/MMTP]
 Enabled: yes
 Hostname: Theserver5
@@ -6202,6 +6204,7 @@ PublicKeyLifetime: %(lifetime)s
 IdentityKeyBits: 2048
 EncryptPrivateKey: no
 Nickname: %(nickname)s
+Contact-Email: a@b.c
 [Incoming/MMTP]
 Enabled: yes
 Hostname: %(nickname)s

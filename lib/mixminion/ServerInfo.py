@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.76 2004/01/17 04:24:57 nickm Exp $
+# $Id: ServerInfo.py,v 1.77 2004/01/27 05:14:31 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -113,6 +113,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Published": ("REQUIRE", "time", None),
                      "Valid-After": ("REQUIRE", "date", None),
                      "Valid-Until": ("REQUIRE", "date", None),
+                     #XXXX008 change this to 'require'.
                      "Contact": ("ALLOW", None, None),
                      "Comments": ("ALLOW", None, None),
                      "Packet-Key": ("REQUIRE", "publicKey", None),
