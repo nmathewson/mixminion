@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.25 2002/12/09 04:47:40 nickm Exp $
+# $Id: Crypto.py,v 1.26 2002/12/11 05:53:33 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -402,6 +402,10 @@ REPLAY_PREVENTION_MODE = "REPLAY PREVENTION"
 
 # Passed to the delivery module
 APPLICATION_KEY_MODE = "APPLICATION KEY"
+
+# Used by the sender to encrypt the payload when sending an encrypted forward
+#  message
+END_TO_END_ENCRYPT_MODE = "END-TO-END ENCRYPT"
 
 #----------------------------------------------------------------------
 # Key generation

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.23 2002/12/09 06:11:01 nickm Exp $
+# $Id: Config.py,v 1.24 2002/12/11 05:53:33 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -55,14 +55,9 @@ import socket # for inet_aton and error
 from cStringIO import StringIO
 
 import mixminion.Common
-from mixminion.Common import MixError, LOG
+from mixminion.Common import MixError, LOG, isPrintingAscii, stripSpace
 import mixminion.Packet
 import mixminion.Crypto
-
-# String with all characters 0..255; used for str.translate
-_ALLCHARS = "".join(map(chr, range(256)))
-# String with all printing ascii characters; used for str.translate
-_GOODCHARS = "".join(map(chr, range(0x07,0x0e)+range(0x20,0x80)))
 
 class ConfigError(MixError):
     """Thrown when an error is found in a configuration file."""
@@ -228,7 +223,7 @@ def _parseCommand(command):
 def _parseBase64(s,_hexmode=0):
     """Validation function.  Converts a base-64 encoded config value into
        its original. Raises ConfigError on failure."""
-    s = s.translate(_ALLCHARS, " \t\v\n")
+    s = stripSpace(s)
     try:
 	if _hexmode:
 	    return binascii.a2b_hex(s)
@@ -352,10 +347,10 @@ def _readConfigFile(contents, restrict=0):
     lineno = 0
 
     # Make sure all characters in the file are ASCII.
-    badchars = contents.translate(_ALLCHARS, _GOODCHARS)
-    if badchars:
+    if not isPrintingAscii(contents):
 	raise ConfigError("Invalid characters in file: %r", badchars)
 
+    #FFFF We should really use xreadlines or something if we have a file.
     fileLines = contents.split("\n")
     if fileLines[-1] == '':
 	del fileLines[-1]
@@ -777,6 +772,10 @@ class ServerConfig(_ConfigFile):
 	return self.moduleManager
 
 def _validateHostSection(sec):
-    # FFFF001
+    """Helper function: Makes sure that the shared [Host] section is correct;
+       raise ConfigError if it isn't"""
+    # For now, we do nothing here.  EntropySource and ShredCommand are checked
+    # in configure_trng and configureShredCommand, respectively.
     pass
+
 

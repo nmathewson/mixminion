@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.30 2002/12/09 04:47:39 nickm Exp $
+# $Id: Common.py,v 1.31 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.Common
 
@@ -7,13 +7,15 @@
 
 __all__ = [ 'MixError', 'MixFatalError', 'onReset', 'onTerminate',
             'installSignalHandlers', 'secureDelete', 'secureRename',
-            'ceilDiv', 'floorDiv', 'LOG', 'stringContains' ]
+            'ceilDiv', 'floorDiv', 'LOG', 'stringContains',
+	    'formatDate', 'formatTime', 'isSMTPMailbox']
 
 import os
 import signal
 import sys
 import time
 import stat
+import re
 import statvfs
 import traceback
 import calendar
@@ -54,6 +56,7 @@ def ceilDiv(a,b):
     return divmod(a-1,b)[0]+1
 
 #----------------------------------------------------------------------
+# String handling
 
 # We create an alias to make the intent of substring-checking code
 # more explicit.  It's a bit easier to remember "stringContains(s1,
@@ -65,6 +68,27 @@ def stringContains(s1, s2):
     """Return true iff s2 is contained within s1; that is, for some i,
        s1[i:i+len(s2)] == s2"""
     return s1.find(s2) != -1
+
+# String containing characters from "\x00" to "\xFF"; used by 'isPrintingAscii'
+_ALLCHARS = "".join(map(chr, range(256)))
+# String containing all printing ascii characters; used by 'isPrintingAscii'
+_P_ASCII_CHARS = "\t\n\v\r"+"".join(map(chr, range(0x20, 0x7F)))
+# String containing all printing ascii characters, and all characters that
+# may be used in an extended charset.
+_P_ASCII_CHARS_HIGH = "\t\n\v\r"+"".join(map(chr, range(0x20, 0x7F)+
+					          range(0x80, 0xFF)))
+
+def isPrintingAscii(s,allowISO=0):
+    """Return true iff every character in s is a printing ascii character.
+       If allowISO is true, also permit characters between 0x80 and 0xFF."""
+    if allowISO:
+	return len(s.translate(_ALLCHARS, _P_ASCII_CHARS_HIGH)) == 0
+    else:
+	return len(s.translate(_ALLCHARS, _P_ASCII_CHARS)) == 0
+
+def stripSpace(s, space=" \t\v\n"):
+    """Remove all whitespace from s."""
+    return s.translate(_ALLCHARS, space)
 
 #----------------------------------------------------------------------
 def createPrivateDir(d, nocreate=0):
@@ -478,6 +502,44 @@ def previousMidnight(when):
     yyyy,MM,dd = time.gmtime(when)[0:3]
     return calendar.timegm((yyyy,MM,dd,0,0,0,0,0,0))
 
+def formatTime(when,localtime=0):
+    """Given a time in seconds since the epoch, returns a time value in the
+       format used by server descriptors (YYYY/MM/DD HH:MM:SS) in GMT"""
+    if localtime:
+	gmt = time.localtime(when)
+    else:
+	gmt = time.gmtime(when)
+    return "%04d/%02d/%02d %02d:%02d:%02d" % (
+	gmt[0],gmt[1],gmt[2],  gmt[3],gmt[4],gmt[5])
+
+def formatDate(when):
+    """Given a time in seconds since the epoch, returns a date value in the
+       format used by server descriptors (YYYY/MM/DD) in GMT"""
+    gmt = time.gmtime(when+1) # Add 1 to make sure we round down.
+    return "%04d/%02d/%02d" % (gmt[0],gmt[1],gmt[2])
+
+#----------------------------------------------------------------------
+# SMTP address functionality
+
+# Regular expressions to valide RFC822 addresses.
+# (This is more strict than RFC822, actually.  RFC822 allows tricky stuff to
+#  quote special characters, and I don't trust every MTA or delivery command
+#  to support addresses like <bob@bob."; rm -rf /; echo".com>)
+ 
+# An 'Atom' is a non-escape, non-null, non-space, non-punctuation character.
+_ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
+# The 'Local part' (and, for us, the domain portion too) is a sequence of
+# dot-separated atoms.
+_LOCAL_PART_PAT = r"(?:%s)(?:\.(?:%s))*" % (_ATOM_PAT, _ATOM_PAT)
+# A mailbox is two 'local parts' separated by an @ sign.
+_RFC822_PAT = r"\A%s@%s\Z" % (_LOCAL_PART_PAT, _LOCAL_PART_PAT)
+RFC822_RE = re.compile(_RFC822_PAT)
+
+def isSMTPMailbox(s):
+    """Return true iff s is a valid SMTP address"""
+    m = RFC822_RE.match(s)
+    return m is not None
+     
 #----------------------------------------------------------------------
 # Signal handling
 

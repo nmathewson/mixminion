@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.23 2002/12/09 04:47:40 nickm Exp $
+# $Id: ServerInfo.py,v 1.24 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,11 +15,12 @@ import os
 import base64
 import socket
 
-from mixminion.Common import createPrivateDir, LOG, MixError
-from mixminion.Modules import SWAP_FWD_TYPE, FWD_TYPE
+from mixminion.Common import createPrivateDir, LOG, MixError, formatTime, \
+     formatDate
 from mixminion.Packet import IPV4Info
 import mixminion.Config
 import mixminion.Crypto
+from mixminion.Crypto import DIGEST_LEN
 
 ConfigError = mixminion.Config.ConfigError
 
@@ -112,13 +113,32 @@ class ServerInfo(mixminion.Config._ConfigFile):
 	digest = getServerInfoDigest(contents)
 	if digest != server['Digest']:
 	    raise ConfigError("Invalid digest")
-	
+
+	# Check signature
 	if digest != mixminion.Crypto.pk_check_signature(server['Signature'],
 							 identityKey):
 	    raise ConfigError("Invalid signature")
 
-	#### XXXX001 CHECK OTHER SECTIONS
+	## Incoming/MMTP section
+	inMMTP = sections['Incoming/MMTP']
+	if inMMTP:
+	    if inMMTP['Version'] != '0.1':
+		raise ConfigError("Unrecognized MMTP descriptor version %s"%
+				  inMMTP['Version'])
+	    if len(inMMTP['Key-Digest']) != DIGEST_LEN:
+		raise ConfigError("Invalid key digest %s"%
+				  base64.endodestring(inMMTP['Key-Digest']))
+	
+	## Outgoing/MMTP section
+	outMMTP = sections['Outgoing/MMTP']
+	if outMMTP:
+	    if outMMTP['Version'] != '0.1':
+		raise ConfigError("Unrecognized MMTP descriptor version %s"%
+				  inMMTP['Version'])
 
+	# FFFF When a better client module system exists, check the 
+	# FFFF module descriptors.
+	
     def getNickname(self):
 	"""Returns this server's nickname"""
 	return self['Server']['Nickname']
@@ -203,21 +223,6 @@ class ServerKeyset:
 def _base64(s):
     "Helper function: returns a one-line base64 encoding of a given string."
     return base64.encodestring(s).replace("\n", "")
-
-def _time(t):
-    #XXXX001 move this to common.
-    """Helper function: turns a time (in seconds) into the format used by
-       Server descriptors"""
-    gmt = time.gmtime(t)
-    return "%04d/%02d/%02d %02d:%02d:%02d" % (
-	gmt[0],gmt[1],gmt[2],  gmt[3],gmt[4],gmt[5])
-
-def _date(t):
-    #XXXX001 move this to common.
-    """Helper function: turns a time (in seconds) into a date in the format
-       used by server descriptors"""
-    gmt = time.gmtime(t+1) # Add 1 to make sure we round down.
-    return "%04d/%02d/%02d" % (gmt[0],gmt[1],gmt[2])
 
 def _rule(allow, (ip, mask, portmin, portmax)):
     """Return an external represenntation of an IP allow/deny rule."""
@@ -304,9 +309,9 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 	"Nickname": nickname,
 	"Identity":
 	   _base64(mixminion.Crypto.pk_encode_public_key(identityKey)),
-	"Published": _time(time.time()),
-	"ValidAfter": _date(validAt),
-	"ValidUntil": _date(validUntil),
+	"Published": formatTime(time.time()),
+	"ValidAfter": formatDate(validAt),
+	"ValidUntil": formatDate(validUntil),
 	"PacketKey":
   	   _base64(mixminion.Crypto.pk_encode_public_key(packetKey)),
 	"KeyID":

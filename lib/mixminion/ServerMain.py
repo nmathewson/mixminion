@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.18 2002/12/09 04:47:40 nickm Exp $
+# $Id: ServerMain.py,v 1.19 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -19,10 +19,10 @@ import mixminion._minionlib
 import mixminion.Crypto
 import mixminion.Queue
 import mixminion.MMTPServer
-from mixminion.ServerInfo import ServerKeyset, ServerInfo, _date, _time, \
+from mixminion.ServerInfo import ServerKeyset, ServerInfo, \
      generateServerDescriptorAndKeys
 from mixminion.Common import LOG, MixFatalError, MixError, secureDelete, \
-     createPrivateDir, previousMidnight, ceilDiv
+     createPrivateDir, previousMidnight, ceilDiv, formatDate, formatTime
 
 
 class ServerKeyring:
@@ -119,7 +119,7 @@ class ServerKeyring:
                 t2 = inf['Server']['Valid-Until']
                 self.keyIntervals.append( (t1, t2, keysetname) )
 		LOG.debug("Found key %s (valid from %s to %s)",
-			       dirname, _date(t1), _date(t2))
+			       dirname, formatDate(t1), formatDate(t2))
 	    else:
 		LOG.warn("No server descriptor found for key %s"%dirname)
 
@@ -134,10 +134,10 @@ class ServerKeyring:
 	    start = self.keyIntervals[idx+1][0]
 	    if start < end:
 		LOG.warn("Multiple keys for %s.  That's unsupported.",
-			      _date(end))
+			      formatDate(end))
 	    elif start > end:
 		LOG.warn("Gap in key schedule: no key from %s to %s",
-			      _date(end), _date(start))
+			      formatDate(end), formatDate(start))
 
 	self.nextKeyRotation = 0 # Make sure that now > nextKeyRotation before
 	                         # we call _getLiveKey()
@@ -213,7 +213,8 @@ class ServerKeyring:
 	    nextStart = startAt + self.config['Server']['PublicKeyLifetime'][2]
 
 	    LOG.info("Generating key %s to run from %s through %s (GMT)",
-			  keyname, _date(startAt), _date(nextStart-3600))
+		     keyname, formatDate(startAt), 
+		     formatDate(nextStart-3600))
  	    generateServerDescriptorAndKeys(config=self.config,
 					    identityKey=self.getIdentityKey(),
 					    keyname=keyname,
@@ -240,7 +241,7 @@ class ServerKeyring:
 
 	for dirname, (va, vu, name) in zip(dirs, self.keyIntervals):
             LOG.info("Removing%s key %s (valid from %s through %s)",
-                        expiryStr, name, _date(va), _date(vu-3600))
+                        expiryStr, name, formatDate(va), formatDate(vu-3600))
 	    files = [ os.path.join(dirname,f)
                                  for f in os.listdir(dirname) ]
 	    secureDelete(files, blocking=1)
@@ -536,7 +537,7 @@ class MixminionServer:
 	#FFFF Unused
 	#nextRotate = self.keyring.getNextKeyRotation()
 	while 1:
-	    LOG.trace("Next mix at %s", _time(nextMix))
+	    LOG.trace("Next mix at %s", formatTime(nextMix,1))
 	    while time.time() < nextMix:
 		# Handle pending network events
 		self.mmtpServer.process(1)

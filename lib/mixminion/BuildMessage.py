@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.20 2002/12/09 04:47:39 nickm Exp $
+# $Id: BuildMessage.py,v 1.21 2002/12/11 05:53:32 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -11,10 +11,9 @@ import operator
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG
 import mixminion.Crypto as Crypto
-import mixminion.Modules as Modules
 
 __all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
-           'buildStatelessReplyBlock', 'buildReplyBlock', 'decodePayload' ]
+           'buildReplyBlock', 'decodePayload' ]
 
 def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 			paddingPRNG=None):
@@ -94,8 +93,7 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
 	if not (ord(encrypted[0]) & 0x80):
 	    break
     # Lioness encryption.
-    # DOCDOC doc mode 'End-to-end encrypt' XXXX001
-    k = Crypto.Keyset(sessionKey).getLionessKeys("End-to-end encrypt")
+    k= Crypto.Keyset(sessionKey).getLionessKeys(Crypto.END_TO_END_ENCRYPT_MODE)
     lionessPart = Crypto.lioness_encrypt(lionessPart, k)
 
     # Now we re-divide the payload into the part that goes into the tag, and
@@ -132,10 +130,12 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     return _buildMessage(payload, None, None,
                          path1=path1, path2=replyBlock)
 
-def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
-                    tag=None):
-    """Return a 3-tuple containing (1) a newly-constructed reply block, (2)
-       a list of secrets used to make it, (3) a tag.
+def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0, 
+			 secretPRNG=None, tag=None):
+    """Helper function: makes a reply block, given a tag and a PRNG to
+       generate secrets. Returns a 3-tuple containing (1) a
+       newly-constructed reply block, (2) a list of secrets used to
+       make it, (3) a tag.
 
               path: A list of ServerInfo
               exitType: Routing type to use for the final node
@@ -147,9 +147,6 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
                  will be used to encrypt the message in reverse order.
               tag: If provided, a 159-bit tag.  If not provided, a new one
                  is generated.
-
-        (This will go away when we disable 'stateful' (non-state-carrying)
-	 reply blocks.)
        """
     if secretPRNG is None:
         secretPRNG = Crypto.AESCounterPRNG()
@@ -174,13 +171,13 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
                           paddingPRNG=Crypto.AESCounterPRNG())
 
     return ReplyBlock(header, expiryTime,
-                      Modules.SWAP_FWD_TYPE,
+                      SWAP_FWD_TYPE,
                       path[0].getRoutingInfo().pack(), sharedKey), secrets, tag
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
-def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
-			     expiryTime=0, secretRNG=None):
-    """Construct a 'stateless' reply block that does not require the
+def buildReplyBlock(path, exitType, exitInfo, userKey,
+		    expiryTime=0, secretRNG=None):
+    """Construct a 'state-carrying' reply block that does not require the
        reply-message recipient to remember a list of secrets.
        Instead, all secrets are generated from an AES counter-mode
        stream, and the seed for the stream is stored in the 'tag'
@@ -190,6 +187,10 @@ def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
                path: a list of ServerInfo objects
 	       exitType,exitInfo: The address to deliver the final message.
                userKey: a string used to encrypt the seed.
+
+       NOTE: We used to allow another kind of 'non-state-carrying' reply
+       block that stored its secrets on disk, and used an arbitrary tag to
+       determine 
        """
     if secretRNG is None: secretRNG = Crypto.AESCounterPRNG()
 
@@ -199,6 +200,10 @@ def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
     # message with 99.6% probability.  (Otherwise, we'd need to repeatedly
     # lioness-decrypt the payload in order to see whether the message was 
     # a reply.)
+    
+    # XXXX D'oh!  This enables an offline password guessing attack for
+    # XXXX anybody who sees multiple tags.  We need to make sure that userKey
+    # XXXX is stored on disk, and isn't a password.  This needs more thought.
     while 1:
 	seed = _getRandomTag(secretRNG)
 	if Crypto.sha1(seed+userKey+"Validate")[-1] == '\x00':
@@ -206,13 +211,14 @@ def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
 
     prng = Crypto.AESCounterPRNG(Crypto.sha1(seed+userKey+"Generate")[:16])
 
-    return buildReplyBlock(path, exitType, exitInfo, expiryTime, prng, seed)[0]
+    return _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime, prng, 
+				seed)[0]
 
 #----------------------------------------------------------------------
 # MESSAGE DECODING
 
 def decodePayload(payload, tag, key=None, 
-		  storedKeys=None, #XXXX001 disable storedKeys
+		  #storedKeys=None, # 'Stateful' reply blocks are disabled.
 		  userKey=None):
     """Given a 28K payload and a 20-byte decoding tag, attempt to decode and
        decompress the original message.  
@@ -235,14 +241,16 @@ def decodePayload(payload, tag, key=None,
     if _checkPayload(payload):
 	return _decodeForwardPayload(payload)
 
-    # If we have a list of keys associated with the tag, it's a reply message
-    # using those keys.
-    #XXXX001 'Non-state-carrying' reply blocks are supposed to be disabled
-    if storedKeys is not None:
-	secrets = storedKeys.get(tag)
- 	if secrets is not None:
- 	    del storedKeys[tag]
- 	    return _decodeReplyPayload(payload, secrets)
+    # ('Stateful' reply blocks are disabled.)
+
+##    # If we have a list of keys associated with the tag, it's a reply message
+##    # using those keys.
+
+##     if storedKeys is not None:
+## 	secrets = storedKeys.get(tag)
+##  	if secrets is not None:
+##  	    del storedKeys[tag]
+##  	    return _decodeReplyPayload(payload, secrets)
 
     # If H(tag|userKey|"Validate") ends with 0, then the message _might_
     # be a reply message using H(tag|userKey|"Generate") as the seed for
@@ -287,8 +295,9 @@ def _decodeEncryptedForwardPayload(payload, tag, key):
     except Crypto.CryptoError:
 	return None
     rest = msg[key.get_modulus_bytes():]
-    # XXXX001 magic string
-    k =Crypto.Keyset(rsaPart[:SECRET_LEN]).getLionessKeys("End-to-end encrypt")
+
+    k = Crypto.Keyset(rsaPart[:SECRET_LEN]).getLionessKeys(
+	Crypto.END_TO_END_ENCRYPT_MODE)
     rest = rsaPart[SECRET_LEN:] + Crypto.lioness_decrypt(rest, k)
     
     # ... and then, check the checksum and continue.
@@ -357,7 +366,7 @@ def _buildMessage(payload, exitType, exitInfo,
     else:
 	if len(exitInfo) < TAG_LEN:
 	    raise MixError("Implausibly short exit info: %r"%exitInfo)
-	if exitType < Modules.MIN_EXIT_TYPE and exitType != Modules.DROP_TYPE:
+	if exitType < MIN_EXIT_TYPE and exitType != DROP_TYPE:
 	    raise MixError("Invalid exit type: %4x"%exitType)
 
     ### SETUP CODE: let's handle all the variant cases.
@@ -377,7 +386,7 @@ def _buildMessage(payload, exitType, exitInfo,
         path1exittype = reply.routingType
         path1exitinfo = reply.routingInfo
     else:
-        path1exittype = Modules.SWAP_FWD_TYPE
+        path1exittype = SWAP_FWD_TYPE
         path1exitinfo = path2[0].getRoutingInfo().pack()
 
     # Generate secrets for path1.
@@ -413,7 +422,7 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
         raise MixError("Too many nodes in path")
 
     # Construct a list 'routing' of exitType, exitInfo.
-    routing = [ (Modules.FWD_TYPE, node.getRoutingInfo().pack()) for
+    routing = [ (FWD_TYPE, node.getRoutingInfo().pack()) for
                 node in path[1:] ]
     routing.append((exitType, exitInfo))
 

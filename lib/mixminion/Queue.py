@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Queue.py,v 1.23 2002/12/09 04:47:40 nickm Exp $
+# $Id: Queue.py,v 1.24 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.Queue
 
@@ -204,25 +204,36 @@ class Queue:
            Returns 1 if a clean is already in progress; otherwise
            returns 0.
         """
-	# XXXX001 This is race-prone if multiple processes sometimes try to 
-	# XXXX001   clean the same queue.  Use O_EXCL, Luke.
+
         now = time.time()
-
         cleanFile = os.path.join(self.dir,".cleaning")
-        try:
-            s = os.stat(cleanFile)
-            if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
-                cleaning = 0
-            cleaning = 1
-        except OSError:
-            cleaning = 0
 
-        if cleaning:
-            return 1
-
-        f = open(cleanFile, 'w')
-        f.write(str(now))
-        f.close()
+	cleaning = 1
+	while cleaning:
+	    try:
+		# Try to get the .cleaning lock file.  If we can create it,
+		# we're the only cleaner around.
+		fd = os.open(cleanFile, os.O_WRONLY+os.O_CREAT+os.O_EXCL, 0600)
+		os.write(fd, str(now))
+		os.close(fd)
+		cleaning = 0
+	    except OSError:
+		try:
+		    # If we can't create the file, see if it's too old.  If it
+		    # is too old, delete it and try again.  If it isn't, there
+		    # may be a live clean in progress.
+		    s = os.stat(cleanFile)
+		    if now - s[stat.ST_MTIME] > CLEAN_TIMEOUT:
+			os.unlink(cleanFile)
+		    else:
+			return 1
+		except OSError:
+		    # If the 'stat' or 'unlink' calls above fail, then 
+		    # .cleaning must not exist, or must not be readable
+		    # by us.
+		    if os.path.exists(cleanFile):
+			# In the latter case, bail out.
+			return 1
 
         rmv = []
         allowedTime = int(time.time()) - INPUT_TIMEOUT

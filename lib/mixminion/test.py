@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.44 2002/12/09 06:11:01 nickm Exp $
+# $Id: test.py,v 1.45 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.tests
 
@@ -182,6 +182,19 @@ class MiscTests(unittest.TestCase):
 	    self.assertEquals(previousMidnight(t), pm)
 	    # 4. That previousMidnight is idempotent
 	    self.assertEquals(previousMidnight(pm), pm)
+
+    def test_isSMTPMailbox(self):
+	from mixminion.Common import isSMTPMailbox
+	# Do we accept good addresses?
+	for addr in "Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z":
+	    self.assert_(isSMTPMailbox(addr))
+
+	# Do we reject bad addresses?
+	for addr in ("(foo)@bar.com", "z.d" "z@", "@z", "@foo.com", "aaa",
+		     "foo.bar@", "foo\177@bar.com", "foo@bar\177.com",
+		     "foo@bar;cat /etc/shadow;echo ","foo bar@baz.com",
+		     "a@b@c"):
+	    self.assert_(not isSMTPMailbox(addr))
 
 #----------------------------------------------------------------------
 import mixminion._minionlib as _ml
@@ -728,18 +741,6 @@ class PacketTests(unittest.TestCase):
 
         self.failUnlessRaises(ParseError, parseIPV4Info, ri[:-1])
         self.failUnlessRaises(ParseError, parseIPV4Info, ri+"x")
-
-    def test_smtpinfo(self):
-	# Do we accept good addresses?
-	for addr in "Foo@bar.com", "a@b", "a@b.c.d.e", "a!b.c@d", "z@z":
-	    self.assertEquals(parseSMTPInfo(addr).pack(), addr)
-
-	# Do we reject bad addresses?
-	for addr in ("(foo)@bar.com", "z.d" "z@", "@z", "@foo.com", "aaa",
-		     "foo.bar@", "foo\177@bar.com", "foo@bar\177.com",
-		     "foo@bar;cat /etc/shadow;echo ","foo bar@baz.com",
-		     "a@b@c"):
-	    self.failUnlessRaises(ParseError, parseSMTPInfo, addr)
 
     def test_replyblock(self):
 	# Try parsing an example 'reply block' object
@@ -1373,20 +1374,20 @@ class BuildMessageTests(unittest.TestCase):
 	    sessionkey, rsa_rest = mrsa[:16], mrsa[16:]
 	    ks = Keyset(sessionkey)
 	    msg = rsa_rest + lioness_decrypt(mrest,
-			      ks.getLionessKeys("End-to-end encrypt"))
+			      ks.getLionessKeys("END-TO-END ENCRYPT"))
 	    comp = BuildMessage.compressData(payload)
 	    self.assert_(len(comp), ord(msg[0])*256 + ord(msg[1]))
 	    self.assertEquals(sha1(msg[22:]), msg[2:22])
 	    self.assert_(msg[22:].startswith(comp))
 
     def test_buildreply(self):
+        brbi = BuildMessage._buildReplyBlockImpl
         brb = BuildMessage.buildReplyBlock
-        bsrb = BuildMessage.buildStatelessReplyBlock
         brm = BuildMessage.buildReplyMessage
 
         ## Stateful reply blocks.
         reply, secrets_1, tag_1 = \
-             brb([self.server3, self.server1, self.server2,
+             brbi([self.server3, self.server1, self.server2,
                   self.server1, self.server3],
                  SMTP_TYPE,
 		 "no-such-user@invalid", tag=("+"*20))
@@ -1421,7 +1422,7 @@ class BuildMessageTests(unittest.TestCase):
                              "Information???",
 			     decoder=decoder)
         ## Stateless replies
-        reply = bsrb([self.server3, self.server1, self.server2,
+        reply = brb([self.server3, self.server1, self.server2,
                       self.server1, self.server3], MBOX_TYPE,
                      "fred", "Tyrone Slothrop", 0)
 
@@ -1506,7 +1507,7 @@ class BuildMessageTests(unittest.TestCase):
 	efwd = (comp+"RWE/HGW"*4096)[:28*1024-22-38]
 	efwd = '\x00\x6D'+sha1(efwd)+efwd
 	rsa1 = self.pk1
-	key1 = Keyset("RWE "*4).getLionessKeys("End-to-end encrypt")
+	key1 = Keyset("RWE "*4).getLionessKeys("END-TO-END ENCRYPT")
 	efwd_rsa = pk_encrypt(("RWE "*4)+efwd[:70], rsa1)
 	efwd_lioness = lioness_encrypt(efwd[70:], key1)
 	efwd_t = efwd_rsa[:20]
@@ -1548,44 +1549,47 @@ class BuildMessageTests(unittest.TestCase):
 	decodePayload = BuildMessage.decodePayload
 	# fwd
 	for pk in (self.pk1, None):
-	    for d in (sdict, None):
+	    ##for d in (sdict, None): # stateful replies disabled.
 		for p in (passwd, None):
 		    for tag in ("zzzz"*5, "pzzz"*5):
 			self.assertEquals(payload,
-					  decodePayload(encoded1, tag,pk,d,p))
+					  decodePayload(encoded1, tag, pk, p))
 
 	# efwd
-	for d in (sdict, None):
+	##for d in (sdict, None): # stateful replies disabled
+	if 1:
 	    for p in (passwd, None):
 		self.assertEquals(payload,
-		        decodePayload(efwd_p, efwd_t, self.pk1, d,p))
+		        decodePayload(efwd_p, efwd_t, self.pk1, p))
 		self.assertEquals(None,
-		        decodePayload(efwd_p, efwd_t, None, d,p))
+		        decodePayload(efwd_p, efwd_t, None, p))
 		self.assertEquals(None,
-		        decodePayload(efwd_p, efwd_t, self.pk2, d,p))
+		        decodePayload(efwd_p, efwd_t, self.pk2, p))
 
-	# repl (stateful)
-	sdict2 = { 'tag2'*5 : [secrets] + [ '\x00\xFF'*8] }
-	for pk in (self.pk1, None):
-	    for p in (passwd, None):
-		sd = sdict.copy()
-		self.assertEquals(payload,
-		       decodePayload(repl1, "tag1"*5, pk, sd, p))
-		self.assert_(not sd)
-		self.assertEquals(None,
-		       decodePayload(repl1, "tag1"*5, pk, None, p))
-		self.assertEquals(None,
-		       decodePayload(repl1, "tag1"*5, pk, sdict2, p))
+	# Stateful replies are disabled.
+
+## 	# repl (stateful)
+## 	sdict2 = { 'tag2'*5 : [secrets] + [ '\x00\xFF'*8] }
+## 	for pk in (self.pk1, None):
+## 	    for p in (passwd, None):
+## 		sd = sdict.copy()
+## 		self.assertEquals(payload,
+## 		       decodePayload(repl1, "tag1"*5, pk, sd, p))
+## 		self.assert_(not sd)
+## 		self.assertEquals(None,
+## 		       decodePayload(repl1, "tag1"*5, pk, None, p))
+## 		self.assertEquals(None,
+## 		       decodePayload(repl1, "tag1"*5, pk, sdict2, p))
 
 	# repl (stateless)
 	for pk in (self.pk1, None):
-	    for sd in (sdict, None):
+	    #for sd in (sdict, None): #Stateful replies are disabled
 		self.assertEquals(payload,
-			    decodePayload(repl2, repl2tag, pk, sd, passwd))
+			    decodePayload(repl2, repl2tag, pk, passwd))
 		self.assertEquals(None,
-			    decodePayload(repl2, repl2tag, pk, sd,"Bliznerty"))
+			    decodePayload(repl2, repl2tag, pk, "Bliznerty"))
 		self.assertEquals(None,
-			    decodePayload(repl2, repl2tag, pk, sd,None))
+			    decodePayload(repl2, repl2tag, pk, None))
 
 	# And now the cases that fail hard.  This can only happen on:
 	#   1) *: Hash checks out, but zlib or size is wrong.  Already tested.
@@ -1598,28 +1602,29 @@ class BuildMessageTests(unittest.TestCase):
 	self.failUnlessRaises(MixError,
 			      BuildMessage._decodeEncryptedForwardPayload,
 			      efwd_pbad, efwd_t, self.pk1)
-	for d in (sdict, None):
+	#for d in (sdict, None):
+	if 1:
 	    for p in (passwd, None):
 		self.failUnlessRaises(MixError, decodePayload,
-				      efwd_pbad, efwd_t, self.pk1, d, p)
+				      efwd_pbad, efwd_t, self.pk1, p)
 		self.assertEquals(None,
-			  decodePayload(efwd_pbad, efwd_t, self.pk2, d,p))
+			  decodePayload(efwd_pbad, efwd_t, self.pk2, p))
 
-	# Bad repl
-	repl1_bad = repl1[:-1] + chr(ord(repl1[-1])^0xaa)
-	for pk in (self.pk1, None):
-	    for p in (passwd, None):
-		sd = sdict.copy()
-		self.failUnlessRaises(MixError,
-			 decodePayload, repl1_bad, "tag1"*5, pk, sd, p)
-		sd = sdict.copy()
-		self.failUnlessRaises(MixError,
-			 BuildMessage._decodeReplyPayload, repl1_bad,
-				      sd["tag1"*5])
+## 	# Bad repl
+## 	repl2_bad = repl2[:-1] + chr(ord(repl1[-1])^0xaa)
+## 	for pk in (self.pk1, None):
+## 	    for p in (passwd, None):
+## 		#sd = sdict.copy()
+## 		self.failUnlessRaises(MixError,
+## 			 decodePayload, repl1_bad, "tag1"*5, pk, p)
+## 		#sd = sdict.copy()
+## 		self.failUnlessRaises(MixError,
+## 			 BuildMessage._decodeReplyPayload, repl1_bad,
+## 				      sd["tag1"*5])
 	# Bad srepl
 	repl2_bad = repl2[:-1] + chr(ord(repl2[-1])^0xaa)
 	self.assertEquals(None,
-		  decodePayload(repl2_bad, repl2tag, None, None, passwd))
+		  decodePayload(repl2_bad, repl2tag, None, passwd))
 
 #----------------------------------------------------------------------
 # Having tested BuildMessage without using PacketHandler, we can now use
@@ -1732,7 +1737,7 @@ class PacketHandlerTests(unittest.TestCase):
     def test_rejected(self):
         bfm = BuildMessage.buildForwardMessage
         brm = BuildMessage.buildReplyMessage
-        brb = BuildMessage.buildReplyBlock
+        brbi = BuildMessage._buildReplyBlockImpl
         from mixminion.PacketHandler import ContentError
 
         # A long intermediate header needs to fail.
@@ -1753,7 +1758,7 @@ class PacketHandlerTests(unittest.TestCase):
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m)
 
         # Duplicate reply blocks need to fail
-        reply,s,tag = brb([self.server3], SMTP_TYPE, "fred@invalid")
+        reply,s,tag = brbi([self.server3], SMTP_TYPE, "fred@invalid")
         m = brm("Y", [self.server2], reply)
         m2 = brm("Y", [self.server1], reply)
         q, (a,m) = self.sp2.processMessage(m)
@@ -1763,9 +1768,9 @@ class PacketHandlerTests(unittest.TestCase):
 
         # Even duplicate secrets need to go.
         prng = AESCounterPRNG(" "*16)
-        reply1,s,t = brb([self.server1], SMTP_TYPE, "fred@invalid",0,prng)
+        reply1,s,t = brbi([self.server1], SMTP_TYPE, "fred@invalid",0,prng)
         prng = AESCounterPRNG(" "*16)
-        reply2,s,t = brb([self.server2], MBOX_TYPE, "foo",0,prng)
+        reply2,s,t = brbi([self.server2], MBOX_TYPE, "foo",0,prng)
         m = brm("Y", [self.server3], reply1)
         m2 = brm("Y", [self.server3], reply2)
         q, (a,m) = self.sp3.processMessage(m)
@@ -1794,11 +1799,14 @@ class PacketHandlerTests(unittest.TestCase):
 
         # Bad internal type
 	try:
-	    save = mixminion.Modules.SWAP_FWD_TYPE
-	    mixminion.Modules.SWAP_FWD_TYPE = 50
+	    # (We temporarily override the setting from 'BuildMessage',
+	    #  not Packet; BuildMessage has already imported a copy of this
+	    #  constant.)
+	    save = mixminion.BuildMessage.SWAP_FWD_TYPE
+	    mixminion.BuildMessage.SWAP_FWD_TYPE = 50
 	    m_x = bfm("Z", 500, "", [self.server1], [self.server2])
 	finally:
-	    mixminion.Modules.SWAP_FWD_TYPE = save
+	    mixminion.BuildMessage.SWAP_FWD_TYPE = save
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
 
         # Subhead we can't parse
@@ -2270,7 +2278,9 @@ class FileParanoiaTests(unittest.TestCase):
 import mixminion.MMTPServer
 import mixminion.MMTPClient
 
-TEST_PORT = 40102
+# Run on a different port so we don't conflict with any actual servers
+# running on this machine.
+TEST_PORT = 40199
 
 dhfile = pkfile = certfile = None
 
@@ -2857,6 +2867,7 @@ from mixminion.Config import ConfigError
 class TestModule(mixminion.Modules.DeliveryModule):
     def __init__(self):
 	self.processedMessages = []
+	self.processedAll = []
     def getName(self):
 	return "TestModule"
     def getConfigSyntax(self):
@@ -2883,6 +2894,7 @@ class TestModule(mixminion.Modules.DeliveryModule):
 	return (1234,)
     def processMessage(self, message, tag, exitType, exitInfo):
 	self.processedMessages.append(message)
+	self.processedAll.append( (message, tag, exitType, exitInfo) )
 	if exitInfo == 'fail?':
 	    return mixminion.Modules.DELIVER_FAIL_RETRY
 	elif exitInfo == 'fail!':
@@ -2935,7 +2947,7 @@ IP: 1.0.0.1
 	manager.queueMessage("Hello 2", t, 1234, "fail?")
 	manager.queueMessage("Hello 3", t, 1234, "good")
 	manager.queueMessage("Drop very much", None,
-			     mixminion.Modules.DROP_TYPE, t)
+			     mixminion.Packet.DROP_TYPE, t)
 	queue = manager.queues['TestModule']
 	# Did the test module's delivery queue get the messages?
 	self.failUnless(isinstance(queue,
@@ -2958,6 +2970,39 @@ IP: 1.0.0.1
 	self.assertEquals(1, queue.count())
 	self.assertEquals(4, len(exampleMod.processedMessages))
 	self.assertEquals("Hello 2", exampleMod.processedMessages[-1])
+
+	# But, none of them was decodeable: all of them should have been
+	# tagged as 'err'
+	self.assertEquals('err', exampleMod.processedAll[0][1])
+
+	# Try a real message, to make sure that we really decode stuff properly
+	msg = mixminion.BuildMessage._encodePayload(
+	    "A man disguised as an ostrich, actually.",
+	    0, Crypto.getCommonPRNG())
+	manager.queueMessage(msg, "A"*20, 1234, "Hello")
+	exampleMod.processedAll = []
+	manager.sendReadyMessages()
+	# The retriable message got sent again; the other one, we care about.
+	pos = None
+	for i in xrange(len(exampleMod.processedAll)):
+	    if not exampleMod.processedAll[i][0].startswith('Hello'):
+		pos = i
+	self.assert_(pos is not None)
+	self.assertEquals(exampleMod.processedAll[i],
+			  ("A man disguised as an ostrich, actually.",
+			   None, 1234, "Hello" ))
+
+	# Now a non-decodeable message
+	manager.queueMessage("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches")
+	exampleMod.processedAll = []
+	manager.sendReadyMessages()
+	pos = None
+	for i in xrange(len(exampleMod.processedAll)):
+	    if not exampleMod.processedAll[i][0].startswith('Hello'):
+		pos = i
+	self.assert_(pos is not None)
+	self.assertEquals(exampleMod.processedAll[i],
+			  ("XYZZYZZY"*3584, "Z"*20, 1234, "Buenas noches"))
 
 	# Check serverinfo generation.
 	try:
@@ -3317,10 +3362,11 @@ class ServerMainTests(unittest.TestCase):
 	Crypto.pk_PEM_save(identity, fn)
 
 	# Now create a keyset
-	keyring.createKeys(1)
+	now = time.time()
+	keyring.createKeys(1, now)
 	# check internal state
 	ivals = keyring.keyIntervals
-	start = mixminion.Common.previousMidnight(time.time())
+	start = mixminion.Common.previousMidnight(now)
 	finish = mixminion.Common.previousMidnight(start+(10*24*60*60)+30)
 	self.assertEquals(1, len(ivals))
 	self.assertEquals((start,finish,"0001"), ivals[0])
@@ -3345,15 +3391,14 @@ class ServerMainTests(unittest.TestCase):
 
 	# Make a key in the past, to see if it gets scrubbed.
 	keyring.createKeys(1, mixminion.Common.previousMidnight(
-	    start - 10*24*60*60 +60))
+	    start - 10*24*60*60 + 1))
 	self.assertEquals(4, len(keyring.keyIntervals))
         waitForChildren() # make sure keys are really gone before we remove
-	keyring.removeDeadKeys()
-	#XXXX001 Sometimes this fails, and says that len(keyring.keyIntervals)
-	#        is 4.  It may be time-related; it tends to fail once or
-	#        twice in rapid succession, then work for a while.  (Last time
-	#        it failed as around 7:00-7:06 Eastern -- just after midnight
-	#        GMT.  This bears thinking!
+
+        # In case we started very close to midnight, remove keys as if it
+	# were a little in the future; otherwise, we won't remove the 
+	# just-expired keys.
+	keyring.removeDeadKeys(now+360) 
 	self.assertEquals(3, len(keyring.keyIntervals))
 
 	if USE_SLOW_MODE:

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.12 2002/12/09 06:11:01 nickm Exp $
+# $Id: ClientMain.py,v 1.13 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -32,15 +32,15 @@ import time
 import types
 
 from mixminion.Common import LOG, floorDiv, createPrivateDir, MixError, \
-     MixFatalError
+     MixFatalError, isSMTPMailbox
 import mixminion.Crypto
 import mixminion.BuildMessage
 import mixminion.MMTPClient
 import mixminion.Modules
 from mixminion.ServerInfo import ServerInfo
 from mixminion.Config import ClientConfig, ConfigError
-from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo
-from mixminion.Modules import MBOX_TYPE, SMTP_TYPE, DROP_TYPE
+from mixminion.Packet import ParseError, parseMBOXInfo, parseSMTPInfo, \
+     MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 class TrivialKeystore:
     """This is a temporary keystore implementation until we get a working
@@ -300,9 +300,9 @@ def parseAddress(s):
     elif s.lower() == 'test':
 	return Address(0xFFFE, "", None)
     elif ':' not in s:
-	try:
-	    return Address(SMTP_TYPE, parseSMTPInfo(s).pack(), None)
-	except ParseError:
+	if isSMTPMailbox(s):
+	    return Address(SMTP_TYPE, s, None)
+	else:
 	    raise ParseError("Can't parse address %s"%s)
     tp,val = s.split(':', 1)
     tp = tp.lower()

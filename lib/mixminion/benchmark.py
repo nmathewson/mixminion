@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.15 2002/12/09 04:47:40 nickm Exp $
+# $Id: benchmark.py,v 1.16 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.benchmark
 
@@ -382,7 +382,7 @@ class DummyLog:
     def logHash(self,h): pass
 
 from mixminion.PacketHandler import PacketHandler
-from mixminion.Modules import SMTP_TYPE
+from mixminion.Packet import SMTP_TYPE
 
 def serverProcessTiming():
     print "#================= SERVER PROCESS ====================="

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.19 2002/12/09 04:47:40 nickm Exp $
+# $Id: Packet.py,v 1.20 2002/12/11 05:53:33 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -18,13 +18,14 @@ __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseReplyBlock', 'ENC_SUBHEADER_LEN', 'HEADER_LEN',
             'PAYLOAD_LEN', 'MAJOR_NO', 'MINOR_NO', 'SECRET_LEN', 'TAG_LEN',
 	    'SINGLETON_PAYLOAD_OVERHEAD', 'OAEP_OVERHEAD',
-	    'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD']
+	    'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD',
+	    'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
+	    'SMTP_TYPE', 'MBOX_TYPE', 'MIN_EXIT_TYPE'
+]
 
-import re
 import struct
 from socket import inet_ntoa, inet_aton
-from mixminion.Common import MixError, floorDiv
-import mixminion.Modules
+from mixminion.Common import MixError, floorDiv, isSMTPMailbox
 
 # Major and minor number for the understood packet format.
 MAJOR_NO, MINOR_NO = 0,1
@@ -57,6 +58,19 @@ TAG_LEN = 20
 
 # Most info that fits in a single extened subheader
 ROUTING_INFO_PER_EXTENDED_SUBHEADER = ENC_SUBHEADER_LEN
+
+#----------------------------------------------------------------------
+# Values for the 'Routing type' subheader field
+# Mixminion types
+DROP_TYPE      = 0x0000  # Drop the current message
+FWD_TYPE       = 0x0001  # Forward the msg to an IPV4 addr via MMTP
+SWAP_FWD_TYPE  = 0x0002  # SWAP, then forward the msg to an IPV4 addr via MMTP
+
+# Exit types
+MIN_EXIT_TYPE  = 0x0100  # The numerically first exit type.
+SMTP_TYPE      = 0x0100  # Mail the message
+MBOX_TYPE      = 0x0101  # Send the message to one of a fixed list of addresses
+MAX_EXIT_TYPE  = 0xFFFF
 
 class ParseError(MixError):
     """Thrown when a message or portion thereof is incorrectly formatted."""
@@ -144,7 +158,7 @@ def parseSubheader(s):
     ri = s[MIN_SUBHEADER_LEN:]
     if rlen < len(ri):
         ri = ri[:rlen]
-    if rt >= mixminion.Modules.MIN_EXIT_TYPE and rlen < 20:
+    if rt >= MIN_EXIT_TYPE and rlen < 20:
 	raise ParseError("Subheader missing tag")
     return Subheader(major,minor,secret,digest,rt,ri,rlen)
 
@@ -191,16 +205,14 @@ class Subheader:
     def getExitAddress(self):
 	"""Return the part of the routingInfo that contains the delivery
 	   address.  (Requires that routingType is an exit type.)"""
-	# XXXX001 SPEC This is not explicit in the spec.
-	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
+	assert self.routingtype >= MIN_EXIT_TYPE
 	assert len(self.routinginfo) >= TAG_LEN
 	return self.routinginfo[TAG_LEN:]
     
     def getTag(self):
 	"""Return the part of the routingInfo that contains the decoding
 	   tag. (Requires that routingType is an exit type.)"""
-	# XXXX001 SPEC This is not explicit in the spec.
-	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
+	assert self.routingtype >= MIN_EXIT_TYPE
 	assert len(self.routinginfo) >= TAG_LEN
 	return self.routinginfo[:TAG_LEN]
 
@@ -276,7 +288,6 @@ FRAGMENT_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
 # Number of bytes taken up from OAEP padding in an encrypted forward
 # payload, minus bytes saved by spilling the RSA-encrypted block into the
 # tag, minus the bytes taken by the session key.
-# XXXX001 (The e2e note is off by 4.)
 ENC_FWD_OVERHEAD = OAEP_OVERHEAD - TAG_LEN + SECRET_LEN
 
 def parsePayload(payload):
@@ -469,24 +480,9 @@ class IPV4Info:
 	return (type(self) == type(other) and self.ip == other.ip and
 		self.port == other.port and self.keyinfo == other.keyinfo)
 
-# Regular expressions to valide RFC822 addresses.
-# (This is more strict than RFC822, actually.  RFC822 allows tricky
-#  stuff to quote special characters, and I don't trust every MTA or
-#  delivery command to support addresses like <bob@bob."; rm -rf /; echo".com>)
- 
-# An 'Atom' is a non-escape, non-null, non-space, non-punctuation character.
-_ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
-# The 'Local part' (and, for us, the domain portion too) is a sequence of
-# dot-separated atoms.
-_LOCAL_PART_PAT = r"(?:%s)(?:\.(?:%s))*" % (_ATOM_PAT, _ATOM_PAT)
-# A mailbox is two 'local parts' separated by an @ sign.
-_RFC822_PAT = r"\A%s@%s\Z" % (_LOCAL_PART_PAT, _LOCAL_PART_PAT)
-RFC822_RE = re.compile(_RFC822_PAT)
-
 def parseSMTPInfo(s):
     """Convert the encoding of an SMTP exitinfo into an SMTPInfo object."""
-    m = RFC822_RE.match(s)
-    if not m:
+    if not isSMTPMailbox(s):
 	raise ParseError("Invalid rfc822 mailbox %r" % s)
     return SMTPInfo(s)
 

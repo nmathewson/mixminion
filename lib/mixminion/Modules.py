@@ -1,17 +1,17 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.23 2002/12/09 04:47:40 nickm Exp $
+# $Id: Modules.py,v 1.24 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.Modules
 
    Code to support pluggable exit module functionality; implementation
    for built-in modules.
    """
-# FFFF We may, someday, want to support non-exit modules.
+# FFFF We may, someday, want to support non-exit modules here.
+# FFFF Maybe we should refactor MMTP delivery here too.
 
 __all__ = [ 'ModuleManager', 'DeliveryModule',
-	    'DROP_TYPE', 'FWD_TYPE', 'SWAP_FWD_TYPE',
-	    'DELIVER_OK', 'DELIVER_FAIL_RETRY', 'DELIVER_FAIL_NORETRY',
-	    'SMTP_TYPE', 'MBOX_TYPE' ]
+	    'DELIVER_OK', 'DELIVER_FAIL_RETRY', 'DELIVER_FAIL_NORETRY'
+	    ]
 
 import os
 import re
@@ -25,26 +25,13 @@ import mixminion.Packet
 import mixminion.Queue
 import mixminion.BuildMessage
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
-from mixminion.Common import LOG, createPrivateDir, MixError
+from mixminion.Common import LOG, createPrivateDir, MixError, isSMTPMailbox, \
+     isPrintingAscii
 
 # Return values for processMessage
 DELIVER_OK = 1
 DELIVER_FAIL_RETRY = 2
 DELIVER_FAIL_NORETRY = 3
-
-# Numerically first exit type.
-MIN_EXIT_TYPE  = 0x0100
-
-# XXXX001 move these into Packet.py ===================================START
-# Mixminion types
-DROP_TYPE      = 0x0000  # Drop the current message
-FWD_TYPE       = 0x0001  # Forward the msg to an IPV4 addr via MMTP
-SWAP_FWD_TYPE  = 0x0002  # SWAP, then forward the msg to an IPV4 addr via MMTP
-
-# Exit types
-SMTP_TYPE      = 0x0100  # Mail the message
-MBOX_TYPE      = 0x0101  # Send the message to one of a fixed list of addresses
-# XXXX001 move these into Packet.py =====================================END
 
 class DeliveryModule:
     """Abstract base for modules; delivery modules should implement
@@ -361,7 +348,7 @@ class DropModule(DeliveryModule):
     def getName(self):
         return "DROP"
     def getExitTypes(self):
-        return [ DROP_TYPE ]
+        return [ mixminion.Packet.DROP_TYPE ]
     def createDeliveryQueue(self, directory):
 	return ImmediateDeliveryQueue(self)
     def processMessage(self, message, tag, exitType, exitInfo):
@@ -403,25 +390,35 @@ class MBoxModule(DeliveryModule):
                  }
 
     def validateConfig(self, sections, entries, lines, contents):
-        # XXXX001 write this.  Parse address file.
-        pass
+	sec = sections['Delivery/MBOX']
+	if not sec.get('Enabled'):
+	    return
+	for field in ['AddressFile', 'ReturnAddress', 'RemoveContact',
+		      'SMTPServer']:
+	    if not sec.get(field):
+		raise ConfigError("Missing field %s in [Delivery/MBOX]"%field)
+	if not os.path.exists(sec['AddressFile']):
+	    raise ConfigError("Address file %s seems not to exist."%
+			      sec['AddresFile'])
+	for field in ['ReturnAddress', 'RemoveContact']:
+	    if not isSMTPMailbox(sec[field]):
+		LOG.warn("Value of %s (%s) doesn't look like an email address",
+			 field, sec[field])
+	    
 
     def configure(self, config, moduleManager):
-        # XXXX001 Check this.  Conside error handling
 	if not config['Delivery/MBOX'].get("Enabled", 0):
 	    moduleManager.disableModule(self)
 	    return
 
-	self.server = config['Delivery/MBOX']['SMTPServer']
-	self.addressFile = config['Delivery/MBOX']['AddressFile']
-	self.returnAddress = config['Delivery/MBOX']['ReturnAddress']
-	self.contact = config['Delivery/MBOX']['RemoveContact']
-	if not self.addressFile:
-	    raise ConfigError("Missing AddressFile field in Delivery/MBOX")
-	if not self.returnAddress:
-	    raise ConfigError("Missing ReturnAddress field in Delivery/MBOX")
-	if not self.contact:
-	    raise ConfigError("Missing RemoveContact field in Delivery/MBOX")
+	sec = config['Delivery/MBOX']
+	self.server = sec['SMTPServer']
+	self.addressFile = sec['AddressFile']
+	self.returnAddress = sec['ReturnAddress']
+	self.contact = sec['RemoveContact']
+	# validate should have caught these.
+	assert (self.server and self.addressFile and self.returnAddress
+		and self.contact)
 
         self.nickname = config['Server']['Nickname']
         if not self.nickname:
@@ -464,11 +461,11 @@ class MBoxModule(DeliveryModule):
         return "MBOX"
 
     def getExitTypes(self):
-        return [ MBOX_TYPE ]
+        return [ mixminion.Packet.MBOX_TYPE ]
 
     def processMessage(self, message, tag, exitType, address):
 	# Determine that message's address;
-        assert exitType == MBOX_TYPE
+        assert exitType == mixminion.Packet.MBOX_TYPE
         LOG.trace("Received MBOX message")
         info = mixminion.Packet.parseMBOXInfo(address)
 	try:
@@ -513,7 +510,7 @@ class SMTPModule(DeliveryModule):
     def getName(self):
         return "SMTP"
     def getExitTypes(self):
-        return (SMTP_TYPE,)
+        return [ mixminion.Packet.SMTP_TYPE ]
 
 class MixmasterSMTPModule(SMTPModule):
     """Implements SMTP by relaying messages via Mixmaster nodes.  This
@@ -546,8 +543,9 @@ class MixmasterSMTPModule(SMTPModule):
                  }
                    
     def validateConfig(self, sections, entries, lines, contents):
-        #FFFF001 implement
+	# Currently, we accept any configuration options that the config allows
         pass
+
     def configure(self, config, manager):
         sec = config['Delivery/SMTP-Via-Mixmaster']
 	if not sec.get("Enabled", 0):
@@ -573,7 +571,7 @@ class MixmasterSMTPModule(SMTPModule):
 
     def processMessage(self, message, tag, exitType, smtpAddress):
 	"""Insert a message into the Mixmaster queue"""
-        assert exitType == SMTP_TYPE
+        assert exitType == mixminion.Packet.SMTP_TYPE
 	# parseSMTPInfo will raise a parse error if the mailbox is invalid.
         info = mixminion.Packet.parseSMTPInfo(smtpAddress)
 
@@ -626,18 +624,6 @@ def sendSMTPMessage(server, toList, fromAddr, message):
     return res
 
 #----------------------------------------------------------------------
-
-# XXXX001 There's another function like this in config.  
-# DOCDOC
-_allChars = "".join(map(chr, range(256)))
-# DOCDOC
-# ????001 Are there any nonprinting chars >= 0x7f to worry about now?
-_nonprinting = "".join(map(chr, range(0x00, 0x07)+range(0x0E, 0x20)))
-
-def isPrintable(s):
-    """Return true iff s consists only of printable characters."""
-    printable = s.translate(_allChars, _nonprinting)
-    return len(printable) == len(s)
 
 def _escapeMessageForEmail(msg, tag):
     """Helper function: Given a message and tag, escape the message if
@@ -694,7 +680,7 @@ def _escapeMessage(message, tag, text=0):
 	code = "ENC"
     else:
 	assert tag is None
-	if isPrintable(message):
+	if isPrintingAscii(message, allowISO=1):
 	    code = "TXT"
 	else:
 	    code = "BIN"

@@ -1,11 +1,10 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.11 2002/12/09 04:47:40 nickm Exp $
+# $Id: PacketHandler.py,v 1.12 2002/12/11 05:53:33 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
 import mixminion.Crypto as Crypto
 import mixminion.Packet as Packet
-import mixminion.Modules as Modules
 import mixminion.Common as Common
 
 __all__ = [ 'PacketHandler', 'ContentError' ]
@@ -115,7 +114,7 @@ class PacketHandler:
 
         # If we're meant to drop, drop now.
         rt = subh.routingtype
-        if rt == Modules.DROP_TYPE:
+        if rt == Packet.DROP_TYPE:
             return None
 
         # Prepare the key to decrypt the header in counter mode.  We'll be
@@ -126,7 +125,7 @@ class PacketHandler:
         # decrypt and parse them now.
         if subh.isExtended():
             nExtra = subh.getNExtraBlocks() 
-            if (rt < Modules.MIN_EXIT_TYPE) or (nExtra > 15):
+            if (rt < Packet.MIN_EXIT_TYPE) or (nExtra > 15):
                 # None of the native methods allow multiple blocks; no
                 # size can be longer than the number of bytes in the rest
                 # of the header.
@@ -145,7 +144,7 @@ class PacketHandler:
 
         # If we're an exit node, there's no need to process the headers
         # further.
-        if rt >= Modules.MIN_EXIT_TYPE:
+        if rt >= Packet.MIN_EXIT_TYPE:
             return ("EXIT",
                     (rt, subh.getExitAddress(),
                      keys.get(Crypto.APPLICATION_KEY_MODE),
@@ -154,7 +153,7 @@ class PacketHandler:
 
         # If we're not an exit node, make sure that what we recognize our
         # routing type.
-        if rt not in (Modules.SWAP_FWD_TYPE, Modules.FWD_TYPE):
+        if rt not in (Packet.SWAP_FWD_TYPE, Packet.FWD_TYPE):
             raise ContentError("Unrecognized Mixminion routing type")
 
         # Pad the rest of header 1
@@ -172,7 +171,7 @@ class PacketHandler:
         # If we're the swap node, (1) decrypt the payload with a hash of 
 	# header2... (2) decrypt header2 with a hash of the payload...
 	# (3) and swap the headers.
-        if rt == Modules.SWAP_FWD_TYPE:
+        if rt == Packet.SWAP_FWD_TYPE:
 	    hkey = Crypto.lioness_keys_from_header(header2)
 	    payload = Crypto.lioness_decrypt(payload, hkey)
 
