@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.27 2002/12/29 20:46:54 nickm Exp $
+# $Id: ServerInfo.py,v 1.28 2002/12/31 04:48:46 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -11,6 +11,7 @@
 __all__ = [ 'ServerInfo' ]
 
 import re
+import time
 
 import mixminion.Config
 import mixminion.Crypto
@@ -37,6 +38,8 @@ PACKET_KEY_BYTES = 1024 >> 3
 # tmp alias to make this easier to spell.
 C = mixminion.Config
 class ServerInfo(mixminion.Config._ConfigFile):
+    ## Fields
+    # isValidated: DOCDOC
     """A ServerInfo object holds a parsed server descriptor."""
     _restrictFormat = 1
     _syntax = {
@@ -77,6 +80,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
         }
 
     def __init__(self, fname=None, string=None, assumeValid=0):
+        self._isValidated = 0
         mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
         LOG.trace("Reading server descriptor %s from %s",
                        self['Server']['Nickname'],
@@ -95,6 +99,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         identityBytes = identityKey.get_modulus_bytes()
         if not (MIN_IDENTITY_BYTES <= identityBytes <= MAX_IDENTITY_BYTES):
             raise ConfigError("Invalid length on identity key")
+        if server['Published'] > time.time() + 600:
+            raise ConfigError("Server published in the future")
         if server['Valid-Until'] <= server['Valid-After']:
             raise ConfigError("Server is never valid")
         if server['Contact'] and len(server['Contact']) > MAX_CONTACT:
@@ -136,6 +142,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         # FFFF When a better client module system exists, check the
         # FFFF module descriptors.
 
+        self._isValidated = 1
+
     def getNickname(self):
         """Returns this server's nickname"""
         return self['Server']['Nickname']
@@ -161,6 +169,10 @@ class ServerInfo(mixminion.Config._ConfigFile):
            to this server."""
         return IPV4Info(self.getAddr(), self.getPort(), self.getKeyID())
 
+    def isValidated(self):
+        "DOCDOC"
+        return self._isValidated
+
 #----------------------------------------------------------------------
 def getServerInfoDigest(info):
     """Calculate the digest of a server descriptor"""
@@ -172,38 +184,55 @@ def signServerInfo(info, rsa):
        no values."""
     return _getServerInfoDigestImpl(info, rsa)
 
+_leading_whitespace_re = re.compile(r'^[ \t]+', re.M)
 _trailing_whitespace_re = re.compile(r'[ \t]+$', re.M)
-_special_line_re = re.compile(r'^(?:Digest|Signature):.*$', re.M)
-def _getServerInfoDigestImpl(info, rsa=None):
+_abnormal_line_ending_re = re.compile(r'\r\n?')
+def _cleanForDigest(s):
+    "DOCDOC"
+    # should be shared with config, serverinfo.
+    s = _abnormal_line_ending_re.sub("\n", s)
+    s = _trailing_whitespace_re.sub("", s)
+    s = _leading_whitespace_re.sub("", s)
+    if s[-1] != "\n":
+        s += "\n"
+    return s
+
+def _getDigestImpl(info, regex, digestField=None, sigField=None, rsa=None):
     """Helper method.  Calculates the correct digest of a server descriptor
        (as provided in a string).  If rsa is provided, signs the digest and
-       creates a new descriptor.  Otherwise just returns the digest."""
+       creates a new descriptor.  Otherwise just returns the digest.
 
-    # The algorithm's pretty easy.  We just find the Digest and Signature
-    # lines, replace each with an 'Empty' version, and calculate the digest.
-    info = _trailing_whitespace_re.sub("", info)
-    if not info.startswith("[Server]"):
-        raise ConfigError("Must begin with server section")
-    def replaceFn(s):
-        if s.group(0)[0] == 'D':
-            return "Digest:"
-        else:
-            return "Signature:"
-    info = _special_line_re.sub(replaceFn, info)
+       DOCDOC: NO LONGER QUITE TRUE
+       """
+    info = _cleanForDigest(info)
+    def replaceFn(m):
+        s = m.group(0)
+        return s[:s.index(':')+1]
+    info = regex.sub(replaceFn, info, 2)
     digest = mixminion.Crypto.sha1(info)
 
     if rsa is None:
         return digest
-    # If we got an RSA key, we need to add the digest and signature.
-
+    
     signature = mixminion.Crypto.pk_sign(digest,rsa)
     digest = formatBase64(digest)
     signature = formatBase64(signature)
-    def replaceFn2(s, digest=digest, signature=signature):
-        if s.group(0)[0] == 'D':
-            return "Digest: "+digest
+    def replaceFn2(s, digest=digest, signature=signature,
+                   digestField=digestField, sigField=sigField):
+        if s.group(0).startswith(digestField):
+            return "%s: %s" % (digestField, digest)
         else:
-            return "Signature: "+signature
+            assert s.group(0).startswith(sigField)
+            return "%s: %s" % (sigField, signature)
 
-    info = _special_line_re.sub(replaceFn2, info)
+    info = regex.sub(replaceFn2, info, 2)
     return info
+
+_special_line_re = re.compile(r'^(?:Digest|Signature):.*$', re.M)
+def _getServerInfoDigestImpl(info, rsa=None):
+    return _getDigestImpl(info, _special_line_re, "Digest", "Signature", rsa)
+
+_dir_special_line_re = re.compile(r'^Directory(?:Digest|Signature):.*$', re.M)
+def _getDirectoryDigestImpl(directory, rsa=None):
+    return _getDigestImpl(directory, _dir_special_line_re, 
+                          "DirectoryDigest", "DirectorySignature", rsa)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.51 2002/12/29 20:34:36 nickm Exp $
+# $Id: test.py,v 1.52 2002/12/31 04:48:47 nickm Exp $
 
 """mixminion.tests
 
@@ -51,6 +51,7 @@ import mixminion.server.Modules
 import mixminion.server.ServerConfig
 import mixminion.server.ServerKeys
 import mixminion.server.ServerMain
+import mixminion.directory.ServerList
 from mixminion.Common import *
 from mixminion.Common import Log, _FileLogHandler, _ConsoleLogHandler
 from mixminion.Config import _ConfigFile, ConfigError, _parseInt
@@ -214,6 +215,192 @@ class MiscTests(unittest.TestCase):
                      "foo@bar;cat /etc/shadow;echo ","foo bar@baz.com",
                      "a@b@c"):
             self.assert_(not isSMTPMailbox(addr))
+
+    def test_intervalset(self):
+        eq = self.assertEquals
+        nil = IntervalSet()
+        nil2 = IntervalSet()
+        nil._checkRep()
+        self.assert_(nil.isEmpty())
+        self.assert_(nil == nil2)
+        eq(repr(nil), "IntervalSet([])")
+        eq([], nil.getIntervals())
+        nil3 = IntervalSet([(10, 0)])
+        eq([], nil3.getIntervals())
+
+        oneToTen = IntervalSet([(1,10)])
+        fourToFive = IntervalSet([(4,5)])
+        zeroToTen = IntervalSet([(0,10)])
+        zeroToTwenty = IntervalSet([(0,20)])
+        tenToTwenty = IntervalSet([(10,20)])
+        oneToTwenty = IntervalSet([(1,20)])
+        fifteenToFifty = IntervalSet([(15,50)])
+
+        eq(zeroToTen.getIntervals(), [(0, 10)])
+        for iset in oneToTen, fourToFive, zeroToTen, zeroToTwenty, oneToTwenty:
+            iset._checkRep()
+
+        checkEq = self._intervalEq
+
+        # Tests for addition: A + B, where...
+        #   1. A and B are empty.
+        checkEq(nil+nil, nil, [])
+        #   2. Just A or B is empty.
+        checkEq(nil+oneToTen, oneToTen+nil, oneToTen, [(1,10)])
+        #   3. A contains B, or vice versa.
+        checkEq(oneToTen+fourToFive, fourToFive+oneToTen, oneToTen)
+        checkEq(oneToTen+zeroToTwenty, zeroToTwenty)
+        #   4. A == B
+        checkEq(oneToTen+oneToTen, oneToTen)
+        #   5. A and B are disjoint and don't touch.
+        checkEq(oneToTen+fifteenToFifty, fifteenToFifty+oneToTen,
+                [(1,10),(15,50)])
+        #   6. A and B are disjoint and touch
+        checkEq(oneToTen+tenToTwenty, tenToTwenty+oneToTen, oneToTwenty)
+        #   7. A and B overlap on one side only.
+        checkEq(oneToTwenty+fifteenToFifty,
+                fifteenToFifty+oneToTwenty,
+                "IntervalSet([(1,50)])")
+        #   8. A nice complex situation.
+        fromPrimeToPrime = IntervalSet([(2,3),(5,7),(11,13),(17,19),(23,29)])
+        fromSquareToSquare = IntervalSet([(1,4),(9,16),(25,36)])
+        fromFibToFib = IntervalSet([(1,1),(2,3),(5,8),(13,21),(34,55)])
+        x = fromPrimeToPrime.copy()
+        x += fromSquareToSquare
+        x += fromSquareToSquare
+        checkEq(fromPrimeToPrime+fromSquareToSquare,
+                fromSquareToSquare+fromPrimeToPrime,
+                x,
+                [(1,4),(5,7),(9,16),(17,19),(23,36)])
+        checkEq(fromSquareToSquare+fromFibToFib,
+                [(1,4),(5,8),(9,21),(25,55)])
+        checkEq(fromPrimeToPrime+fromFibToFib,
+                [(2,3),(5,8),(11,21),(23,29),(34,55)])
+        
+        # Now, subtraction!
+        #  1. Involving nil.
+        checkEq(nil-nil, nil, [])
+        checkEq(fromSquareToSquare-nil, fromSquareToSquare)
+        checkEq(nil-fromSquareToSquare, nil)
+        #  2. Disjoint ranges.
+        checkEq(fourToFive-tenToTwenty, fourToFive)
+        checkEq(tenToTwenty-fourToFive, tenToTwenty)
+        #  3. Matching on one side
+        checkEq(oneToTwenty-oneToTen, tenToTwenty)
+        checkEq(oneToTwenty-tenToTwenty, oneToTen)
+        checkEq(oneToTen-oneToTwenty, nil)
+        checkEq(tenToTwenty-oneToTwenty, nil)
+        #  4. Overlapping on one side
+        checkEq(fifteenToFifty-oneToTwenty, [(20,50)])
+        checkEq(oneToTwenty-fifteenToFifty, [(1,15)])
+        #  5. Overlapping in the middle
+        checkEq(oneToTen-fourToFive, [(1,4),(5,10)])
+        checkEq(fourToFive-oneToTen, nil)
+        #  6. Complicated
+        checkEq(fromPrimeToPrime-fromSquareToSquare,
+                [(5,7),(17,19),(23,25)])
+        checkEq(fromSquareToSquare-fromPrimeToPrime,
+                [(1,2),(3,4),(9,11),(13,16),(29,36)])
+        checkEq(fromSquareToSquare-fromFibToFib,
+                [(1,2),(3,4),(9,13),(25,34)])
+        checkEq(fromFibToFib-fromSquareToSquare,
+                [(5,8),(16,21),(36,55)])
+        #  7. Identities
+        for a in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib, nil):
+            for b in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib, nil):
+                checkEq(a-b+b, a+b)
+                checkEq(a+b-b, a-b)
+        
+        ## Test intersection
+        # 1. With nil
+        checkEq(nil*nil, nil*fromFibToFib, oneToTen*nil, nil, [])
+        # 2. Self
+        for iset in oneToTen, fromSquareToSquare, fourToFive:
+            checkEq(iset, iset*iset)
+        # 3. A disjoint from B
+        checkEq(oneToTen*fifteenToFifty, fifteenToFifty*oneToTen, nil)
+        # 4. A disjoint from B but touching.
+        checkEq(oneToTen*tenToTwenty, tenToTwenty*oneToTen, nil)
+        # 5. A contains B at the middle.
+        checkEq(oneToTen*fourToFive, fourToFive*oneToTen, fourToFive)
+        # 6. A contains B at one end
+        checkEq(oneToTen*oneToTwenty, oneToTwenty*oneToTen, oneToTen)
+        checkEq(tenToTwenty*oneToTwenty, oneToTwenty*tenToTwenty, tenToTwenty)
+        # 7. A and B overlap without containment.
+        checkEq(fifteenToFifty*oneToTwenty, oneToTwenty*fifteenToFifty, 
+                [(15,20)])
+        # 8. Tricky cases
+        checkEq(fromPrimeToPrime*fromSquareToSquare,
+                fromSquareToSquare*fromPrimeToPrime,
+                [(2,3),(11,13),(25,29)])
+        checkEq(fromPrimeToPrime*fromFibToFib,
+                fromFibToFib*fromPrimeToPrime,
+                [(2,3),(5,7),(17,19)])
+        checkEq(fromSquareToSquare*fromFibToFib,
+                fromFibToFib*fromSquareToSquare,
+                [(2,3),(13,16),(34,36)])
+        # 9. Identities
+        for a in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib, oneToTen,
+                  fifteenToFifty, nil):
+            self.assert_((not a) == a.isEmpty() == (a == nil))
+            for b in (fromPrimeToPrime, fromSquareToSquare, fromFibToFib, 
+                      oneToTen, fifteenToFifty, nil):
+                checkEq(a*b,b*a)
+                checkEq(a-b, a*(a-b), (a-b)*a)
+                checkEq(b*(a-b), (a-b)*b, nil)
+                checkEq(a-b, a-a*b)
+                checkEq((a-b)+a*b, a)
+                checkEq((a-b)*(b-a), nil)
+                checkEq((a-b)+(b-a)+a*b, a+b)
+
+        ## Contains
+        t = self.assert_
+        # 1. With nil
+        t(5 not in nil)
+        t(oneToTen not in nil)
+        t(fromFibToFib not in nil)
+        # 2. Self in self
+        for iset in nil, oneToTen, tenToTwenty, fromSquareToSquare:
+            t(iset in iset)
+        # 3. Simple sets: closed below, open above.
+        t(1 in oneToTen)
+        t(2 in oneToTen)
+        t(9.9 in oneToTen)
+        t(10 not in oneToTen)
+        t(0 not in oneToTen)
+        t(11 not in oneToTen)
+        # 4. Simple sets: A contains B.
+        t(fourToFive in oneToTen) # contained wholly
+        t(oneToTen in zeroToTen) #contains on one side.
+        t(oneToTwenty not in oneToTen) #disjoint on one side
+        t(oneToTen not in tenToTwenty) #disjoint but touching
+        t(fourToFive not in tenToTwenty) #disjoint, not touching
+        # 5. Complex sets: closed below, open above
+        t(0 not in fromSquareToSquare)
+        t(1 in fromSquareToSquare)
+        t(2 in fromSquareToSquare)
+        t(4 not in fromSquareToSquare)
+        t(8 not in fromSquareToSquare)
+        t(9 in fromSquareToSquare)
+        t(15 in fromSquareToSquare)
+        t(16 not in fromSquareToSquare)
+        t(35 in fromSquareToSquare)
+        t(36 not in fromSquareToSquare)
+        t(100 not in fromSquareToSquare)
+
+    def _intervalEq(self, a, *others):
+        eq = self.assertEquals
+        for b in others:
+            if isinstance(b, IntervalSet):
+                eq(a,b)
+                b._checkRep()
+            elif isinstance(b, types.StringType):
+                eq(repr(a), b)
+            elif isinstance(b, types.ListType):
+                eq(a.getIntervals(), b)
+            else:
+                raise MixError()
+            a._checkRep()
 
 #----------------------------------------------------------------------
 

@@ -1,18 +1,19 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.37 2002/12/29 20:25:32 nickm Exp $
+# $Id: Common.py,v 1.38 2002/12/31 04:48:46 nickm Exp $
 
 """mixminion.Common
 
    Common functionality and utility code for Mixminion"""
 
-__all__ = [ 'LOG', 'LogStream', 'MixError', 'MixFatalError',
+__all__ = [ 'IntervalSet', 'LOG', 'LogStream', 'MixError', 'MixFatalError',
             'MixProtocolError', 'ceilDiv', 'checkPrivateDir',
             'createPrivateDir', 'floorDiv', 'formatBase64', 'formatDate',
-            'formatTime', 'installSignalHandlers', 'isSMTPMailbox',
-            'onReset', 'onTerminate', 'previousMidnight', 'secureDelete',
-            'stringContains', 'waitForChildren' ]
+            'formatFnameTime', 'formatTime', 'installSignalHandlers',
+            'isSMTPMailbox', 'onReset', 'onTerminate', 'previousMidnight',
+            'secureDelete', 'stringContains', 'waitForChildren' ]
 
 import base64
+import bisect
 import calendar
 import os
 import re
@@ -536,6 +537,158 @@ def formatDate(when):
     gmt = time.gmtime(when+1) # Add 1 to make sure we round down.
     return "%04d/%02d/%02d" % (gmt[0],gmt[1],gmt[2])
 
+def formatFnameTime(when=None):
+    """Given a time in seconds since the epoch, returns a date value suitable
+       for use as part of a fileame.  Defaults to the current time."""
+    # XXXX002 test
+    if when is None:
+        when = time.time()
+    return time.strftime("%Y%m%d%H%M%S", time.localtime(when))
+
+#----------------------------------------------------------------------
+# InteralSet
+
+class IntervalSet:
+    """An IntervalSet is a mutable set of numeric intervals, closed below and
+       open above.  Not very optimized for now.  Supports "+" for union, "-"
+       for disjunction, and "*" for intersection."""
+    ## Fields:
+    # edges: an ordered list of boundary points between interior and
+    #     exterior points, of the form (x, '+') for an 'entry' and
+    #     (x, '-') for an 'exit' boundary.
+    #
+    # FFFF There must be a more efficient algorithm for this, but we're so
+    # FFFF far from the critical path here that I'm not going to look for it
+    # FFFF for quite a while.
+    def __init__(self, intervals=None):
+        """Given a list of (start,end) tuples, construct a new IntervalSet.
+           Tuples are ignored if start>=end."""
+        self.edges = []
+        if intervals:
+            for start, end in intervals:
+                if start < end:
+                    self.edges.append((start, '+'))
+                    self.edges.append((end, '-'))
+    def copy(self):
+        """Create a new IntervalSet with the same intervals as this one."""
+        r = IntervalSet()
+        r.edges = self.edges[:]
+        return r
+    def __iadd__(self, other):
+        """self += b : Causes this set to contain all points in itself but not
+           in b."""
+        self.edges += other.edges
+        self._cleanEdges()
+        return self
+    def __isub__(self, other):
+        """self -= b : Causes this set to contain all points in itself but not
+           in b"""
+        for t, e in other.edges:
+            if e == '+':
+                self.edges.append((t, '-'))
+            else:
+                self.edges.append((t, '+'))
+        self._cleanEdges()
+        return self
+    def __imul__(self, other):
+        """self *= b : Causes this set to contain all points in both itself and
+           b."""
+        self.edges += other.edges
+        self._cleanEdges(2)
+        return self
+
+    def _cleanEdges(self, nMin=1):
+        """Internal helper method: to be called when 'edges' is in a dirty
+           state, containing entry and exit points that don't create a
+           well-defined set of intervals.  Only those points that are 'entered'
+           nMin times or more are retained.
+           """
+        edges = self.edges
+        edges.sort()
+        depth = 0
+        newEdges = [ ('X', 'X') ] #marker value; will be removed.
+        for t, e in edges:
+            # Traverse the edges in order; keep track of how many more 
+            # +'s we have seen than -'s.  Whenever that number increases
+            # above nMin, add a +.  Whenever that number drops below nMin,
+            # add a - ... but if the new edge would cancel out the most
+            # recently added one, then delete the most recently added one.
+            if e == '+':
+                depth += 1
+                if depth == nMin:
+                    if newEdges[-1] == (t, '-'):
+                        del newEdges[-1]
+                    else:
+                        newEdges.append((t, '+'))
+            if e == '-':
+                if depth == nMin:
+                    if newEdges[-1] == (t, '+'):
+                        del newEdges[-1]
+                    else:
+                        newEdges.append((t, '-'))
+                depth -= 1
+        assert depth == 0
+        del newEdges[0]
+        self.edges = newEdges
+
+    def __add__(self, other):
+        r = self.copy()
+        r += other
+        return r
+
+    def __sub__(self, other):
+        r = self.copy()
+        r -= other
+        return r
+
+    def __mul__(self, other):
+        r = self.copy()
+        r *= other
+        return r
+
+    def __contains__(self, other):
+        """'a in self' is true when 'a' is a number contained in some interval
+            in this set, or when 'a' is an IntervalSet that is a subset of
+            this set."""
+        if isinstance(other, IntervalSet):
+            return self*other == other
+        idx = bisect.bisect_right(self.edges, (other, '-'))
+        return idx < len(self.edges) and self.edges[idx][1] == '-'
+
+    def isEmpty(self):
+        """Return true iff this set contains no points"""
+        return len(self.edges) == 0
+    
+    def __nonzero__(self):
+        """Return true iff this set contains some points"""
+        return len(self.edges) != 0
+
+    def __repr__(self):
+        s = [ "(%s,%s)"%(start,end) for start, end in self.getIntervals() ]
+        return "IntervalSet([%s])"%",".join(s)
+    
+    def getIntervals(self):
+        """Returns a list of (start,end) tuples for a the intervals in this
+           set."""
+        s = []
+        for i in range(0, len(self.edges), 2):
+            s.append((self.edges[i][0], self.edges[i+1][0]))
+        return s
+            
+    def _checkRep(self):
+        """Helper function: raises AssertionError if this set's data is 
+           corrupted."""
+        assert (len(self.edges) % 2) == 0
+        for i in range(0, len(self.edges), 2):
+            assert self.edges[i][0] < self.edges[i+1][0]
+            assert self.edges[i][1] == '+'
+            assert self.edges[i+1][1] == '-'
+            assert i == 0 or self.edges[i-1][0] < self.edges[i][0]
+
+    def __cmp__(self, other):
+        """A == B iff A and B contain exactly the same intervals."""
+        return cmp(self.edges, other.edges)
+        
 #----------------------------------------------------------------------
 # SMTP address functionality
 

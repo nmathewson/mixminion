@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.30 2002/12/29 20:28:01 nickm Exp $
+# $Id: Crypto.py,v 1.31 2002/12/31 04:48:46 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -255,6 +255,11 @@ def pk_encode_public_key(key):
 def pk_decode_public_key(s):
     """Reads an ASN1 representation of a public key from external storage."""
     return _ml.rsa_decode_key(s,1)
+
+def pk_same_public_key(key1, key2):
+    """Return true iff key1 and key2 are the same key."""
+    #XXXX TEST
+    return key1.encode_key(1) == key2.encode_key(1)
 
 def pk_PEM_save(rsa, filename, password=None):
     """Save a PEM-encoded private key to a file.  If <password> is provided,

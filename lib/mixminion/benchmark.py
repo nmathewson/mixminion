@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.20 2002/12/29 20:46:54 nickm Exp $
+# $Id: benchmark.py,v 1.21 2002/12/31 04:48:47 nickm Exp $
 
 """mixminion.benchmark
 
@@ -359,10 +359,7 @@ def _hashlogTiming(fname, load):
 #----------------------------------------------------------------------
 def directoryTiming():
     print "#========== DESCRIPTORS AND DIRECTORIES =============="
-    from mixminion.server.ServerKeys import ServerKeyring, \
-         generateServerDescriptorAndKeys
-    gen = generateServerDescriptorAndKeys
-    homedir = mix_mktemp()
+    from mixminion.server.ServerKeys import ServerKeyring
     confStr = """
 [Server]
 EncryptIdentityKey: no
@@ -648,8 +645,6 @@ def testLeaks2():
             _ml.rsa_make_public_key(n,e)
 
 #----------------------------------------------------------------------
-import base64
-import binascii
 
 def timeAll(name, args):
     cryptoTiming()
