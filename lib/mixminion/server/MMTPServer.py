@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.44 2003/07/13 03:45:35 nickm Exp $
+# $Id: MMTPServer.py,v 1.45 2003/07/15 01:57:12 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -829,6 +829,10 @@ class MMTPClientConnection(SimpleTLSConnection):
         for m in messages:
             if m == "JUNK":
                 self.junk.append(getCommonPRNG().getBytes(MESSAGE_LEN))
+            elif m == 'RENEGOTIATE':
+                pass
+            else:
+                EventStats.log.attemptedRelay() #FFFF addr
         self.messageList.extend(messages)
 
     def getAddr(self):
@@ -900,7 +904,6 @@ class MMTPClientConnection(SimpleTLSConnection):
             msg = JUNK_CONTROL+msg+sha1(msg+"JUNK")
             self.isJunk = 1
         else:
-            EventStats.log.attemptedRelay() #FFFF addr
             self.expectedDigest = sha1(msg+"RECEIVED")
             self.rejectDigest = sha1(msg+"REJECTED")
             msg = SEND_CONTROL+msg+sha1(msg+"SEND")

@@ -32,7 +32,7 @@ For 0.0.5:
                 o References
                 o MBOX support
                 o Tests
-        . Background projects:
+        o Background projects:
                 o Port to cygwin
                 o Start win32 port
                         o Make it build.
@@ -40,7 +40,7 @@ For 0.0.5:
                         o Make unittests pass without warnings
                         o Add a makeshift interactive mode.
                 o Twisted port decision
-                - Website, FAQ
+                o Website work
         . Initial support for email headers (client side)
                 o Implement
                 - Give error messages on bad headers
@@ -72,7 +72,8 @@ For 0.0.5:
                 - Tests for ServerInbox and Directory.py
                 - Tests for checkConsistency
                 - What happens when Overlap > Lifetime?
-        - Bugfixes
+        . Bugfixes
+                o Make AttemptedRelay ~~ SuccessfulRelay+FailedRelay.
                 - Handle server time moving backward
                 - Solve CPU infinite loop bug
 
