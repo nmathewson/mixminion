@@ -1,5 +1,5 @@
 /* Copyright (c) 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: tls.c,v 1.31 2003/11/28 04:14:05 nickm Exp $ */
+/* $Id: tls.c,v 1.32 2004/01/17 04:22:44 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -612,7 +612,6 @@ mm_TLSSock_check_cert_alive(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
 }
 
-
 static char mm_TLSSock_verify_cert_and_get_identity_pk__doc__[] =
   "verify_cert_and_get_identity_pk()\n\n"
   "Check whether all of the following conditions hold:\n"
@@ -740,6 +739,33 @@ mm_TLSSock_do_handshake(PyObject *self, PyObject *args, PyObject *kwargs)
         return Py_None;
 }
 
+static char mm_TLSSock_get_num_bytes_raw__doc__[] = 
+"tlssock.get_num_bytes_raw()\n\n"
+"DOCDOC";
+
+static PyObject*
+mm_TLSSock_get_num_bytes_raw(PyObject *self, PyObject* args, PyObject *kwargs)
+{
+        SSL *ssl;
+        long r, w;
+        PyObject *tup;
+        assert(mm_TLSSock_Check(self));
+        FAIL_IF_ARGS();
+        ssl = ((mm_TLSSock*)self)->ssl;
+        r = (long) BIO_number_read(SSL_get_rbio(ssl));
+        w = (long) BIO_number_written(SSL_get_wbio(ssl));
+
+        if (!(tup = PyTuple_New(2))) {
+                PyErr_NoMemory();
+                return NULL;
+        }
+        PyTuple_SET_ITEM(tup, 0, PyInt_FromLong(r));
+        PyTuple_SET_ITEM(tup, 1, PyInt_FromLong(w));
+
+        return tup;
+}
+
+
 #if 0
 static char mm_TLSSock_get_num_renegotiations__doc__[] =
 "tlssock.get_num_renegotiations()\n\n";
@@ -771,6 +797,7 @@ static PyMethodDef mm_TLSSock_methods[] = {
         METHOD(mm_TLSSock, fileno),
         METHOD(mm_TLSSock, do_handshake),
         METHOD(mm_TLSSock, renegotiate),
+        METHOD(mm_TLSSock, get_num_bytes_raw),
 #if 0
         METHOD(mm_TLSSock, get_num_renegotiations),
 #endif
