@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.50 2003/06/26 17:43:27 nickm Exp $
+# $Id: Config.py,v 1.51 2003/07/01 21:25:13 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -741,7 +741,7 @@ class ClientConfig(_ConfigFile):
                    'ShredCommand': ('ALLOW', _parseCommand, None),
                    'EntropySource': ('ALLOW', _parseFilename, "/dev/urandom"),
                    'TrustedUser': ('ALLOW*', _parseUser, None),
-                   'FileParanoia': ('Allow', _parseBoolean, "yes"),
+                   'FileParanoia': ('ALLOW', _parseBoolean, "yes"),
                    },
         'DirectoryServers' :
                    { '__SECTION__' : ('REQUIRE', None, None),
