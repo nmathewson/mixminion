@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.139 2004/12/12 22:28:40 nickm Exp $
+# $Id: ServerMain.py,v 1.140 2004/12/12 23:24:31 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -202,8 +202,9 @@ class IncomingQueue(mixminion.Filestore.StringStore):
                 if res.isDelivery():
                     if res.getExitType() == mixminion.Packet.PING_TYPE:
                         LOG.debug("Ping packet IN:%s decoded", handle)
+                        digest = mixminion.Crypto.sha1(res.getPayload())
                         if self.pingLog is not None:
-                            self.pingLog.processPing(res)
+                            self.pingLog.gotPing(digest)
                         else:
                             LOG.debug("Pinging not enabled; discarding packet")
                         self.removeMessage(handle)
@@ -998,17 +999,18 @@ class MixminionServer(_Scheduler):
                 self.pingGenerator.sendPings))
         if self.pingLog is not None:
             self.scheduleEvent(RecurringEvent(
-                now+self.pingLog.HEARTBEAT_INTERVAL,
+                now+mixminion.server.Pinger.HEARTBEAT_INTERVAL,
                 self.pingLog.heartbeat,
-                self.pingLog.HEARTBEAT_INTERVAL))
+                mixminion.server.Pinger.HEARTBEAT_INTERVAL))
             # FFFF if we aren't using a LOCKING_IS_COURSE database, we will
             # FFFF still want this to happen in another thread.
             #XXXX008 use symbolic constants here
             self.scheduleEvent(RecurringEvent(
                 now+3*60,
                 lambda self=self: self.pingLog.calculateAll(
-                 os.path.join(self.config.getWorkingDir(), "pinger", "status")),
-                1*60*60))
+                 os.path.join(self.config.getWorkDir(), "pinger", "status")),
+                #1*60*60))
+                10*60))
 
         # Makes next update get scheduled.
         nextUpdate = self.updateDirectoryClient()

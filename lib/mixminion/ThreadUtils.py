@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.6 2004/12/12 22:28:39 nickm Exp $
+# $Id: ThreadUtils.py,v 1.7 2004/12/12 23:24:30 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -274,7 +274,7 @@ class ProcessingThread(threading.Thread):
         self.threadName = name
 
     def shutdown(self):
-        LOG.info("Telling %s to shut down.", self.name)
+        LOG.info("Telling %s to shut down.", self.threadName)
         self.mqueue.clear()
         self.mqueue.put(ProcessingThread._Shutdown())
 
@@ -290,11 +290,12 @@ class ProcessingThread(threading.Thread):
                 job = self.mqueue.get()
                 job()
         except ProcessingThread._Shutdown:
-            LOG.info("Shutting down %s",self.name)
+            LOG.info("Shutting down %s",self.threadName)
             return
         except:
             LOG.error_exc(sys.exc_info(),
-                          "Exception in %s; shutting down thread.",self.name)
+                          "Exception in %s; shutting down thread.",
+                          self.threadName)
 
 class BackgroundingDecorator:
     """DOCDOC"""
@@ -312,5 +313,6 @@ class BackgroundingDecorator:
         self._baseObject = obj
 
     def __getattr__(self, attr):
+        if attr[0]=='_': return getattr(self._baseObject,attr)#XXXX
         fn = getattr(self._baseObject,attr)
         return self._AddJob(self._thread,fn)

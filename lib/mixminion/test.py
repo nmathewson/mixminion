@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.211 2004/12/12 22:28:39 nickm Exp $
+# $Id: test.py,v 1.212 2004/12/12 23:24:30 nickm Exp $
 
 """mixminion.tests
 
@@ -7737,7 +7737,7 @@ class PingerTests(TestCase):
             return
 
         d = mix_mktemp()
-        os.mkdir(d)
+        os.mkdir(d,0700)
         loc = os.path.join(d, "db")
         t = previousMidnight(time.time())+3600
         log = P.openPingLog(None,location=loc)

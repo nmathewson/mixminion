@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.14 2004/12/12 22:28:40 nickm Exp $
+# $Id: Pinger.py,v 1.15 2004/12/12 23:24:31 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -78,6 +78,8 @@ class SQLiteDatabase:
     #XXXX can only be used from one thread at a time.
     LOCKING_IS_COARSE = 1
     def __init__(self, location):
+        parent = os.path.split(location)[0]
+        createPrivateDir(parent)
         self._theConnection = sqlite.connect(location, autocommit=0)
         self._theCursor = self._theConnection.cursor()
 
@@ -676,8 +678,8 @@ class PingLog:
 
         self._lock.acquire()
         try:
-            self._brokenChains = isBroken
-            self._interestingChains = isInteresting
+            self._brokenChains = brokenChains
+            self._interestingChains = interestingChains
         finally:
             self._lock.release()
 
@@ -754,6 +756,7 @@ class PingLog:
         self._db.getConnection().commit()
 
     def calculateAll(self, outFname=None, now=None):
+        if now is None: now=time.time()
         LOG.info("Computing ping results.")
         LOG.info("Starting to compute server uptimes.")
         self.calculateUptimes(now, now-24*60*60*12)
@@ -925,7 +928,7 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
         return previousMidnight(t)
 
     def _getPingInterval(self, path):
-        if self.pingLog.isInteresting.get(path, 0):
+        if self.pingLog._interestingChains.get(path, 0):
             return self.INTERESTING_INTERVAL
         else:
             return self.DULL_INTERVAL
@@ -1036,7 +1039,7 @@ def openPingLog(config, location=None, databaseThread=None):
 
     assert DATABASE_CLASSES.has_key(database)
     if location is None:
-        location = os.path.join(config.getWorkingDir(), "pinger", "pingdb")
+        location = os.path.join(config.getWorkDir(), "pinger", "pingdb")
     db = DATABASE_CLASSES[database](location)
     log = PingLog(db)
 
