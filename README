@@ -130,9 +130,11 @@ The verbose version.
 V. HOW TO SEND MESSAGES VIA MIXMINION
 =====================================
 
-Just run the following command line:
+Just run one of the following command lines:
 
-     mixminion send -t <email address> -i <filename to send>
+        mixminion send -t <email address> -i <filename to send>
+    OR  mixminion send -t <email address>            (to read from stdin)
+    OR  mixminion send -t <email address> -i -       (also reads from stdin)
 
 Mixminion will then take the following steps:
 
@@ -144,14 +146,6 @@ Mixminion will then take the following steps:
      D) Construct a Type-III Mix packet containing your message.
         (For more information, see the links at http://www.mixminion.net/)
      E) Send the message to the first server in your path.
-    
-To read from stdin instead of a file, type:
-
-     mixminion send -t <email address> -i -
-
-     or
-       
-     mixminion send -t <email address>
 
 To see a list of currently known servers, type:
 
