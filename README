@@ -65,7 +65,7 @@ HOW TO BUILD, TEST, AND INSTALL MIXMINION: The verbose version.
      correctly on your system.  Go read contrib/openssl/INSTALL, and make
      OpenSSL build.
 
-  5) Run "make build".  If you get any errors, please report them to 
+  5) Run "make".  If you get any errors, please report them to 
      <nickm@freehaven.net>.
 
   6) Run "make test" to run Mixminion's unit tests.  If you get any errors,
@@ -126,4 +126,3 @@ HOW TO RUN YOUR OWN MIXMINION SERVER:
       Since v0.0.1 is just a working alpha release, we're going to wait
       until we have directories working before we ask people to give us
       their server descriptors. Stay tuned.
-
