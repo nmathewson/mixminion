@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.69 2004/12/06 19:26:31 nickm Exp $
+# $Id: ServerKeys.py,v 1.70 2004/12/06 20:02:23 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -242,6 +242,11 @@ class ServerKeyring:
             LOG.info("Generated %s-bit identity key.", bits)
 
         return key
+
+    def getIdentityKeyDigest(self):
+        """DOCDOC"""
+        k = self.getIdentityKey()
+        return mixminion.Crypto.sha1(mixminion.Crypto.pk_encode_public_key(k))
 
     def publishKeys(self, allKeys=0):
         """Publish server descriptors to the directory server.  Ordinarily,

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.136 2004/12/06 19:26:31 nickm Exp $
+# $Id: ServerMain.py,v 1.137 2004/12/06 20:02:23 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -865,7 +865,7 @@ class MixminionServer(_Scheduler):
         outgoingDir = os.path.join(queueDir, "outgoing")
         LOG.debug("Initializing outgoing queue")
         self.outgoingQueue = OutgoingQueue(outgoingDir,
-                                           self.keyring.getKeyDigest())
+                                   self.keyring.getIdentityKeyDigest())
         self.outgoingQueue.configure(config)
         LOG.debug("Found %d pending packets in outgoing queue",
                        self.outgoingQueue.count())
