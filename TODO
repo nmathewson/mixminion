@@ -17,7 +17,18 @@ FOR 0.0.1: (The rough edges release)
 		- Generate a message
 		- Generate a reply block
 		- Read message from reply block
-	* Server description blocks
+	*. Server description blocks
+		o Tests for crypto.sign	
+		o Implementation
+		. Generate server blocks
+			o Basic generation
+			o Keygen
+			- Expiry rules
+			- Extra fields
+			- Section inclusion rules
+		- Document code
+		- Tests for implementation
+		- Tests for generation
 	- Main loop for server
 	- Clean shutdown for server
 	- CLI for server

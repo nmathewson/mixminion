@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.4 2002/07/26 15:47:20 nickm Exp $
+# $Id: Config.py,v 1.5 2002/07/26 20:52:17 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -38,11 +38,14 @@ __all__ = [ 'getConfig', 'loadConfig', 'addHook' ]
 
 import os
 import re
+import binascii
+import time
 from cStringIO import StringIO
 
 import mixminion.Common
 from mixminion.Common import MixError, getLog
 import mixminion.Packet
+import mixminion.Crypto
 
 #----------------------------------------------------------------------
 
@@ -187,13 +190,78 @@ def _parseCommand(command):
             
         raise ConfigError("No match found for command %r" %cmd)
 
+_allChars = "".join(map(chr, range(256)))
+def _parseBase64(s,_hexmode=0):
+    """Validation function.  Converts a base-64 encoded config value into
+       its original. Raises ConfigError on failure."""  
+    s = s.translate(_allChars, " \t\v\n")
+    try:
+	if _hexmode:
+	    return binascii.a2b_hex(s)
+	else:
+	    return binascii.a2b_base64(s)
+    except (TypeError, binascii.Error, binascii.Incomplete), e:
+	raise ConfigError("Invalid Base64 data")
+
+def _parseHex(s):
+    """Validation function.  Converts a hex-64 encoded config value into
+       its original. Raises ConfigError on failure."""  
+    return _parseBase64(s,1)
+
+def _parsePublicKey(s):
+    """Validate function.  Converts a Base-64 encoding of an ASN.1
+       represented RSA public key with modulus 65535 into an RSA
+       object."""
+    asn1 = _parseBase64(s)
+    if len(asn1) > 550:
+	raise ConfigError("Overlong public key")
+    try:
+	key = mixminion.Crypto.pk_decode_public_key(asn1)
+    except mixminion.Crypto.CryptoError:
+	raise ConfigError("Invalid public key")
+    if key.get_public_key()[1] != 65535:
+	raise ConfigError("Invalid exponent on public key")
+    return key
+
+_date_re = re.compile(r"(\d\d)/(\d\d)/(\d\d\d\d)")
+_time_re = re.compile(r"(\d\d)/(\d\d)/(\d\d\d\d) (\d\d):(\d\d):(\d\d)")
+def _parseDate(s,_timeMode=0):
+    """Validation function.  Converts from DD/MM/YYYY format to a (long)
+       time value for midnight on that date."""
+    s = s.strip()
+    r = (_date_re, _time_re)[_timeMode]
+    m = r.match(s)
+    if not m:
+	raise ConfigError("Invalid %s %r" % (("date", "time")[_timeMode],s))
+    if _timeMode:
+	dd, MM, yyyy, hh, mm, ss = map(int, m.groups())
+    else:
+	dd, MM, yyyy = map(int, m.groups())
+	hh, mm, ss = 0, 0, 0	
+
+    if not ((1 <= dd <= 31) and (1 <= MM <= 12) and
+	    (1970 <= yyyy)  and (0 <= hh < 24) and
+	    (0 <= mm < 60)  and (0 <= ss <= 61)):
+	raise ConfigError("Invalid %s %r" % (("date","time")[_timeMode],s))
+
+    
+    # we set the DST flag to zero so that subtracting time.timezone always
+    # gives us gmt.
+    return time.mktime((yyyy,MM,dd,hh,mm,ss,0,0,0))-time.timezone
+
+def _parseTime(s):
+    """Validation function.  Converts from DD/MM/YYYY HH:MM:SS format
+       to a (float) time value for GMT."""
+    return _parseDate(s,1)
+
 #----------------------------------------------------------------------
 
 # Regular expression to match a section header.
 _section_re = re.compile(r'\[([^\]]+)\]')
 # Regular expression to match the first line of an entry
 _entry_re = re.compile(r'([^:= \t]+)(?:\s*[:=]|[ \t])\s*(.*)')
-def _readConfigLine(line):
+_restricted_entry_re = re.compile(r'([^:= \t]+): (.*)')
+def _readConfigLine(line, restrict=0):
     """Helper function.  Given a line of a configuration file, return
        a (TYPE, VALUE) pair, where TYPE is one of the following:
 
@@ -220,14 +288,16 @@ def _readConfigLine(line):
     elif space:
         return "MORE", line
     else:
-        m = _entry_re.match(line)
+	if restrict:
+	    m = _restricted_entry_re.match(line)
+	else:
+	    m = _entry_re.match(line)
         if not m:
             return "ERR", "Bad entry"
         return "ENT", (m.group(1), m.group(2))
 
-def _readConfigFile(file):
-    """Helper function. Given an open file object for a configuration
-       file, parse it into sections.
+def _readConfigFile(contents, restrict=0):
+    """Helper function. Given the string contents of a configuration
 
        Returns a list of (SECTION-NAME, SECTION) tuples, where each
        SECTION is a list of (KEY, VALUE, LINENO) tuples.
@@ -238,9 +308,14 @@ def _readConfigFile(file):
     curSection = None
     lineno = 0
     lastKey = None
-    for line in file.readlines():
+    
+    fileLines = contents.split("\n")
+    if fileLines[-1] == '':
+	del fileLines[-1]
+
+    for line in fileLines:
         lineno += 1
-        type, val = _readConfigLine(line)
+        type, val = _readConfigLine(line, restrict)
         if type == 'ERR':
             raise ConfigError("%s at line %s" % (val, lineno))
         elif type == 'SEC':
@@ -253,9 +328,15 @@ def _readConfigFile(file):
             curSection.append( [key, val, lineno] )
             lastKey = key
         elif type == 'MORE':
+	    if restrict:
+		raise ConfigError("Continuation not allowed at line %s"%lineno)
             if not lastKey:
                 raise ConfigError("Unexpected indentation at line %s" %lineno)
             curSection[-1][1] = "%s %s" % (curSection[-1][1], val)
+	else:
+	    assert type is None
+	    if restrict:
+		raise ConfigError("Empty line not allowed at line %s"%lineno)
     return sections
 
 def _formatEntry(key,val,w=79,ind=4):
@@ -292,6 +373,8 @@ class _ConfigFile:
     #                               (ALLOW/REQUIRE/ALLOW*/REQUIRE*,
     #                                 parseFn,
     #                                 default, ) }
+    #     _restrictFormat is 1/0: do we allow full RFC822ness, or do
+    #         we insist on a tight data format?
     
     ## Validation rules:
     # A key without a corresponding entry in _syntax gives an error.
@@ -307,7 +390,7 @@ class _ConfigFile:
 
     def __init__(self, fname=None, string=None):
         """Create a new _ConfigFile.  If fname is set, read from
-           fname.  If string is set, parse string."""
+           fname.  If string is set, parse string. """
         assert fname is None or string is None
         self.fname = fname
         if fname:
@@ -343,7 +426,8 @@ class _ConfigFile:
 
     def __reload(self, file):
         """As in .reload(), but takes an open file object."""
-        sections = _readConfigFile(file)
+	fileContents = file.read()
+        sections = _readConfigFile(fileContents, self._restrictFormat)
 
         # These will become self.(_sections,_sectionEntries,_sectionNames)
         # if we are successful.
@@ -352,7 +436,7 @@ class _ConfigFile:
         self_sectionNames = []
         sectionEntryLines = {}
 
-        for secName, secEntries in  sections:
+        for secName, secEntries in sections:
             self_sectionNames.append(secName)
 
             if self_sections.has_key(secName):
@@ -440,13 +524,15 @@ class _ConfigFile:
                 assert v == self_sections[s][k] or v in self_sections[s][k]
 
         # Call our validation hook.
-        self.validate(self_sections, self_sectionEntries, sectionEntryLines)
+        self.validate(self_sections, self_sectionEntries, sectionEntryLines,
+		      fileContents)
 
         self._sections = self_sections
         self._sectionEntries = self_sectionEntries
         self._sectionNames = self_sectionNames
 
-    def validate(self, sections, sectionEntries, entryLines):
+    def validate(self, sections, sectionEntries, entryLines,
+		 fileContents):
         """Check additional semantic properties of a set of configuration
            data before overwriting old data.  Subclasses should override."""
         pass
@@ -480,6 +566,7 @@ class _ConfigFile:
         return "".join(lines)
 
 class ClientConfig(_ConfigFile):
+    _restrictFormat = 0
     _syntax = {
         'Host' : { '__SECTION__' : ('REQUIRE', None, None),
                    'ShredCommand': ('ALLOW', _parseCommand, None),
@@ -497,11 +584,12 @@ class ClientConfig(_ConfigFile):
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
 
-    def validate(self, sections, entries, lines):
+    def validate(self, sections, entries, lines, contents):
         #XXXX Write this
         pass
 
 class ServerConfig(_ConfigFile):
+    _restrictFormat = 0
     _syntax = {
         'Host' : ClientConfig._syntax['Host'], 
         'Server' : { '__SECTION__' : ('REQUIRE', None, None),
@@ -520,7 +608,7 @@ class ServerConfig(_ConfigFile):
                                'MaxSkew' : ('ALLOW', _parseInterval,
                                             "10 minutes",) }, 
         'Incoming/MMTP' : { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
-                            'IP' : ('ALLOW', _parseIP, None),
+			    'IP' : ('ALLOW', _parseIP, None),
                             'Port' : ('ALLOW', _parseInt, "48099"),
                             'Allow' : ('ALLOW*', None, None),
                             'Deny' : ('ALLOW*', None, None) },
@@ -536,26 +624,7 @@ class ServerConfig(_ConfigFile):
     def __init__(self, fname=None, string=None):
         _ConfigFile.__init__(self, fname, string)
 
-    def validate(self, sections, entries, lines):
+    def validate(self, sections, entries, lines, contents):
         #XXXX write this.
         pass
     
-## _serverDescriptorSyntax = {
-##     'Server' : { 'Descriptor-Version' : 'REQUIRE',
-##                  'IP' : 'REQUIRE',
-##                  'Nickname' : 'ALLOW',
-##                  'Identity' : 'REQUIRE',
-##                  'Digest' : 'REQUIRE',
-##                  'Signature' : 'REQUIRE',
-##                  'Valid-After' : 'REQUIRE',
-##                  'Valid-Until' : 'REQUIRE',
-##                  'Contact' : 'ALLOW',
-##                  'Comments' : 'ALLOW',
-##                  'Packet-Key' : 'REQUIRE',  },
-##     'Incoming/MMTP' : { 'MMTP-Descriptor-Version' : 'REQUIRE',
-##                         'Port' :  'REQUIRE',
-##                         'Key-Digest' : 'REQUIRE', },
-##     'Modules/MMTP' : { 'MMTP-Descriptor-Version' : 'REQUIRE',
-##                        'Allow' : 'ALLOW*',
-##                        'Deny' : 'ALLOW*' }
-##     }

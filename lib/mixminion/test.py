@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.13 2002/07/26 15:47:20 nickm Exp $
+# $Id: test.py,v 1.14 2002/07/26 20:52:17 nickm Exp $
 
 """mixminion.tests
 
@@ -322,6 +322,16 @@ class CryptoTests(unittest.TestCase):
                     k512.crypt(pk_encrypt(msg,k512), 0, 0),
                     mixminion.Crypto.OAEP_PARAMETER, 64))
 
+	# test signing
+	eq(pk_check_signature(pk_sign(msg, k1024),pub1024), msg)
+	eq(pk_check_signature(pk_sign(msg, k1024),k1024), msg)
+	self.failUnlessRaises(TypeError,
+			      pk_sign, msg, pub1024)
+	self.failUnlessRaises(CryptoError,
+			      pk_check_signature,
+			      pk_sign(msg, k1024)+"X",
+			      pub1024)
+
         # Make sure we can still encrypt after we've encoded/decoded a
         # key.
         encoded = pk_encode_private_key(k512)
@@ -616,19 +626,34 @@ class BMTSupport:
     pk2 = pk_generate()
     pk3 = pk_generate()
 
-from mixminion.ServerInfo import ServerInfo
+    
+class FakeServerInfo:
+    """Represents a Mixminion server, and the information needed to send
+       messages to it."""
+    def __init__(self, addr, port, key, keyid):
+        self.addr = addr
+        self.port = port
+        self.key = key
+        self.keyid = keyid
+
+    def getAddr(self): return self.addr
+    def getPort(self): return self.port
+    def getPacketKey(self): return self.key
+    def getKeyID(self): return self.keyid
+    
+    def getRoutingInfo(self):
+        """Returns a mixminion.Packet.IPV4Info object for routing messages
+           to this server."""
+        return IPV4Info(self.addr, self.port, self.keyid)
 
 class BuildMessageTests(unittest.TestCase):
     def setUp(self):
         self.pk1 = BMTSupport.pk1
         self.pk2 = BMTSupport.pk2
         self.pk3 = BMTSupport.pk3
-        n_1 = pk_get_modulus(self.pk1)
-        n_2 = pk_get_modulus(self.pk2)
-        n_3 = pk_get_modulus(self.pk3)
-        self.server1 = ServerInfo("127.0.0.1", 1, n_1, "X"*20)
-        self.server2 = ServerInfo("127.0.0.2", 3, n_2, "Z"*20)
-        self.server3 = ServerInfo("127.0.0.3", 5, n_3, "Q"*20)
+        self.server1 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
+        self.server2 = FakeServerInfo("127.0.0.2", 3, self.pk2, "Z"*20)
+        self.server3 = FakeServerInfo("127.0.0.3", 5, self.pk3, "Q"*20)
 
     def test_buildheader_1hop(self):
         bhead = BuildMessage._buildHeader
@@ -747,7 +772,7 @@ class BuildMessageTests(unittest.TestCase):
         def getLongRoutingInfo(longStr2=longStr2):
             return LocalInfo("fred",longStr2)
 
-        server4 = ServerInfo("127.0.0.1", 1, pk_get_modulus(self.pk1), "X"*20)
+        server4 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
         server4.getRoutingInfo = getLongRoutingInfo
 
         secrets.append("1"*16)
@@ -966,12 +991,10 @@ class PacketHandlerTests(unittest.TestCase):
         self.tmpfile = mktemp(".db")
         unlink_db_on_exit(self.tmpfile)
         h = self.hlog = HashLog(self.tmpfile, "Z"*20)
-        n_1 = pk_get_modulus(self.pk1)
-        n_2 = pk_get_modulus(self.pk2)
-        n_3 = pk_get_modulus(self.pk3)
-        self.server1 = ServerInfo("127.0.0.1", 1, n_1, "X"*20)
-        self.server2 = ServerInfo("127.0.0.2", 3, n_2, "Z"*20)
-        self.server3 = ServerInfo("127.0.0.3", 5, n_3, "Q"*20)
+
+        self.server1 = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
+        self.server2 = FakeServerInfo("127.0.0.2", 3, self.pk2, "Z"*20)
+        self.server3 = FakeServerInfo("127.0.0.3", 5, self.pk3, "Q"*20)
         self.sp1 = PacketHandler(self.pk1, h)
         self.sp2 = PacketHandler(self.pk2, h)
         self.sp3 = PacketHandler(self.pk3, h)
@@ -1065,7 +1088,7 @@ class PacketHandlerTests(unittest.TestCase):
         from mixminion.PacketHandler import ContentError
 
         # A long intermediate header needs to fail.
-        server1X = ServerInfo("127.0.0.1", 1, pk_get_modulus(self.pk1), "X"*20)
+        server1X = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
         class _packable:
             def pack(self): return "x"*200
         server1X.getRoutingInfo = lambda _packable=_packable: _packable()
@@ -1347,10 +1370,16 @@ def _getTLSContext(isServer):
             if dh_fname:
                 dhfile = dh_fname
                 if not os.path.exists(dh_fname):
-                    _ml.generate_dh_parameters(dhfile, 0)
+		    print "[Generating DH parameters...",
+		    sys.stdout.flush()
+		    _ml.generate_dh_parameters(dhfile, 0)
+		    print "done.]"
             else:
+		print "[Generating DH parameters (not caching)...",
+		sys.stdout.flush()
                 _ml.generate_dh_parameters(dhfile, 0)
                 unlink_on_exit(dhfile)
+		print "done.]"
             pk = _ml.rsa_generate(1024, 65535)
             pk.PEM_write_key(open(pkfile, 'w'), 0)
             _ml.generate_cert(certfile, pk, 365, "Testing certificate")
@@ -1492,6 +1521,7 @@ class MMTPTests(unittest.TestCase):
 from mixminion.Config import _ConfigFile, ConfigError, _parseInt
 
 class TestConfigFile(_ConfigFile):
+    _restrictFormat = 0
     _syntax = { 'Sec1' : {'__SECTION__': ('REQUIRE', None, None),
                           'Foo': ('REQUIRE', None, None),
                           'Bar': ('ALLOW', None, "default"),
@@ -1644,6 +1674,14 @@ IntRS=5
         self.assertEquals(C._parseCommand("rm"), ("/bin/rm", []))
         self.assertEquals(C._parseCommand("/bin/ls"), ("/bin/ls", []))
         self.failUnless(C._parseCommand("python")[0] is not None)
+	self.assertEquals(C._parseBase64(" YW\nJj"), "abc")
+	self.assertEquals(C._parseHex(" C0D0"), "\xC0\xD0")
+	tm = C._parseDate("30/05/2002")
+	self.assertEquals(time.gmtime(tm)[:6], (2002,5,30,0,0,0))
+	tm = C._parseDate("01/01/2000")
+	self.assertEquals(time.gmtime(tm)[:6], (2000,1,1,0,0,0))
+	tm = C._parseTime("25/12/2001 06:15:10")
+	self.assertEquals(time.gmtime(tm)[:6], (2001,12,25,6,15,10))
         
         def fails(fn, val, self=self):
             self.failUnlessRaises(ConfigError, fn, val)
@@ -1662,6 +1700,15 @@ IntRS=5
         fails(C._parseIP, "192.0.0")
         fails(C._parseIP, "192.0.0.0.0")
         fails(C._parseIP, "A.0.0.0")
+	fails(C._parseBase64, "Y")
+	fails(C._parseHex, "Z")
+	fails(C._parseHex, "A")
+	fails(C._parseDate, "1/1/2000")
+	fails(C._parseDate, "01/50/2000")
+	fails(C._parseDate, "01/50/2000 12:12:12")
+	fails(C._parseTime, "01/50/2000 12:12:12")
+	fails(C._parseTime, "01/50/2000 12:12:99")
+
         nonexistcmd = '/file/that/does/not/exist'
         if not os.path.exists(nonexistcmd):
             fails(C._parseCommand, nonexistcmd)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.9 2002/07/01 18:03:05 nickm Exp $
+# $Id: BuildMessage.py,v 1.10 2002/07/26 20:52:17 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -242,7 +242,7 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
         extHeaders = "".join(subhead.getExtraBlocks())
         rest = Crypto.ctr_crypt(extHeaders+header, headerKeys[i])
         subhead.digest = Crypto.sha1(rest+junkSeen[i])
-        pubkey = Crypto.pk_from_modulus(path[i].getModulus())
+        pubkey = path[i].getPacketKey()
         esh = Crypto.pk_encrypt(subhead.pack(), pubkey)
         header = esh + rest
 

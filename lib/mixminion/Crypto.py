@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.9 2002/07/26 15:47:20 nickm Exp $
+# $Id: Crypto.py,v 1.10 2002/07/26 20:52:17 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -18,7 +18,8 @@ from mixminion.Common import MixError, MixFatalError, floorDiv, ceilDiv, getLog
 
 __all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
             'strxor', 'lioness_encrypt', 'lioness_decrypt', 'trng',
-            'pk_encrypt', 'pk_decrypt', 'pk_generate', 'openssl_seed',
+            'pk_encrypt', 'pk_decrypt', 'pk_sign', 'pk_check_signature',
+	    'pk_generate', 'openssl_seed',
             'pk_get_modulus', 'pk_from_modulus',
             'pk_encode_private_key', 'pk_decode_private_key',
             'Keyset', 'AESCounterPRNG', 'HEADER_SECRET_MODE',
@@ -27,6 +28,8 @@ __all__ = [ 'CryptoError', 'init_crypto', 'sha1', 'ctr_crypt', 'prng',
             'HIDE_HEADER_MODE' ]
 
 CryptoError = _ml.CryptoError
+generate_cert = _ml.generate_cert
+PEM_read_key = _ml.rsa_PEM_read_key
 
 # Number of bytes in an AES key.
 AES_KEY_LEN = 128 >> 3
@@ -133,6 +136,12 @@ def pk_encrypt(data,key):
     # public key encrypt
     return key.crypt(data, 1, 1)
 
+def pk_sign(data, key):
+    """XXXX"""
+    bytes = key.get_modulus_bytes()
+    data = add_oaep(data,OAEP_PARAMETER,bytes)
+    return key.crypt(data, 0, 1)
+
 def pk_decrypt(data,key):
     """Returns the unpadded RSA decryption of data, using the private key in\n
        key
@@ -140,6 +149,13 @@ def pk_decrypt(data,key):
     bytes = key.get_modulus_bytes()
     # private key decrypt
     data = key.crypt(data, 0, 0)
+    return check_oaep(data,OAEP_PARAMETER,bytes)
+
+def pk_check_signature(data, key):
+    """XXXX"""
+    bytes = key.get_modulus_bytes()
+    # private key decrypt
+    data = key.crypt(data, 1, 0)
     return check_oaep(data,OAEP_PARAMETER,bytes)
 
 def pk_generate(bits=1024,e=65535):
@@ -163,6 +179,14 @@ def pk_encode_private_key(key):
 def pk_decode_private_key(s):
     """Reads an ASN1 representation of a keypair from external storage."""
     return _ml.rsa_decode_key(s,0)
+
+def pk_encode_public_key(key):
+    """Creates an ASN1 representation of a public key for external storage."""
+    return key.encode_key(1)
+
+def pk_decode_public_key(s):
+    """Reads an ASN1 representation of a public key from external storage."""
+    return _ml.rsa_decode_key(s,1)
 
 #----------------------------------------------------------------------
 # OAEP Functionality
@@ -423,7 +447,7 @@ def _trng_set_filename():
         file = None
     else:
         st = os.stat(file)
-        if not (st.st_mode & stat.S_IFCHR):
+        if not (st[stat.ST_MODE] & stat.S_IFCHR):
             getLog().error("Entropy source %s isn't a character device", file)
             file = None
 
