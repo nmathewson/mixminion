@@ -932,7 +932,9 @@ class ClientFragmentPool:
     def formatMessageList(self):
         msgs = self.listMessages()
         result = []
-        for msgid in msgs.keys():
+        msgids = msgs.keys()
+        msgids.sort()
+        for msgid in msgids:
             result.append(msgid+(": to <%(nym)s>. %(size)s bytes (%(have)s/%(need)s packets received)"
                                  % msgs[msgid]))
         return result

@@ -1911,3 +1911,107 @@ def listQueue(cmd, args):
             days = "<1"
         print "%2d packets for %s (oldest is %s days old)"%(
             count, server, days)
+
+_LIST_FRAGMENTS_USAGE = """\
+Usage: %(cmd)s [options]
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+
+EXAMPLES:
+  Describe the state of fragmented messages currently being reassembled.
+      %(cmd)s
+""".strip()
+
+def listFragments(cmd, args):
+    options, args = getopt.getopt(args, "hvQf:D:",
+                                  ["help", "verbose", "quiet", "config=",
+                                   'download-directory=',])
+    try:
+        parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
+                                   wantClient=1, wantClientDirectory=1)
+    except UsageError, e:
+        e.dump()
+        print _LIST_FRAGMENTS_USAGE % { 'cmd' : cmd }
+        sys.exit(1)
+
+    parser.init()
+    client = parser.client
+
+    try:
+        clientLock()
+        res = client.pool.formatMessageList()
+    finally:
+        clientUnlock()
+
+    if not res:
+        print "(No fragments being reassembled)"
+        return
+
+    for line in res:
+        print line
+
+
+_REASSEMBLE_USAGE = """\
+Usage: %(cmd)s [options] <message-id> ...
+  -h, --help                 Print this usage message and exit.
+  -v, --verbose              Display extra debugging messages.
+  -f <file>, --config=<file> Use a configuration file other than ~.mixminionrc
+                               (You can also use MIXMINIONRC=FILE)
+""".strip()
+
+def reassemble(cmd, args):
+    options, args = getopt.getopt(args, "hvQf:D:Po:",
+                                  ["help", "verbose", "quiet", "config=",
+                                   'download-directory=','--purge',
+                                   '--output'])
+    reassemble = 1
+    if cmd.endswith("purge-fragments"):
+        reassemble = 0
+    try:
+        parser = CLIArgumentParser(options, wantConfig=1, wantLog=1,
+                                   wantClient=1, wantClientDirectory=1)
+    except UsageError, e:
+        e.dump()
+        print _REASSEMBLE_USAGE % { 'cmd' : cmd }
+        print """\
+  -P, --purge                Remove the message from the pool.
+  -o <file>, --output=<file> Write the message to a file instead of stdout
+""".strip()
+        sys.exit(1)
+    purge = not reassemble
+    outfilename = None
+    for o,v in options:
+        if o in ('-o', '--output'):
+            outfilename = v
+        elif o in ("-P", "--purge"):
+            purge = 1
+
+    if not args:
+        print "No message-IDs provided."
+        return
+
+    parser.init()
+    client = parser.client
+
+    closeoutfile = 0
+    if reassemble:
+        out = sys.stdout
+        if outfilename not in ('-',None):
+            out = open(outfilename, 'r')
+            closeoutfile = 1
+
+    try:
+        clientLock()
+        for msgid in args:
+            if reassemble:
+                msg = client.pool.getMessage(msgid)
+            if purge:
+                client.pool.removeMessage(msgid)
+        if reassemble:
+            out.write(msg)
+    finally:
+        clientUnlock()
+        if reassemble and closeoutfile:
+            out.close()
