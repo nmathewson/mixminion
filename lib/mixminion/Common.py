@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.71 2003/05/05 00:38:45 nickm Exp $
+# $Id: Common.py,v 1.72 2003/05/05 00:41:57 nickm Exp $
 
 """mixminion.Common
 
@@ -1004,8 +1004,15 @@ class Lockfile:
             return
         try:
             os.unlink(self.filename)
-            fcntl.flock(self.fd, fcntl.LOCK_UN)
-            os.close(self.fd)
-            self.fd = None
         except OSError:
             pass
+        try:
+            fcntl.flock(self.fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            os.close(self.fd)
+        except OSError:
+            pass
+
+        self.fd = None
