@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.22 2003/06/06 06:08:40 nickm Exp $
+# $Id: ServerQueue.py,v 1.23 2003/06/13 01:03:46 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -12,7 +12,6 @@ import stat
 import sys
 import cPickle
 import threading
-import types
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
      createPrivateDir, readPickled, writePickled, formatTime, readFile
@@ -287,7 +286,6 @@ class Queue:
         finally:
             self._lock.release()
 
-
 class _DeliveryState:
     """Helper class: holds the state needed to schedule delivery or
        eventual abandonmont of a message in a DeliveryQueue."""
@@ -296,7 +294,8 @@ class _DeliveryState:
     #    inserted into the queue.
     # lastAttempt: The most recent time at which we attempted to
     #    deliver the message. (None means 'never').
-    def __init__(self, queuedTime=None, lastAttempt=None):
+    # address: Pickleable object holding address information. DOCDOC
+    def __init__(self, queuedTime=None, lastAttempt=None, address=None):
         """Create a new _DeliveryState for a message received at
            queuedTime (default now), whose last delivery attempt was
            at lastAttempt (default never)."""
@@ -304,17 +303,24 @@ class _DeliveryState:
             queuedTime = time.time()
         self.queuedTime = queuedTime
         self.lastAttempt = lastAttempt
+        self.address = None
 
     def __getstate__(self):
         # For pickling.  All future versions of deliverystate will pickle
         #   to a tuple, whose first element will be a version string.
-        return ("V0", self.queuedTime, self.lastAttempt)
+        return ("V1", self.queuedTime, self.lastAttempt, self.address)
 
     def __setstate__(self, state):
         # For pickling.
-        if state[0] == "V0":
+        if state[0] == "V1":
             self.queuedTime = state[1]
             self.lastAttempt = state[2]
+            self.address = state[3]
+        elif state[0] == "V0":
+            #XXXX006 remove this case.
+            self.queuedTime = state[1]
+            self.lastAttempt = state[2]
+            self.address = None
         else:
             raise MixFatalError("Unrecognized delivery state")
 
@@ -354,6 +360,34 @@ class _DeliveryState:
     def setLastAttempt(self, when):
         """Update time of the last attempted delivery."""
         self.lastAttempt = when
+
+class PendingMessage:
+    """DOCDOC"""
+    def __init__(self, handle, queue, address, message=None):
+        self.handle = handle
+        self.queue = queue
+        self.address = address
+        self.message = message
+
+    def getAddress(self):
+        return self.address
+
+    def getHandle(self):
+        return self.handle
+
+    def succeeded(self):
+        self.queue.deliverySucceeded(self.handle)
+        self.queue = self.message = None
+
+    def failed(self, retriable=0, now=None):
+        self.queue.deliveryFailed(self.handle, retriable, now=now)
+        self.queue = self.message = None
+
+    def getMessage(self):
+        if self.message is None:
+            self.message = self.queue.getObject(self.handle)
+        return self.message
+
 
 class DeliveryQueue(Queue):
     """A DeliveryQueue implements a queue that greedily sends messages to
@@ -456,16 +490,6 @@ class DeliveryQueue(Queue):
                 self.deliveryState[h] = readPickled(fn)
             else:
                 LOG.warn("No metadata for file handle %s", h)
-                obj = self.getObject(h)
-                #XXXX005 remove this.
-                if isinstance(obj, types.TupleType) and len(obj) == 4:
-                    # This message is in an obsolete format from 0.0.3.
-                    # We'd repair it, but packets from 0.0.3 are incompatible
-                    # anyway.
-                    LOG.info("Removing item %s in obsolete format", h)
-                    self.removeMessage(h)
-                    continue
-                
                 self.deliveryState[h] = _DeliveryState()
                 self._writeState(h)
 
@@ -534,7 +558,7 @@ class DeliveryQueue(Queue):
     def queueMessage(self, msg):
         if 1: raise MixError("Tried to call DeliveryQueue.queueMessage.")
 
-    def queueDeliveryMessage(self, msg, now=None):
+    def queueDeliveryMessage(self, msg, address=None, now=None):
         """Schedule a message for delivery.
              msg -- the message.  This can be any pickleable object.
         """
@@ -543,7 +567,7 @@ class DeliveryQueue(Queue):
             self._lock.acquire()
             handle = self.queueObject(msg)
             self.sendable.append(handle)
-            ds = self.deliveryState[handle] = _DeliveryState(now)
+            ds = self.deliveryState[handle] = _DeliveryState(now,None,address)
             self.nextAttempt[handle] = \
                      ds.getNextAttempt(self.retrySchedule, now)
             LOG.trace("ServerQueue got message %s for %s",
@@ -602,7 +626,12 @@ class DeliveryQueue(Queue):
                     self.removeMessage(h)
                 elif next <= now:
                     LOG.trace("     [%s] is ready for delivery", h)
-                    messages.append( (h, self.getObject(h)) )
+                    state = self.deliveryState.get(h)
+                    if state is None:
+                        addr = None
+                    else:
+                        addr = state.address
+                    messages.append(PendingMessage(h,self,addr))
                     self.pending[h] = now
                 else:
                     LOG.trace("     [%s] is not yet ready for redelivery", h)
@@ -614,10 +643,6 @@ class DeliveryQueue(Queue):
             self._deliverMessages(messages)
         self._repOk()
 
-    # FFFF005 This interface is inefficient in space: we don't need to load
-    # FFFF005 the messages to tell whether they need to be delivered.  We
-    # FFFF005 should have _deliverMessages() take a list of handles, not of
-    # FFFF005 messages.
     def _deliverMessages(self, msgList):
         """Abstract method; Invoked with a list of (handle, message)
            tuples every time we have a batch of messages to send.
@@ -625,6 +650,8 @@ class DeliveryQueue(Queue):
            For every handle in the list, delierySucceeded or deliveryFailed
            should eventually be called, or the message will sit in the queue
            indefinitely, without being retried."""
+
+        #DOCDOC
 
         # We could implement this as a single _deliverMessage(h,addr)
         # method, but that wouldn't allow implementations to batch

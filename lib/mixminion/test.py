@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.120 2003/06/06 07:17:35 nickm Exp $
+# $Id: test.py,v 1.121 2003/06/13 01:03:45 nickm Exp $
 
 """mixminion.tests
 
@@ -2599,24 +2599,24 @@ class QueueTests(unittest.TestCase):
         queue = TestDeliveryQueue(d_d, now)
         queue.setRetrySchedule([10, 10, 10, 10]) # Retry up to 40 sec.
         # First, make sure the queue stores messages correctly.
-        h1 = queue.queueDeliveryMessage("Message 1", now)
-        h2 = queue.queueDeliveryMessage("Message 2", now)
+        h1 = queue.queueDeliveryMessage("Message 1", now=now)
+        h2 = queue.queueDeliveryMessage("Message 2", now=now)
         self.assertEquals(("Message 1", now, None, now), queue._inspect(h1))
         self.assertEquals(("Message 2", now, None, now), queue._inspect(h2))
 
         # Call sendReadyMessages to begin 'sending' msg1 and msg2.
         queue.sendReadyMessages(now)
-        msgs = queue._msgs
+        msgs = [ (msg.getHandle(), msg.getMessage()) for msg in queue._msgs ]
         self.assertEquals(2, len(msgs))
         # _deliverMessages should have gotten them both.
         self.failUnless((h1, "Message 1") in msgs)
         self.failUnless((h2, "Message 2") in msgs)
         # Add msg3, and acknowledge that msg1 succeeded.  msg2 is now in limbo
-        h3 = queue.queueDeliveryMessage("Message 3", now)
+        h3 = queue.queueDeliveryMessage("Message 3", now=now)
         queue.deliverySucceeded(h1)
         # Only msg3 should get sent out, since msg2 is still in progress.
         queue.sendReadyMessages(now+1)
-        msgs = queue._msgs
+        msgs = [ (msg.getHandle(), msg.getMessage()) for msg in queue._msgs ]
         self.assertEquals([(h3, "Message 3")], msgs)
 
         # Now, make sure that msg1 is gone from the pool.
@@ -2648,20 +2648,19 @@ class QueueTests(unittest.TestCase):
 
         # When we try to send messages again after 5 seconds, nothing happens.
         queue.sendReadyMessages(now+5)
-        msgs = queue._msgs
-        self.assertEquals(None, msgs)
+        self.assertEquals(None, queue._msgs)
         # When we try to send again after after 11 seconds, message 2 fires.
         queue.sendReadyMessages(now+11)
-        msgs = queue._msgs
+        msgs = [ (msg.getHandle(), msg.getMessage()) for msg in queue._msgs ]
         self.assertEquals([(h4, "Message 2")], msgs)
         self.assertEquals(h2, h4)
-        queue.deliveryFailed(h4, retriable=1, now=now+15)
+        queue._msgs[0].failed(retriable=1, now=now+15)
         self.assertEquals(("Message 2", now, now+11, now+20),
                           queue._inspect(h2))
         # At 31 seconds, message 2 fires.
         h5 = queue.getAllMessages()[0]
         queue.sendReadyMessages(now+31)
-        msgs = queue._msgs
+        msgs = [ (msg.getHandle(), msg.getMessage()) for msg in queue._msgs ]
         self.assertEquals([(h5, "Message 2")], msgs)
         self.assertEquals(h5, h4)
         queue.deliveryFailed(h5, retriable=1, now=now+33)
@@ -2671,7 +2670,7 @@ class QueueTests(unittest.TestCase):
         # already.
         h6 = queue.getAllMessages()[0]
         queue.sendReadyMessages(now+45)
-        msgs = queue._msgs
+        msgs = [ (msg.getHandle(), msg.getMessage()) for msg in queue._msgs ]
         self.assertEquals([(h6, "Message 2")], msgs)
         self.assertEquals(h6, h5)
         queue.deliveryFailed(h6, retriable=1, now=now+100)
@@ -2680,19 +2679,6 @@ class QueueTests(unittest.TestCase):
 
         queue.removeAll(self.unlink)
         queue.cleanQueue(self.unlink)
-
-        # Make sure old-style messages get nuked.
-        writePickled(os.path.join(d_d, "msg_ABCDEFGH"),
-                     (5, None, "xyzzy", 6))
-        try:
-            suspendLog("TRACE")
-            queue = TestDeliveryQueue(d_d, now+4)
-        finally:
-            s = resumeLog()
-        self.assert_(stringContains(s, "No metadata for file handle ABCDEFGH"))
-        self.assert_(stringContains(s, "Removing item ABCDEFGH"))
-        queue.setRetrySchedule([10, 10, 10, 10]) # Retry up to 40 sec.
-        self.assertEquals([], queue.getAllMessages())
 
     def testMixPools(self):
         d_m = mix_mktemp("qm")
@@ -3075,6 +3061,21 @@ def _getMMTPServer(minimal=0,reject=0,port=TEST_PORT):
 
     return server, listener, messagesIn, keyid
 
+class FakeDeliverable:
+    def __init__(self, s):
+        self._failed = self._succeeded = 0
+        self._retriable = -1
+        self._contents = s
+    def getContents(self):
+        return self._contents
+    def failed(self, retriable):
+        assert not (self._failed or self._succeeded)
+        self._failed = 1
+        self._retriable = retriable
+    def succeeded(self):
+        assert not (self._failed or self._succeeded)
+        self._succeeded = 1
+
 class MMTPTests(unittest.TestCase):
     #XXXX This class is bulky, and has lots of cut-and-paste.  It could do
     #XXXX with a refactoring.
@@ -3194,11 +3195,12 @@ class MMTPTests(unittest.TestCase):
         # Send m1, then junk, then renegotiate, then junk, then m2.
         tlscon = mixminion.server.MMTPServer.SimpleTLSConnection
         messages = ["helloxxx"*4096, "helloyyy"*4096]
+        deliv = [FakeDeliverable(m) for m in messages]
         async = mixminion.server.MMTPServer.AsyncServer()
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid,
-           [messages[0],"JUNK","RENEGOTIATE","JUNK",messages[1]],
-           [None]*5, None)
+           [deliv[0],"JUNK","RENEGOTIATE","JUNK",deliv[1]],
+           None)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():
@@ -3226,11 +3228,14 @@ class MMTPTests(unittest.TestCase):
         self.failUnless(len(c) == 1)
         self.failUnless(startTime <= c[0].lastActivity <= endTime)
         self.assertEquals(2, server.nJunkPackets)
+        self.assert_(deliv[0]._succeeded)
+        self.assert_(deliv[1]._succeeded)
 
         # Again, with bad keyid.
+        deliv = [FakeDeliverable(m) for m in messages]
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
-           _getTLSContext(0), "127.0.0.1", TEST_PORT, "Z"*20,
-           messages[:], [None, None], None)
+            _getTLSContext(0), "127.0.0.1", TEST_PORT, "Z"*20,
+            deliv[:], None)
         clientcon.register(async)
         def clientThread2(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():
@@ -3247,6 +3252,9 @@ class MMTPTests(unittest.TestCase):
             t.join()
         finally:
             resumeLog()  #unsuppress warning
+
+        self.assert_(deliv[0]._failed)
+        self.assert_(deliv[1]._failed)
 
     def _testTimeout(self):
         server, listener, messagesIn, keyid = _getMMTPServer()
@@ -3322,7 +3330,6 @@ class MMTPTests(unittest.TestCase):
         self.server = server
 
         messages = ["helloxxx"*4096, "helloyyy"*4096]
-
         # Send 2 messages -- both should be rejected.
         server.process(0.1)
         routing = IPV4Info("127.0.0.1", TEST_PORT, keyid)
@@ -3347,13 +3354,12 @@ class MMTPTests(unittest.TestCase):
 
         # Send m1, then junk, then renegotiate, then junk, then m2.
         messages = ["helloxxx"*4096, "helloyyy"*4096]
+        deliv = [FakeDeliverable(m) for m in messages]
         async = mixminion.server.MMTPServer.AsyncServer()
-        _failed_args = []
-        def _failed(msg, handle, retriable, _f=_failed_args):
-            _f.append((msg,handle,retriable))
+
         clientcon = mixminion.server.MMTPServer.MMTPClientConnection(
            _getTLSContext(0), "127.0.0.1", TEST_PORT, keyid,
-           messages, [None,None], None, failCallback=_failed)
+           deliv)
         clientcon.register(async)
         def clientThread(clientcon=clientcon, async=async):
             while not clientcon.isShutdown():
@@ -3367,8 +3373,8 @@ class MMTPTests(unittest.TestCase):
             server.process(0.1)
         t.join()
         self.assertEquals(len(messagesIn), 0)
-        self.assertEquals(_failed_args, [(messages[0], None, 1),
-                                         (messages[1], None, 1)])
+        self.assertEquals(deliv[0]._retriable, 1)
+        self.assertEquals(deliv[1]._retriable, 1)
 
 #----------------------------------------------------------------------
 # Config files
@@ -5857,7 +5863,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MiscTests))
+        suite.addTest(tc(MMTPTests))
         return suite
 
     suite.addTest(tc(MiscTests))

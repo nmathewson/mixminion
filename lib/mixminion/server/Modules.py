@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.42 2003/06/05 18:41:40 nickm Exp $
+# $Id: Modules.py,v 1.43 2003/06/13 01:03:46 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -172,29 +172,30 @@ class SimpleModuleDeliveryQueue(mixminion.server.ServerQueue.DeliveryQueue):
         
 
     def _deliverMessages(self, msgList):
-        for handle, packet in msgList:
+        for handle in msgList:
             try:
                 EventStats.log.attemptedDelivery() #FFFF
+                packet = handle.getMessage()
                 result = self.module.processMessage(packet)
                 if result == DELIVER_OK:
                     LOG.debug("Successfully delivered message MOD:%s", handle)
-                    self.deliverySucceeded(handle)
+                    handle.succeeded()
                     EventStats.log.successfulDelivery() #FFFF
                 elif result == DELIVER_FAIL_RETRY:
                     LOG.debug("Unable to deliver message MOD:%s; will retry",
                               handle)
-                    self.deliveryFailed(handle, 1)
+                    handle.failed(1)
                     EventStats.log.failedDelivery() #FFFF
                 else:
                     assert result == DELIVER_FAIL_NORETRY
                     LOG.error("Unable to deliver message MOD:%s; giving up",
                               handle)
-                    self.deliveryFailed(handle, 0)
+                    handle.failed(0)
                     EventStats.log.unretriableDelivery() #FFFF
             except:
                 LOG.error_exc(sys.exc_info(),
                                    "Exception delivering message")
-                self.deliveryFailed(handle, 0)
+                handle.failed(0)
                 EventStats.log.unretriableDelivery() #FFFF
 
 class DeliveryThread(threading.Thread):

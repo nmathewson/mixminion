@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.79 2003/06/12 04:07:54 nickm Exp $
+# $Id: ServerMain.py,v 1.80 2003/06/13 01:03:46 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -48,7 +48,7 @@ from types import *
 # We pull this from mixminion.Common, just in case somebody still has
 # a copy of the old "mixminion/server/Queue.py" (since renamed to
 # ServerQueue.py)
-from mixminion.Common import MessageQueue
+from mixminion.Common import MessageQueue, ClearableQueue, QueueEmpty
 
 import mixminion.Config
 import mixminion.Crypto
@@ -256,16 +256,13 @@ class MixPool:
 
         for h in handles:
             packet = self.queue.getObject(h)
-            if type(packet) == type(()):
-                #XXXX005 remove this case.
-                LOG.error("  (skipping message MIX:%s in obsolete format)", h)
-            elif packet.isDelivery():
+            if packet.isDelivery():
                 h2 = self.moduleManager.queueDecodedMessage(packet)
                 LOG.debug("  (sending message MIX:%s to exit modules as MOD:%s)"
                           , h, h2)
-
             else:
-                h2 = self.outgoingQueue.queueDeliveryMessage(packet)
+                address = packet.getAddress()
+                h2 = self.outgoingQueue.queueDeliveryMessage(packet, address)
                 LOG.debug("  (sending message MIX:%s to MMTP server as OUT:%s)"
                           , h, h2)
             # In any case, we're through with this message now.
@@ -312,30 +309,31 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         "Implementation of abstract method from DeliveryQueue."
         # Map from addr -> [ (handle, msg) ... ]
         msgs = {}
-        for handle, packet in msgList:
-            if not isinstance(packet,
-                              mixminion.server.PacketHandler.RelayedPacket):
-                LOG.warn("Skipping packet OUT:%s in obsolete format", handle)
-                self.deliverySucceeded(handle)
-                continue
-            addr = packet.getAddress()
-            message = packet.getPacket()
-            msgs.setdefault(addr, []).append( (handle, message) )
+        for pending in msgList:
+            addr = pending.getAddress()
+            if addr is None:
+                addr = pending.getMessage().getAddress()
+            msgs.setdefault(addr, []).append(pending)
         for addr, messages in msgs.items():
             if self.addr[:2] == (addr.ip, addr.port):
                 if self.addr[2] != addr.keyinfo:
                     LOG.warn("Delivering messages to myself with bad KeyID")
-                for h,m in messages:
-                    LOG.trace("Delivering message OUT:%s to myself.", h)
-                    self.incomingQueue.queueMessage(m)
-                    self.deliverySucceeded(h)
+                for pending in messages:
+                    LOG.trace("Delivering message OUT:%s to myself.",
+                              pending.getHandle())
+                    self.incomingQueue.queueMessage(
+                        pending.getMessage().getPacket())
+                    pending.succeeded()
                 continue
 
-            handles, messages = zip(*messages)
+            deliverable = [
+                mixminion.server.MMTPServer.DeliverablePacket(pending)
+                for pending in messages ]
             LOG.trace("Delivering messages OUT:[%s] to %s:%s",
-                      " ".join(handles), addr.ip,addr.port)
+                      " ".join([p.getHandle() for p in messages]),
+                      addr.ip, addr.port)
             self.server.sendMessages(addr.ip, addr.port, addr.keyinfo,
-                                     list(messages), list(handles))
+                                     deliverable)
 
 class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     """Implementation of mixminion.server.MMTPServer that knows about
@@ -358,19 +356,6 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
         # FFFF Replace with server.
         EventStats.log.receivedPacket()
 
-    def onMessageSent(self, msg, handle):
-        self.outgoingQueue.deliverySucceeded(handle)
-        EventStats.log.attemptedRelay() # FFFF replace with addr
-        EventStats.log.successfulRelay() # FFFF replace with addr
-
-    def onMessageUndeliverable(self, msg, handle, retriable):
-        self.outgoingQueue.deliveryFailed(handle, retriable)
-        EventStats.log.attemptedRelay() # FFFF replace with addr
-        if retriable:
-            EventStats.log.failedRelay() # FFFF replace with addr
-        else:
-            EventStats.log.unretriableRelay() # FFFF replace with addr
-
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
     """Thread that handles file deletion.  Some methods of secure deletion
@@ -378,11 +363,11 @@ class CleaningThread(threading.Thread):
        main thread.
     """
     # Fields:
-    #   mqueue: A MessageQueue holding filenames to delete, or None to indicate
+    #   mqueue: A ClearableQueue holding filenames to delete, or None to indicate
     #     a shutdown.
     def __init__(self):
         threading.Thread.__init__(self)
-        self.mqueue = MessageQueue()
+        self.mqueue = ClearableQueue()
 
     def deleteFile(self, fname):
         """Schedule the file named 'fname' for deletion"""
@@ -399,6 +384,7 @@ class CleaningThread(threading.Thread):
         """Tell this thread to shut down once it has deleted all pending
            files."""
         LOG.info("Telling cleanup thread to shut down.")
+        self.mqueue.clear()
         self.mqueue.put(None)
 
     def run(self):
@@ -425,7 +411,7 @@ class ProcessingThread(threading.Thread):
 
        Currently used to process packets in the background."""
     # Fields:
-    #   mqueue: a MessageQueue of callable objects.
+    #   mqueue: a ClearableQueue of callable objects.
     class _Shutdown:
         """Callable that raises itself when called.  Inserted into the
            queue when it's time to shut down."""
@@ -433,12 +419,13 @@ class ProcessingThread(threading.Thread):
             raise self
 
     def __init__(self):
-        """Given a MessageQueue object, create a new processing thread."""
+        """Create a new processing thread."""
         threading.Thread.__init__(self)
-        self.mqueue = MessageQueue()
+        self.mqueue = ClearableQueue()
 
     def shutdown(self):
         LOG.info("Telling processing thread to shut down.")
+        self.mqueue.clear()
         self.mqueue.put(ProcessingThread._Shutdown())
 
     def addJob(self, job):

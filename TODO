@@ -23,13 +23,20 @@ For 0.0.5:
                 - From (limited)
                 - In-Reply-To
                 - References
+        - Security improvements
+                - Add ability to mark nodes as having same
+                  administrative domain.
+                - Change pathgen to avoid two nodes with same domain
+                  in a row.
+                - Change pathgen to avoid using same node for entry
+                  and exit.
         - Support for large messages and K-of-N
         - UI improvements:
-                - Audit exceptions: which should be UIError
+                - Audit exceptions: which should be UIError?
                 - Quiet server startup; should be by default if daemon
                   mode.
-                - Notice when out of disk space, die more cleanly
-                - 'Iffy mode' messages are confusing
+                - Notice when out of disk space, die more cleanly.
+                - 'Iffy mode' messages are confusing.
         - Configurability:
                 - Ability to disable or relax directory paranoia.
                 - Trusted groups, trusted users for directory permissions
@@ -38,9 +45,10 @@ For 0.0.5:
                 - Tests for ServerInbox and Directory.py
                 - Tests for checkConsistency
         - Make 'SIGHUP' reload, (and 'SIGUSR' dump).
-        - Performance
-                - Lazy-load deliverable messages.
-                - Don't block while shredding messages at startup.
+        . Performance
+                o Lazy-load deliverable messages.
+                o Don't block while shredding messages at startup.
+                o Shutdown faster on SIGTERM.
 
 
 For 0.0.6:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.89 2003/06/06 06:04:57 nickm Exp $
+# $Id: Common.py,v 1.90 2003/06/13 01:03:45 nickm Exp $
 
 """mixminion.Common
 
@@ -36,9 +36,11 @@ import time
 import traceback
 # Imported here so we can get it in mixminion.server without being shadowed
 # by the old Queue.py file.
-from Queue import Queue
+from Queue import Queue, Empty
 MessageQueue = Queue
+QueueEmpty = Empty
 del Queue
+del Empty
 
 from types import StringType
 
@@ -1312,3 +1314,23 @@ class Lockfile:
             pass
 
         self.fd = None
+
+#----------------------------------------------------------------------
+# Threading operations
+
+class ClearableQueue(MessageQueue):
+    """DOCDOC"""
+    #XXXX005 testme
+    def clear(self):
+        if not self.esema.acquire(0):
+            return
+        self.mutex.acquire()
+        was_full = self._full()
+        self._clear()
+        assert self._empty()
+        if was_full:
+            self.fsema.release()
+        self.mutex.release()
+
+    def _clear(self):
+        del self.queue[:]
