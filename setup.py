@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.26 2003/01/06 04:59:04 nickm Exp $
+# $Id: setup.py,v 1.27 2003/01/06 05:22:37 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -111,8 +111,9 @@ if not os.path.exists("build"):
     os.mkdir("build")
 f = open(SCRIPT_PATH, 'wt')
 f.write("#!%s -O\n"% sys.executable)
+f.write("import sys\n")
 if pathextra:
-    f.write("import sys\nsys.path[0:0] = [%r]\n"%pathextra)
+    f.write("sys.path[0:0] = [%r]\n"%pathextra)
 f.write("""\
 try:
     import mixminion.Main
