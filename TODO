@@ -124,6 +124,7 @@ For 0.0.3:
                         - Refactor until clean
                         - Document
                 - Client-side pooling.
+                	- Design
                 - Make client code multiprocess-safe: locking on
                   cache (if needed!); locking on pool.
                         - Move lock functionality into Common.
@@ -132,20 +133,34 @@ For 0.0.3:
                 o Make path parsing accept space around the commas and colon.
                 o Make paths print more cleanly.
                 o Better command breakdown for pulling directories.
-                - Good user error reporting strategy.
                 - Better error message when path+routinginfo won't fit 
                   into header.
                 - Better concept of too-short paths.
-                - Beautify list-servers output.
         . Build/install:
                 o Uninstall support? (Right now, we take a cowardly
                   approach that may be good enough.)
                 o Perhaps 'make install' should nuke dead files. (Queue.py)
                 - Support people who _do_ have OpenSSL 0.9.7 installed.
         . Make ServerInfo more forward-compatible.
+                o Support unrecognized keys
+        - SMTP
+                - Add an extra "this is anonymous" header.
+        - Break backward compatibility :P
+                - Fix aes_ctr128 and bump packet version and write
+                  unit tests for counter mode.
+                - Increment packet minor number; make client check
+                  packet minor number.
+                - Add fields to serverinfo, server directory.
+                - Make client check 'Recommended-Software' against
+                  current version.
+
+Originally scheduled for 0.0.3, but delayed:
+        - UI
+                - Good user error reporting strategy.
+                - Beautify list-servers output.
+        - Make ServerInfo more forward-compatible.
                 - Skip sections completely if the version number isn't
                   recognized.
-                o Support unrecognized keys
         - Statistics of some kind (with a server: count messages
           received, errors, etc.)
         - Separate error/other log files. ????
@@ -163,20 +178,9 @@ For 0.0.3:
                   places; coalesce pid and lock.
                 - Make all filenames in server config relative to
                   server home, if not absolute.
-        - SMTP
-                - Add an extra "this is anonymous" header.
         - COME UP WITH A REAL TESTING STRATEGY FOR PERFORMANCE AND
            CLI'S AND MULTI-SERVER SITUATIONS.
         - Tests for packet addressed to server with bogus IP.
-        - Break backward compatibility :P
-                - Fix aes_ctr128 and bump packet version and write
-                  unit tests for counter mode.
-                - Increment packet minor number; make client check
-                  packet minor number.
-                - Add fields to serverinfo, server directory.
-                - Make client check 'Recommended-Software' against
-                  current version.
-        - ????
 
 Required for "1.0":
          [These features must be in place before we can take the system out
