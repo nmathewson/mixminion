@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.41 2003/01/04 04:12:51 nickm Exp $
+# $Id: Common.py,v 1.42 2003/01/04 20:42:17 nickm Exp $
 
 """mixminion.Common
 
@@ -703,8 +703,11 @@ class IntervalSet:
 
 # Regular expressions to valide RFC822 addresses.
 # (This is more strict than RFC822, actually.  RFC822 allows tricky stuff to
-#  quote special characters, and I don't trust every MTA or delivery command
-#  to support addresses like <bob@bob."; rm -rf /; echo".com>)
+#   quote special characters, and I don't trust every MTA or delivery command
+#   to support addresses like <bob@bob."; rm -rf /; echo".com>
+# (Also, allowing trickier syntax like president@[198.137.241.45] or
+#  w@"whitehouse".gov, or makes it far harder to implement exit-address
+#  blacklisting.)
 
 # An 'Atom' is a non-escape, non-null, non-space, non-punctuation character.
 _ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
@@ -714,11 +717,19 @@ _LOCAL_PART_PAT = r"(?:%s)(?:\.(?:%s))*" % (_ATOM_PAT, _ATOM_PAT)
 # A mailbox is two 'local parts' separated by an @ sign.
 _RFC822_PAT = r"\A%s@%s\Z" % (_LOCAL_PART_PAT, _LOCAL_PART_PAT)
 RFC822_RE = re.compile(_RFC822_PAT)
+# We explicitly check for IPs in the domain part, and block them, for reasons
+# described above.  (Enough MTA's deliver x@127.0.0.1 as if it were
+# x@[127.0.0.1] that we need to be careful.)
+_EMAIL_BY_IP_PAT = r"\A.*@\d+(?:\.\d+)*\Z"
+EMAIL_BY_IP_RE = re.compile(_EMAIL_BY_IP_PAT)
 
 def isSMTPMailbox(s):
     """Return true iff s is a valid SMTP address"""
     m = RFC822_RE.match(s)
-    return m is not None
+    if m is None:
+        return 0
+    m = EMAIL_BY_IP_RE.match(s)
+    return m is None
 
 #----------------------------------------------------------------------
 # Signal handling

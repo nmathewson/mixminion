@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.57 2003/01/04 04:38:44 nickm Exp $
+# $Id: test.py,v 1.58 2003/01/04 20:42:17 nickm Exp $
 
 """mixminion.tests
 
@@ -219,7 +219,7 @@ class MiscTests(unittest.TestCase):
         for addr in ("(foo)@bar.com", "z.d" "z@", "@z", "@foo.com", "aaa",
                      "foo.bar@", "foo\177@bar.com", "foo@bar\177.com",
                      "foo@bar;cat /etc/shadow;echo ","foo bar@baz.com",
-                     "a@b@c"):
+                     "a@b@c", "foo@[127.0.0.1]", "foo@127.0.0.1", "foo@127"):
             self.assert_(not isSMTPMailbox(addr))
 
     def test_intervalset(self):
@@ -4311,7 +4311,6 @@ class ClientMainTests(unittest.TestCase):
 
         suspendLog()
         joe = edesc["Joe"]
-        lisa = edesc["Lisa"]
         alice = edesc["Alice"]
         lola = edesc["Lola"]
         fred = edesc["Fred"]
@@ -4446,7 +4445,6 @@ class ClientMainTests(unittest.TestCase):
         bob = ks.getServerInfo("Bob")
         joe = ks.getServerInfo("Joe")
         lola = ks.getServerInfo("Lola")
-        lisa = ks.getServerInfo("Lisa")
 
         def pathIs(p, exp, self=self):
             if isinstance(p[0],mixminion.ServerInfo.ServerInfo):
