@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.25 2003/07/10 18:39:16 nickm Exp $ */
+/* $Id: crypt.c,v 1.26 2003/07/10 20:01:31 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -277,6 +277,66 @@ mm_openssl_seed(PyObject *self, PyObject *args, PyObject *kwdict)
         Py_INCREF(Py_None);
         return Py_None;
 }
+
+#ifdef MS_WINDOWS
+const char mm_openssl_seed_win32__doc__[]=
+  "openssl_seed_win32()\n\n"
+  "DOCDOC\n";
+
+PyObject *
+mm_openssl_seed_win32(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+        static char *kwlist[] = { NULL };
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict, ":openssl_seed_win32",
+                                         kwlist))
+                return NULL;
+
+        Py_BEGIN_ALLOW_THREADS
+        RAND_screen();
+        Py_END_ALLOW_THREADS
+
+        Py_INCREF(Py_None);
+        return Py_None;
+}
+#endif
+
+const char mm_openssl_rand__doc__[]=
+  "DOCDOC\n";
+
+PyObject *
+mm_openssl_rand(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+        static char *kwlist[] = { "bytes", NULL };
+        int bytes;
+        PyObject *result;
+        int r;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict, "i:openssl_rand",
+                                         kwlist, &bytes))
+                return NULL;
+
+        if (bytes < 0) {
+                TYPE_ERR("bytes must be >= 0");
+        }
+
+        if (!(result = PyString_FromStringAndSize(NULL,bytes))) {
+                PyErr_NoMemory(); return NULL;
+        }
+
+        Py_BEGIN_ALLOW_THREADS
+        r = RAND_bytes(PyString_AsString(result), bytes);
+        Py_END_ALLOW_THREADS
+        
+        if (!r) {
+                Py_DECREF(result);
+                mm_SSL_ERR(1);
+                return NULL;  
+        }
+
+        return result;
+}
+
 
 
 static void

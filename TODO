@@ -25,7 +25,7 @@ For 0.0.5:
                 o Shutdown faster on SIGTERM.
         . Background projects:
                 o Port to cygwin
-                - Start win32 port
+                . Start win32 port
                 o Twisted port decision
                 - Website, FAQ
         o Initial support for email headers (server side)

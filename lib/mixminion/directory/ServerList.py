@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.33 2003/06/12 04:08:17 nickm Exp $
+# $Id: ServerList.py,v 1.34 2003/07/10 20:01:31 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -220,8 +220,7 @@ class ServerList:
             servers = self.serversByNickname[lcnickname]
             for fn in servers:
                 LOG.info("  Removing %s", fn)
-                os.rename(os.path.join(self.serverDir, fn),
-                          os.path.join(self.archiveDir, fn))
+                _moveServer(self.serverDir, self.archiveDir, fn)
                 del self.servers[fn]
             del self.serversByNickname[lcnickname]
             LOG.info("  (%s servers removed)", len(servers))
@@ -384,9 +383,7 @@ class ServerList:
             # Now, do the actual removing.
             for fn, why in removed.items():
                 LOG.info("Removing %s descriptor %s", why, fn)
-                os.rename(os.path.join(self.serverDir, fn),
-                          os.path.join(self.archiveDir, fn))
-
+                _moveServer(self.serverDir, self.archiveDir, fn)
                 del self.servers[fn]
 
             self.__buildNicknameMap()
@@ -407,7 +404,7 @@ class ServerList:
                     LOG.warn("Somehow, a bad server named %s got in our store",
                              filename)
                     LOG.warn(" (Error was: %s)", str(e))
-                    os.rename(path, os.path.join(self.rejectDir, filename))
+                    _moveServer(self.serverDir, self.rejectDir, filename)
 
             # Next, rebuild self.serverIDs:
             self.serverIDs = {}
@@ -463,6 +460,17 @@ class ServerList:
     def _unlock(self):
         self.lockfile.release()
         self.rlock.release()
+
+def _moveServer(directory1, directory2, fname):
+    #DOCDOC
+    fname1 = os.path.join(directory1, fname)
+    if "-" in fname:
+        nn = fname[:fname.find("-")]
+    else:
+        nn = "UNKNOWN"
+    s = readPossiblyGzippedFile(fname1)
+    _writeServer(directory2, s, nn)
+    os.unlink(fname1)
 
 def _writeServer(directory, contents, nickname, mode=0600):
     """Write a server descriptor in 'contents' into a new file in

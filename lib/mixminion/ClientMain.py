@@ -34,7 +34,8 @@ from mixminion.Common import AtomicFile, IntervalSet, LOG, floorDiv, \
      UsageError, ceilDiv, createPrivateDir, isPrintingAscii, isSMTPMailbox, \
      formatDate, formatFnameTime, formatTime, Lockfile, openUnique, \
      previousMidnight, readFile, readPickled, readPossiblyGzippedFile, \
-     secureDelete, stringContains, succeedingMidnight, tryUnlink, writeFile, \
+     replaceFile, secureDelete, stringContains, succeedingMidnight, tryUnlink,\
+     writeFile, \
      writePickled
 from mixminion.Crypto import sha1, ctr_crypt, trng
 from mixminion.Config import ClientConfig, ConfigError
@@ -211,9 +212,9 @@ class ClientDirectory:
 
         # Install the new directory
         if gz:
-            os.rename(fname, os.path.join(self.dir, "dir.gz"))
+            replaceFile(fname, os.path.join(self.dir, "dir.gz"))
         else:
-            os.rename(fname, os.path.join(self.dir, "dir"))
+            replaceFile(fname, os.path.join(self.dir, "dir"))
 
         # And regenerate the cache.
         self.rescan()
@@ -984,7 +985,7 @@ class ClientKeyring:
         self._save(fn+"_tmp",
                    cPickle.dumps(self.keyring,1),
                    "KEYRING1", self.keyringPassword)
-        os.rename(fn+"_tmp", fn)
+        replaceFile(fn+"_tmp", fn)
 
     def getSURBKey(self, name="", create=0, password=None):
         """Return the key for a given SURB identity."""

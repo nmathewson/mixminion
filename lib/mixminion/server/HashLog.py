@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.18 2003/07/08 19:13:50 nickm Exp $
+# $Id: HashLog.py,v 1.19 2003/07/10 20:01:31 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -77,7 +77,7 @@ def deleteHashLog(filename):
         
 
 # flags to pass to os.open when opening the journal file.
-_JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)
+_JOURNAL_OPEN_FLAGS = os.O_WRONLY|os.O_CREAT|getattr(os,'O_SYNC',0)|getattr(os,'O_BINARY',0)
 class HashLog:
     """A HashLog is a file containing a list of message digests that we've
        already processed.

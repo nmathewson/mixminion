@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.98 2003/07/08 19:13:50 nickm Exp $
+# $Id: Common.py,v 1.99 2003/07/10 20:01:30 nickm Exp $
 
 """mixminion.Common
 
@@ -21,7 +21,6 @@ import bisect
 import calendar
 import cPickle
 import errno
-import fcntl
 import gzip
 import os
 import re
@@ -39,6 +38,13 @@ MessageQueue = Queue
 QueueEmpty = Empty
 del Queue
 del Empty
+
+O_BINARY = getattr(os, 'O_BINARY', 0)
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 try:
     import pwd, grp
@@ -356,9 +362,10 @@ def checkPrivateFile(fn, fix=1):
         raise MixFatalError("Nonexistant file %s" % fn)
     if not os.path.isfile(fn):
         raise MixFatalError("%s is not a regular file" % fn)
-    me = os.getuid()
+    
     if _CHECK_UID and st[stat.ST_UID] != me:
-        ownerName = _uidToName( st[stat.ST_UID])
+        me = os.getuid()
+        ownerName = _uidToName(st[stat.ST_UID])
         myName = _uidToName(me)
         raise MixFilePermissionError(
             "File %s is owned by %s, but Mixminion is running as %s" 
@@ -391,8 +398,9 @@ def checkPrivateDir(d, recurse=1):
        0700. All of d's parents must not be writable or owned by anybody but
        this uid and uid 0.  If any of these conditions are unmet, raise
        MixFatalErrror.  Otherwise, return None."""
-    me = os.getuid()
-    trusted_uids = _TRUSTED_UIDS + [ me ]
+    if _CHECK_UID:
+        me = os.getuid()
+        trusted_uids = _TRUSTED_UIDS + [ me ]
 
     if not os.path.isabs(d):
         d = os.path.abspath(d)
@@ -468,6 +476,18 @@ def configureFileParanoia(config):
 
 #----------------------------------------------------------------------
 # File helpers
+
+
+#DOCDOC
+if sys.platform == 'win32':
+    def replaceFile(f1, f2):
+        if os.path.exists(f2):
+            os.unlink(f2)
+        os.rename(f1, f2) 
+else:
+    def replaceFile(f1, f2):
+        os.rename(f1, f2)
+
 class AtomicFile:
     """Wrapper around open/write/rename to encapsulate writing to a temporary
        file, then moving to the final filename on close.
@@ -489,7 +509,7 @@ class AtomicFile:
 
     def close(self):
         """Close the underlying file and replace the destination file."""
-        os.rename(self.tmpname, self.fname)
+        replaceFile(self.tmpname, self.fname)
         self.f.close()
         self.f = None
 
@@ -531,7 +551,7 @@ def writeFile(fn, contents, mode=0600, binary=0):
         if os.path.exists(tmpname): os.unlink(tmpname)
         raise
 
-    os.rename(tmpname, fn)
+    replaceFile(tmpname, fn)
 
 def readPickled(fn):
     """Given the name of a file containing a pickled object, return the pickled
@@ -557,7 +577,7 @@ def writePickled(fn, obj, mode=0600):
         if os.path.exists(tmpname): os.unlink(tmpname)
         raise
 
-    os.rename(tmpname, fn)
+    replaceFile(tmpname, fn)
 
 def tryUnlink(fname):
     """Try to remove the file named fname.  If the file is erased, return 1.
@@ -623,7 +643,7 @@ def _overwriteFile(f):
         if sz > len(_NILSTR):
             _NILSTR = '\x00' * sz
     nil = _NILSTR[:sz]
-    fd = os.open(f, os.O_WRONLY)
+    fd = os.open(f, os.O_WRONLY|O_BINARY)
     try:
         size = os.fstat(fd)[stat.ST_SIZE]
         blocks = ceilDiv(size, sz)
@@ -1268,6 +1288,9 @@ def waitForChildren(onceOnly=0, blocking=1):
         options = 0
     else:
         options = os.WNOHANG
+    if sys.platform == 'win32':
+        LOG.warn("Skipping waitForChildren")
+        return
     while 1:
         try:
             # WIN32 This won't work on Windows.  What to do?
@@ -1299,6 +1322,10 @@ def _sigChldHandler(signal_num, _):
 
 def installSIGCHLDHandler():
     '''Register sigchld handler for this process.'''
+    #WWWWW
+    if sys.platform == 'win32':
+        LOG.warn("Skipping installSIGCHLDHandler")
+        return
     signal.signal(signal.SIGCHLD, _sigChldHandler)
 
 #----------------------------------------------------------------------
@@ -1322,11 +1349,15 @@ def openUnique(fname, mode='w', perms=0600):
     """Helper function. Returns a file open for writing into the file named
        'fname'.  If fname already exists, opens 'fname.1' or 'fname.2' or
        'fname.3' or so on."""
+    if 'b' in mode: 
+        bin = O_BINARY
+    else:
+        bin = 0
     base, rest = os.path.split(fname)
     idx = 0
     while 1:
         try:
-            fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL, perms)
+            fd = os.open(fname, os.O_WRONLY|os.O_CREAT|os.O_EXCL|bin, perms)
             return os.fdopen(fd, mode), fname
         except OSError, e:
             if e.errno != errno.EEXIST:
@@ -1360,7 +1391,13 @@ class Lockfile:
            write 'contents' to the lockfile.  If 'blocking' is true, wait until
            we can acquire the lock.  If 'blocking' is false, raise IOError if
            we can't acquire the lock."""
+
+        if not fcntl:
+            #WWWWW
+            LOG.warn("Skipping Lockfile.acquire")
+            return
         if self.count > 0:
+
             self.count += 1
             return
 
@@ -1381,6 +1418,12 @@ class Lockfile:
 
     def release(self):
         """Release the lock."""
+
+        if not fcntl:
+            #WWWWW
+            LOG.warn("Skipping Lockfile.release")
+            return
+
         assert self.fd is not None
         self.count -= 1
         if self.count > 0:

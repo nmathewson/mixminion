@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.133 2003/07/08 19:13:50 nickm Exp $
+# $Id: test.py,v 1.134 2003/07/10 20:01:30 nickm Exp $
 
 """mixminion.tests
 
@@ -2918,6 +2918,10 @@ class LogTests(unittest.TestCase):
         log.addHandler(_FileLogHandler(t))
         log.info("Abc")
         log.info("Def")
+        if ON_WIN32: #WWWW
+            log.close()
+            return
+        
         os.rename(t,t1)
         log.info("Ghi")
         log.reset()

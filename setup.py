@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.67 2003/07/08 19:33:44 nickm Exp $
+# $Id: setup.py,v 1.68 2003/07/10 20:01:30 nickm Exp $
 import sys
 
 #
@@ -124,7 +124,18 @@ it, you can grab and build a local copy for Mixminion only by running:
       )
 ======================================================================"""
 
-if USE_OPENSSL:
+if USE_OPENSSL and sys.platform == 'win32':
+    INCLUDE_DIRS = []
+    STATIC_LIBS = []
+    LIBRARY_DIRS = []
+    
+    # WWWW Right now, this is hardwired to my openssl installation.
+    INCLUDE_DIRS.append("d:\\openssl\\include")
+    LIBRARY_DIRS.append("D:\\openssl\\lib\\vc")
+
+    LIBRARIES = [ "ssleay32", "libeay32" ]
+
+elif USE_OPENSSL:
     # For now, we assume that openssl-0.9.7 isn't generally deployed, so we
     # need to look carefully.
 
@@ -403,12 +414,16 @@ if os.path.exists("/usr/kerberos/include"):
 
 INCLUDE_DIRS.append("src")
 
+EXTRA_CFLAGS = []
+if sys.platform != 'win32':
+    EXTRA_CFLAGS += [ '-Wno-strict-prototypes' ]
+
 extmodule = Extension(
     "mixminion._minionlib",
     ["src/crypt.c", "src/aes_ctr.c", "src/main.c", "src/tls.c", "src/fec.c" ],
     include_dirs=INCLUDE_DIRS,
     extra_objects=STATIC_LIBS,
-    extra_compile_args=["-Wno-strict-prototypes"]+OPENSSL_CFLAGS,
+    extra_compile_args=EXTRA_CFLAGS + OPENSSL_CFLAGS,
     extra_link_args=OPENSSL_LDFLAGS,
     library_dirs=LIBRARY_DIRS,
     libraries=LIBRARIES,

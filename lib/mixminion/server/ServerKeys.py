@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.46 2003/07/07 16:49:25 nickm Exp $
+# $Id: ServerKeys.py,v 1.47 2003/07/10 20:01:31 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -1144,7 +1144,11 @@ def generateCertChain(filename, mmtpKey, identityKey, nickname,
         
 def getPlatformSummary():
     """XXXX005 move; DOCDOC"""
-    uname = " ".join(os.uname())
+    if hasattr(os, "uname"):
+        uname = " ".join(os.uname())
+    else:
+        uname = sys.platform
+
     return "Mixminion %s; Python %r on %r" % (
         mixminion.__version__, sys.version, uname)
 

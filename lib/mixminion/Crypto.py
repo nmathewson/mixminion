@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.45 2003/06/05 18:41:40 nickm Exp $
+# $Id: Crypto.py,v 1.46 2003/07/10 20:01:30 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -273,8 +273,8 @@ def pk_fingerprint(key):
 def pk_PEM_save(rsa, filename, password=None):
     """Save a PEM-encoded private key to a file.  If <password> is provided,
        encrypt the key using the password."""
-    fd = os.open(filename, os.O_WRONLY|os.O_CREAT, 0600)
-    f = os.fdopen(fd, 'wb')
+    fd = os.open(filename, os.O_WRONLY|os.O_CREAT,0600)
+    f = os.fdopen(fd, 'w')
     if password:
         rsa.PEM_write_key(f, 0, password)
     else:
@@ -654,6 +654,7 @@ def configure_trng(config):
     """Initialize the true entropy source from a given Config object.  If
        none is provided, tries some sane defaults."""
     global _TRNG_FILENAME
+    global _theTrueRNG
     if config is not None:
         requestedFile = config['Host'].get('EntropySource')
     else:
@@ -686,14 +687,24 @@ def configure_trng(config):
                 break
 
     if randFile is None and _TRNG_FILENAME is None:
-        LOG.fatal("No entropy source available")
-        raise MixFatalError("No entropy source available")
+        if sys.platform == 'win32':
+            LOG.warn("Using bogus screen snapshot for entropy source: beware!") 
+            _ml.openssl_seed_win32()
+            _theTrueRNG = _OpensslRNG()
+        else:
+            LOG.fatal("No entropy source available")
+            raise MixFatalError("No entropy source available")
     elif randFile is None:
         LOG.warn("Falling back to previous entropy source %s",
                  _TRNG_FILENAME)
     else:
         LOG.info("Setting entropy source to %r", randFile)
         _TRNG_FILENAME = randFile
+        _theTrueRNG = _TrueRNG(1024)
+
+
+# Global TRN instance, for use by trng().
+_theTrueRNG = None 
 
 class _TrueRNG(RNG):
     '''Random number generator that yields pieces of entropy from
@@ -722,8 +733,13 @@ class _TrueRNG(RNG):
         self.__lock.release()
         return b
 
-# Global _TrueRNG instance, for use by trng().
-_theTrueRNG = _TrueRNG(1024)
+class _OpensslRNG(RNG):
+    """DOCDOC"""
+    def __init__(self):
+        """DOCDOC"""
+        RNG.__init__(self, 1024)
+    def _prng(self,n):
+        return _ml.openssl_rand(n)
 
 # Return the shared instance of the true RNG.
 def getTrueRNG():
