@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.53 2003/07/28 01:02:33 nickm Exp $
+# $Id: Packet.py,v 1.54 2003/08/08 21:42:47 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -245,12 +245,12 @@ class Subheader:
 # Length of the 'MessageID' field in a fragment payload
 FRAGMENT_MESSAGEID_LEN = 20
 # Maximum number of fragments associated with a given message
-MAX_N_FRAGMENTS = 0x7ffff
+MAX_N_FRAGMENTS = 0x7ffffff
 
 # Number of bytes taken up by header fields in a singleton payload.
 SINGLETON_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN
 # Number of bytes taken up by header fields in a fragment payload.
-FRAGMENT_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
+FRAGMENT_PAYLOAD_OVERHEAD = 3 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
 # Number of bytes taken up from OAEP padding in an encrypted forward
 # payload, minus bytes saved by spilling the RSA-encrypted block into the
 # tag, minus the bytes taken by the session key.
@@ -265,9 +265,10 @@ def parsePayload(payload):
     bit0 = ord(payload[0]) & 0x80
     if bit0:
         # We have a fragment
-        idx, hash, msgID, msgLen = struct.unpack(FRAGMENT_UNPACK_PATTERN,
-                                         payload[:FRAGMENT_PAYLOAD_OVERHEAD])
-        idx &= 0x7f
+        idxhi, idxlo, hash, msgID, msgLen = \
+               struct.unpack(FRAGMENT_UNPACK_PATTERN,
+                             payload[:FRAGMENT_PAYLOAD_OVERHEAD])
+        idx = ((idxhi & 0x7f) << 16) + idxlo
         contents = payload[FRAGMENT_PAYLOAD_OVERHEAD:]
         if msgLen <= len(contents):
             raise ParseError("Payload has an invalid size field")
@@ -284,13 +285,12 @@ def parsePayload(payload):
 # A singleton payload starts with a 0 bit, 15 bits of size, and a 20-byte hash
 SINGLETON_UNPACK_PATTERN = "!H%ds" % (DIGEST_LEN)
 
-# A fragment payload starts with a 1 bit, a 15-bit packet index, a
+# A fragment payload starts with a 1 bit, a 23-bit packet index, a
 # 20-byte hash, a 20-byte message ID, and 4 bytes of message size.
-FRAGMENT_UNPACK_PATTERN = "!H%ds%dsL" % (DIGEST_LEN, FRAGMENT_MESSAGEID_LEN)
+FRAGMENT_UNPACK_PATTERN = "!BH%ds%dsL" % (DIGEST_LEN, FRAGMENT_MESSAGEID_LEN)
 
 class _Payload:
     pass
-
 
 class SingletonPayload(_Payload):
     """Represents the payload for a standalone mixminion message.
@@ -299,6 +299,10 @@ class SingletonPayload(_Payload):
         self.size = size
         self.hash = hash
         self.data = data
+
+    def computeHash(self):
+        """DOCDOC"""
+        self.hash = sha1(self.data)
 
     def isSingleton(self):
         """Returns true; this is a singleton payload."""
@@ -333,9 +337,10 @@ class FragmentPayload(_Payload):
         self.data = data
 
     def computeHash(self):
+        """DOCDOC"""
         self.hash = "X"*DIGEST_LEN
         p = self.pack()
-        self.hash = sha1("XXXX")
+        self.hash = sha1(p[23:])
 
     def isSingleton(self):
         """Return false; not a singleton"""
@@ -349,10 +354,14 @@ class FragmentPayload(_Payload):
         assert len(self.data) < self.msgLen < 0x100000000L
         assert (PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)) in \
                (0, ENC_FWD_OVERHEAD)
-        idx = self.index | 0x8000
-        header = struct.pack(FRAGMENT_UNPACK_PATTERN, idx, self.hash,
-                             self.msgID, self.msgLen)
+        idxhi = ((self.index & 0xff0000) >> 16) | 0x80
+        idxlo = self.index & 0x00fffff
+        header = struct.pack(FRAGMENT_UNPACK_PATTERN, idxhi, idxlo,
+                             self.hash, self.msgID, self.msgLen)
         return "%s%s" % (header, self.data)
+
+    def getOverhead(self):
+        return PAYLOAD_LEN - FRAGMENT_PAYLOAD_OVERHEAD - len(self.data)
 
     
 

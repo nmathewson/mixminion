@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.50 2003/07/24 17:37:16 nickm Exp $
+# $Id: Crypto.py,v 1.51 2003/08/08 21:42:47 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -29,6 +29,7 @@ __all__ = [ 'AESCounterPRNG', 'CryptoError', 'Keyset', 'bear_decrypt',
             'pk_encode_public_key', 'pk_encrypt', 'pk_fingerprint',
             'pk_from_modulus', 'pk_generate', 'pk_get_modulus',
             'pk_same_public_key', 'pk_sign', 'prng', 'sha1', 'strxor', 'trng',
+            'unwhiten', 'whiten',
             'AES_KEY_LEN', 'DIGEST_LEN', 'HEADER_SECRET_MODE', 'PRNG_MODE',
             'RANDOM_JUNK_MODE', 'HEADER_ENCRYPT_MODE', 'APPLICATION_KEY_MODE',
             'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
@@ -181,6 +182,16 @@ def bear_decrypt(s,(key1,key2)):
     right = ctr_crypt(right, _ml.sha1(left)[:AES_KEY_LEN])
     left = _ml.strxor(left, _ml.sha1("".join((key1,right,key1))))
     return left + right
+
+def whiten(s):
+    """DOCDOC"""
+    keys = Keyset("WHITEN").getLionessKeys("WHITEN")
+    return lioness_encrypt(s, keys)
+
+def unwhiten(s):
+    """DOCDOC"""
+    keys = Keyset("WHITEN").getLionessKeys("WHITEN")
+    return lioness_decrypt(s, keys)
 
 def openssl_seed(count):
     """Seeds the openssl rng with 'count' bytes of real entropy."""
