@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.160 2003/11/07 07:03:28 nickm Exp $
+# $Id: test.py,v 1.161 2003/11/07 09:05:00 nickm Exp $
 
 """mixminion.tests
 
@@ -5795,7 +5795,7 @@ class ServerMainTests(TestCase):
         s.processEvents(tm+1.5)
         self.assertEquals(["c"], lst)
         diff = abs(s.firstEventTime()-(tm+1))
-        self.assert_(diff < 0.01)
+        self.assert_(diff < 0.1)
 
         s.processEvents(tm+5)
         self.assertEquals(["c", "c", "d", "b"], lst)
