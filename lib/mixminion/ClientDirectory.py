@@ -897,7 +897,7 @@ class ClientDirectory:
         mixminion.ServerInfo._addressToNicknameFn = self.getNicknameByAddress
 
     def getNicknameByAddress(self, addr):
-        """Given an address (IP or hostname) return the nickname of
+        """Given an address (hostname) return the nickname of
            the server with that hostname.  Return None if no such
            server is known, and a slash-separated string if multiple
            servers are known.
@@ -908,7 +908,7 @@ class ClientDirectory:
         try:
             nicknames = []
             for desc in self.allServers:
-                if addr in (desc.getIP(), desc.getHostname()):
+                if addr == desc.getHostname():
                     if desc.getNickname() not in nicknames:
                         nicknames.append(desc.getNickname())
             if nicknames:
