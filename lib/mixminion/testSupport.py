@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.20 2003/09/05 00:46:24 nickm Exp $
+# $Id: testSupport.py,v 1.21 2003/10/02 21:46:23 nickm Exp $
 
 """mixminion.testSupport
 
@@ -14,7 +14,7 @@ import sys
 
 import mixminion.Crypto
 import mixminion.Common
-from mixminion.Common import waitForChildren, createPrivateDir, LOG
+from mixminion.Common import waitForChildren, ceilDiv, createPrivateDir, LOG
 from mixminion.Config import _parseBoolean, _parseIntervalList, ConfigError
 
 from mixminion.server.Modules import DELIVER_FAIL_NORETRY, DELIVER_FAIL_RETRY,\
@@ -317,6 +317,141 @@ def undoReplacedAttributes():
         else:
             o,a,v = item
             setattr(o,a,v)
+
+#----------------------------------------------------------------------
+# Test vectors.
+
+class CyclicRNG(mixminion.Crypto.RNG):
+    def __init__(self):
+        mixminion.Crypto.RNG.__init__(self,4096)
+        self.idx = 0
+        self.pattern = "".join(map(chr,range(256)))
+    def _prng(self,n):
+        reps = ceilDiv(n+self.idx,256)
+        r = (self.pattern*reps)[self.idx:self.idx+n]
+        self.idx = (self.idx+n) % 256
+        assert len(r) == n
+        return r
+
+def unHexStr(s):
+    assert s[0] == '['
+    assert s[-1] == ']'
+    r = []
+    for i in xrange(1,len(s)-1,3):
+        r.append(chr(int(s[i:i+2],16)))
+        assert s[i+2] in ' ]'
+    return "".join(r)
+
+def unHexNum(s):
+    assert s[0] == '['
+    assert s[-1] == ']'
+    r = [  ]
+    for i in xrange(1,len(s)-1,3):
+        r.append(s[i:i+2])
+        assert s[i+2] in ' ]'
+    return long("".join(r), 16)
+
+def hexStr(s):
+    r = []
+    for c in s:
+        r.append("%02X"%ord(c))
+    return "[%s]"%(" ".join(r))
+
+def hexNum(n):
+    hn = "%X"%n
+    if len(hn)%2 == 1:
+        hn = "0"+hn
+    r = []
+    for i in xrange(0,len(hn),2):
+        r.append(hn[i:i+2])
+    return "[%s]"%(" ".join(r))
+
+def tvRSA():
+    print "======================================== RSA"
+    pk1 = TEST_KEYS_2048[0]
+    print "Example 2048-bit Key K" 
+    n,e = pk1.get_public_key()
+    n2,e2,d,p,q = pk1.get_private_key()
+    print "   exponent =",hexNum(e)
+    print "   modulus =",hexNum(n)
+    print "   Private key (P)=",hexNum(p)
+    print "   Private key (Q)=",hexNum(q)
+    print "   Private key (D)=",hexNum(d)
+    
+    print "   PK_Encode(K) =",hexStr(pk1.encode_key(1))
+    print "   Fingerprint =",mixminion.Crypto.pk_fingerprint(pk1)
+
+    print
+    ms = CyclicRNG().getBytes(20)
+    print "OAEP Padding/PKCS encoding example: (Using MGF SEED %s)"%hexStr(ms)
+    s = "Hello world"
+    print "   original string M:",hexStr(s)
+    assert pk1.get_modulus_bytes() == 256
+    enc = mixminion.Crypto._add_oaep_padding(s,
+                mixminion.Crypto.OAEP_PARAMETER,256,CyclicRNG())
+    print "   Padded string (2048 bits):",hexStr(enc)
+    pkenc = pk1.crypt(enc,1,1)
+    
+    print
+    print "   PK_Encrypt(K,M):",hexStr(pkenc)
+    assert mixminion.Crypto.pk_decrypt(pkenc,pk1) == s
+    
+def tvAES():
+    import mixminion._minionlib as _ml
+    print "======================================== AES"
+    print "Single block encryption"
+    k = unHexStr("[00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF]")
+    b = "MixminionTypeIII"
+    print "   Key:",hexStr(k)
+    print "   Plaintext block:",hexStr(b)
+    eb = _ml.aes128_block_crypt(_ml.aes_key(k),b,1)
+    db = _ml.aes128_block_crypt(_ml.aes_key(k),b,0)
+    print "   Encrypted block:",hexStr(eb)
+    print "   Decrypted block:",hexStr(db)
+    
+    print 
+    print "Counter mode encryption:"
+    k = unHexStr("[02 13 24 35 46 57 68 79 8A 9B AC BD CE DF E0 F1]")
+    print "   Key:",hexStr(k)
+    print "   Keystream[0x00000...0x0003F]:",hexStr(mixminion.Crypto.prng(k,64))
+    print "   Keystream[0x002C0...0x002FF]:",hexStr(mixminion.Crypto.prng(k,64,0x2c0))
+    print "   Keystream[0xF0000...0xF003F]:",hexStr(mixminion.Crypto.prng(k,64,0xF0000))
+
+    txt = "Hello world!"
+    print "   Example text M:",hexStr(txt)
+    print "   Encrypt(K,M):",hexStr(mixminion.Crypto.ctr_crypt(txt,k))
+
+def tvLIONESS():
+    print "======================================== LIONESS"
+    print "SPRP_Encrypt:"
+    ks = mixminion.Crypto.Keyset("basic key")
+    k1,k2,k3,k4=ks.getLionessKeys("A")
+    print " Base key K:",hexStr(k1)
+    print "         K2:",hexStr(k2)
+    print "         K3:",hexStr(k3)
+    print "         K4:",hexStr(k4)
+    txt = "I never believe in code until it's running, and I never believe in the next release until it's out."
+    print
+    print "      Example text M:",hexStr(txt)
+    print "   SPRP_Encrypt(K,M):",hexStr(mixminion.Crypto.lioness_encrypt(
+        txt,(k1,k2,k3,k4)))
+    print "   SPRP_Decrypt(K,M):",hexStr(mixminion.Crypto.lioness_decrypt(
+        txt,(k1,k2,k3,k4)))
+
+def testVectors(name,args):
+    assert hexStr("ABCDEFGHI") == "[41 42 43 44 45 46 47 48 49]"
+    assert hexNum(10000) == '[27 10]'
+    assert hexNum(100000) == '[01 86 A0]'
+    assert hexNum(1000000000L) == '[3B 9A CA 00]'
+
+    assert unHexStr(hexStr("ABCDEFGHI")) == "ABCDEFGHI"
+    assert unHexNum(hexNum(10000))  in (10000, 10000L)
+    assert unHexNum(hexNum(100000)) in (100000,100000L)
+    assert unHexNum(hexNum(1000000000L)) == 1000000000L
+    
+    tvRSA()
+    tvAES()
+    tvLIONESS()
 
 #----------------------------------------------------------------------
 # Long keypairs: stored here to avoid regenerating them every time we need

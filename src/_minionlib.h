@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: _minionlib.h,v 1.18 2003/07/14 15:38:50 nickm Exp $ */
+/* $Id: _minionlib.h,v 1.19 2003/10/02 21:46:23 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 
@@ -65,6 +65,7 @@ FUNC_DOC(mm_sha1);
 FUNC_DOC(mm_sha1);
 FUNC_DOC(mm_aes_key);
 FUNC_DOC(mm_aes_ctr128_crypt);
+FUNC_DOC(mm_aes128_block_crypt);
 FUNC_DOC(mm_strxor);
 FUNC_DOC(mm_openssl_seed);
 #ifdef MS_WINDOWS

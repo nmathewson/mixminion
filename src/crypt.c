@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.30 2003/09/04 16:07:05 nickm Exp $ */
+/* $Id: crypt.c,v 1.31 2003/10/02 21:46:23 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -223,6 +223,45 @@ mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 
         if (prng) free(input);
         return output;
+}
+
+const char mm_aes128_block_crypt__doc__[] = 
+"aes128_block_crypt(key, block, encrypt=0) -> result\n\n"
+"For testing only.  Encrypt or decrypt a single RSA block.\n";
+
+PyObject*
+mm_aes128_block_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+        static char *kwlist[] = { "key", "block", "encrypt", NULL };
+        char *input;
+        long inputlen;
+        int encrypt=0;
+        PyObject *result;
+        AES_KEY *aes_key = NULL;        
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict,
+                                         "O&s#|i:aes128_block_crypt", kwlist, 
+                                         aes_arg_convert, &aes_key,
+                                         &input, &inputlen,
+                                         &encrypt))
+                return NULL;
+        
+        if (inputlen != 16) {
+                TYPE_ERR("aes128_block_crypt expected a single block.");
+                return NULL;
+        }
+
+        if (!(result = PyString_FromStringAndSize(NULL, 16))) {
+                PyErr_NoMemory();
+                return NULL;
+        }
+        if (encrypt) {
+                AES_encrypt(input, PyString_AS_STRING(result), aes_key);
+        } else {
+                AES_decrypt(input, PyString_AS_STRING(result), aes_key);
+        }
+
+        return result;
 }
 
 const char mm_strxor__doc__[]=
@@ -849,6 +888,58 @@ mm_RSA_get_public_key(PyObject *self, PyObject *args, PyObject *kwdict)
         return output;
 }
 
+const char mm_RSA_get_private_key__doc__[]=
+"rsa.get_private_key() -> (n,e,d,p,q)\n";
+
+PyObject *
+mm_RSA_get_private_key(PyObject *self, PyObject *args, PyObject *kwdict)
+{
+        /* ???? should be threadified? */
+        static char *kwlist[] = {  NULL };
+
+        RSA *rsa;
+        PyObject *n, *e, *d, *p, *q;
+        PyObject *output;
+
+        n = e = d = p = q = NULL;
+
+        assert(mm_RSA_Check(self));
+        if (!PyArg_ParseTupleAndKeywords(args, kwdict,
+                                         ":get_private_key", kwlist))
+                return NULL;
+
+        rsa = ((mm_RSA*)self)->rsa;
+        if (!rsa->n) { TYPE_ERR("Key has no modulus"); return NULL;}
+        if (!rsa->e) { TYPE_ERR("Key has no e"); return NULL; }
+        if (!rsa->d) { TYPE_ERR("Key has no d"); return NULL; }
+        if (!rsa->p) { TYPE_ERR("Key has no p"); return NULL; }
+        if (!rsa->q) { TYPE_ERR("Key has no q"); return NULL; }
+        output = NULL;
+        if (!(n = bn2pylong(rsa->n))) {
+                PyErr_NoMemory(); goto done;
+        }
+        if (!(e = bn2pylong(rsa->e))) {
+                PyErr_NoMemory(); goto done;
+        }
+        if (!(d = bn2pylong(rsa->d))) {
+                PyErr_NoMemory(); goto done;
+        }
+        if (!(p = bn2pylong(rsa->p))) {
+                PyErr_NoMemory(); goto done;
+        }
+        if (!(q = bn2pylong(rsa->q))) {
+                PyErr_NoMemory(); goto done;
+        }
+        output = Py_BuildValue("OOOOO", n, e, d, p, q);
+ done:
+        if (n) { Py_DECREF(n); }
+        if (e) { Py_DECREF(e); }
+        if (d) { Py_DECREF(d); }
+        if (p) { Py_DECREF(p); }
+        if (q) { Py_DECREF(q); }
+        return output;
+}
+
 const char mm_RSA_get_exponent__doc__[]=
    "rsa.get_exponent() -> e\n";
 
@@ -931,6 +1022,7 @@ static PyMethodDef mm_RSA_methods[] = {
         METHOD(mm_RSA, get_public_key),
         METHOD(mm_RSA, get_exponent),
         METHOD(mm_RSA, PEM_write_key),
+        METHOD(mm_RSA, get_private_key),
         { NULL, NULL }
 };
 

@@ -1,5 +1,5 @@
 /* Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: main.c,v 1.19 2003/07/14 15:38:50 nickm Exp $ */
+/* $Id: main.c,v 1.20 2003/10/02 21:46:23 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should
@@ -29,6 +29,7 @@ static struct PyMethodDef _mixcryptlib_functions[] = {
         ENTRY(sha1),
         ENTRY(aes_key),
         ENTRY(aes_ctr128_crypt),
+        ENTRY(aes128_block_crypt),
         ENTRY(strxor),
         ENTRY(openssl_seed),
         ENTRY(openssl_rand),
