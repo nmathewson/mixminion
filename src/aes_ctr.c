@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: aes_ctr.c,v 1.4 2002/08/12 18:12:24 nickm Exp $ */
+/* $Id: aes_ctr.c,v 1.5 2002/08/15 05:26:08 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is
  * unsuitable because 
@@ -59,7 +59,7 @@ typedef unsigned char u8;
                              ptr[3] = (i>>24) & 0xff; } 
 #define GET_U32(ptr)   GET_U32_cp(((u8*)(ptr)))
 #define SET_U32(ptr,i) SET_U32_cp(((u8*)(ptr)), i)
-#define INCR_U32(ptr, i) { i = GET_U32(ptr); SET_U32(ptr,++i); }
+#define INCR_U32(ptr, i) { i = GET_U32(ptr)+1; SET_U32(ptr,i); }
 #endif
 
 static inline void
