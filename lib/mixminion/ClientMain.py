@@ -71,7 +71,7 @@ class ClientKeyring:
         self.keyring = mixminion.ClientUtils.LazyEncryptedPickled(
             fn, passwordManager, pwdName="ClientKeyring",
             queryPrompt="Enter password for keyring:",
-            newPrompt="keyring",
+            newPrompt="Entrer new keyring password:",
             magic="KEYRING1",
             initFn=lambda:{})
 

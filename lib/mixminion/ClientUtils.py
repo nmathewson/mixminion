@@ -56,12 +56,15 @@ class PasswordManager:
         raise BadPassword()
     def getNewPassword(self, name, prompt):
         self.passwords[name] = self._getNewPassword(name, prompt)
+        return self.passwords[name]
 
 class CLIPasswordManager(PasswordManager):
     def __init__(self):
         PasswordManager.__init__(self)
     def _getPassword(self, name, prompt):
         return getPassword_term(prompt)
+    def _getNewPassword(self, name, prompt):
+        return getNewPassword_term(prompt)
 
 def getPassword_term(prompt):
     """Read a password from the console, then return it.  Use the string
@@ -84,7 +87,6 @@ def getPassword_term(prompt):
         raise UIError("Interrupted")
     if nl: print >>f
     return p
-
 
 def getNewPassword_term(prompt):
     """Read a new password from the console, then return it."""
@@ -203,7 +205,7 @@ class LazyEncryptedPickled:
     def setPassword(self, pwd):
         self.password = pwd
     def save(self):
-        assert self.loaded and self.password
+        assert self.loaded and self.password is not None
         writeEncryptedPickled(self.fname, self.password, self.magic,
                               self.object)
         
