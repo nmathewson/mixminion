@@ -18,10 +18,7 @@ FOR 0.0.1: (The first alpha)
 
 	. Server
 		o Fix bug: delivering self->self.
-		- Actual strategy for reporting exceptions vs
-	   	  user-visible errors.
 		- More explicit overview of queues.
-		- Unit tests for various queues.
 		- Unit tests for modulemanger built-in decoding and delivery.
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
@@ -36,32 +33,30 @@ FOR 0.0.1: (The first alpha)
 		o Test 'address'.
 		o Check whether exit host supports delivery method
 		o Make address support 0xhex:string
-		- Unit tests for MixminionClient
-		*. Test CLI client
+		o Unit tests for MixminionClient
 		- Document it all
 	. Build
-		- Use sane arguments when testing with multiple python versions
 		- Marginal 'make install'
 		- Marginal 'make dist'
-	- Integration testing
-		- Better log messages at all points throughout system.
-		. Fake delivery module for MBOX-less testing of core
-			*. Test fake delivery module
+	. Integration testing
+		o Better log messages at all points throughout system.
+		o Fake delivery module for MBOX-less testing of core
+			o Test fake delivery module
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
-	. MBox module
+	o MBox module
 		o Implement
-		. Test
+		o Test
 		        o Unit tests
-			- Try it out
+			o Try it out
 	. SMTP-Via-Mixmaster module
 		o Implement
 		o Implement address validation so we don't get into trouble.
 		- Document
-		. Test
+		o Test
 		        o Unit tests
-			- Try it out
-	- Refactor.
+			o Try it out
+	. Refactor.
 	        D Rename 'tag' -> 'decoding handle'.
 		o Make tag a separate field rather than a prefix of 'exitInfo'
 			o Implement.
@@ -71,24 +66,50 @@ FOR 0.0.1: (The first alpha)
 		- Disable 'non-state-carrying' reply blocks.  Rename 'stateful'
 		  (non-state-carrying) and 'stateless' (state-carrying) to
 		  something less contradictory
-		- Triage XXXX, FFFF, ???? for 0.0.1
+		o Triage XXXX, FFFF, ???? for 0.0.1
+		- Fix all {XXXX/FFFF/????}001 
+		- Separate package for server code.
 	- Final license
 	- Documentation
+		. Document all modules, functions, fields, globals
+			o BuildMessage
+			- ClientMain
+			- Common
+			- Config
+			- Crypto
+			- HashLog
+			- MMTPClient
+			- MMTPServer
+			- Main
+			- Modules
+			- Packet
+			- PacketHandler
+			- Queue
+			- ServerInfo
+			- ServerMain
+			- __init__
+			- benchmark
+			- test
+			- testSupport
+		- Comment all tricky/long functions
 		- Contributor's guide
 		- Basic HOWTO
 		- Difference between XXXX FFFF ????
 		- Overall design
+		- More readable mixminiond.conf
 	- Patch specification:
 	  	- SPEC comments from code
 		- Incorporate e2e mixminion design
 		- Rename stateful, stateless SURBs
-	- Separate package for server code.
 
 Required for "1.0":
 	 [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
           the first beta.]
 
+	- Better CLIs
+		- Actual strategy for reporting exceptions vs
+	   	  user-visible errors.
 	- Key rotation and expiry
 		- Automatic keygen as needed
 		- Automatic key rotation
@@ -97,27 +118,27 @@ Required for "1.0":
 	- Security
 		- Make createPrivateDirs gripe about group-writable parent
 		  dirs
-		- Make hashlog code use journaling if underlying dbs are
+		o Make hashlog code use journaling if underlying dbs are
 		  unreliable.
 	- Server core
-		- Clean shutdown
+		- Cleaner shutdown
 		- Good reset handling
 		- Drop undeliverable messages in a sane way
 	- Modules and module support
 		- MBOX
 			- Use async or threading to cope with blocking MTAs
 			- Full config validation
-			- Full boilerplate
+			- Full boilerplate text
 		- Move boilerplate into outside files.  Add a generic
 		  'Boilerplate' functionality.
 		- Tell ModuleManager about async code
-		- Support for forking delivery
 		- Real SMTP module
 			- Abuse prevention
+			- Exit filtering support
 			- Support for setting 'Subject' and 'From' lines.
 			- Support multiple exit addresses.
 		- Incoming email gateway
-		- Refactor module manager to do decoding _before_ passing
+		o Refactor module manager to do decoding _before_ passing
 		  payloads to the individual module implementations.
 		- Some notion of 'client modules' would be a good idea.
 		- Put 'address' someplace more reasonable.
@@ -126,7 +147,7 @@ Required for "1.0":
 		- Cap output size to prevent zlib bombing
 	- Configurablity
 	  	- Support for one-side-only MMTP configurations.
-		- Make Mix algorithm configurable
+		- Make batching algorithm configurable
 		o Infer server IP
 		. Freak out properly on missing/unpublishable IP.
 		- Make listening configurable for multiple ports/ips, not
@@ -145,22 +166,24 @@ Required for "1.0":
 		- Generate a reply block
 		- Read message from reply block
 		- Path selection
-			- Understand differing server features
+		        - Automatic path selection
+			. Understand differing server features
 			- Watch out for servers that are really the
 			  same server
 		- Reply to reply block
 		- Examine reply block
 		- Send message to user with known key
-		- Send message to user with known server
+		. Send message to user with known server
 		- Real server directory management
 		- Real PKI
 	        - Queue a bunch of messages at the client level.
+		- Client-side pooling
 	- MMTP / async
 		- Make listen options configurable (backlog, IP)
 		- Code to send junk
 SPEC!!		- Timeout old connections
-		- Test new features
 		- Renegotiate connections
+		- (Make sure sender retries on bogus close)
 		- Session managment and resumption (security issues?)
 		- Tests for all cases:
 			- Junk
@@ -169,19 +192,23 @@ SPEC!!		- Timeout old connections
 			- Bad recipients
 			- Hunt down leaks
 	- Build and install process
-		- Get SSL as needed
+		- Use sane arguments when testing with multiple python versions
+		. Get SSL as needed
 		- Well-tested 'make install'
 		- RPMS, debs, and so on
 		- Make sure we run on solaris and *BSD.
 		- "Somebody" should do a Windows port of the client code
 	- Protocol support
 		- External reply block format
-		- End-to-end payload encryption
-		- Reading messages sent to reply blocks
-		- Correct implementation of stateless reply blocks
+		o End-to-end payload encryption
+		. Reading messages sent to reply blocks
+		. Correct implementation of stateless reply blocks
 SPEC		o Patch to address George's 15August attack
-	- Test on other (non-redhat, non-linux) systems
-	- Tests for CLIs
+	- Testing
+		- Test on other (non-redhat, non-linux) systems
+		- Repeatable CLI tests.
+		        - For client
+			- For server
 	- Directories
 		- ServerInfo: complete validation rules
 		- Implementation for directory servers
@@ -237,4 +264,3 @@ NEEDS TO BE BENCHMARKED
   Local Variables:
   mode:text
   End:
-
