@@ -63,15 +63,16 @@ For 0.0.7:
         o Security
                 X Make createPrivateDirs gripe about group-writable parent
                   dirs.  [Actually, this has been done for a while!]
-        . Large reply messages and efwd messages
-                . Fragment-pool logic for client
+        o Large reply messages and efwd messages
+                o Fragment-pool logic for client
                         o Decoding messages, pooling messages
                         o Inspecting pool state
                         o Extracting reconstructed messages
-                        - Test
+                        o Test
         o Pending bugs from email
                 o Better response to failed bind(2)
                 o Don't make errors kill 'mixminion shell'.
+                o Handle \r\n when decoding stuff.
         - Windows stuff
                 - Must include openssl libs with python-needed installer
                 - Use new version of py2exe

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.132 2004/03/02 07:06:14 nickm Exp $
+# $Id: Common.py,v 1.133 2004/03/06 00:33:09 nickm Exp $
 
 """mixminion.Common
 
@@ -258,10 +258,10 @@ def armorText(s, type, headers=(), base64=1):
     return "".join(result)
 
 # Matches a begin line.
-BEGIN_LINE_RE = re.compile(r'^-----BEGIN ([^-]+)-----[ \t]*$',re.M)
+BEGIN_LINE_RE = re.compile(r'^-----BEGIN ([^-]+)-----[ \t]*\r?$',re.M)
 
 # Matches a header line.
-ARMOR_KV_RE = re.compile(r'([^:\s]+): ([^\n]+)')
+ARMOR_KV_RE = re.compile(r'([^:\s]+): ([^\r\n]+)')
 def unarmorText(s, findTypes, base64=1, base64fn=None):
     """Parse a list of OpenPGP-style ASCII-armored messages from 's',
        and return a list of (type, headers, body) tuples, where 'headers'
@@ -285,7 +285,7 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
             return result
 
         tp = mBegin.group(1)
-        endPat = r"^-----END %s-----[ \t]*$" % tp
+        endPat = r"^-----END %s-----[ \t]*\r?$" % tp
 
         endRE = re.compile(endPat, re.M)
         mEnd = endRE.search(s, mBegin.start())
@@ -317,7 +317,7 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
 
         if base64:
             try:
-                if stringContains(s[idx:endIdx], "\n[...]\n"):
+                if stringContains(s[idx:endIdx], "\n[...]"):
                     raise UIError("Corrupted data: value seems to be truncated by a Mixminion/Mixmaster gateway")
                 value = binascii.a2b_base64(s[idx:endIdx])
             except (TypeError, binascii.Incomplete, binascii.Error), e:
