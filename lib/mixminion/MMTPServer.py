@@ -1,10 +1,10 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.2 2002/06/25 11:41:08 nickm Exp $
+# $Id: MMTPServer.py,v 1.3 2002/06/27 23:32:24 arma Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
    in the Mixminion specification.  It uses a select loop to provide
-   an nonblocking implementation of *both* the client and the server sides
+   a nonblocking implementation of *both* the client and the server sides
    of the protocol.
 
    If you just want to send messages into the system, use MMTPClient.
@@ -163,7 +163,7 @@ class SimpleTLSConnection(Connection):
        a buffer is exhausted.
 
        After leaving states 1,2,3,or 4, the connection's "finished" method
-       is called.  After leaving state 5, the connection's "shutdownFinishied"
+       is called.  After leaving state 5, the connection's "shutdownFinished"
        method is called.
     """
     # Fields:
@@ -172,7 +172,7 @@ class SimpleTLSConnection(Connection):
     #           throw _ml.TLSWantRead or _ml.TLSWantWrite.
     #    __server: an AsyncServer.
     #    __inbuf: A list of strings that we've read since the last expectRead. 
-    #    __inbuflen: The total length of alll the strings in __inbuf
+    #    __inbuflen: The total length of all the strings in __inbuf
     #    __expectReadLen: None, or the number of bytes to read before
     #           the current read succeeds.
     #    __maxReadLen: None, or a number of bytes above which the current

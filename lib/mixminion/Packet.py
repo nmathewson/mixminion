@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.3 2002/06/25 11:41:08 nickm Exp $
+# $Id: Packet.py,v 1.4 2002/06/27 23:32:24 arma Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -310,7 +310,7 @@ def parseIPV4Info(s):
 class IPV4Info:
     """An IPV4Info object represents the routinginfo for a FWD or SWAP_FWD hop.
 
-       Fields: ip (a dotted quad), port (an int from 0..65535), and keyinfo
+       Fields: ip (a dotted quad string), port (an int from 0..65535), and keyinfo
        (a digest)."""
     def __init__(self, ip, port, keyinfo):
         """Construct a new IPV4Info"""

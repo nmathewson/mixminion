@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.4 2002/06/24 20:28:18 nickm Exp $
+# $Id: setup.py,v 1.5 2002/06/27 23:32:18 arma Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -53,7 +53,7 @@ elif little_endian:
 elif other_endian:
     print "Wild!  Your machine seems to be middle-endian, and yet you've"
     print "somehow made it run Python.  Despite your perversity, I admire"
-    print "your neve, and will try to soldier on."
+    print "your nerve, and will try to soldier on."
     MACROS.append( ("MM_O_ENDIAN", 1)  )
 
 #======================================================================

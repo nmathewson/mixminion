@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.5 2002/06/25 11:41:08 nickm Exp $
+# $Id: HashLog.py,v 1.6 2002/06/27 23:32:24 arma Exp $
 
 """mixminion.HashLog
 
@@ -17,7 +17,7 @@ class HashLog:
        already processed.
 
        Each HashLog corresponds to a single public key (whose hash is the
-       log's keyid.  A HashLog must persist for as long as the key does.
+       log's keyid).  A HashLog must persist for as long as the key does.
 
        It is not necessary to sync the HashLog to the disk every time a new
        message is seen; rather, the HashLog must be synced before any messages

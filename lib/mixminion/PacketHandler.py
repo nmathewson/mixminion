@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.3 2002/06/25 11:41:08 nickm Exp $
+# $Id: PacketHandler.py,v 1.4 2002/06/27 23:32:24 arma Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -19,7 +19,7 @@ class PacketHandler:
        it removes one layer of encryption, does all necessary integrity
        checks, swaps headers if necessary, re-pads, and decides whether
        to drop the message, relay the message, or send the message to
-       an exist handler."""
+       an exit handler."""
     
     def __init__(self, privatekey, hashlog):
         """Constructs a new packet handler, given a private key object for
@@ -43,7 +43,7 @@ class PacketHandler:
         """Given a 32K mixminion message, processes it completely.
 
            Returns one of:
-                    None [if the mesesage should be dropped.
+                    None [if the mesesage should be dropped.]
                     ("EXIT",
                        (routing_type, routing_info, application_key,
                         payload)) [if this is the exit node]
@@ -55,7 +55,7 @@ class PacketHandler:
            unhandleable.
 
            WARNING: This implementation does nothing to prevent timing
-           attacks: dropped messages, messages with digests, replayed
+           attacks: dropped messages, messages with bad digests, replayed
            messages, and exit messages are all processed faster than
            forwarded messages.  You must prevent timing attacks elsewhere."""
 

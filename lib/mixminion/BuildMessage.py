@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.7 2002/06/25 11:41:07 nickm Exp $
+# $Id: BuildMessage.py,v 1.8 2002/06/27 23:32:24 arma Exp $
 
 """mixminion.BuildMessage
 
@@ -18,9 +18,9 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2):
     """Construct a forward message.
             payload: The payload to deliver.
             exitType: The routing type for the final node
-            exitType: The routing info for the final node
+            exitInfo: The routing info for the final node
             path1: Sequence of ServerInfo objects for the first leg of the path
-            path1: Sequence of ServerInfo objects for the 2nd leg of the path
+            path2: Sequence of ServerInfo objects for the 2nd leg of the path
     """
     return _buildMessage(payload, exitType, exitInfo, path1, path2)
 
@@ -38,7 +38,7 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None):
               path: A list of ServerInfo
               exitType: Routing type to use for the final node
               exitInfo: Routing info for the final node
-              expiryTime: The time at which this block should expirt.
+              expiryTime: The time at which this block should expire.
               secretPRNG: A PRNG to use for generating secrets.  If not
                  provided, uses an AES counter-mode stream seeded from our
                  entropy source.
@@ -68,7 +68,7 @@ def buildStatelessReplyBlock(path, user, userKey, email=0, expiryTime=0):
        their anonymity can be completely broken.
 
                   path: a list of ServerInfo objects
-                  user: the users username/email address
+                  user: the user's username/email address
                   userKey: an AES key to encrypt the seed, or None.
                   email: If true, delivers via SMTP; else delivers via LOCAL.
        """
@@ -136,7 +136,7 @@ def _buildMessage(payload, exitType, exitInfo,
     else:
         secretRNG = paddingPRNG
 
-    # Determine exit routing for path1 and path2.
+    # Determine exit routing for path1.
     if reply:
         path1exittype = reply.routingType
         path1exitinfo = reply.routingInfo
@@ -153,7 +153,7 @@ def _buildMessage(payload, exitType, exitInfo,
     secrets1 = [ secretRNG.getBytes(SECRET_LEN) for _ in path1 ]
     
     if path2:
-        # Make secrets for header 2, and construct header 2.  We do the before
+        # Make secrets for header 2, and construct header 2.  We do this before
         # making header1 so that our rng won't be used for padding yet.
         secrets2 = [ secretRNG.getBytes(SECRET_LEN) for _ in range(len(path2))]
         header2 = _buildHeader(path2,secrets2,exitType,exitInfo,paddingPRNG)
@@ -171,8 +171,8 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     """Helper method to construct a single header.
            path: A sequence of serverinfo objects.
            secrets: A list of 16-byte strings to use as master-secrets for
-               each of the subeaders.
-           exitType: The routing for the last node in the header
+               each of the subheaders.
+           exitType: The routing type for the last node in the header
            exitInfo: The routing info for the last node in the header
            paddingPRNG: A pseudo-random number generator to generate padding
     """
@@ -189,9 +189,9 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     # sizes[i] is size, in blocks, of subheaders for i.
     sizes =[ getTotalBlocksForRoutingInfoLen(len(ri)) for _, ri in routing]
     
-    # totalSize is number total number of blocks.
+    # totalSize is the total number of blocks.
     totalSize = reduce(operator.add, sizes)
-    if totalSize * ENC_SUBHEADER_LEN >  HEADER_LEN:
+    if totalSize * ENC_SUBHEADER_LEN > HEADER_LEN:
         raise MixError("Routing info won't fit in header")
 
     # headerKey[i]==the AES key object node i will use to decrypt the header
