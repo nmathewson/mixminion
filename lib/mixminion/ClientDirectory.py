@@ -303,8 +303,7 @@ class FSBackedDescriptorSource(DescriptorSource):
             return
         for fname in badFnames.keys():
             tryUnlink(os.path.join(self.directory, fname))
-        for b in badFnames:
-            del self.servers[b]
+            del self.servers[fname]
         self._changed = 1
 
     def __getstate__(self):
