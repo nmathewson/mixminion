@@ -28,14 +28,13 @@ For 0.0.5:
                 - Start win32 port
                 o Twisted port decision
                 - Website, FAQ
-        . Initial support for email headers (server side)
+        o Initial support for email headers (server side)
                 o Subject
                 o From (limited)
                 o In-Reply-To
                 o References
-                - MBOX support
-                . Tests
-                        - MBOX
+                o MBOX support
+                o Tests
         . Initial support for email headers (client side)
                 o Implement
                 - Give error messages on bad headers

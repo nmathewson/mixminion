@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.46 2003/06/30 17:33:33 nickm Exp $
+# $Id: Modules.py,v 1.47 2003/07/07 19:27:15 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -600,7 +600,38 @@ class EmailAddressSet:
         return 0
 
 #----------------------------------------------------------------------
-class MBoxModule(DeliveryModule):
+class MailBase:
+    """DOCDOC"""
+    def _formatEmailMessage(self, address, packet):
+        """DOCDOC"""
+        #DOCDOC implied fields
+        #   subject, fromTag, returnAddress, header
+
+        headers = packet.getHeaders()
+        subject = headers.get("SUBJECT", self.subject)
+        fromAddr = headers.get("FROM")
+        if fromAddr:
+            fromAddr = '"%s %s" <%s>' % (self.fromTag, fromAddr,
+                                         self.returnAddress)
+        else:
+            fromAddr = self.returnAddress
+
+        morelines = []
+        if headers.has_key("IN-REPLY-TO"):
+            morelines.append("In-Reply-To: %s\n" % headers['IN-REPLY-TO'])
+        if headers.has_key("REFERENCES"):
+            morelines.append("References: %s\n" % headers['REFERENCES'])
+
+        # Decode and escape the message, and get ready to send it.
+        msg = _escapeMessageForEmail(packet)
+        msg = "To: %s\nFrom: %s\nSubject: %s\n%s%s\n\n%s"%(
+            address, fromAddr, subject, "".join(morelines), self.header, msg)
+
+        return msg
+
+
+#----------------------------------------------------------------------
+class MBoxModule(DeliveryModule, MailBase):
     """Implementation for MBOX delivery: sends messages, via SMTP, to
        addresses from a local file.  The file must have the format
           addr: smtpaddr
@@ -678,6 +709,17 @@ class MBoxModule(DeliveryModule):
             self.nickname = socket.gethostname()
         self.addr = config['Incoming/MMTP'].get('IP', "<Unknown IP>")
 
+        # These fields are needed by MailBase
+        self.subject = "Type III Anonymous Message"
+        self.fromTag = "[Anon]"
+        self.header = """\
+X-Anonymous: yes
+
+THIS IS AN ANONYMOUS MESSAGE.  The mixminion server '%s' at
+%s has been configured to deliver messages to your address.
+If you do not want to receive messages in the future, contact %s
+and you will be removed.""" %(self.nickname, self.addr, self.contact)
+
         # Parse the address file.
         self.addresses = {}
         f = open(self.addressFile)
@@ -727,34 +769,14 @@ class MBoxModule(DeliveryModule):
             LOG.error("Unknown MBOX user %r", info.user)
             return DELIVER_FAIL_NORETRY
 
-        # Escape the message if it isn't plaintext ascii
-        msg = _escapeMessageForEmail(packet)
-
-        # Generate the boilerplate (FFFF Make this configurable)
-        fields = { 'user': address,
-                   'return': self.returnAddress,
-                   'nickname': self.nickname,
-                   'addr': self.addr,
-                   'contact': self.contact,
-                   'msg': msg }
-        msg = """\
-To: %(user)s
-From: %(return)s
-Subject: Type III anonymous message
-X-Anonymous: yes
-
-THIS IS AN ANONYMOUS MESSAGE.  The mixminion server '%(nickname)s' at
-%(addr)s has been configured to deliver messages to your address.
-If you do not want to receive messages in the future, contact %(contact)s
-and you will be removed.
-
-%(msg)s""" % fields
+        # Generate the boilerplate (FFFF Make this more configurable)
+        msg = self._formatEmailMessage(address, packet)
 
         # Deliver the message
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
 #----------------------------------------------------------------------
-class SMTPModule(DeliveryModule):
+class SMTPModule(DeliveryModule, MailBase):
     """Placeholder for real exit node implementation.
        For now, use MixmasterSMTPModule"""
     def __init__(self):
@@ -765,31 +787,6 @@ class SMTPModule(DeliveryModule):
         return "SMTP"
     def getExitTypes(self):
         return [ mixminion.Packet.SMTP_TYPE ]
-    def _formatSMTPMessage(self, address, packet):
-        """DOCDOC"""
-        #DOCDOC implied fields
-
-        headers = packet.getHeaders()
-        subject = headers.get("SUBJECT", self.subject)
-        fromAddr = headers.get("FROM")
-        if fromAddr:
-            fromAddr = '"%s %s" <%s>' % (self.fromTag, fromAddr,
-                                         self.returnAddress)
-        else:
-            fromAddr = self.returnAddress
-
-        morelines = []
-        if headers.has_key("IN-REPLY-TO"):
-            morelines.append("In-Reply-To: %s\n" % headers['IN-REPLY-TO'])
-        if headers.has_key("REFERENCES"):
-            morelines.append("References: %s\n" % headers['REFERENCES'])
-
-        # Decode and escape the message, and get ready to send it.
-        msg = _escapeMessageForEmail(packet)
-        msg = "To: %s\nFrom: %s\nSubject: %s\n%s%s\n\n%s"%(
-            address, fromAddr, subject, "".join(morelines), self.header, msg)
-
-        return msg
 
 class DirectSMTPModule(SMTPModule):
     """Module that delivers SMTP messages via a local MTA."""
@@ -882,7 +879,7 @@ class DirectSMTPModule(SMTPModule):
             LOG.warn("Dropping message to blacklisted address %r", address)
             return DELIVER_FAIL_NORETRY
 
-        msg = self._formatSMTPMessage(address, packet)
+        msg = self._formatEmailMessage(address, packet)
         # Send the message.
         return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
 
@@ -967,7 +964,7 @@ class MixmasterSMTPModule(SMTPModule):
                      packet.getAddress())
             return DELIVER_FAIL_NORETRY
 
-        msg = self._formatSMTPMessage(info.email, packet)
+        msg = self._formatEmailMessage(info.email, packet)
         handle = self.tmpQueue.queueMessage(msg)
 
         cmd = self.command

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.129 2003/07/07 18:55:15 nickm Exp $
+# $Id: test.py,v 1.130 2003/07/07 19:27:15 nickm Exp $
 
 """mixminion.tests
 
@@ -4575,7 +4575,7 @@ mixdiddy=mixminion@theotherhost
 MBOX_EXPECTED_MESSAGE = """\
 To: mixminion@theotherhost
 From: returnaddress@x
-Subject: Type III anonymous message
+Subject: Type III Anonymous Message
 X-Anonymous: yes
 
 THIS IS AN ANONYMOUS MESSAGE.  The mixminion server 'nickname' at
