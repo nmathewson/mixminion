@@ -1,6 +1,6 @@
 #!/usr/bin/python
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.23 2003/01/05 12:35:19 nickm Exp $
+# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: setup.py,v 1.24 2003/01/05 13:16:37 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we

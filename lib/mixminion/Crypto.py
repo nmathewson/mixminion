@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.33 2003/01/03 08:25:47 nickm Exp $
+# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: Crypto.py,v 1.34 2003/01/05 13:16:38 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required

@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.31 2003/01/05 06:49:25 nickm Exp $
+# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: BuildMessage.py,v 1.32 2003/01/05 13:16:38 nickm Exp $
 
 """mixminion.BuildMessage
 

@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.62 2003/01/05 12:36:23 nickm Exp $
+# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: test.py,v 1.63 2003/01/05 13:16:38 nickm Exp $
 
 """mixminion.tests
 

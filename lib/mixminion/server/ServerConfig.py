@@ -1,5 +1,5 @@
-# Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.10 2003/01/05 06:49:25 nickm Exp $
+# Copyright 2003-2003 Nick Mathewson.  See LICENSE for licensing information.
+# $Id: ServerConfig.py,v 1.11 2003/01/05 13:16:38 nickm Exp $
 
 """Configuration format for server configuration files.
 
