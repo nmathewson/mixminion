@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.26 2003/05/05 00:38:46 nickm Exp $
+# $Id: MMTPServer.py,v 1.27 2003/05/05 02:52:01 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -414,8 +414,6 @@ class SimpleTLSConnection(Connection):
             warn("Socket %s to %s timed out", self.fd, self.address)
             # ????     I'm not sure this is right.  Instead of just killing
             # ???? the socket, should we shut down the SSL too?
-            # ????     Also, should we handle timeout as a separate kind of
-            # ???? error from a hooks point of view.
             self.__server.unregister(self)
             self.__state = None
             self.__sock.close()
@@ -673,13 +671,16 @@ class MMTPClientConnection(SimpleTLSConnection):
               whenever a message is successfully sent.
            failCallback -- None, or a function of (msg, handle, retriable)
               to be called when messages can't be sent.
-              DOCDOC certcache,finishedCallback"""
+              DOCDOC certcache,finishedCallback
+
+              DOCDOC lengths of handles and messsages are equal."""
 
         # Generate junk before connecting to avoid timing attacks
         self.junk = [] #DOCDOC doc this field.
-        for m in messageList:
-            if m == 'JUNK':
-                self.junk.append(getCommonPRNG().getBytes(MESSAGE_LEN))
+        self.messageList = []
+        self.handleList = []
+
+        self.addMessages(messageList, handleList)
 
         if certCache is None:
             certCache = PeerCertificateCache()
@@ -701,18 +702,21 @@ class MMTPClientConnection(SimpleTLSConnection):
         tls = context.sock(sock)
 
         SimpleTLSConnection.__init__(self, sock, tls, 0, "%s:%s"%(ip,port))
-        self.messageList = messageList[:]
-        self.handleList = handleList[:]
         self.finished = self.__setupFinished
         self.sentCallback = sentCallback
         self.failCallback = failCallback
         self.finishedCallback = finishedCallback #DOCDOC
         self.protocol = None
+        self._curMessage = self._curHandle = None#DOCDOC
 
         debug("Opening client connection (fd %s)", self.fd)
 
     def addMessages(self, messages, handles):
         "DOCDOC"
+        assert len(messages) == len(handles)
+        for m,h in zip(messages, handles):
+            if m in ("JUNK", "RENEGOTIATE"):
+                assert h is None
         for m in messages:
             if m == "JUNK":
                 self.junk.append(getCommonPRNG().getBytes(MESSAGE_LEN))
@@ -771,14 +775,16 @@ class MMTPClientConnection(SimpleTLSConnection):
         if not self.messageList:
             self.shutdown(0)
             return
-        msg = self.messageList[0]
+
+        msg = self._curMessage = self.messageList[0]
+        handle = self._curHandle = self.handleList[0]
+        del self.messageList[0]
+        del self.handleList[0]
         if msg == 'RENEGOTIATE':
-            del self.messageList[0]
             self.finished = self.beginNextMessage
             self.startRenegotiate()
             return
         elif msg == 'JUNK':
-            del self.messageList[0]
             msg = self.junk[0]
             del self.junk[0]
             self.expectedDigest = sha1(msg+"RECEIVED JUNK")
@@ -827,22 +833,27 @@ class MMTPClientConnection(SimpleTLSConnection):
            debug("Received valid ACK for message from %s", self.address)
 
        if not self.isJunk:
-           justSent = self.messageList[0]
-           justSentHandle = self.handleList[0]
-           del self.messageList[0]
-           del self.handleList[0]
            if not rejected and self.sentCallback is not None:
-               self.sentCallback(justSent, justSentHandle)
+               self.sentCallback(self._curMessage, self._curHandle)
            elif rejected and self.failCallback is not None:
-               self.failCallback(justSent, justSentHandle, retriable=1)
+               self.failCallback(self._curMessage, self._curHandle,
+                                 retriable=1)
+
+       self._curMessage = self._curHandle = None
 
        self.beginNextMessage()
 
     def handleFail(self, retriable):
         """Invoked when a message is not deliverable."""
         if self.failCallback is not None:
+            if self._curHandle is not None:
+                self.failCallback(self._curMessage, self._curHandle, retriable)
             for msg, handle in zip(self.messageList, self.handleList):
+                if handle is None:
+                    continue
                 self.failCallback(msg,handle,retriable)
+        self._messageList = self.handleList = []
+
         if self.finishedCallback is not None:
             self.finishedCallback()
             
@@ -916,6 +927,9 @@ class MMTPAsyncServer(AsyncServer):
         """Begin sending a set of messages to a given server."""
         # ???? Can we remove these asserts yet?
         for m,h in zip(messages, handles):
+            if m in ("JUNK", "RENEGOTIATE"):
+                assert h is None
+                continue
             assert len(m) == MESSAGE_LEN
             assert len(h) < 32
 
