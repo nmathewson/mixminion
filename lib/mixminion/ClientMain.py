@@ -1236,7 +1236,8 @@ def runClient(cmd, args):
 
         try:
             if inFile == '-':
-                print "Enter your message now.  Type %s when you are done."%(
+                if os.isatty(sys.stdin.fileno()):
+                    print "Enter your message.  Type %s when you are done."%(
                         EOF_STR)
                 message = sys.stdin.read()
             else:
