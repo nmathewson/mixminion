@@ -106,6 +106,8 @@ Require for "0.1.0" (the in-theory-as-good-as-type-II release):
                         - Support multiple exit addresses. (cc, bcc, etc.)
                           Needs to be bandwidth-limited.
                 - Support NEWS
+                - Use a 'sendmail'-like program instead of a SMTP server,
+                  optionally.
         - End-to-end issues
                 - Minimal MIME support: allow headers; don't attempt to
                   enforce a single-best format.
