@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.45 2003/02/13 17:22:58 nickm Exp $
+# $Id: setup.py,v 1.46 2003/02/13 23:10:25 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -153,18 +153,21 @@ if initCorrected != initFile:
 try:
     import unittest
 except:
-    shutil.copy("contrib/unittest.py", "lib/mixminion/_unittest.py")
+    if not os.path.exists("lib/mixminion/_unittest.py"):
+        shutil.copy("contrib/unittest.py", "lib/mixminion/_unittest.py")
 
 # Install textwrap if Python doesn't provide it. (This goes for all python<2.3)
 try:
     import textwrap
 except:
-    shutil.copy("contrib/textwrap.py", "lib/mixminion/_textwrap.py")
+    if not os.path.exists("lib/mixminion/_textwrap.py"):
+        shutil.copy("contrib/textwrap.py", "lib/mixminion/_textwrap.py")
 
 # If we have a version of Python older than 2.2, we can't do bounded-space
 # decompression without magic.  That magic is written by Zooko.
 if sys.version_info[:3] < (2,2,0):
-    shutil.copy("contrib/zlibutil.py", "lib/mixminion/_zlibutil.py")
+    if not os.path.exists("lib/mixminion/_zlibutil.py"):
+        shutil.copy("contrib/zlibutil.py", "lib/mixminion/_zlibutil.py")
 
 #======================================================================
 # Detect endian-ness
