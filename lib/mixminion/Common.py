@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.25 2002/11/22 00:15:07 nickm Exp $
+# $Id: Common.py,v 1.26 2002/12/02 03:21:54 nickm Exp $
 
 """mixminion.Common
 
@@ -7,7 +7,7 @@
 
 __all__ = [ 'MixError', 'MixFatalError', 'onReset', 'onTerminate',
             'installSignalHandlers', 'secureDelete', 'secureRename',
-            'ceilDiv', 'floorDiv', 'getLog' ]
+            'ceilDiv', 'floorDiv', 'getLog', 'stringContains' ]
 
 import os
 import signal
@@ -51,6 +51,19 @@ def floorDiv(a,b):
 def ceilDiv(a,b):
     "Compute ceil(a / b). See comments for portability notes."
     return divmod(a-1,b)[0]+1
+
+#----------------------------------------------------------------------
+
+# We create an alias to make the intent of substring-checking code
+# more explicit.  It's a bit easier to remember "stringContains(s1,
+# s2)" than "s1.find(s2)!=-1".
+#
+# Note that if s2 is a single character, "s2 in s1" works fine.  Also,
+# starting with Python 2.3, the single-caracter restiction is gone.
+def stringContains(s1, s2):
+    """Return true iff s2 is contained within s1; that is, for some i,
+       s1[i:i+len(s2)] == s2"""
+    return s1.find(s2) != -1
 
 #----------------------------------------------------------------------
 def createPrivateDir(d, nocreate=0):
