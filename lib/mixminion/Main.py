@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.64 2003/11/28 04:14:04 nickm Exp $
+# $Id: Main.py,v 1.65 2003/12/08 06:34:58 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -234,7 +234,7 @@ def commandShell(cmd,args):
             continue
         command = words[0]
         args = words[1:]
-        if command == 'exit':
+        if command == 'exit' or command == 'quit':
             sys.exit(0)
         try:
             #print "calling main with",[sys.argv[0]]+words
