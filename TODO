@@ -1,196 +1,213 @@
 Legend:
-SPEC!!	- Not specified
-SPEC	- Spec not finalized
-	- Not done
-	* Top priority
-	. Partially done
-	o Done
-	D Deferred
-	X Abandoned
+SPEC!!  - Not specified
+SPEC    - Spec not finalized
+        - Not done
+        * Top priority
+        . Partially done
+        o Done
+        D Deferred
+        X Abandoned
 
 NEEDS TO BE WRITTEN
 
 For 0.0.3:
-	- Client support for reply blocks.
-	- ????
+        - Client support for reply blocks.
+        - Better command breakdown for pulling directories.
+        - Saner retry logic
+        - Consider linewrap protection on server descriptors, if demand
+          warrants.
+        - Uninstall support?
+        - Statistics of some kind
+        - Good user error reporting strategy.
+        - Faster (adjustable?) timeout on client connect failure.
+        - 
+        - ????
 
 Required for "1.0":
-	 [These features must be in place before we can take the system out
+         [These features must be in place before we can take the system out
           of alpha.  We'll do a series of point releases between 0.0.1 and
           the first beta.]
 
-	- Better CLIs
-		- Actual strategy for reporting exceptions vs
-	   	  user-visible errors.
-	        - Add another level of CLI commands. (E.g., mixminion server
-		  keygen, mixminion client send, etc.)
-	- Key rotation and expiry
-		- Automatic keygen as needed
-		- Automatic key rotation
-		- Password-protected private identity keys
-		- Password-protected private link/packet keys
-		- Password-protect dirserver keys
-	- Security
-		- Make createPrivateDirs gripe about group-writable parent
-		  dirs
-		o Make hashlog code use journaling if underlying dbs are
-		  unreliable.
-	- Performance:
-		- Directory servers should cache intermediate information
-		- The server's control structures need to change to
-		  avoid latency problems.
-	- Server core
-		- Cleaner shutdown
-		- Good reset handling
-		- Drop undeliverable messages in a sane way
-	- Modules and module support
-		- MBOX
-			- Use async or threading to cope with blocking MTAs
-			- Full config validation
-			- Full boilerplate text
-		- Use ESMTP as available
-		- Move boilerplate into outside files.  Add a generic
-		  'Boilerplate' functionality.
-		- Tell ModuleManager about async code
-		- Real SMTP module
-			- Abuse prevention
-			- Support for setting 'Subject' and 'From' lines.
-			- Support multiple exit addresses.
-		- Incoming email gateway
-		o Refactor module manager to do decoding _before_ passing
-		  payloads to the individual module implementations.
-		- Some notion of 'client modules' would be a good idea.
-		- Put 'address' someplace more reasonable.
-	- End-to-end issues
-	        - K-of-N fragmentation and reassembly
-		- Make zlib bomb prevention configurable.
-	- Configurability
-	  	- Support for one-side-only MMTP configurations.
-		- Add 'ALLOW' lines to blacklist.
-		o Make batching algorithm configurable
-		o Infer server IP
-		. Freak out properly on missing/unpublishable IP.
-		- Make all filenames in server config relative to
-		  server home
-		- Directory generation should be configurable somehow.
-		- Make listening configurable for multiple ports/ips, not
-		  all of which need be published.  Perhaps allow different
-		  rules for each listener.
-		. Full validation function for client
-		. Full validation function for server
-		- Ability to disable directory paranoia.
-		- Make 'push' and 'retry' delivery rates independant and
-		  module-adjustable
-		- Make 'drop undeliverable' rate configurable.
-		- Implement allow/deny code
-		- Make server gripe loudly when config doesn't match published
-		  serverinfo.
-	- Client support
-		- Support to remove servers from imported directory,
-	 	  or to block servers from directory.
-	  	- Generate (but don't send) a message
-		- Generate a reply block
-		- Read message from reply block
-		- Check paths before reading from stdin.
-		- Path selection
-		        o Automatic path selection
-			. Understand differing server features
-			- Watch out for servers that are really the
-			  same server
-			o Notice servers that don't support MMTP, or
-			  don't relay.
-			- Notice Allow/Deny.
-			o Ability to specify only last hop.
-		- Reply to reply block
-		- Examine reply block
-		- Send message to user with known key
-		o Send message to user with known server
-		o Real server directory management
-		- Real PKI
-	        - Queue a bunch of messages at the client level.
-		- Client-side pooling
-	- MMTP / async
-		- Make listen options configurable (backlog, IP)
-		- Code to send junk (connection padding)
-		o Timeout old connections
-		- Timeout connections more aggressively under higher load.
-		- Renegotiate connections
-		- (Make sure sender retries on bogus close)
-		- Session managment and resumption (security issues?)
-		- Tests for all cases:
-			- Junk
-			- Multiple senders
-			- Bad senders
-			- Bad recipients
-			- Hunt down leaks
-	- Build and install process
-	  	o The version string should be given in only one place
-		o Use sane arguments when testing with multiple python versions
-		o Get SSL as needed
-		. Well-tested 'make install'
-		- RPMS, debs, and so on
-		. Make sure we run on solaris and *BSD.
-		- "Somebody" should do a Windows port of the client code
-		- An init.d script.
-	- Protocol support
-		- External reply block format
-		o End-to-end payload encryption
-		o Reading messages sent to reply blocks
-		o Correct implementation of stateless reply blocks
-SPEC		o Patch to address George's 15August attack
-	- Testing
-		- Test on other (non-redhat, non-linux) systems
-		- Integration tests
-			- Automated tests for several servers running
-		          on one machine.
-			- Tests for servers on several different
-		          machines.
-		- Repeatable CLI tests.
-		        - For client
-			- For server
-	- Directories
-		- Publishing to directory servers
-			- Support
-		 	- Automation
-		- Downloading from directory servers
-			- Support
-			- Automation
-		- Autonomous directory server
-		- Configurable dirserver fingerprints and URLs.
-	- Full documentation
-		- Complete docs for all code, with comments and examples.
-		- Write guide for module developers
-		- Write complete user's manual
-		- Complete all other docs
-		- History.
+        - Better CLIs
+                - Actual strategy for reporting exceptions vs
+                  user-visible errors.
+                - Add another level of CLI commands. (E.g., mixminion server
+                  keygen, mixminion client send, etc.)
+        - Key rotation and expiry
+                - Generate new serverdesc with old keys.
+                - Automatic keygen as needed
+                - Automatic key rotation
+                - Password-protected private identity keys
+                - Password-protected private link/packet keys
+                - Password-protect dirserver keys
+        - Security
+                - Make createPrivateDirs gripe about group-writable parent
+                  dirs
+                o Make hashlog code use journaling if underlying dbs are
+                  unreliable.
+        - Performance:
+                - Directory servers should cache intermediate information
+                - The server's control structures need to change to
+                  avoid latency problems.
+        - Server core
+                - Cleaner shutdown on TERM.
+                - Good reset handling
+                - Drop undeliverable messages in a sane way
+        - Modules and module support
+                - MBOX
+                        - Use async or threading to cope with blocking MTAs
+                        - Full config validation
+                        - Full boilerplate text
+                - Use ESMTP as available
+                - Move boilerplate into outside files.  Add a generic
+                  'Boilerplate' functionality.
+                - Tell ModuleManager about async code
+                - Real SMTP module
+                        - Abuse prevention
+                        - Support for setting 'Subject' and 'From' lines.
+                        - Support multiple exit addresses.
+                - Incoming email gateway
+                o Refactor module manager to do decoding _before_ passing
+                  payloads to the individual module implementations.
+                - Some notion of 'client modules' would be a good idea.
+                - Put 'address' someplace more reasonable.
+        - End-to-end issues
+                - K-of-N fragmentation and reassembly
+                - Make zlib bomb prevention configurable.
+        - Configurability
+                - Support for http proxies.
+                - Put pid and lock and key and queues in different places.
+                - Relative paths all throughout config files.
+                - Support for one-side-only MMTP configurations.
+                - Add 'ALLOW' lines to blacklist.
+                o Make batching algorithm configurable
+                o Infer server IP
+                . Freak out properly on missing/unpublishable IP.
+                - Make all filenames in server config relative to
+                  server home
+                - Directory generation should be configurable somehow.
+                - Make listening configurable for multiple ports/ips, not
+                  all of which need be published.  Perhaps allow different
+                  rules for each listener.
+                . Full validation function for client
+                . Full validation function for server
+                - Ability to disable directory paranoia.
+                - Make 'push' and 'retry' delivery rates independant and
+                  module-adjustable
+                - Make 'drop undeliverable' rate configurable.
+                - Implement allow/deny code
+                - Make server gripe loudly when config doesn't match published
+                  serverinfo.
+        - Client support
+                - Support to remove servers from imported directory,
+                  or to block servers from directory.
+                - Generate (but don't send) a message
+                - Generate a reply block
+                - Read message from reply block
+                - Check paths before reading from stdin.
+                - Path selection
+                        o Automatic path selection
+                        . Understand differing server features
+                        - Watch out for servers that are really the
+                          same server
+                        o Notice servers that don't support MMTP, or
+                          don't relay.
+                        - Notice Allow/Deny.
+                        o Ability to specify only last hop.
+                - Reply to reply block
+                - Examine reply block
+                - Send message to user with known key
+                o Send message to user with known server
+                o Real server directory management
+                - Real PKI
+                - Queue a bunch of messages at the client level.
+                - Client-side pooling
+        - MMTP / async
+                - "IP" belongs in the MMTP part of the server descriptor.
+                - Make listen options configurable (backlog, IP)
+                - Code to send junk (connection padding)
+                o Timeout old connections
+                - Timeout connections more aggressively under higher load.
+                - Renegotiate connections
+                - (Make sure sender retries on bogus close)
+                - Session managment and resumption (security issues?)
+                - Bandwidth throttling
+                - Tests for all cases:
+                        - Junk
+                        - Multiple senders
+                        - Bad senders
+                        - Bad recipients
+                        - Hunt down leaks
+        - Build and install process
+                o The version string should be given in only one place
+                o Use sane arguments when testing with multiple python versions
+                o Get SSL as needed
+                . Well-tested 'make install'
+                - RPMS, debs, and so on
+                . Make sure we run on solaris and *BSD.
+                - "Somebody" should do a Windows port of the client code
+                - An init.d script.
+        - Protocol support
+                - External reply block format
+                o End-to-end payload encryption
+                o Reading messages sent to reply blocks
+                o Correct implementation of stateless reply blocks
+SPEC            o Patch to address George's 15August attack
+        - Testing
+                - Test on other (non-redhat, non-linux) systems
+                - Tests for nickname casei.
+                - Integration tests
+                        - Automated tests for several servers running
+                          on one machine.
+                        - Tests for servers on several different
+                          machines.
+                - Repeatable CLI tests.
+                        - For client
+                        - For server
+        - Directories
+                - Publishing to directory servers
+                        - Support
+                        - Automation
+                - Downloading from directory servers
+                        - Support
+                        - Automation
+                - Autonomous directory server
+                - Configurable dirserver fingerprints and URLs.
+        - Full documentation
+                - Complete docs for all code, with comments and examples.
+                - Write guide for module developers
+                - Write complete user's manual
+                - Complete all other docs
+                - History.
 
 
 Unspecified:
-	[We don't have any specification for this functionality, or any
-	 mandate to include it in 1.0.  If it's specified before 1.0 is
-	 done, however, it should go in.]
+        [We don't have any specification for this functionality, or any
+         mandate to include it in 1.0.  If it's specified before 1.0 is
+         done, however, it should go in.]
 
-	- Generate link padding
-	- Generate dummy messages
-	- IPv6 support.
-	- Support for multiple directory servers
+        - Generate link padding
+        - Generate dummy messages
+        - IPv6 support.
+        - Support for multiple directory servers
+        - Bodies for dummy messages?
 
 WHEN WE GET THE CHANCE:
-	[This stuff could be for any version 1.0 or later; it's not a
- 	 requirement for 1.0.]
-	- License-friendliness:
-		- Switch from OpenSSL to NSS or GNUTLS
-	- GUI
-	- Multithreaded design to scale to multiple CPUs
-	- Security
-		- Memlockall wrapper
-		- Generic secure delete
-		- Support for loopback fs automation and shredding.
-	- Portability
-		- Server running on windows.
-	- Time the rest of the system
-	- Make DB module choice configurable?
-	- Consider dropping support for older Python versions?
+        [This stuff could be for any version 1.0 or later; it's not a
+         requirement for 1.0.]
+        - License-friendliness:
+                - Switch from OpenSSL to NSS or GNUTLS
+        - GUI
+        - Multithreaded design to scale to multiple CPUs
+        - Security
+                - Memlockall wrapper
+                - Generic secure delete
+                - Support for loopback fs automation and shredding.
+        - Portability
+                - Server running on windows.
+        - Time the rest of the system
+        - Make DB module choice configurable?
+        - Consider dropping support for older Python versions?
 
 NEED TO BE TESTED
 - Signals
@@ -207,4 +224,5 @@ NEEDS TO BE BENCHMARKED
 (for emacs)
   Local Variables:
   mode:text
+  indent-tabs-mode:nil
   End:

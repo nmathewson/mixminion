@@ -1,3 +1,6 @@
+(THIS README IS FOR VERSION 0.0.2, but you're looking at the CVS version of the
+ code.  Stuff may be subtly different.)
+
 This is Mixminion version 0.0.2.
 
 CONTENTS:
@@ -208,7 +211,7 @@ To send a dummy message, specify "drop" instead of an email address, as in:
 
 
 If you need to use a proxy server to use the web you can specify it using the
-http_proxy environment variable.
+http_proxy environment variable:
 
       export http_proxy=http://proxy:3128/
       mixminion send -D yes
