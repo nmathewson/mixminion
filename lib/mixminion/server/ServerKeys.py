@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.42 2003/06/06 07:54:46 nickm Exp $
+# $Id: ServerKeys.py,v 1.43 2003/06/06 09:12:52 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -165,13 +165,13 @@ class ServerKeyring:
         if not state:
             return
         
-        LOG.error("Some generated keysets do not match "
+        LOG.warn("Some generated keysets do not match "
                   "current configuration...")
         
         for ok, ks in state:
             va,vu = ks.getLiveness()
-            LOG.error("Keyset %s (%s--%s):",ks.keyname,formatTime(va,1),
-                      formatTime(vu,1))
+            LOG.warn("Keyset %s (%s--%s):",ks.keyname,formatTime(va,1),
+                     formatTime(vu,1))
             ks.checkConsistency(self.config, 1)
             if regen and ok == 'bad':
                 if not identity: identity = self.getIdentityKey()
