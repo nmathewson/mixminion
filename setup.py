@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.81 2003/11/28 04:14:03 nickm Exp $
+# $Id: setup.py,v 1.82 2003/12/03 23:10:08 nickm Exp $
 import sys
 
 #
@@ -124,17 +124,22 @@ it, you can grab and build a local copy for Mixminion only by running:
       )
 ======================================================================"""
 
-#XXXX005 Use pkg-config when possible, if it exists.
+#XXXX Use pkg-config when possible, if it exists.
 
 if USE_OPENSSL and sys.platform == 'win32':
+    # If we're on windows, insist on finding the libraries in ./contrib/openssl
     INCLUDE_DIRS = []
     STATIC_LIBS = []
     LIBRARY_DIRS = []
 
-    # WWWW Right now, this is hardwired to my openssl installation.
-    INCLUDE_DIRS.append("d:\\openssl\\include")
-    LIBRARY_DIRS.append("D:\\openssl\\lib\\vc")
+    if (not os.path.exists(".\\contrib\\openssl\\include") or
+        not os.path.exists(".\\contrib\\openssl\\lib\\vc")):
+        print ("Can't find openssl: make sure that a compiled openssl "
+               "distribution is stored \nat .\\contrib\\openssl")
+        sys.exit(1)
 
+    INCLUDE_DIRS.append(".\\contrib\\openssl\\include")
+    LIBRARY_DIRS.append(".\\contrib\\openssl\\lib\\vc")
     LIBRARIES = [ "ssleay32", "libeay32", "advapi32" ]
 
 elif USE_OPENSSL:
@@ -315,13 +320,13 @@ else:
 SCRIPT_PATH = os.path.join("build", "mixminion")
 if not os.path.exists("build"):
     os.mkdir("build")
+
 f = open(SCRIPT_PATH, 'wt')
 # Distutils will take care of the executable path, and actually gets angry
 # if we try to be smart on our own. *sigh*.
-#f.write("#!python -O\n")  #disable -O for asserts.
 f.write("#!python\n")
 f.write("import sys\n")
-if pathextra:
+if pathextra and 'py2exe' not in sys.argv:
     f.write("sys.path[0:0] = [%r]\n"%pathextra)
 f.write("""\
 try:
@@ -329,30 +334,27 @@ try:
 except:
     print 'ERROR importing mixminion package.'
     raise
-
-mixminion.Main.main(sys.argv)
 """)
+if 'py2exe' in sys.argv:
+    f.write("""\
+if 1 == 0:
+    # These import statements need to be here so that py2exe knows to
+    # include all of the mixminion libraries.  Main.py imports libraries
+    # conditionally with __import__ --- but that confuses py2exe.
+    import mixminion.Common
+    import mixminion.test
+    import mixminion.benchmark
+    import mixminion.ClientMain
+    import mixminion.server.ServerMain
+    import mixminion.directory.DirMain
+""")
+if sys.platform == 'win32':
+    f.write("# On win32, we default to shell mode.\n")
+    f.write("if len(sys.argv) == 1: sys.argv.append('shell')\n")
+f.write("\nmixminion.Main.main(sys.argv)\n")
 f.close()
 
 SCRIPTS = [ SCRIPT_PATH ]
-
-if sys.platform == 'win32':
-    f = open(SCRIPT_PATH+"i.py", 'wt')
-    f.write("import sys\n")
-    if pathextra:
-        f.write("sys.path[0:0] = [%r]\n"%pathextra)
-    f.write("""\
-try:
-    import mixminion.Main
-except:
-    print 'ERROR importing mixminion package.'
-    raise
-
-mixminion.Main.main(sys.argv+['shell'])
-""")
-    f.close()
-
-    SCRIPTS.append(SCRIPT_PATH+"i.py")
 
 #======================================================================
 # Define a helper to let us run commands from the compiled code.
@@ -387,8 +389,11 @@ except ImportError, e:
 
     requirePythonDev()
 
+if 'py2exe' in sys.argv:
+    import py2exe
+
 try:
-    # This catches failures to install python2-dev on some Recent Redhats.
+    # This catches failures to install python2-dev on some recent Redhats.
     mf = get_makefile_filename()
     print mf
 except IOError:
