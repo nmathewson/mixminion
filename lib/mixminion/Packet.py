@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.62 2003/10/13 17:32:04 nickm Exp $
+# $Id: Packet.py,v 1.63 2003/10/19 03:12:02 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -16,12 +16,12 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'FRAGMENT_MESSAGEID_LEN', 'FRAGMENT_TYPE', 
             'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
             'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
-            'MIN_SUBHEADER_LEN', 'Packet',
+            'MIN_SUBHEADER_LEN', 'MMTPHostInfo', 'Packet',
             'OAEP_OVERHEAD', 'PAYLOAD_LEN', 'ParseError', 'ReplyBlock',
             'ReplyBlock', 'SECRET_LEN', 'SINGLETON_PAYLOAD_OVERHEAD',
             'SMTPInfo', 'SMTP_TYPE', 'SWAP_FWD_IPV4_TYPE', 'SingletonPayload',
             'Subheader', 'TAG_LEN', 'TextEncodedMessage',
-            'parseHeader', 'parseIPV4Info',
+            'parseHeader', 'parseIPV4Info', 'parseMMTPHostInfo',
             'parseMBOXInfo', 'parsePacket', 'parseMessageAndHeaders',
             'parsePayload', 'parseReplyBlock',
             'parseReplyBlocks', 'parseSMTPInfo', 'parseSubheader',
@@ -37,7 +37,8 @@ import types
 import zlib
 from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, MixFatalError, encodeBase64, \
-     floorDiv, formatTime, isSMTPMailbox, LOG, armorText, unarmorText
+     floorDiv, formatTime, isSMTPMailbox, LOG, armorText, unarmorText, \
+     isPlausibleHostname
 from mixminion.Crypto import sha1
 
 if sys.version_info[:3] < (2,2,0):
@@ -636,14 +637,16 @@ def parseMMTPHostInfo(s):
         port, keyinfo = struct.unpack(MMTP_HOST_PAT, s[:2+DIGEST_LEN])
     except struct.error:
         raise ParseError("Misformatted routing info")
+    host = s[2+DIGEST_LEN:]
+    if not isPlausibleHostname(host):
+        raise ParseError("Nonsensical hostname")
     return MMTPHostInfo(s[2+DIGEST_LEN:], port, keyinfo)
 
 class MMTPHostInfo:
     """DOCDOC"""
     def __init__(self, hostname, port, keyinfo):
-        """Construct a new IPV4Info"""
         assert 0 <= port <= 65535
-        self.hostname = hostname
+        self.hostname = hostname.lower()
         self.port = port
         self.keyinfo = keyinfo
 

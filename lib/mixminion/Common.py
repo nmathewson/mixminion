@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.112 2003/10/13 17:31:22 nickm Exp $
+# $Id: Common.py,v 1.113 2003/10/19 03:12:01 nickm Exp $
 
 """mixminion.Common
 
@@ -69,6 +69,10 @@ class MixFatalError(MixError):
 
 class MixProtocolError(MixError):
     """Exception class for MMTP protocol violations"""
+    pass
+
+class TimeoutError(MixProtocolError):
+    """Exception raised for protocol timeout."""
     pass
 
 class MixProtocolReject(MixProtocolError):
@@ -215,6 +219,19 @@ def englishSequence(lst, empty="none", compound="and"):
             return "%s; %s %s" % (lst[0], compound, lst[1])
     else:
         return "%s%s%s %s" % (punc.join(lst[0:-1]), punc, compound, lst[-1])
+
+_HOST_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
+               "abcdefghijklmnopqrstuvwxyz"+
+               "0123456789.")
+def isPlausibleHostname(s):
+    """DOCDOC"""
+    if not s:
+        return 0
+    if s.translate(_ALLCHARS, _HOST_CHARS):
+        return 0
+    if stringContains(s, "..") or s.startswith("."):
+        return 0
+    return 1
 
 #----------------------------------------------------------------------
 # Functions to generate and parse OpenPGP-style ASCII armor
@@ -1565,7 +1582,7 @@ else:
             if timeout is None:
                 return MessageQueue.get(self, blocking)
 
-            # Adapted from 'Condition
+            # Adapted from 'Condition'.
             _time = time.time
             _sleep = time.sleep
             deadline = timeout+_time()
@@ -1574,7 +1591,7 @@ else:
                 try:
                     return MessageQueue.get(self,0)
                 except QueueEmpty:
-                    remaining = endTime-_time()
+                    remaining = deadline-_time()
                     if remaining <= 0:
                         raise
                     delay = min(delay*2,remaining,0.2)

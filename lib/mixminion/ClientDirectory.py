@@ -15,7 +15,6 @@ import errno
 import operator
 import os
 import re
-import signal
 import socket
 import stat
 import time
@@ -25,6 +24,7 @@ import urllib2
 import mixminion.ClientMain #XXXX
 import mixminion.Config
 import mixminion.Crypto
+import mixminion.NetUtils
 import mixminion.Packet
 import mixminion.ServerInfo
 
@@ -54,7 +54,7 @@ class ClientDirectory:
     # digestMap: Map of (Digest -> 'D'|'D-'|'I:filename').
     # byNickname: Map from nickname.lower() to list of (ServerInfo, source)
     #   tuples.
-    # byKeyID: Map from desc.getKeyID() to list of ServerInfo.
+    # byKeyID: Map from desc.getKeyDigest() to list of ServerInfo.
     # byCapability: Map from capability ('mbox'/'smtp'/'relay'/None) to
     #    list of (ServerInfo, source) tuples.
     # allServers: Same as byCapability[None]
@@ -101,22 +101,15 @@ class ClientDirectory:
             self.downloadDirectory()
         else:
             LOG.debug("Directory is up to date.")
-    def downloadDirectory(self):
+    def downloadDirectory(self, timeout=15):
         """Download a new directory from the network, validate it, and
            rescan its servers."""
-        # FFFF Make configurable
-        DIRECTORY_TIMEOUT = 15
         # Start downloading the directory.
         url = MIXMINION_DIRECTORY_URL
         LOG.info("Downloading directory from %s", url)
 
         # XXXX Refactor download logic.
-
-        if hasattr(signal, 'alarm'):
-            def sigalrmHandler(sig, _):
-                pass
-            signal.signal(signal.SIGALRM, sigalrmHandler)
-            signal.alarm(DIRECTORY_TIMEOUT)
+        if timeout: mixminion.NetUtils.setGlobalTimeout(timeout)
         try:
             try:
                 infile = urllib2.urlopen(url)
@@ -125,14 +118,13 @@ class ClientDirectory:
                     ("Couldn't connect to directory server: %s.\n"
                      "Try '-D no' to run without downloading a directory.")%e)
             except socket.error, e:
-                if getattr(e,"errno",-1) == errno.EINTR:
+                if mixminion.NetUtils.exceptionIsTimeout(e):
                     raise UIError("Connection to directory server timed out")
                 else:
                     raise UIError("Error connecting: %s"%e)
-                raise UIError
         finally:
-            if hasattr(signal, 'alarm'):
-                signal.alarm(0)
+            if timeout:
+                mixminion.NetUtils.unsetGlobalTimeout()
         
         # Open a temporary output file.
         if url.endswith(".gz"):
@@ -366,7 +358,7 @@ class ClientDirectory:
         for info, where in self.serverList:
             nn = info.getNickname().lower()
             lists = [ self.allServers, self.byNickname.setdefault(nn, []),
-                      self.byKeyID.setdefault(info.getKeyID(), []) ]
+                      self.byKeyID.setdefault(info.getKeyDigest(), []) ]
             for c in info.getCaps():
                 lists.append( self.byCapability[c] )
             for lst in lists:
@@ -658,7 +650,8 @@ class ClientDirectory:
             for c in relays:
                 if ((prev and c.hasSameNicknameAs(prev)) or
                     (next and c.hasSameNicknameAs(next)) or
-                    (prev and not prev.canRelayTo(c)) or 
+                    (prev and not prev.canRelayTo(c)) or
+                    ((not prev) and not c.canStartAt()) or
                     (next and not c.canRelayTo(next))):
                     continue
                 candidates.append(c)                    
@@ -697,6 +690,13 @@ class ClientDirectory:
         # Make sure all elements are valid.
         for e in p:
             e.validate(self, startAt, endAt)
+
+        #XXXX006 make sure p can never be empty!
+
+        # If there is a 1st element, make sure we can route to it.
+        fixed = p[0].getFixedServer(self, startAt, endAt)
+        if fixed and not fixed.canStartAt():
+            raise UIError("Cannot relay messages to %s"%fixed.getNickname())
 
         # When there are 2 elements in a row, make sure each can route to
         # the next.
@@ -796,6 +796,8 @@ class ExitAddress:
     def setFragmented(self, isSSFragmented, nFragments):
         self.isSSFragmented = isSSFragmented
         self.nFragments = nFragments
+    def hasPayload(self):
+        return self.exitType not in ('drop', DROP_TYPE)
     def setExitSize(self, exitSize):
         self.exitSize = exitSize
     def setHeaders(self, headers):

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.59 2003/10/09 15:26:15 nickm Exp $
+# $Id: BuildMessage.py,v 1.60 2003/10/19 03:12:01 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -20,8 +20,8 @@ import mixminion._minionlib
 if sys.version_info[:3] < (2,2,0):
     import mixminion._zlibutil as zlibutil
 
-__all__ = ['buildForwardMessage', 'buildEncryptedMessage',
-           'buildReplyMessage', 'buildReplyBlock', 'checkPathLength',
+__all__ = ['buildForwardPacket', 'buildEncryptedForwardPacket',
+           'buildReplyPacket', 'buildReplyBlock', 'checkPathLength',
            'encodeMessage', 'decodePayload' ]
 
 def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
@@ -82,26 +82,13 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
         rawFragments[i] = None
     return fragments
 
-#XXXX006 Most of the build*Message functions here should be 'build*Packet'.
-#XXXX006 All of the build*Message functions should be replaced with their
-#XXXX006 _build*Message variants.
-def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
-                        paddingPRNG=None):
-    # Compress, pad, and checksum the payload.
-    if payload is not None and exitType != DROP_TYPE:
-        payloads = encodeMessage(payload, 0, "", paddingPRNG)
-        if len(payloads) != 1:
-            raise MixError("buildForwardMessage does not support fragmented payloads")
-        payload = payloads[0]
-        LOG.debug("Encoding forward message for %s-byte payload",len(payload))
-    else:
-        payload = (paddingPRNG or Crypto.getCommonPRNG()).getBytes(PAYLOAD_LEN)
-        LOG.debug("Generating DROP message with %s bytes", PAYLOAD_LEN)
+def buildRandomPayload(paddingPRNG=None):
+    """DOCDOC"""
+    if not paddingPRNG:
+        paddingPRNG = Crypto.getCommonPRNG()
+    return paddingPRNG.getBytes(PAYLOAD_LEN)
 
-    return _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
-                                paddingPRNG)
-
-def _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
+def buildForwardPacket(payload, exitType, exitInfo, path1, path2,
                         paddingPRNG=None):
     """Construct a forward message.
             payload: The payload to deliver.  Must be exactly 28K.  If the
@@ -138,19 +125,11 @@ def _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
     if not suppressTag:
         tag = _getRandomTag(paddingPRNG)
         exitInfo = tag + exitInfo
-    return _buildMessage(payload, exitType, exitInfo, path1, path2,
-                         paddingPRNG)
+    return _buildPacket(payload, exitType, exitInfo, path1, path2,
+                        paddingPRNG)
 
-def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
-                                 key, paddingPRNG=None, secretRNG=None):
-    payloads = encodeMessage(payload, ENC_FWD_OVERHEAD, "", paddingPRNG)
-    if len(payloads) != 1:
-        raise UIError("No support yet for fragmented encrypted messages")
-    return _buildEncryptedForwardMessage(payloads[0], exitType, exitInfo,
-                                         path1, path2, key, paddingPRNG,
-                                         secretRNG)
 
-def _buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
+def buildEncryptedForwardPacket(payload, exitType, exitInfo, path1, path2,
                                  key, paddingPRNG=None, secretRNG=None):
     """Construct a forward message encrypted with the public key of a
        given user.
@@ -208,15 +187,9 @@ def _buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     assert len(payload) == 28*1024
 
     # And now, we can finally build the message.
-    return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
+    return _buildPacket(payload, exitType, exitInfo, path1, path2,paddingPRNG)
 
-def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
-    payloads = encodeMessage(payload, 0, "", paddingPRNG)
-    if len(payloads) != 1:
-        raise UIError("No support yet for fragmented reply messages")
-    return _buildReplyMessage(payloads[0], path1, replyBlock, paddingPRNG)
-
-def _buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
+def buildReplyPacket(payload, path1, replyBlock, paddingPRNG=None):
     """Build a message using a reply block.  'path1' is a sequence of
        ServerInfo for the nodes on the first leg of the path.  'payload'
        must be exactly 28K long.
@@ -237,7 +210,7 @@ def _buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
                          Crypto.PAYLOAD_ENCRYPT_MODE)
     payload = Crypto.lioness_decrypt(payload, k)
 
-    return _buildMessage(payload, None, None,
+    return _buildPacket(payload, None, None,
                          path1=path1, path2=replyBlock)
 
 def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
@@ -285,9 +258,10 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
     header = _buildHeader(path, headerSecrets, exitType, tag+exitInfo,
                           paddingPRNG=Crypto.getCommonPRNG())
 
+    # XXXX007 switch to Host info.
     return ReplyBlock(header, expiryTime,
                       SWAP_FWD_IPV4_TYPE,
-                      path[0].getRoutingInfo().pack(), sharedKey), secrets, tag
+                      path[0].getIPV4Info().pack(), sharedKey), secrets, tag
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
 def buildReplyBlock(path, exitType, exitInfo, userKey,
@@ -482,8 +456,8 @@ def _decodeStatelessReplyPayload(payload, tag, userKey):
     return _decodeReplyPayload(payload, secrets, check=1)
 
 #----------------------------------------------------------------------
-def _buildMessage(payload, exitType, exitInfo,
-                  path1, path2, paddingPRNG=None, paranoia=0):
+def _buildPacket(payload, exitType, exitInfo,
+                path1, path2, paddingPRNG=None, paranoia=0):
     """Helper method to create a message.
 
     The following fields must be set:

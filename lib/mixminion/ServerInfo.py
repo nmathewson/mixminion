@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.58 2003/10/13 17:30:24 nickm Exp $
+# $Id: ServerInfo.py,v 1.59 2003/10/19 03:12:02 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -15,12 +15,13 @@ import time
 
 import mixminion.Config
 import mixminion.Crypto
+import mixminion.MMTPClient
 import mixminion.Packet
 
 from mixminion.Common import IntervalSet, LOG, MixError, createPrivateDir, \
     formatBase64, formatDate, formatTime, readPossiblyGzippedFile
 from mixminion.Config import ConfigError
-from mixminion.Packet import IPV4Info
+from mixminion.Packet import IPV4Info, MMTPHostInfo
 from mixminion.Crypto import CryptoError, DIGEST_LEN, pk_check_signature
 
 # Longest allowed Contact email
@@ -64,16 +65,18 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Packet-Key": ("REQUIRE", C._parsePublicKey, None),
                      "Contact-Fingerprint": ("ALLOW", None, None),
                      # XXXX010 change these next few to "REQUIRE".
-                     "Packet-Formats": ("ALLOW", None, None),
+                     "Packet-Formats": ("ALLOW", None, None),#XXXX007 remove
+                     "Packet-Versions": ("ALLOW", None, None),
                      "Software": ("ALLOW", None, None),
                      "Secure-Configuration": ("ALLOW", C._parseBoolean, None),
                      "Why-Insecure": ("ALLOW", None, None),
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     "IP": ("REQUIRE", C._parseIP, None),
+                     "IP": ("ALLOW", C._parseIP, None),#XXXX007 remove
+                     "Hostname": ("ALLOW", C._parseHost, None),#XXXX008 require
                      "Port": ("REQUIRE", C._parseInt, None),
-                     "Key-Digest": ("REQUIRE", C._parseBase64, None),
+                     "Key-Digest": ("ALLOW", C._parseBase64, None),#XXXX007 rmv
                      "Protocols": ("REQUIRE", None, None),
                      "Allow": ("ALLOW*", C._parseAddressSet_allow, None),
                      "Deny": ("ALLOW*", C._parseAddressSet_deny, None),
@@ -221,6 +224,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
             if len(inMMTP['Key-Digest']) != DIGEST_LEN:
                 raise ConfigError("Invalid key digest %s"%
                                   formatBase64(inMMTP['Key-Digest']))
+            if not inMMTP['IP'] and not inMMTP['Hostname']:
+                raise ConfigError("Incoming/MMTP section has neither IP nor hostname")
 
         ## Outgoing/MMTP section
         outMMTP = self['Outgoing/MMTP']
@@ -243,9 +248,13 @@ class ServerInfo(mixminion.Config._ConfigFile):
            descriptor."""
         return self['Server']['Digest']
 
-    def getAddr(self):
+    def getIP(self):
         """Returns this server's IP address"""
-        return self['Incoming/MMTP']['IP']
+        return self['Incoming/MMTP'].get('IP')
+
+    def getHostname(self):
+        """DOCDOC"""
+        return self['Incoming/MMTP'].get("Hostname")
 
     def getPort(self):
         """Returns this server's IP port"""
@@ -255,44 +264,72 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """Returns the RSA key this server uses to decrypt messages"""
         return self['Server']['Packet-Key']
 
-    def getKeyID(self):
+    def getKeyDigest(self):
         """Returns a hash of this server's MMTP key"""
-        return self['Incoming/MMTP']['Key-Digest']
+        return mixminion.Crypto.sha1(
+            mixminion.Crypto.pk_encode_public_key(self['Server']['Identity']))
+        #return self['Incoming/MMTP']['Key-Digest']
 
-    def getRoutingInfo(self):
+    def getIPV4Info(self):
         """Returns a mixminion.Packet.IPV4Info object for routing messages
            to this server."""
-        return IPV4Info(self.getAddr(), self.getPort(), self.getKeyID())
+        return IPV4Info(self.getIP(), self.getPort(), self.getKeyDigest())
+
+    def getMMTPHostInfo(self):
+        """DOCDOC"""
+        return MMTPHostInfo(get.getHostname(), self.getPort(), self.getKeyDigest())
+    
+    def getRoutingInfo(self):
+        return self.getIPV4Info()
 
     def getIdentity(self):
         return self['Server']['Identity']
+
+    def getIncomingMMTPProtocols(self):
+        inc = self['Incoming/MMTP']
+        if not inc.get("Version"):
+            return []
+        return [ s.strip() for s in inc["Protocols"].split(",") ]
+
+    def getOutgoingMMTPProtocols(self):
+        inc = self['Outgoing/MMTP']
+        if not inc.get("Version"):
+            return []
+        return [ s.strip() for s in inc["Protocols"].split(",") ]
 
     def canRelayTo(self, otherDesc):
         """DOCDOC"""
         if self.hasSameNicknameAs(otherDesc):
             return 1
-        myOut = self['Outgoing/MMTP']
-        if not myOut.get("Version"):
-            return 0
-        otherIn = otherDesc['Incoming/MMTP']
-        if not otherIn.get("Version"):
-            return 0
-        myOutProtocols = [ s.strip() for s in ",".split(myOut["Protocols"]) ]
-        otherInProtocols = [s.strip() for s in ",".split(otherIn["Protocols"])]
+        myOutProtocols = self.getOutgoingMMTPProtocols()
+        otherInProtocols = otherDesc.getIncomingMMTPProtocols()
         for out in myOutProtocols:
             if out in otherInProtocols:
                 return 1
         return 0
 
+    def canStartAt(self):
+        """DOCDOC"""
+        myInProtocols = self.getIncomingMMTPProtocols()
+        for out in mixminion.MMTPClient.BlockingClientConnection.PROTOCOL_VERSIONS:
+            if out in myInProtocols:
+                return 1
+        return 0
+
     def getRoutingFor(self, otherDesc, swap=0):
         """DOCDOC"""
-        #XXXX006 use this
+        #XXXX006 use this!
         assert self.canRelayTo(otherDesc)
-        if swap:
-            rt = mixminion.Packet.SWAP_FWD_IPV4_TYPE
+        assert 0 <= swap <= 1
+        if self.getHostname() and otherDesc.getHostname():
+            ri = otherDesc.getMMTPHostInfo().pack()
+            rt = [mixminion.Packet.FWD_HOST_TYPE,
+                  mixminion.Packet.SWAP_FWD_HOST_TYPE][swap]
         else:
-            rt = mixminion.Packet.FWD_IPV4_TYPE
-        ri = otherDesc.getRoutingInfo().pack()
+            ri = otherDesc.getIPV4Info().pack()
+            rt = [mixminion.Packet.FWD_IPV4_TYPE,
+                  mixminion.Packet.SWAP_FWD_IPV4_TYPE][swap]
+
         return rt, ri
         
     def getCaps(self):

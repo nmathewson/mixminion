@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.60 2003/10/09 15:26:16 nickm Exp $
+# $Id: Config.py,v 1.61 2003/10/19 03:12:02 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -56,6 +56,7 @@ import binascii
 import os
 import re
 import socket # for inet_aton and error
+import string # for atoi
 try:
     import pwd
 except ImportError:
@@ -213,6 +214,61 @@ def _parseIP(ip):
 
     return i
 
+_IP6_CHARS="01233456789ABCDEFabcdef:."
+
+def _parseIP6(ip6):
+    """DOCDOC"""
+    ip = ip6.strip()
+    bad = ip6.translate(mixminion.Common._ALLCHARS, _IP6_CHARS)
+    if bad:
+        raise ConfigError("Invalid characters %r in address %r"%(bad,ip))
+    if len(ip) < 2:
+        raise ConfigError("IPv6 address %r is too short"%ip)
+        
+    items = ip.split(":")
+    if not items:
+        raise ConfigError("Empty IPv6 address")
+    if items[:2] == ["",""]:
+        del items[0]
+    if items[-2:] == ["",""]:
+        del items[-1]
+    foundNils = 0
+    foundWords = 0 # 16-bit words
+
+    for item in items:
+        if item == "":
+            foundNils += 1
+        elif '.' in item:
+            _parseIP(item)
+            if item is not items[-1]:
+                raise ConfigError("Embedded IPv4 address %r must appear at end of IPv6 address %r"%(item,ip))
+            foundWords += 2
+        else:
+            try:
+                val = string.atoi(item,16)
+            except ValueError:
+                raise ConfigError("IPv6 word %r did not parse"%item)
+            if not (0 <= val <= 0xFFFF):
+                raise ConfigError("IPv6 word %r out of range"%item)
+            foundWords += 1
+            
+    if foundNils > 1:
+        raise ConfigError("Too many ::'s in IPv6 address %r"%ip)
+    elif foundNils == 0 and foundWords < 8:
+        raise ConfigError("IPv6 address %r is too short"%ip)
+    elif foundWords > 8:
+        raise ConfigError("IPv6 address %r is too long"%ip)
+            
+    return ip
+
+
+def _parseHost(host):
+    """DOCDOC"""
+    host = host.strip()
+    if not mixminion.Common.isPlausibleHostname(host):
+        raise ConfigError("%r doesn't look like a valid hostname",host)
+    return host
+                          
 # Regular expression to match 'address sets' as used in Allow/Deny
 # configuration lines. General format is "<IP|*> ['/'MASK] [PORT['-'PORT]]"
 _address_set_re = re.compile(r'''^(\d+\.\d+\.\d+\.\d+|\*)

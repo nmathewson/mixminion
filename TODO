@@ -12,6 +12,12 @@ For a list of good beginner projects, check out HACKING.
 
 NEEDS TO BE WRITTEN:
 
+For 0.0.5.something:
+        - Get limited client timeouts working.
+        - Make sure we clean out Filestores used by clients.
+        - Don't remove currently-undeliverable messages from client
+          queue when flushing.
+
 For 0.0.6:  (The release for integrators, Windows users, senders of
 large replies, people with dynamically assigned IPs, people with high
 TCP latency, and me.)
@@ -45,6 +51,7 @@ TCP latency, and me.)
         - UI improvements:
                 . Add some convenient way to list arbitrary server features.
                 - Timeouts should say 'timeout', not EINTR.
+                - Timeouts should be user-configurable.
                 - Logging UIErrors isn't a bad idea.
                 - Separate 'mixminiond' wrapper; 'mixminion server-foo'
                   confuses folk.
@@ -76,8 +83,8 @@ TCP latency, and me.)
                    'Hostname', use FWD/HOST.  Else use FWD/IPv4.  In 0.0.7,
                    drop FWD/IPv4 support, and remove IP from ServerInfo.]
                         o Rename *FWD_TYPE to FWD_IPV4_TYPE
-                        - Implement DNS farm
-                        - ServerInfo changes
+                        . Implement DNS farm
+                        . ServerInfo changes
                         - Path generation changes
                                 o Implement stub canRelayTo and getRoutingFor
                                   in ServerInfo.
@@ -85,15 +92,20 @@ TCP latency, and me.)
                                   how-to-i-route-to. (impl too)
                                 . Use above functions whenever appropriate
                                 - Extend above functions to use IPV4 or HOST.
-                        - Implement *FWD/HOST
+                        . Implement *FWD/HOST
                                 o Changes in Packet.py
                                 - Test changes in Packet.py
-                                - Multiplex on routingtype.
-         - Spec conformance
-                - Directory Spec
-                        - Implement Packet-Versions
-                        - Don't use Key-Digest; mark it for removal in 0.0.7.
-                        - Make sure Maximum-Size and Allow-From
+                                o Multiplex on routingtype.
+                        . Implement Host-based routing
+                                o Implement
+                                - Notice self-routing properly
+                                - Test
+         . Spec conformance
+                . Directory Spec
+                        o Implement Packet-Versions
+                        o Don't use Key-Digest; mark it for removal in 0.0.7.
+                        - Make sure Maximum-Size and Allow-From are obeyed
+                          for all types
          - Specification
                 - Clear up specification for payload versions.
                 - Clear up specification for NEWS

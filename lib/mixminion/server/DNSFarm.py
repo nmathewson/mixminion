@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.1 2003/10/13 17:32:25 nickm Exp $
+# $Id: DNSFarm.py,v 1.2 2003/10/19 03:12:02 nickm Exp $
 
 """mixminion.server.DNSFarm DOCDOC"""
 
@@ -8,6 +8,7 @@ import threading
 import time
 import sys
 from mixminion.Common import LOG, TimeoutQueue, QueueEmpty
+from mixminion.NetUtils import getIP
 
 __all__ = [ 'DNSCache' ]
 
@@ -15,16 +16,16 @@ class _Pending:
     def __cmp__(self,o):
         return cmp(type(self), type(o))
 PENDING = _Pending
-NOENT = -1
 
 MIN_THREADS = 2
 MIN_FREE_THREADS = 1
 MAX_THREADS = 8
 MAX_THREAD_IDLE = 5*60
 MAX_ENTRY_TTL = 15*60
-PREFER_INET4 = 1
+
 
 class DNSCache:
+    """DOCDOC"""
     def __init__(self):
         self.cache = {} # name -> getIP return / PENDING
         self.callbacks = {}
@@ -44,12 +45,14 @@ class DNSCache:
         try:
             self.lock.acquire()
             v = self.cache.get(name)
-            if v is None:
+            if v is None or v is PENDING:
                 self.callbacks.setdefault(name, []).append(cb)
+            #XXXX006 We should check for literal addresses before we queue
+            if v is None:
                 self._beginLookup(name)
         finally:
             self.lock.release()
-        if v is not None:
+        if v is not None and v is not PENDING:
             cb(name,v)
     def shutdown(self, wait=0):
         try:
@@ -142,43 +145,4 @@ class DNSThread(threading.Thread):
         finally:
             self.dnscache.adjLiveThreads(-1)
 
-if hasattr(socket, 'getaddrinfo'):
-    def getIP(name):
-        try:
-            r = socket.getaddrinfo(name, None)
-            inet4 = [ addr[4][0] for addr in r if addr[0] == socket.AF_INET ]
-            inet6 = [ addr[4][0] for addr in r if addr[0] == socket.AF_INET6 ]
-            if not (inet4 or inet6):
-                LOG.error("getaddrinfo returned no inet addresses!")
-                return (NOENT, "No inet addresses returned", time.time())
-            best4=best6=None
-            now=time.time()
-            if inet4: best4=(socket.AF_INET,inet4[0],now)
-            if inet6: best6=(socket.AF_INET,inet6[0],now)
-            if PREFER_INET4:
-                res = best4 or best6
-            else:
-                res = best6 or best4
-            protoname = (res[0] == socket.AF_INET) and "inet" or "inet6"
-            LOG.trace("Result for getaddrinfo(%r): %s:%s (%d others dropped)",
-                      name,protoname,res[1],len(r)-1)
-            return res
-        except socket.error, e:
-            LOG.trace("Result for getaddrinfo(%r): error:%r",name,e)
-            if len(e.args) == 2:
-                return (NOENT, str(e[1]), time.time())
-            else:
-                return (NOENT, str(e), time.time())            
-else:
-    def getIP(name):
-        '''return family/NOENT, address/error, time'''
-        try:
-            r = socket.gethostbyname(name)
-            LOG.trace("Result for gethostbyname(%r): inet:%r",name,r)
-            return (socket.AF_INET, r, time.time())
-        except socket.error, e:
-            LOG.trace("Result for gethostbyname(%r): error:%r",name,e)
-            if len(e.args) == 2:
-                return (NOENT, str(e[1]), time.time())
-            else:
-                return (NOENT, str(e), time.time())
+

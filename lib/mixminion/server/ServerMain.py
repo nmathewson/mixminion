@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.94 2003/10/13 17:30:24 nickm Exp $
+# $Id: ServerMain.py,v 1.95 2003/10/19 03:12:02 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -53,6 +53,7 @@ from mixminion.Common import MessageQueue, ClearableQueue, QueueEmpty
 import mixminion.Config
 import mixminion.Crypto
 import mixminion.Filestore
+import mixminion.server.DNSFarm
 import mixminion.server.MMTPServer
 import mixminion.server.Modules
 import mixminion.server.PacketHandler
@@ -299,7 +300,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
         mixminion.server.ServerQueue.DeliveryQueue.__init__(self, location)
         self.server = None
         self.incomingQueue = None
-        self.addr = (ip,port,keyid)
+        self.addr = (ip,port,keyid) #XXXX006 need to detect same host.
 
     def configure(self, config):
         """Set up this queue according to a ServerConfig object."""
@@ -325,9 +326,9 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
             except mixminion.Filestore.CorruptedFile:
                 continue
             msgs.setdefault(addr, []).append(pending)
-        for addr, messages in msgs.items():
-            if self.addr[:2] == (addr.ip, addr.port):
-                if self.addr[2] != addr.keyinfo:
+        for routing, messages in msgs.items():
+            if self.addr[:2] == (routing.ip, routing.port): #XXX006 detect host
+                if self.addr[2] != routing.keyinfo:
                     LOG.warn("Delivering messages to myself with bad KeyID")
                 for pending in messages:
                     LOG.trace("Delivering message OUT:%s to myself.",
@@ -340,11 +341,10 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
             deliverable = [
                 mixminion.server.MMTPServer.DeliverablePacket(pending)
                 for pending in messages ]
-            LOG.trace("Delivering messages OUT:[%s] to %s:%s",
+            LOG.trace("Delivering messages OUT:[%s] to %s",
                       " ".join([p.getHandle() for p in messages]),
-                      addr.ip, addr.port)
-            self.server.sendMessages(addr.ip, addr.port, addr.keyinfo,
-                                     deliverable)
+                      routing)
+            self.server.sendMessagesByRouting(routing, deliverable)
 
 class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
     """Implementation of mixminion.server.MMTPServer that knows about
@@ -709,6 +709,8 @@ The original error message was '%s'."""%e)
         self.cleaningThread = CleaningThread()
         self.processingThread = ProcessingThread()
 
+        self.dnsCache = mixminion.server.DNSFarm.DNSCache()
+
         LOG.debug("Connecting queues")
         self.incomingQueue.connectQueues(mixPool=self.mixPool,
                                        processingThread=self.processingThread)
@@ -718,6 +720,7 @@ The original error message was '%s'."""%e)
                                          incoming=self.incomingQueue)
         self.mmtpServer.connectQueues(incoming=self.incomingQueue,
                                       outgoing=self.outgoingQueue)
+        self.mmtpServer.connectDNSCache(self.dnsCache)
 
         self.cleaningThread.start()
         self.processingThread.start()
@@ -791,6 +794,7 @@ The original error message was '%s'."""%e)
 
         def _tryTimeout(self=self):
             self.mmtpServer.tryTimeout()
+            self.dnsCache.cleanCache()
             return self.mmtpServer.getNextTimeoutTime()
 
         self.scheduleRecurringComplex(self.mmtpServer.getNextTimeoutTime(now),
@@ -1352,4 +1356,3 @@ def runRepublish(cmd, args):
     LOG.info("Telling server to publish descriptors")
 
     _signalServer(config, reload=1)
-

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.50 2003/08/31 19:29:29 nickm Exp $
+# $Id: ServerKeys.py,v 1.51 2003/10/19 03:12:02 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -23,6 +23,7 @@ import urllib2
 import mixminion._minionlib
 import mixminion.Crypto
 import mixminion.Packet
+import mixminion.server.DNSFarm
 import mixminion.server.HashLog
 import mixminion.server.MMTPServer
 import mixminion.server.ServerMain
@@ -519,7 +520,7 @@ class ServerKeyring:
         desc = keys.getServerDescriptor()
         return (desc['Incoming/MMTP']['IP'],
                 desc['Incoming/MMTP']['Port'],
-                desc['Incoming/MMTP']['Key-Digest'])
+                desc.getKeyDigest())
 
     def lock(self, blocking=1):
         return self._lock.acquire(blocking)
@@ -794,7 +795,7 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         warn("Mismatched ports: %s configured; %s published.",
              config_im['Port'], info_im['Port'])
 
-    info_ip = info['Incoming/MMTP']['IP']
+    info_ip = info_im.get('IP',None)
     if config_im['IP'] == '0.0.0.0':
         guessed = _guessLocalIP()
         if guessed != info_ip:
@@ -803,6 +804,17 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
     elif config_im['IP'] != info_ip:
         warn("Mismatched IPs: %s configured; %s published.",
              config_im['IP'], info_ip)
+
+    info_host = info_im.get('Hostname',None)
+    config_host = config_im['Hostname']
+    if config_host is None:
+        guessed = socket.getfqdn()
+        if guessed != info_host:
+            warn("Mismatched hostnames: %s guessed; %s published",
+                 guessed, info_host)
+    elif config_host != info_host:
+        warn("Mismatched hostnames: %s configured, %s published",
+             config_host, info_host)
 
     if config_im['Enabled'] and not info_im.get('Version'):
         warn("Incoming MMTP enabled but not published.")
@@ -915,12 +927,14 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     mmtpProtocolsIn = ",".join(mmtpProtocolsIn)
     mmtpProtocolsOut = ",".join(mmtpProtocolsOut)
 
+    #XXXX007 remove
     identityKeyID = formatBase64(
                       mixminion.Crypto.sha1(
                           mixminion.Crypto.pk_encode_public_key(identityKey)))
 
     fields = {
         "IP": config['Incoming/MMTP'].get('IP', "0.0.0.0"),
+        "Hostname": config['Incoming/MMTP'].get('Hostname', None),
         "Port": config['Incoming/MMTP'].get('Port', 0),
         "Nickname": nickname,
         "Identity":
@@ -940,13 +954,18 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         }
 
     # If we don't know our IP address, try to guess
-    if fields['IP'] == '0.0.0.0':
+    if fields['IP'] == '0.0.0.0': #XXXX007 remove
         try:
             fields['IP'] = _guessLocalIP()
             LOG.warn("No IP configured; guessing %s",fields['IP'])
         except IPGuessError, e:
             LOG.error("Can't guess IP: %s", str(e))
             raise UIError("Can't guess IP: %s" % str(e))
+    # If we don't know our Hostname, try to guess
+    if fields['Hostname'] is None:
+        fields['Hostname'] = socket.getfqdn()
+        LOG.warn("No Hostname configured; guessing %s",fields['Hostname'])
+    _checkHostnameIsLocal(fields['Hostname'])
 
     # Fill in a stock server descriptor.  Note the empty Digest: and
     # Signature: lines.
@@ -961,7 +980,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         Valid-After: %(ValidAfter)s
         Valid-Until: %(ValidUntil)s
         Packet-Key: %(PacketKey)s
-        Packet-Formats: %(PacketFormat)s
+        Packet-Versions: %(PacketFormat)s
         Software: Mixminion %(mm_version)s
         Secure-Configuration: %(Secure)s
         """ % fields
@@ -978,6 +997,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
             [Incoming/MMTP]
             Version: 0.1
             IP: %(IP)s
+            Hostname: %(Hostname)s
             Port: %(Port)s
             Key-Digest: %(KeyID)s
             Protocols: %(MMTPProtocolsIn)s
@@ -1118,6 +1138,26 @@ def _guessLocalIP():
         raise IPGuessError("Only address found is in a private IP block")
 
     return IP
+
+_KNOWN_LOCAL_HOSTNAMES = {}
+
+def _checkHostnameIsLocal(name):
+    if _KNOWN_LOCAL_HOSTNAMES.has_key(name):
+        return
+    try:
+        r = mixminion.server.DNSFarm.getIPs(name)
+        for family, addr, _ in r:
+            if family == mixminion.server.DNSFarm.AF_INET:
+                if addr.startswith("127.") or addr.startswith("0."):
+                    raise UIError("Hostname %r resolves to reserved address %s"
+                                  %(name, addr))
+            else:
+                if addr in ("::", "::1"):
+                    raise UIError("Hostname %r resolves to reserved address %s"
+                                  %(name,addr))
+    except socket.error, e:
+        raise UIError("Cannot resolve hostname %r: %s"%(name,e))
+    _KNOWN_LOCAL_HOSTNAMES[name] = 1
 
 def generateCertChain(filename, mmtpKey, identityKey, nickname,
                       certStarts, certEnds):

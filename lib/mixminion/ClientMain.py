@@ -7,7 +7,6 @@
    """
 
 __all__ = [ 'Address', 'ClientKeyring', 'MixminionClient' ]
-            
 
 import getopt
 import os
@@ -223,7 +222,7 @@ class MixminionClient:
                fails."""
         assert not (forceQueue and forceNoQueue)
 
-        allPackets = self.generateForwardPayloads(
+        allPackets = self.generateForwardPackets(
             directory, address, pathSpec, message, startAt, endAt)
 
         for routing, packets in self._sortPackets(allPackets):
@@ -273,7 +272,7 @@ class MixminionClient:
 
         return block
 
-    def generateForwardPayloads(self, directory, address, pathSpec, message,
+    def generateForwardPackets(self, directory, address, pathSpec, message,
                                startAt, endAt):
         """Generate a forward message, but do not send it.  Returns a
            list of tuples of (the packet body, a ServerInfo for the
@@ -289,11 +288,15 @@ class MixminionClient:
         fragmentedMessagePrefix = address.getFragmentedMessagePrefix()
         LOG.info("Generating payload(s)...")
         r = []
-        payloads = mixminion.BuildMessage.encodeMessage(message, 0,
-                            fragmentedMessagePrefix)
-        if len(payloads) > 1:
-            address.setFragmented(1,len(payloads))
+        if address.hasPayload():
+            payloads = mixminion.BuildMessage.encodeMessage(message, 0,
+                                fragmentedMessagePrefix)
+            if len(payloads) > 1:
+                address.setFragmented(1,len(payloads))
+            else:
+                address.setFragmented(0,1)
         else:
+            payloads = [ mixminion.BuildMessage.buildRandomPayload() ]
             address.setFragmented(0,1)
         routingType, routingInfo, _ = address.getRouting()
         
@@ -302,7 +305,7 @@ class MixminionClient:
         for p, (path1,path2) in zip(payloads, directory.generatePaths(
             len(payloads), pathSpec, address, startAt, endAt)):
 
-            msg = mixminion.BuildMessage._buildForwardMessage(
+            msg = mixminion.BuildMessage.buildForwardPacket(
                 p, routingType, routingInfo, path1, path2,
                 self.prng)
             r.append( (msg, path1[0]) )
@@ -341,7 +344,7 @@ class MixminionClient:
                                           startAt,endAt)):
                 assert path1 and not path2
                 LOG.info("Generating packet...")
-                msg = mixminion.BuildMessage.buildReplyMessage(
+                msg = mixminion.BuildMessage.buildReplyPacket(
                     payload, path1, surb, self.prng)
                 
                 surbLog.markSURBUsed(surb)
@@ -1028,11 +1031,11 @@ def runClient(cmd, args):
 
     # Read the message.
     # XXXX Clean up this ugly control structure.
-    if address and inFile is None and address.getRouting()[0] == DROP_TYPE:
+    if address and inFile is None and not address.hasPayload():
         message = None
         LOG.info("Sending dummy message")
     else:
-        if address and address.getRouting()[0] == DROP_TYPE:
+        if address and not address.hasPayload():
             raise UIError("Cannot send a message in a DROP packet")
 
         if inFile is None:
@@ -1052,7 +1055,6 @@ def runClient(cmd, args):
         message = "%s%s" % (headerStr, message)
 
         address.setExitSize(len(message))
-
 
     if parser.exitAddress.isReply:
         client.sendReplyMessage(

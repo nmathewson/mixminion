@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.38 2003/09/24 01:03:14 arma Exp $
+# $Id: MMTPClient.py,v 1.39 2003/10/19 03:12:02 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -15,17 +15,13 @@
 
 __all__ = [ "BlockingClientConnection", "sendMessages" ]
 
-import errno
-import signal
 import socket
 import mixminion._minionlib as _ml
+import mixminion.NetUtils
 from mixminion.Crypto import sha1, getCommonPRNG
 from mixminion.Common import MixProtocolError, MixProtocolReject, \
-     MixProtocolBadAuth, LOG, MixError, formatBase64
-
-class TimeoutError(MixProtocolError):
-    """Exception raised for protocol timeout."""
-    pass
+     MixProtocolBadAuth, LOG, MixError, formatBase64, TimeoutError
+from mixminion.Packet import IPV4Info, MMTPHostInfo
 
 class BlockingClientConnection:
     """A BlockingClientConnection represents a MMTP connection to a single
@@ -44,9 +40,10 @@ class BlockingClientConnection:
     # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
     #     in decreasing order of preference.
     PROTOCOL_VERSIONS = ['0.3']
-    def __init__(self, targetIP, targetPort, targetKeyID):
+    def __init__(self, targetFamily, targetAddr, targetPort, targetKeyID):
         """Open a new connection."""
-        self.targetIP = targetIP
+        self.targetFamily = targetFamily
+        self.targetAddr = targetAddr
         self.targetPort = targetPort
         if targetKeyID != '\x00' *20:
             self.targetKeyID = targetKeyID
@@ -83,50 +80,29 @@ class BlockingClientConnection:
         else:
             tp = str(type(err))
         e = MixProtocolError("%s error while %s to %s:%s: %s" %(
-                             tp, action, self.targetIP, self.targetPort, err))
+                             tp, action, self.targetAddr, self.targetPort, err))
         e.base = err
         raise e
 
     def _connect(self, connectTimeout=None):
         """Helper method; implements _connect."""
-        # FFFF There should be a way to specify timeout for communication.
-        if not hasattr(signal, 'alarm'): #WWWW
-            connectTimeout = None
-
-        def sigalarmHandler(sig, _):
-            assert sig == signal.SIGALRM
-        if connectTimeout:
-            signal.signal(signal.SIGALRM, sigalarmHandler)
-
         # Connect to the server
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = socket.socket(self.targetFamily, socket.SOCK_STREAM)
         self.sock.setblocking(1)
-        LOG.debug("Connecting to %s:%s", self.targetIP, self.targetPort)
+        LOG.debug("Connecting to %s:%s", self.targetAddr, self.targetPort)
 
         # Do the TLS handshaking
-        if connectTimeout:
-            signal.alarm(connectTimeout)
-        try:
-            try:
-                self.sock.connect((self.targetIP,self.targetPort))
-            except socket.error, e:
-                if e[0] == errno.EINTR:
-                    raise TimeoutError("Connection timed out")
-                else:
-                    raise MixProtocolError("Error connecting: %s" % e)
-        finally:
-            if connectTimeout:
-                signal.alarm(0)
-
-        LOG.debug("Handshaking with %s:%s",self.targetIP, self.targetPort)
+        mixminion.NetUtils.connectWithTimeout(
+            self.sock, (self.targetAddr, self.targetPort), connectTimeout)
+        
+        LOG.debug("Handshaking with %s:%s",self.targetAddr, self.targetPort)
         self.tls = self.context.sock(self.sock.fileno())
         self.tls.connect()
         LOG.debug("Connected.")
-
         # Check the public key of the server to prevent man-in-the-middle
         # attacks.
         self.certCache.check(self.tls, self.targetKeyID,
-                             "%s:%s"%(self.targetIP,self.targetPort))
+                             "%s:%s"%(self.targetAddr,self.targetPort))
 
         ####
         # Protocol negotiation
@@ -207,7 +183,7 @@ class BlockingClientConnection:
     def shutdown(self):
         """Close this connection."""
         LOG.debug("Shutting down connection to %s:%s",
-                       self.targetIP, self.targetPort)
+                  self.targetAddr, self.targetPort)
         try:
             if self.tls is not None:
                 self.tls.shutdown()
@@ -221,7 +197,8 @@ def sendMessages(routing, packetList, connectTimeout=None, callback=None):
     """Sends a list of messages to a server.  Raise MixProtocolError on
        failure.
 
-       routing -- an instance of mixminion.Packet.IPV4Info.
+       routing -- an instance of mixminion.Packet.IPV4Info or
+                  mixminion.Packet.MMTPHostInfo.
                   If routing.keyinfo == '\000'*20, we ignore the server's
                   keyid.
        packetList -- a list of 32KB packets and control strings.  Control
@@ -242,7 +219,17 @@ def sendMessages(routing, packetList, connectTimeout=None, callback=None):
         else:
             packets.append(("MSG", p))
 
-    con = BlockingClientConnection(routing.ip,routing.port,routing.keyinfo)
+    if isinstance(routing, IPV4Info):
+        family, addr = socket.AF_INET, routing.ip
+    else:
+        assert isinstance(routing, MMTPHostInfo)
+        LOG.trace("Looking up %s...",routing.hostname)
+        family, addr, _ = mixminion.NetUtils.getIP(routing.hostname)
+        if family == "NOENT":
+            raise MixProtocolError("Couldn't resolve hostname %s: %s",
+                                   routing.hostname, addr)
+
+    con = BlockingClientConnection(family,addr,routing.port,routing.keyinfo)
     try:
         con.connect(connectTimeout=connectTimeout)
         for idx in xrange(len(packets)):

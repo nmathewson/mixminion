@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.157 2003/10/09 15:26:16 nickm Exp $
+# $Id: test.py,v 1.158 2003/10/19 03:12:02 nickm Exp $
 
 """mixminion.tests
 
@@ -251,7 +251,7 @@ class MiscTests(TestCase):
             self.assertEquals(parse(s), t)
             if not last:
                 continue
-
+            
             if c == 'EX':
                 self.assertRaises(ValueError, cmp, last, t)
             elif c == '<':
@@ -1336,6 +1336,23 @@ class PacketTests(TestCase):
         self.failUnlessRaises(ParseError, parseIPV4Info, ri[:-1])
         self.failUnlessRaises(ParseError, parseIPV4Info, ri+"x")
 
+    def test_mmtphostinfo(self):
+        keyid = "zbcd"*5
+        ri = "\x30\x55"+keyid+"the.hostname.is.here"
+        inf = parseMMTPHostInfo(ri)
+        self.assertEquals(inf.hostname, "the.hostname.is.here")
+        self.assertEquals(inf.port, 0x3055)
+        self.assertEquals(inf.keyinfo, keyid)
+        self.assertEquals(inf.pack(), ri)
+        self.assertEquals(MMTPHostInfo("the.hostname.is.here", 0x3055,
+                                       keyid).pack(), ri)
+
+        self.failUnlessRaises(ParseError, parseMMTPHostInfo, "z")
+        self.failUnlessRaises(ParseError, parseMMTPHostInfo, "\x30\x55"+keyid)
+        self.failUnlessRaises(ParseError, parseMMTPHostInfo,
+                              "\x30\x55"+keyid+"_.com")
+                          
+
     def test_replyblock(self):
         # Try parsing an example 'reply block' object
         key = "\x99"*16
@@ -1657,15 +1674,15 @@ class FakeServerInfo:
         self.keyid = keyid
 
     def getNickname(self): return "N(%s:%s)"%(self.addr,self.port)
-    def getAddr(self): return self.addr
+    def getIP(self): return self.addr
     def getPort(self): return self.port
     def getPacketKey(self): return self.key
-    def getKeyID(self): return self.keyid
+    def getKeyDigest(self): return self.keyid
 
     def getRoutingInfo(self):
-        """Returns a mixminion.Packet.IPV4Info object for routing messages
-           to this server."""
         return IPV4Info(self.addr, self.port, self.keyid)
+    def getIPV4Info(self):
+        return self.getRoutingInfo()
 
 class BuildMessageTests(TestCase):
     def setUp(self):
@@ -1999,11 +2016,11 @@ class BuildMessageTests(TestCase):
 
     def test_build_fwd_message(self):
         
-        bfm = BuildMessage.buildForwardMessage
-        befm = BuildMessage.buildEncryptedForwardMessage
-        payload = "Hello!!!!"
+        bfm = BuildMessage.buildForwardPacket
+        befm = BuildMessage.buildEncryptedForwardPacket
+        payloadF = BuildMessage.encodeMessage("Hello!!!!",0)[0]
 
-        m = bfm(payload, 500, "Goodbye",
+        m = bfm(payloadF, 500, "Goodbye",
                 [self.server1, self.server2],
                 [self.server3, self.server2])
 
@@ -2017,7 +2034,7 @@ class BuildMessageTests(TestCase):
                                (self.server2.getRoutingInfo().pack(),
                                 "Goodbye") ),
                              "Hello!!!!")
-        m = bfm(payload, 500, "Goodbye", [self.server1], [self.server3])
+        m = bfm(payloadF, 500, "Goodbye", [self.server1], [self.server3])
         
         messages = {}
 
@@ -2036,7 +2053,8 @@ class BuildMessageTests(TestCase):
                              decoder=decoder0)
         
         # Drop message gets no tag, random payload
-        m = bfm(payload, DROP_TYPE, "", [self.server1], [self.server3])
+        m = bfm(BuildMessage.buildRandomPayload(),
+                DROP_TYPE, "", [self.server1], [self.server3])
 
         def decoderDrop(p,t,self=self):
             self.assertEquals(None, t)
@@ -2053,12 +2071,12 @@ class BuildMessageTests(TestCase):
                              "",
                              decoder=decoderDrop)
 
-
         # Encrypted forward message
         rsa1, rsa2 = self.pk1, self.pk512
-        payload = "<<<<Hello>>>>" * 100
+        payloadE = BuildMessage.encodeMessage(
+            "<<<<Hello>>>>"*100,ENC_FWD_OVERHEAD)[0]
         for rsakey in rsa1,rsa2:
-            m = befm(payload, 500, "Phello",
+            m = befm(payloadE, 500, "Phello",
                      [self.server1, self.server2],
                      [self.server3, self.server2],
                      rsakey)
@@ -2075,7 +2093,7 @@ class BuildMessageTests(TestCase):
                                    (FWD_IPV4_TYPE, 500),
                                    (self.server2.getRoutingInfo().pack(),
                                     "Phello") ),
-                                 payload,
+                                 "<<<<Hello>>>>"*100,
                                  decoder=decoder)
             
         # Now do more tests on final messages: is the format as expected?
@@ -2097,7 +2115,7 @@ class BuildMessageTests(TestCase):
             ks = Keyset(sessionkey)
             msg = rsa_rest + lioness_decrypt(mrest,
                               ks.getLionessKeys("END-TO-END ENCRYPT"))
-            comp = compressData(payload)
+            comp = compressData("<<<<Hello>>>>"*100)
             self.assert_(len(comp), ord(msg[0])*256 + ord(msg[1]))
             self.assertEquals(sha1(msg[22:]), msg[2:22])
             self.assertStartsWith(msg[22:], comp)
@@ -2105,7 +2123,7 @@ class BuildMessageTests(TestCase):
     def test_buildreply(self):
         brbi = BuildMessage._buildReplyBlockImpl
         brb = BuildMessage.buildReplyBlock
-        brm = BuildMessage.buildReplyMessage
+        brm = BuildMessage.buildReplyPacket
 
         ## Stateful reply blocks.
         reply, secrets_1, tag_1 = \
@@ -2124,7 +2142,7 @@ class BuildMessageTests(TestCase):
 
         self.assert_(reply.routingInfo == self.server3.getRoutingInfo().pack())
 
-        m = brm("Information???",
+        m = brm(BuildMessage.encodeMessage("Information???",0)[0],
                 [self.server3, self.server1],
                 reply)
 
@@ -2196,12 +2214,13 @@ class BuildMessageTests(TestCase):
         self.assertEquals(sec, [ prng.getBytes(16) for _ in range(len(sec)) ])
 
         # _Gravity's Rainbow_, page 258.
-        payload = '''
+        message = '''
               "...Is it any wonder the world's gone insane, with information
             come to the be the only medium of exchange?"
               "I thought it was cigarettes."
               "You dream."
                   -- Gravity's Rainbow, p.258 ''' # " <- for emacs python-mode
+        payload = BuildMessage.encodeMessage(message,0)[0]
         m = brm(payload,
                 [self.server3, self.server1],
                 reply)
@@ -2220,7 +2239,7 @@ class BuildMessageTests(TestCase):
                              (pks_1, None,
                               (FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,MBOX_TYPE),
                               infos+("fred",)),
-                             payload,
+                             message,
                              decoder=decoder2)
 
         # Now test format of generated messages.
@@ -2243,7 +2262,7 @@ class BuildMessageTests(TestCase):
             ks = Keyset(s)
             p = lioness_encrypt(p, ks.getLionessKeys(
                                       Crypto.PAYLOAD_ENCRYPT_MODE))
-        comp = compressData(payload)
+        comp = compressData(message)
         self.assertEquals(len(comp), ord(p[0])*256 +ord(p[1]))
         self.assertStartsWith(p[22:], comp)
         self.assertEquals(sha1(p[22:]), p[2:22])
@@ -2446,10 +2465,11 @@ class PacketHandlerTests(TestCase):
         return res
 
     def test_successful(self):
-        bfm = BuildMessage.buildForwardMessage
+        bfm = BuildMessage.buildForwardPacket
         # A two-hop/one-hop message.
         p = "Now is the time for all good men to come to the aid"
-        m = bfm("\n"+p, SMTP_TYPE, "nobody@invalid",
+        m = bfm(BuildMessage.encodeMessage("\n"+p,0)[0],
+                SMTP_TYPE, "nobody@invalid",
                 [self.server1, self.server2], [self.server3])
 
         self.do_test_chain(m,
@@ -2461,7 +2481,7 @@ class PacketHandlerTests(TestCase):
                            p)
 
         # A one-hop/one-hop message.
-        m = bfm("\n"+p,
+        m = bfm(BuildMessage.encodeMessage("\n"+p,0)[0],
                 SMTP_TYPE, "nobody@invalid", [self.server1], [self.server3])
 
         self.do_test_chain(m,
@@ -2472,7 +2492,7 @@ class PacketHandlerTests(TestCase):
                            p)
 
         # Try servers with multiple keys
-        m = bfm("\n"+p,
+        m = bfm(BuildMessage.encodeMessage("\n"+p,0)[0],
                 SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])
         self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_IPV4_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
@@ -2481,7 +2501,8 @@ class PacketHandlerTests(TestCase):
         # A 3/3 message with a long exit header.
         for i in (100,300):
             longemail = "f"*i+"@invalid"
-            m = bfm("\n"+p, SMTP_TYPE, longemail,
+            m = bfm(BuildMessage.encodeMessage("\n"+p,0)[0],
+                    SMTP_TYPE, longemail,
                     [self.server1, self.server2, self.server1],
                     [self.server3, self.server1, self.server2])
 
@@ -2500,12 +2521,13 @@ class PacketHandlerTests(TestCase):
 
     def test_deliverypacket(self):
         # Test out DeliveryPacket.*: with a plaintext ascii packet.
-        bfm = BuildMessage.buildForwardMessage
-        befm = BuildMessage.buildEncryptedForwardMessage
+        bfm = BuildMessage.buildForwardPacket
+        befm = BuildMessage.buildEncryptedForwardPacket
 
         h = "SUBJECT:cooper\n\n"
         p = "That gum you like, it's coming back in style."
-        m = bfm(h+p, SMTP_TYPE, "nobody@invalid", [self.server1],
+        payload = BuildMessage.encodeMessage(h+p,0)[0]
+        m = bfm(payload, SMTP_TYPE, "nobody@invalid", [self.server1],
                 [self.server3])
 
         pkt = self.do_test_chain(m,
@@ -2530,7 +2552,8 @@ class PacketHandlerTests(TestCase):
         self.assertEquals({"SUBJECT":"cooper"}, pkt.getHeaders())
         # with a plaintext, nonascii packet.
         pbin = hexread("0123456789ABCDEFFEDCBA9876543210")
-        m = bfm("\n"+pbin, SMTP_TYPE, "nobody@invalid",
+        m = bfm(BuildMessage.encodeMessage("\n"+pbin,0)[0],
+                SMTP_TYPE, "nobody@invalid",
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
@@ -2546,7 +2569,8 @@ class PacketHandlerTests(TestCase):
         # with an overcompressed content
         pcomp = "          "*4096
         #      (forward, overcompressed)
-        m = bfm(pcomp, SMTP_TYPE, "nobody@invalid",
+        m = bfm(BuildMessage.encodeMessage(pcomp,0)[0],
+                SMTP_TYPE, "nobody@invalid",
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
@@ -2560,7 +2584,8 @@ class PacketHandlerTests(TestCase):
              encodeBase64(compressData(pcomp)))
 
         #      (enc-forward, overcompressed)
-        m = befm(p, SMTP_TYPE, "nobody@invalid", [self.server1],
+        m = befm(BuildMessage.encodeMessage(pcomp,ENC_FWD_OVERHEAD)[0],
+                 SMTP_TYPE, "nobody@invalid", [self.server1],
                  [self.server3], getRSAKey(0,1024))
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
@@ -2579,7 +2604,8 @@ class PacketHandlerTests(TestCase):
         #    (ASCII msg with headers)
         h = {"FROM":'fred@foo', "SUBJECT":'Stuff'}
         p = encodeMessageHeaders(h) + "This is the message.\n"
-        m = bfm(p, SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
+        m = bfm(BuildMessage.encodeMessage(p,0)[0],
+                SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
         pkt = self.do_test_chain(m, 
                                  [self.sp1, self.sp3],
                                  [FWD_IPV4_TYPE, SMTP_TYPE],
@@ -2594,7 +2620,8 @@ class PacketHandlerTests(TestCase):
         #    (binary msg with headers.)
         body = "\x01\x02\x03\x04"*10
         p = encodeMessageHeaders(h) + body
-        m = bfm(p, SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
+        m = bfm(BuildMessage.encodeMessage(p,0)[0],
+                SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
         pkt = self.do_test_chain(m, 
                                  [self.sp1, self.sp3],
                                  [FWD_IPV4_TYPE, SMTP_TYPE],
@@ -2608,8 +2635,8 @@ class PacketHandlerTests(TestCase):
 
 
     def test_rejected(self):
-        bfm = BuildMessage.buildForwardMessage
-        brm = BuildMessage.buildReplyMessage
+        bfm = BuildMessage.buildForwardPacket
+        brm = BuildMessage.buildReplyPacket
         brbi = BuildMessage._buildReplyBlockImpl
 
         # A long intermediate header needs to fail.
@@ -2618,21 +2645,23 @@ class PacketHandlerTests(TestCase):
             def pack(self): return "x"*200
         server1X.getRoutingInfo = lambda _packable=_packable: _packable()
 
-        m = bfm("Z", MBOX_TYPE, "hello\000bye",
+        zPayload = BuildMessage.encodeMessage("Z",0)[0]
+        m = bfm(zPayload, MBOX_TYPE, "hello\000bye",
                 [self.server2, server1X, self.server3],
                 [server1X, self.server2, self.server3])
         self.failUnlessRaises(ParseError, self.sp2.processMessage, m)
 
         # Duplicate messages need to fail.
-        m = bfm("Z", SMTP_TYPE, "nobody@invalid",
+        m = bfm(zPayload, SMTP_TYPE, "nobody@invalid",
                 [self.server1, self.server2], [self.server3])
         self.sp1.processMessage(m)
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m)
 
         # Duplicate reply blocks need to fail
         reply,s,tag = brbi([self.server3], SMTP_TYPE, "fred@invalid")
-        m = brm("Y", [self.server2], reply)
-        m2 = brm("Y", [self.server1], reply)
+        yPayload = BuildMessage.encodeMessage("Y",0)[0]
+        m = brm(yPayload, [self.server2], reply)
+        m2 = brm(yPayload, [self.server1], reply)
         m = self.sp2.processMessage(m).getPacket()
         self.sp3.processMessage(m)
         m2 = self.sp1.processMessage(m2).getPacket()
@@ -2643,21 +2672,21 @@ class PacketHandlerTests(TestCase):
         reply1,s,t = brbi([self.server1], SMTP_TYPE, "fred@invalid",0,prng)
         prng = AESCounterPRNG(" "*16)
         reply2,s,t = brbi([self.server2], MBOX_TYPE, "foo",0,prng)
-        m = brm("Y", [self.server3], reply1)
-        m2 = brm("Y", [self.server3], reply2)
+        m = brm(yPayload, [self.server3], reply1)
+        m2 = brm(yPayload, [self.server3], reply2)
         m = self.sp3.processMessage(m).getPacket()
         self.sp1.processMessage(m)
         m2 = self.sp3.processMessage(m2).getPacket()
         self.failUnlessRaises(ContentError, self.sp2.processMessage, m2)
 
         # Drop gets dropped.
-        m = bfm("Z", DROP_TYPE, "", [self.server2], [self.server2])
+        m = bfm(zPayload, DROP_TYPE, "", [self.server2], [self.server2])
         m = self.sp2.processMessage(m).getPacket()
         res = self.sp2.processMessage(m)
         self.assertEquals(res,None)
 
         # Wrong server.
-        m = bfm("Z", DROP_TYPE, "", [self.server1], [self.server2])
+        m = bfm(zPayload, DROP_TYPE, "", [self.server1], [self.server2])
         self.failUnlessRaises(CryptoError, self.sp2.processMessage, m)
         self.failUnlessRaises(CryptoError, self.sp2_3.processMessage, m)
 
@@ -2676,7 +2705,7 @@ class PacketHandlerTests(TestCase):
             #  constant.)
             save = mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE
             mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE = 50
-            m_x = bfm("Z", 500, "", [self.server1], [self.server2])
+            m_x = bfm(zPayload, 500, "", [self.server1], [self.server2])
         finally:
             mixminion.BuildMessage.SWAP_FWD_IPV4_TYPE = save
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
@@ -2710,7 +2739,7 @@ class PacketHandlerTests(TestCase):
         self.failUnlessRaises(ContentError, self.sp1.processMessage, m_x)
 
         # Corrupt payload
-        m = bfm("Z", MBOX_TYPE, "Z", [self.server1, self.server2],
+        m = bfm(zPayload, MBOX_TYPE, "Z", [self.server1, self.server2],
                 [self.server3])
         m_x = m[:-30] + " "*30
         assert len(m_x) == len(m)
@@ -3520,8 +3549,8 @@ def _getMMTPServer(minimal=0,reject=0,port=TEST_PORT):
         return con
     if minimal:
         conFactory = conFactoryMin
-    listener = mixminion.server.MMTPServer.ListenConnection("127.0.0.1",
-                                                          port, 5, conFactory)
+    listener = mixminion.server.MMTPServer.ListenConnection(
+        socket.AF_INET, "127.0.0.1", port, 5, conFactory)
     listener.register(server)
     keyid = _getTLSContextKeyID()
 
@@ -3734,7 +3763,7 @@ class MMTPTests(TestCase):
                                           targetKeyID, msgFast, msgSlow):
             try:
                 con = mixminion.MMTPClient.BlockingClientConnection(
-                    targetIP,targetPort,targetKeyID)
+                    socket.AF_INET,targetIP,targetPort,targetKeyID)
                 con.connect()
                 con.sendPacket(msgFast)
                 while pausing[0] > 0:
@@ -4044,6 +4073,19 @@ IntRS=5
         self.assertEquals(C._parseInt("99"), 99)
         # IP
         self.assertEquals(C._parseIP("192.168.0.1"), "192.168.0.1")
+        # IP6
+        self.assertEquals(C._parseIP6("::"), "::")
+        self.assertEquals(C._parseIP6("A::"), "A::")
+        self.assertEquals(C._parseIP6("::A"), "::A")
+        self.assertEquals(C._parseIP6("FE0F::A"), "FE0F::A")
+        self.assertEquals(C._parseIP6("1:2:3:4:5:6:7:8"), "1:2:3:4:5:6:7:8")
+        self.assertEquals(C._parseIP6("1:2:3::5:6:7:8"), "1:2:3::5:6:7:8")
+        self.assertEquals(C._parseIP6("1:2:3:4:5:6:1.2.3.4"),
+                          "1:2:3:4:5:6:1.2.3.4")
+        self.assertEquals(C._parseIP6("FFFF::1.2.3.4"),"FFFF::1.2.3.4")
+        self.assertEquals(C._parseIP6("::000:1.2.3.4"),"::000:1.2.3.4")
+        # Host
+        self.assertEquals(C._parseHost("foo.bar.baz "), "foo.bar.baz")
         # AddressSet
         pa = C._parseAddressSet_allow
         self.assertEquals(pa("*"), ("0.0.0.0", "0.0.0.0", 48099, 48099))
@@ -4136,6 +4178,15 @@ IntRS=5
         fails(C._parseIP, "192.0.0")
         fails(C._parseIP, "192.0.0.0.0")
         fails(C._parseIP, "A.0.0.0")
+        fails(C._parseIP6, "100::200::300")
+        fails(C._parseIP6, "10000::")
+        fails(C._parseIP6, ":::")
+        fails(C._parseIP6, "1:2:3:4:5:6:7:8:9")
+        fails(C._parseIP6, "F:E:D:B:C:A:7:1.2.3.4")
+        fails(C._parseIP6, ":")
+        fails(C._parseIP6, "")
+        fails(C._parseHost, ".")
+        fails(C._parseHost, "foo..bar")
         fails(pa, "1/1")
         fails(pa, "192.168.0.1 50-40")
         fails(pa, "192.168.0.1 50-9999999")
@@ -4224,6 +4275,7 @@ Comments: This is a test of the emergency
 [Incoming/MMTP]
 Enabled = yes
 IP: 192.168.0.1
+Hostname: Theserver
 Allow: 192.168.0.16 1-1024
 Deny: 192.168.0.16
 Allow: *
@@ -4275,6 +4327,7 @@ class ServerInfoTests(TestCase):
         eq = self.assertEquals
         eq(info['Server']['Descriptor-Version'], "0.2")
         eq(info['Incoming/MMTP']['IP'], "192.168.0.1")
+        eq(info['Incoming/MMTP']['Hostname'], "Theserver")
         eq(info['Server']['Nickname'], "The_Server")
         self.failUnless(0 <= time.time()-info['Server']['Published'] <= 120)
         self.failUnless(0 <= time.time()-info['Server']['Valid-After']
@@ -4283,7 +4336,8 @@ class ServerInfoTests(TestCase):
            10*24*60*60)
         eq(info['Server']['Contact'], "a@b.c")
         eq(info['Server']['Software'], "Mixminion %s"%mixminion.__version__)
-        eq(info['Server']['Packet-Formats'], "0.3")
+        eq(info['Server']['Packet-Formats'], None)
+        eq(info['Server']['Packet-Versions'], "0.3")
         eq(info['Server']['Comments'],
            "This is a test of the emergency broadcast system")
 
@@ -4347,6 +4401,9 @@ class ServerInfoTests(TestCase):
 
         self.assertUnorderedEq(info.getCaps(), ["relay", "frag"])
 
+        self.assertEquals(info.getIncomingMMTPProtocols(), ["0.3"])
+        self.assertEquals(info.getOutgoingMMTPProtocols(), ["0.3"])
+
         # Now check whether we still validate the same after some corruption
         self.assertStartsWith(inf, "[Server]\n")
         self.assertEndsWith(inf, "\n")
@@ -4407,6 +4464,7 @@ class ServerInfoTests(TestCase):
             conf = mixminion.server.ServerConfig.ServerConfig(string=(SERVER_CONFIG_SHORT%mix_mktemp())+
                                            """[Incoming/MMTP]
 Enabled: yes
+Hostname: Theserver2
 IP: 192.168.0.99
 """)
         finally:
@@ -4465,6 +4523,7 @@ IP: 192.168.0.99
                 string=(SERVER_CONFIG_SHORT%mix_mktemp())+
                                            """[Incoming/MMTP]
 Enabled: yes
+Hostname: Theserver3
 IP: 192.168.100.3
 [Delivery/SMTP]
 Enabled: yes
@@ -4474,6 +4533,7 @@ ReturnAddress: X@Y.Z
                 string=(SERVER_CONFIG_SHORT%mix_mktemp())+
                                            """[Incoming/MMTP]
 Enabled: yes
+Hostname: Theserver4
 IP: 192.168.100.4
 """)
         finally:
@@ -4493,11 +4553,13 @@ IP: 192.168.100.4
                           key2.getMMTPKey().get_public_key())
         self.assertEquals(key3.getPacketKey().get_public_key(),
                           key2.getPacketKey().get_public_key())
+        eq(info3['Incoming/MMTP']['Hostname'], "Theserver3")
         eq(info3['Incoming/MMTP']['IP'], "192.168.100.3")
         self.assert_('smtp' in info3.getCaps())
 
         key3.regenerateServerDescriptor(conf2, identity)
         info3 = key3.getServerDescriptor()
+        eq(info3['Incoming/MMTP']['Hostname'], "Theserver4")
         eq(info3['Incoming/MMTP']['IP'], "192.168.100.4")
 
     def test_directory(self):
@@ -4863,6 +4925,7 @@ Module ExampleMod.TestModule
 Foo: 99
 [Incoming/MMTP]
 Enabled: yes
+Hostname: Theserver5
 IP: 1.0.0.1
 """ % (mod_dir)
 
@@ -5577,6 +5640,7 @@ EncryptPrivateKey: no
 Nickname: mac-the-knife
 [Incoming/MMTP]
 Enabled: yes
+Hostname: Theserver5
 IP: 10.0.0.1
 """
 
@@ -5785,6 +5849,7 @@ EncryptPrivateKey: no
 Nickname: %(nickname)s
 [Incoming/MMTP]
 Enabled: yes
+Hostname: %(nickname)s
 IP: %(ip)s
 [Outgoing/MMTP]
 Enabled: yes
@@ -6514,8 +6579,8 @@ class ClientMainTests(TestCase):
         pathSpec1 = parsePath(usercfg, "lola,joe:alice,joe")
 
         ##  Test generateForwardMessage.
-        # We replace 'buildForwardMessage' to make this easier to test.
-        replaceFunction(mixminion.BuildMessage, "buildForwardMessage",
+        # We replace 'buildForwardPacket' to make this easier to test.
+        replaceFunction(mixminion.BuildMessage, "buildForwardPacket",
                         lambda *a, **k:"X")
         try:
             getCalls = getReplacedFunctionCallLog
@@ -6523,12 +6588,12 @@ class ClientMainTests(TestCase):
             # First, two forward messages that end with 'joe' and go via
             # SMTP
             payload = "Hey Joe, where you goin' with that gun in your hand?"
-            client.generateForwardPayloads(
+            client.generateForwardPackets(
                 directory,
                 parseAddress("joe@cledonism.net"),
                 pathSpec1,
                 payload, time.time(), time.time()+200)
-            client.generateForwardPayloads(
+            client.generateForwardPackets(
                 directory,
                 parseAddress("smtp:joe@cledonism.net"),
                 pathSpec1,
@@ -6536,7 +6601,7 @@ class ClientMainTests(TestCase):
                 time.time(), time.time()+200)
 
             for fn, args, kwargs in getCalls():
-                self.assertEquals(fn, "buildForwardMessage")
+                self.assertEquals(fn, "buildForwardPacket")
                 self.assertEquals(args[1:3],
                                   (SMTP_TYPE, "joe@cledonism.net"))
                 self.assert_(len(args[3]) == len(args[4]) == 2)
@@ -6546,13 +6611,13 @@ class ClientMainTests(TestCase):
 
             # Now try an mbox message, with an explicit last hop.
             payload = "Hey, Lo', where you goin' with that pun in your hand?"
-            client.generateForwardPayloads(
+            client.generateForwardPackets(
                 directory,
                 parseAddress("mbox:granola"),
                 parsePath(usercfg, "lola,joe:alice,lola"),
                 payload, time.time(), time.time()+200)
             # And an mbox message with a last hop implicit in the address
-            client.generateForwardPayloads(
+            client.generateForwardPackets(
                 directory,
                 parseAddress("mbox:granola@Lola"),
                 parsePath(usercfg, "Lola,Joe:Alice"),
@@ -6560,9 +6625,11 @@ class ClientMainTests(TestCase):
                 
 
             for fn, args, kwargs in getCalls():
-                self.assertEquals(fn, "buildForwardMessage")
-                self.assertEquals(args[0:3],
-                                  (payload, MBOX_TYPE, "granola"))
+                self.assertEquals(fn, "buildForwardPacket")
+                self.assertEquals(args[1:3],
+                                  (MBOX_TYPE, "granola"))
+                self.assertEquals(payload,
+                    BuildMessage.decodePayload(args[0],"Z"*20).getUncompressedContents())
                 self.assert_(len(args[3]) == len(args[4]) == 2)
                 self.assertEquals(["Lola", "Joe", "Alice", "Lola"],
                      [x.getNickname() for x in args[3]+args[4]])
@@ -6576,9 +6643,11 @@ class ClientMainTests(TestCase):
         # Temporarily replace BlockingClientConnection so we can try the client
         # without hitting the network.
         class FakeBCC:
-            def __init__(self, addr, port, keyid):
+            PROTOCOL_VERSIONS=["0.3"]
+            def __init__(self, family, addr, port, keyid):
                 global BCC_INSTANCE
                 BCC_INSTANCE = self
+                self.family = family
                 self.addr = addr
                 self.port = port
                 self.keyid = keyid
@@ -6797,6 +6866,32 @@ class FragmentTests(TestCase):
         pool.close()
         
 #----------------------------------------------------------------------
+
+def initializeGlobals():
+    init_crypto()
+
+    mixminion.ClientMain.configureClientLock(mix_mktemp())
+
+    # Suppress 'files-can't-be-securely-deleted' message while testing
+    LOG.setMinSeverity("FATAL")
+    mixminion.Common.secureDelete([],1)
+
+    # Don't complain about owner on /tmp, no matter who it is.
+    mixminion.Common._VALID_DIRECTORIES["/tmp"] = 1
+    mixminion.Common._VALID_DIRECTORIES["/var/tmp"] = 1
+
+    # Disable TRACE and DEBUG log messages, unless somebody overrides from
+    # the environment.
+    LOG.setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "WARN"))
+    #LOG.setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "TRACE"))
+
+    # Suppress DNS resolution on fake hostnames.
+    klh = mixminion.server.ServerKeys._KNOWN_LOCAL_HOSTNAMES
+    for name in [ 'Theserver', 'Theserver2', 'Theserver3', 'Theserver4',
+                  'Theserver5', 'Alice', 'Bob', 'Fred', 'Lola', 'Joe',
+                  'Lisa' ]:
+        klh[name]=1
+
 def testSuite():
     """Return a PyUnit test suite containing all the unit test cases."""
     suite = unittest.TestSuite()
@@ -6804,7 +6899,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientDirectoryTests))
+        suite.addTest(tc(PacketHandlerTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -6840,20 +6935,5 @@ def testSuite():
     return suite
 
 def testAll(name, args):
-    init_crypto()
-    mixminion.ClientMain.configureClientLock(mix_mktemp())
-
-    # Suppress 'files-can't-be-securely-deleted' message while testing
-    LOG.setMinSeverity("FATAL")
-    mixminion.Common.secureDelete([],1)
-
-    # Don't complain about owner on /tmp, no matter who it is.
-    mixminion.Common._VALID_DIRECTORIES["/tmp"] = 1
-    mixminion.Common._VALID_DIRECTORIES["/var/tmp"] = 1
-
-    # Disable TRACE and DEBUG log messages, unless somebody overrides from
-    # the environment.
-    LOG.setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "WARN"))
-    #LOG.setMinSeverity(os.environ.get('MM_TEST_LOGLEVEL', "TRACE"))
-
+    initializeGlobals()
     unittest.TextTestRunner(verbosity=1).run(testSuite())

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.52 2003/10/01 01:34:50 nickm Exp $
+# $Id: MMTPServer.py,v 1.53 2003/10/19 03:12:02 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -28,10 +28,11 @@ from types import StringType
 
 import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
-     LOG, stringContains
+     LOG, stringContains, MessageQueue, QueueEmpty
 from mixminion.Crypto import sha1, getCommonPRNG
-from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN
+from mixminion.Packet import MESSAGE_LEN, DIGEST_LEN, IPV4Info, MMTPHostInfo
 from mixminion.MMTPClient import PeerCertificateCache
+from mixminion.NetUtils import IN_PROGRESS_ERRNOS
 import mixminion.server.EventStats as EventStats
 from mixminion.Filestore import CorruptedFile
 
@@ -43,13 +44,6 @@ info = LOG.info
 debug = LOG.info
 warn = LOG.warn
 error = LOG.error
-
-# For windows -- list of errno values that we can expect when blocking IO
-# blocks on a connect.
-IN_PROGRESS_ERRNOS = [ getattr(errno, ename) 
-   for ename in [ "EINPROGRESS", "WSAEWOULDBLOCK"]
-   if hasattr(errno,ename) ]
-del ename
 
 class AsyncServer:
     """AsyncServer is the core of a general-purpose asynchronous
@@ -196,11 +190,11 @@ class ListenConnection(Connection):
     # connectionFactory: a function that takes as input a socket from a
     #    newly received connection, and returns a Connection object to
     #    register with the async server.
-    def __init__(self, ip, port, backlog, connectionFactory):
+    def __init__(self, family, ip, port, backlog, connectionFactory):
         """Create a new ListenConnection"""
         self.ip = ip
         self.port = port
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = socket.socket(family, socket.SOCK_STREAM)
         self.sock.setblocking(0)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -1073,22 +1067,43 @@ class MMTPAsyncServer(AsyncServer):
         # FFFF Don't always listen; don't always retransmit!
         # FFFF Support listening on multiple IPs
 
-        IP = config['Incoming/MMTP'].get('ListenIP')
-        if IP is None:
-            IP = config['Incoming/MMTP']['IP']
-
+        ip4_supported, ip6_supported = mixminion.NetUtils.getProtocolSupport()
+        IP, IP6 = None, None
+        if ip4_supported:
+            IP = config['Incoming/MMTP'].get('ListenIP')
+            if IP is None:
+                IP = config['Incoming/MMTP'].get('IP')
+            if IP is None:
+                IP = "0.0.0.0"
+        if ip6_supported:
+            IP6 = config['Incoming/MMTP'].get('ListenIP6')
+            if IP6 is None:
+                IP6 = "::"
+            
         port =  config['Incoming/MMTP'].get('ListenPort')
         if port is None:
             port = config['Incoming/MMTP']['Port']
 
-        self.listener = ListenConnection(IP, port,
-                                         LISTEN_BACKLOG,
-                                         self._newMMTPConnection)
+        self.listeners = [] #DOCDOC
+        for (supported, addr, family) in [(ip4_supported,IP,socket.AF_INET),
+                                          (ip6_supported,IP6,socket.AF_INET6)]:
+            if not supported or not addr:
+                continue
+            listener = ListenConnection(family, addr, port,
+                                        LISTEN_BACKLOG,
+                                        self._newMMTPConnection)
+            self.listeners.append(listener)
+            listener.register(self)
+        
         #self.config = config
-        self.listener.register(self)
         self._timeout = config['Server']['Timeout'].getSeconds()
         self.clientConByAddr = {}
         self.certificateCache = PeerCertificateCache()
+        self.dnsCache = None #DOCDOC
+        self.msgQueue = MessageQueue() #DOCDOC
+
+    def connectDNSCache(self, dnsCache):
+        self.dnsCache = dnsCache
 
     def setContext(self, context):
         """Change the TLS context used for newly received connections.
@@ -1113,15 +1128,50 @@ class MMTPAsyncServer(AsyncServer):
         return con
 
     def stopListening(self):
-        self.listener.shutdown()
+        for listener in self.listeners:
+            listener.shutdown()
 
-    def sendMessages(self, ip, port, keyID, deliverable):
+    def sendMessagesByRouting(self, routing, deliverable):
+        """DOCDOC"""
+        if isinstance(routing, IPV4Info):
+            self.sendMessages(socket.AF_INET, routing.ip, routing.port,
+                              routing.keyinfo, deliverable)
+        else:
+            assert isinstance(routing, MMTPHostInfo)
+            def lookupDone(name, (family, addr, when),
+                          self=self, routing=routing, deliverable=deliverable):
+                if addr == "NOENT":
+                    for m in deliverable:
+                        try:
+                            m.failed(1)
+                        except AttributeError:
+                            pass
+                else:
+                    self.queueSendableMessages(family, addr,
+                                         routing.port, routing.keyinfo,
+                                         deliverable)
+
+            self.dnsCache.lookup(routing.hostname, lookupDone)
+
+    def queueSendableMessages(self, family, addr, port, keyID, deliverable):
+        """DOCDOC"""
+        self.msgQueue.put((family,addr,port,keyID,deliverable))
+
+    def sendQueuedMessages(self):
+        """DOCDOC"""
+        while 1:
+            try:
+                family,addr,port,keyID,deliverable=self.msgQueue.get(1)
+            except QueueEmpty:
+                return
+            self.sendMessages(family,addr,port,keyID,deliverable)
+
+    def sendMessages(self, family, ip, port, keyID, deliverable):
         """Begin sending a set of messages to a given server.
 
            deliverable is a list of objects obeying the DeliverableMessage
            interface.
         """
-
         try:
             # Is there an existing connection open to the right server?
             con = self.clientConByAddr[(ip,port,keyID)]
@@ -1171,3 +1221,8 @@ class MMTPAsyncServer(AsyncServer):
     def onMessageReceived(self, msg):
         """Abstract function.  Called when we get a message"""
         pass
+
+    def process(self, timeout):
+        """DOCDOC overrides"""
+        self.sendQueuedMessages()
+        AsyncServer.process(self, timeout)
