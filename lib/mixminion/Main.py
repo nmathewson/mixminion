@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.23 2003/01/07 05:04:55 nickm Exp $
+# $Id: Main.py,v 1.24 2003/01/09 06:50:49 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -138,7 +138,7 @@ _USAGE = (
   "                               (For Servers)\n"+
   "       server         [Begin running a Mixminon server]\n"+
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
-  "       setver-DELKEYS [Remove generated keys for a Mixminion server]\n"+
+  "       server-DELKEYS [Remove generated keys for a Mixminion server]\n"+
   "                             (For Developers)\n"+
   "       dir            [Administration for server directories]\n"+
   "       unittests      [Run the mixminion unit tests]\n"+
