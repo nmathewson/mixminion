@@ -49,6 +49,7 @@ For 0.0.7:
                         o Implement
                         - Test
                 - Maildir-style exit module to help integrators.
+                - "mixminiond" frontend
         . MMTP
                 o Make MMTP bursty.
                 . Bandwidth throttling
@@ -64,8 +65,10 @@ For 0.0.7:
         o Security
                 X Make createPrivateDirs gripe about group-writable parent
                   dirs.  [Actually, this has been done for a while!]
-        - Large reply messages and efwd messages
-                - Fragment-pool logic for client
+        . Large reply messages and efwd messages
+                . Fragment-pool logic for client
+                        o Implement
+                        - Test
         - Manual pages
                 - Re-do man page to be generated from common source
                   on all platforms (George.)
@@ -101,7 +104,9 @@ Reach for 0.0.7:
                   when.
                 - Limit number of packets sent over single client
                   connection.
-
+        - UI
+                - "-o" option for queue
+                - "-i" option for flush.
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   [Release criteria: Workable replacement for type II.  At least as

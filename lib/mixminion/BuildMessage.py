@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.68 2004/01/07 02:50:08 nickm Exp $
+# $Id: BuildMessage.py,v 1.69 2004/02/16 22:30:03 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -333,7 +333,7 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
 
 #----------------------------------------------------------------------
 # MESSAGE DECODING
-def decodePayload(payload, tag, key=None, userKeys=()):
+def decodePayload(payload, tag, key=None, userKeys=(), retNym=None):
     """Given a 28K payload and a 20-byte decoding tag, attempt to decode the
        original message.  Returns either a SingletonPayload instance, a
        FragmentPayload instance, or None.
@@ -347,6 +347,8 @@ def decodePayload(payload, tag, key=None, userKeys=()):
        If we can successfully decrypt the payload, we return it.  If we
        might be able to decrypt the payload given more/different keys,
        we return None.  If the payload is corrupt, we raise MixError.
+
+       DOCDOC retNym
     """
     if userKeys is None:
         userKeys = []
@@ -378,6 +380,8 @@ def decodePayload(payload, tag, key=None, userKeys=()):
                 p = _decodeStatelessReplyPayload(payload, tag, userKey)
                 if name:
                     LOG.info("Decoded reply message to identity %r", name)
+                if retNym is not None:
+                    retNym.append(name)
                 return p
             except MixError:
                 pass

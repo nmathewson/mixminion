@@ -8,7 +8,8 @@
    """
 
 __all__ = [ 'NoPassword', 'PasswordManager', 'getPassword_term',
-            'getNewPassword_term', 'SURBLog', 'ClientQueue' ]
+            'getNewPassword_term', 'SURBLog', 'ClientQueue',
+            'ClientFragmentPool' ]
 
 import binascii
 import cPickle
@@ -16,9 +17,11 @@ import getpass
 import os
 import sys
 import time
+import types
 import struct
 
 import mixminion.Filestore
+import mixminion.Packet
 
 from mixminion.Common import LOG, MixError, UIError, ceilDiv, \
      createPrivateDir, floorDiv, previousMidnight, readFile, \
@@ -853,3 +856,83 @@ class ClientQueue:
             mixminion.ClientMain.clientUnlock()
 
         self.metadataLoaded = 1
+
+# ----------------------------------------------------------------------
+
+class ClientFragmentPool:
+    """DOCDOC"""
+    def __init__(self, directory):
+        createPrivateDir(directory)
+        self.dir = directory
+        self.pool = None
+
+    def __getPool(self):
+        if self.pool is None:
+            import mixminion.Fragments
+            self.pool = mixminion.Fragments.FragmentPool(self.directory)
+        return self.pool
+
+    def close(self):
+        if self.pool is not None:
+            self.pool.close()
+            self.pool = None
+
+    def addFragment(self, fragment, nym=None):
+        """fragment is instance of fragmentPayload or is a string payload
+           DOCDOC"""
+        pool = self.__getPool()
+        if isinstance(fragment, types.StringType):
+            try:
+                fragment = mixminion.Packet.parsePayload(fragment)
+            except ParseError, s:
+                raise UIError("Corrupted fragment payload: %s"%s)
+            if not fragment.isFragment():
+                raise UIError("Non-fragment payload marked as a fragment.")
+
+        assert isinstance(fragment, mixminion.Packet.FragmentPayload)
+
+        return pool.addFragment(fragment, nym=nym, verbose=1)
+
+    def process(self):
+        pool = self.__getPool()
+        pool.unchunkMessages()
+        pool.cleanQueue()
+
+    def expireMessages(self, cutoff):
+        pool = self.__getPool()
+        pool.expireMessages(cutoff)
+        self.cleanQueue()
+
+    def getMessage(self, msgid):
+        pool = self.__getPool()
+        msg = pool.getReadyMessage(msgid)
+        if msg is not None:
+            return msg
+
+        state = pool.getStateByMsgID(msgid)
+        if state is None:
+            raise UIError("No such message as '%s'" % msgid)
+        elif not state.isDone():
+            raise UIError("Message '%s' is still missing fragments."%msgid)
+        else:
+            raise MixFatalError("Can't decode message %s; I don't know why!")
+
+    def removeMessages(self, msgids):
+        pool = self.__getPool()
+        for i in msgids:
+            if pool.getStateByMsgID(m) is None:
+                raise UIError("No such message as %s")
+        pool._deleteMessageIDs(msgids, "?")
+        pool.cleanQueue()
+
+    def listMessages(self):
+        pool = self.__getPool()
+        return pool.listMessages()
+
+    def formatMessageList(self):
+        msgs = self.listMessages()
+        result = []
+        for msgid in msgs.keys():
+            result.append(msgid+(": to <%(nym)s>. %(size)s bytes (%(have)s/%(need)s packets received)"
+                                 % msgs[msgid]))
+        return result

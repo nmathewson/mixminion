@@ -212,9 +212,10 @@ class MixminionClient:
         # Initialize PRNG
         self.prng = mixminion.Crypto.getCommonPRNG()
         self.queue = mixminion.ClientUtils.ClientQueue(os.path.join(userdir, "queue"))
+        self.pool = mixminion.ClientUtils.ClientFragmentPool(os.path.join(userdir, "fragments"))
 
     def _sortPackets(self, packets, shuffle=1):
-        """Helper function.  Takes a list of tuples of (packet, 
+        """Helper function.  Takes a list of tuples of (packet,
            ServerInfo/routigInforoutingInfo),
            groups packets with the same routingInfos, and returns a list of
            tuples of (routingInfo, [packet list]).
@@ -237,6 +238,7 @@ class MixminionClient:
             for _, pktList in result:
                 self.prng.shuffle(pktList)
         return result
+
 
     def sendForwardMessage(self, directory, address, pathSpec, message,
                            startAt, endAt, forceQueue=0, forceNoQueue=0,
@@ -637,23 +639,33 @@ class MixminionClient:
         """
         #XXXX write unit tests
         results = []
+        foundAFragment = 0
         for msg in parseTextEncodedMessages(s, force=force):
             if msg.isOvercompressed() and not force:
                 LOG.warn("Message is a possible zlib bomb; not uncompressing")
-            if msg.isFragment():
-                raise UIError("Sorry -- no support yet for client-side defragmentation.")
-            elif not msg.isEncrypted():
-                results.append(msg.getContents())
+
+            if not msg.isEncrypted():
+                if msg.isFragment():
+                    self.pool.addFragment(msg.getContents(), "---")
+                else:
+                    results.append(msg.getContents())
             else:
                 assert msg.isEncrypted()
                 surbKeys = self.keys.getSURBKeys()
+                nym = []
                 p = mixminion.BuildMessage.decodePayload(msg.getContents(),
                                                          tag=msg.getTag(),
-                                                         userKeys=surbKeys)
-                if p and p.isSingleton():
-                    results.append(p.getUncompressedContents())
-                elif p:
-                    raise UIError("Sorry; no support yet for client-side defragmentation.")
+                                                         userKeys=surbKeys,
+                                                         rNym=nym)
+                if p:
+                    if nym:
+                        nym=nym[0]
+                    else:
+                        nym="default"
+                    if p.isSingleton():
+                        results.append(p.getUncompressedContents())
+                    else:
+                        self.pool.addFragment(p,nym)
                 else:
                     raise UIError("Unable to decode message")
         if isatty and not force:
@@ -1277,7 +1289,7 @@ def runPing(cmd, args):
                     port = int(addrport[1])
                 except ValueError:
                     raise UIError("Invalid port: %r"%addrport[1])
-                
+
             else:
                 arg = "%s:48099"%arg
                 port = 48099

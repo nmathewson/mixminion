@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.11 2004/01/03 07:35:23 nickm Exp $
+# $Id: Fragments.py,v 1.12 2004/02/16 22:30:03 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -145,7 +145,7 @@ class FragmentPool:
         del self.store
         del self.states
 
-    def addFragment(self, fragmentPacket, nym=None, now=None):
+    def addFragment(self, fragmentPacket, nym=None, now=None, verbose=0):
         """Given an instance of mixminion.Packet.FragmentPayload, record
            the fragment if appropriate and update the state of the
            fragment pool if necessary.
@@ -156,7 +156,13 @@ class FragmentPool:
                   attack where we send 2 fragments to 'MarkTwain' and 2
                   fragments to 'SClemens', and see that the message is
                   reconstructed.]
+
+           DOCDOC return, verbose
         """
+        if verbose:
+            say = LOG.info
+        else:
+            say = LOG.debug
         if now is None:
             now = time.time()
         today = previousMidnight(now)
@@ -165,9 +171,9 @@ class FragmentPool:
         # drop this packet.
         s = self.db.getStatusAndTime(fragmentPacket.msgID)
         if s:
-            LOG.debug("Dropping fragment of %s message %r",
-                      s[0].lower(), disp64(fragmentPacket.msgID,13))
-            return
+            say("Dropping fragment of %s message %r",
+                s[0].lower(), disp64(fragmentPacket.msgID,12))
+            return None
 
         # Otherwise, create a new metadata object for this fragment...
         meta = FragmentMetadata(messageid=fragmentPacket.msgID,
@@ -188,17 +194,21 @@ class FragmentPool:
             h = self.store.queueMessageAndMetadata(fragmentPacket.data, meta)
             # And *now* update the message state.
             state.addFragment(h, meta)
-            LOG.debug("Stored fragment %s of message %s",
-                      fragmentPacket.index, disp64(fragmentPacket.msgID,13))
-        except MismatchedFragment:
+            say("Stored fragment %s of message %s",
+                fragmentPacket.index, disp64(fragmentPacket.msgID,12))
+            return fragmentPacket.msgID
+        except MismatchedFragment, s:
             # Remove the other fragments, mark msgid as bad.
-            LOG.warn("Found inconsistent fragment %s in message %s",
-                      fragmentPacket.index, disp64(fragmentPacket.msgID,13))
+            LOG.warn("Found inconsistent fragment %s in message %s: %s",
+                     fragmentPacket.index, disp64(fragmentPacket.msgID,12),
+                     s)
             self._deleteMessageIDs({ meta.messageid : 1}, "REJECTED", now)
+            return None
         except UnneededFragment:
             # Discard this fragment; we don't need it.
             LOG.debug("Dropping unneeded fragment %s of message %s",
-                      fragmentPacket.index, disp64(fragmentPacket.msgID,13))
+                      fragmentPacket.index, disp64(fragmentPacket.msgID,12))
+            return None
 
     def getReadyMessage(self, msgid):
         """Return the complete message associated with messageid 'msgid'.
@@ -310,9 +320,9 @@ class FragmentPool:
            undeliverable.
 
               messageIDSet -- a map from 20-byte messageID to 1.
-              why -- 'REJECTED' or 'COMPLETED'.
+              why -- 'REJECTED' or 'COMPLETED' or '?'
         """
-        assert why in ("REJECTED", "COMPLETED")
+        assert why in ("REJECTED", "COMPLETED", "?")
         if not messageIDSet:
             return
         if today is None:
@@ -321,8 +331,11 @@ class FragmentPool:
         if why == 'REJECTED':
             LOG.debug("Removing bogus messages by IDs: %s",
                       messageIDSet.keys())
-        else:
+        elif why == "COMPLETED":
             LOG.debug("Removing completed messages by IDs: %s",
+                      messageIDSet.keys())
+        else:
+            LOG.debug("Removing messages by IDs: %s",
                       messageIDSet.keys())
         for mid in messageIDSet.keys():
             self.db.markStatus(mid, why, today)
@@ -347,6 +360,33 @@ class FragmentPool:
                                  nym=fm.nym)
             self.states[fm.messageid] = state
             return state
+
+    def getStateByMsgID(self, msgid):
+        """DOCDOC"""
+        if len(msgid) == 20:
+            return self.state.get(msgid,None)
+        elif len(msgid) == 12:
+            target = binascii.a2b_base64(msgid)
+            for i in self.states.keys():
+                if i.startswith(target):
+                    return self.states[i]
+        return None
+
+    def listMessages(self):
+        """DOCDOC
+           pretty-id => { 'size':x, 'nym':x, 'have':x, 'need':x }
+        """
+        result = {}
+        for msgid in self.states.keys():
+            state = self.states[msgid]
+            have, need = state.getCompleteness()
+            result[disp64(msgid,12)] = {
+                'size' : state.params.length,
+                'nym' : state.nym,
+                'have' : have,
+                'need' : need
+                }
+        return result
 
 # ======================================================================
 
@@ -451,19 +491,28 @@ class MessageState:
         assert self.isDone()
         return [ self.chunks[i][0] for i in xrange(self.params.nChunks) ]
 
+    def getCompleteness(self):
+        """(have,need) DOCDOC"""
+        need = self.params.k * self.params.nChunks
+        have = self.params.k * len(self.chunks)
+        for d in self.fragmentsByChunk.values():
+            have += min(len(d),self.params.k)
+        return have, need
+
     def addChunk(self, h, fm):
         """Register a chunk with handle h and FragmentMetadata fm.  If the
            chunk is inconsistent with other fragments of this message,
            raise MismatchedFragment."""
         assert fm.isChunk
         assert fm.messageid == self.messageid
-        if (fm.size != self.params.length or
-            fm.overhead != self.overhead or
-            self.chunks.has_key(fm.chunkNum)):
-            raise MismatchedFragment
-
+        if fm.size != self.params.length:
+            raise MismatchedFragment("Mismatched message length")
+        if fm.overhead != self.overhead:
+            raise MismatchedFragment("Mismatched packet overhead")
+        if self.chunks.has_key(fm.chunkNum):
+            raise MismatchedFragment("Duplicate chunks")
         if fm.nym != self.nym:
-            raise MismatchedFragment
+            raise MismatchedFragment("Fragments received for differing identities")
 
         if self.inserted > fm.insertedDate:
             self.inserted = fm.insertedDate
@@ -485,9 +534,12 @@ class MessageState:
            fragment--just raise exceptions as needed."""
         assert fm.messageid == self.messageid
 
-        if (fm.size != self.params.length or
-            fm.overhead != self.overhead):
-            raise MismatchedFragment
+        if fm.size != self.params.length:
+            raise MismatchedFragment("mismatched message size")
+        if fm.overhead != self.overhead:
+            raise MismatchedFragment("mismatched fragment payload size")
+        if fm.nym != self.nym:
+            raise MismatchedFragment("mismatched identities")
 
         chunkNum, pos = self.params.getPosition(fm.idx)
         if chunkNum >= self.params.nChunks:
@@ -498,7 +550,7 @@ class MessageState:
             raise UnneededFragment
 
         if self.fragmentsByChunk[chunkNum].has_key(pos):
-            raise MismatchedFragment
+            raise MismatchedFragment("multiple fragments for one position")
 
         if noop:
             return
