@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.67 2003/01/06 07:03:24 nickm Exp $
+# $Id: test.py,v 1.68 2003/01/06 10:39:24 nickm Exp $
 
 """mixminion.tests
 
@@ -4808,7 +4808,7 @@ class ClientMainTests(unittest.TestCase):
         parseEq("foo@bar.com", SMTP_TYPE, "foo@bar.com", None)
         ##
         # Check other address formats.
-        parseEq("drop", DROP_TYPE, None, None)
+        parseEq("drop", DROP_TYPE, "", None)
         parseEq("test:foobar", 0xFFFE, "foobar", None)
         parseEq("test", 0xFFFE, "", None)
         parseEq("0x999:zymurgy", 0x999, "zymurgy", None)

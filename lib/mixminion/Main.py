@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.21 2003/01/06 03:29:46 nickm Exp $
+# $Id: Main.py,v 1.22 2003/01/06 10:39:24 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -126,7 +126,7 @@ _COMMANDS = {
 }
 
 _USAGE = (
-  "Usage: %s <command> [arguments]\n"+
+  "Usage: mixminion <command> [arguments]\n"+
   "where <command> is one of:\n"+
   "                              (For Everyone)\n"+
   "       version        [Print the version of Mixminion and exit]\n"+
@@ -140,7 +140,9 @@ _USAGE = (
   "                             (For Developers)\n"+
   "       dir            [Administration for server directories]\n"+
   "       unittests      [Run the mixminion unit tests]\n"+
-  "       benchmarks     [Time underlying cryptographic operations]\n"
+  "       benchmarks     [Time underlying cryptographic operations]\n"+
+  "\n"+
+  "For help on sending a message, run 'mixminion send --help'"
 )
 
 def printVersion(cmd,args):
@@ -160,7 +162,7 @@ def main(args):
     # Check whether we have a recognized command.
     if len(args) == 1 or not _COMMANDS.has_key(args[1]):
         printVersion(args[0],args[1:])
-        print _USAGE % args[0]
+        print _USAGE
         sys.exit(1)
 
     # Read the module and function.
