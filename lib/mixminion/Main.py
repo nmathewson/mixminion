@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.7 2002/11/21 19:46:11 nickm Exp $
+# $Id: Main.py,v 1.8 2002/11/22 00:26:35 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -27,6 +27,8 @@ if not hasattr(sys,'version_info') or sys.version_info[0] < 2:
         "ERROR: Mixminion requires Python version 2.0 or higher.\n"+
         "       You seem to be running version %s.\n")%_ver)
     sys.exit(1)
+
+import getopt
 
 def filesAreSame(f1, f2):
     "Return true if f1 and f2 are exactly the same file."
@@ -56,9 +58,9 @@ def correctPath(myself):
     mydir = os.path.split(myself)[0]
     parentdir, miniondir = os.path.split(mydir)
     if not miniondir == 'mixminion':
-        sys.stderr.write("Bad mixminion installation:\n"+
+        sys.stderr.write(("Bad mixminion installation:\n"+
 	 " I resolved %s to %s, but expected to find ../mixminion/Main.py\n")%(
-	     orig_cmd, myself) 
+	     orig_cmd, myself))
 
     # Now we check whether there's already an entry in sys.path.  If not,
     # we add the directory we found.
@@ -97,7 +99,8 @@ _COMMANDS = {
     "benchmarks" : ( 'mixminion.benchmark', 'timeAll' ),
     "client" : ( 'mixminion.ClientMain', 'runClient' ),
     "server" : ( 'mixminion.ServerMain', 'runServer' ),
-    "server-keygen" : ( 'mixminion.ServerMain', 'runKeygen')
+    "server-keygen" : ( 'mixminion.ServerMain', 'runKeygen'),
+    "server-DELKEYS" : ( 'mixminion.ServerMain', 'removeKeys'),
 }
 
 def printVersion(cmd,args):
@@ -131,7 +134,11 @@ def main(args):
     func = getattr(mod, command_fn)
 
     # Invoke the command.
-    func(" ".join(args[0:2]), args[2:])
+    try:
+        func(" ".join(args[0:2]), args[2:])
+    except getopt.GetoptError, e:
+        print >>sys.stderr, e
+        func(" ".join(args[0:2]), ["--help"])
 
 if __name__ == '__main__':
     main(sys.argv)

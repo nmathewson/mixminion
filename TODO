@@ -26,21 +26,22 @@ FOR 0.0.1: (The first alpha)
 			o BUG: "Unable to handle message with unknown type...
 		o Use real cottrell mixing again.
 		- More explicit overview of queues.
-		- Need 'nuke keys' CLI.
+		o Need 'nuke keys' CLI.
+			o Implement
+			o Test
 		- Unit tests for various queues.
 		o Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
-	. CLI for server
+	o CLI for server
 		o Common CLI code.	
 		o Run server
-		. Generate future key
+		o Generate future key
 			o Keygen in server keyring
 			o CLI
-			*- Tests for CLI
 	*- CLI client
 		- Send a message
-		- Generate a message
+		D Generate a message
 		- Linkage from command line to helper class
 		o Design directory layout
 		D Storage for serverinfo
@@ -98,7 +99,7 @@ SPEC	o E2E functionality
 	o Change output of dates to avoid potential GMT confusion.
 	o Change spec to reflect new date format
 	o Marginally clean shutdown for server
-	- Versioning :)
+	o Versioning :)
 	- Final license
 	- Documentation
 		- Contributor's guide
@@ -135,7 +136,9 @@ Required for "1.0":
 		  'Boilerplate' functionality.
 		- Tell ModuleManager about async code
 		- Support for forking delivery
-		- SMTP module
+		- Real SMTP module
+			- Abuse prevention
+			- Support for setting 'Subject' and 'From' lines.
 		- Incoming email gateway
 		- Refactor module manager to do decoding _before_ passing
 		  payloads to the individual module implementations.
@@ -170,6 +173,7 @@ Required for "1.0":
 		- Send message to user with known key
 		- Send message to user with known server
 		- Real PKI
+	        - Queue a bunch of messages at the client level.
 	- MMTP / async
 		- Make listen options configurable (backlog, IP)
 		- Code to send junk
@@ -196,6 +200,7 @@ SPEC!!		- Timeout old connections
 		- Correct implementation of stateless reply blocks
 SPEC		o Patch to address George's 15August attack
 	- Test on other (non-redhat, non-linux) systems
+	- Tests for CLIs
 	- Directories
 		- ServerInfo: complete validation rules
 		- Implementation for directory servers

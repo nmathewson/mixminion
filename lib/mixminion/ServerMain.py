@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.12 2002/11/21 16:55:49 nickm Exp $
+# $Id: ServerMain.py,v 1.13 2002/11/22 00:26:36 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -146,6 +146,22 @@ class ServerKeyring:
 	
 	return key
 
+    def removeIdentityKey(self):
+        """Remove this server's identity key."""
+        fn = os.path.join(self.keyDir, "identity.key")
+        if not os.path.exists(fn):
+            getLog().info("No identity key to remove.")
+        else:
+            getLog().warn("Removing identity key in 10 seconds")
+            time.sleep(10)
+            getLog().warn("Removing identity key")
+            secureDelete([fn], blocking=1)
+
+	dhfile = os.path.join(self.homeDir, 'work', 'tls', 'dhparam')
+        if os.path.exists('dhfile'):
+            getLog().info("Removing diffie-helman parameters file")
+            secureDelete([dhfile], blocking=1)
+
     def createKeys(self, num=1, startAt=None):
 	"""Generate 'num' public keys for this server. If startAt is provided,
            make the first key become valid at'startAt'.  Otherwise, make the
@@ -189,16 +205,25 @@ class ServerKeyring:
 
         self.checkKeys()
 
-    def removeDeadKeys(self):
+    def removeDeadKeys(self, now=None):
 	"""Remove all keys that have expired"""
-        now = time.time()
+        self.checkKeys()
+
+        if now is None:
+            now = time.time()
+            expiryStr = " expired"
+        else:
+            expiryStr = ""
+
         cutoff = now - self.keySloppiness
 	dirs = [ os.path.join(self.keyDir,"key_"+name)
                   for va, vu, name in self.keyIntervals if vu < cutoff ]
 
-	for dirname in dirs:
+	for dirname, (va, vu, name) in zip(dirs, self.keyIntervals):
+            getLog().info("Removing%s key %s (valid from %s through %s)",
+                        expiryStr, name, _date(va), _date(vu-3600))
 	    files = [ os.path.join(dirname,f) 
-		                 for f in os.listdir(dirname) ]
+                                 for f in os.listdir(dirname) ]
 	    secureDelete(files, blocking=1)
 	    os.rmdir(dirname)
 	    
@@ -489,7 +514,7 @@ def configFromServerArgs(cmd, args):
     configFile = "/etc/mixminiond.conf"
     for o,v in options:
 	if o in ('-h', '--help'):
-	    usageAndExit()
+	    usageAndExit(cmd)
 	if o in ('-f', '--config'):
 	    configFile = v
 
@@ -507,6 +532,7 @@ def readConfigFile(configFile):
 	print >>sys.stderr, str(e)
 	sys.exit(1)
 
+#----------------------------------------------------------------------
 def runServer(cmd, args):
     config = configFromServerArgs(cmd, args)
     try:
@@ -537,8 +563,11 @@ def runServer(cmd, args):
 
 #----------------------------------------------------------------------
 def runKeygen(cmd, args):
-    options, args = getopt.getopt(args, "hf:n:", ["help", "config=", "keys="])
+    options, args = getopt.getopt(args, "hf:n:",
+                                  ["help", "config=", "keys="])
     # FFFF password-encrypted keys
+    # FFFF Ability to fill gaps
+    # FFFF Ability to generate keys with particular start/end intervals
     keys=1
     usage=0
     configFile = '/etc/miniond.conf'
@@ -552,11 +581,12 @@ def runKeygen(cmd, args):
 		keys = int(val)
 	    except ValueError, _:
 		print >>sys.stderr,("%s requires an integer" %opt)
-		sys.exit(1)
-	if usage:
-	    print >>sys.stderr, "Usage: %s [-h] [-f configfile] [-n nKeys]"%cmd
-	    sys.exit(1)
-	config = readConfigFile(configFile)
+		usage = 1
+    if usage:
+        print >>sys.stderr, "Usage: %s [-h] [-f configfile] [-n nKeys]"%cmd
+        sys.exit(1)
+
+    config = readConfigFile(configFile)
 
     getLog().setMinSeverity("INFO")
     mixminion.Crypto.init_crypto(config)
@@ -566,3 +596,37 @@ def runKeygen(cmd, args):
 	keyring.createKeys(1)
 	print >> sys.stderr, ".... (%s/%s done)" % (i+1,keys)
     
+#----------------------------------------------------------------------
+def removeKeys(cmd, args):
+    # FFFF Resist removing keys that have been published.
+    # FFFF Generate 'suicide note' for removing identity key.
+    options, args = getopt.getopt(args, "hf:", ["help", "config=",
+                                                "remove-identity"])
+    if args:
+        print >>sys.stderr, "%s takes no arguments"%cmd
+        usage = 1
+        args = options = ()
+    usage = 0
+    removeIdentity = 0
+    configFile = '/etc/miniond.conf'
+    for opt,val in options:
+	if opt in ('-h', '--help'):
+	    usage=1
+	elif opt in ('-f', '--config'):
+	    configFile = val
+	elif opt == '--remove-identity':
+            removeIdentity = 1
+    if usage:
+        print >>sys.stderr, \
+              "Usage: %s [-h|--help] [-f configfile] [--remove-identity]"%cmd
+        sys.exit(1)
+
+    config = readConfigFile(configFile)
+    getLog().setMinSeverity("INFO")
+    keyring = ServerKeyring(config)
+    keyring.checkKeys()
+    # This is impossibly far in the future.
+    keyring.removeDeadKeys(now=(1L << 36)) 
+    if removeIdentity:
+        keyring.removeIdentityKey()
+    getLog().info("Done removing keys")

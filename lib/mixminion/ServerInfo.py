@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.18 2002/11/21 16:55:49 nickm Exp $
+# $Id: ServerInfo.py,v 1.19 2002/11/22 00:26:35 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -287,7 +287,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 	    getLog().warn("No IP configured; guessing %s",fields['IP'])
 	except IPGuessError, e:
 	    getLog().error("Can't guess IP: %s", str(e))
-	    raise MixError()
+	    raise MixError("Can't guess IP: %s" % str(e))
 	
     info = """\
         [Server]
