@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.90 2003/06/13 01:03:45 nickm Exp $
+# $Id: Common.py,v 1.91 2003/06/25 17:03:10 arma Exp $
 
 """mixminion.Common
 
@@ -304,7 +304,7 @@ def createPrivateDir(d, nocreate=0):
         try:
             os.makedirs(d, 0700)
         except OSError, e:
-            raise MixFatalError("Unable to create directory %s: %s" % d, e)
+            raise MixFatalError("Unable to create directory %s: %s" % (d, e))
 
     checkPrivateDir(d)
 
@@ -641,7 +641,7 @@ class _FileLogHandler:
             self.file = open(self.fname, 'a')
         except OSError, e:
             self.file = None
-            raise MixError("Unable to open log file %r: %s"%self.fname, e)
+            raise MixError("Unable to open log file %r: %s"%(self.fname, e))
     def close(self):
         "Close the underlying file"
         self.file.close()

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.44 2003/06/21 07:24:07 nickm Exp $
+# $Id: Modules.py,v 1.45 2003/06/25 17:03:15 arma Exp $
 
 """mixminion.server.Modules
 
@@ -525,7 +525,7 @@ class EmailAddressSet:
                 raise ConfigError("Invalid line at %s: %s"%(lineno, line))
             deny = line[0].lower()
             if deny != self.includeStr:
-                raise ConfigError("Line on %s doesn't start with 'Deny'")
+                raise ConfigError("Line on %s doesn't start with 'Deny'"%lineno)
             cmd = line[1].lower()
             arg = line[2].strip()
             if cmd == 'address':

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.46 2003/06/06 06:04:57 nickm Exp $
+# $Id: Packet.py,v 1.47 2003/06/25 17:03:11 arma Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -418,8 +418,8 @@ def _parseReplyBlock(s):
         raise ParseError("Misformatted reply block")
 
     if major != 0x00 or minor != 0x01:
-        raise ParseError("Unrecognized version on reply block %s.%s",
-                         major,minor)
+        raise ParseError("Unrecognized version on reply block %s.%s"
+                         %(major,minor))
 
     ri = s[MIN_RB_LEN:]
     length = rlen + MIN_RB_LEN

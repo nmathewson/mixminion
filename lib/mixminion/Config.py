@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.48 2003/06/21 21:47:50 nickm Exp $
+# $Id: Config.py,v 1.49 2003/06/25 17:03:11 arma Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -344,8 +344,8 @@ _NICKNAME_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
                    "0123456789_.@-")
 MAX_NICKNAME = 128
 def _parseNickname(s):
-    """Validation function.  Returns true iff s contains a valoid
-       server nickname-- that is, a string of 1..128 characters,
+    """Validation function.  Returns true iff s contains a valid
+       server nickname -- that is, a string of 1..128 characters,
        containing only the characters [A-Za-z0-9_@], '.' or '-'.
        """
     s = s.strip()
