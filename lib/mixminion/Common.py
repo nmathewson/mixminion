@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.38 2002/12/31 04:48:46 nickm Exp $
+# $Id: Common.py,v 1.39 2002/12/31 17:40:54 nickm Exp $
 
 """mixminion.Common
 
@@ -652,7 +652,7 @@ class IntervalSet:
             this set."""
         if isinstance(other, IntervalSet):
             return self*other == other
-        idx = bisect.bisect_right(self.edges, (other, '-'))
+        idx = bisect.bisect(self.edges, (other, '-'))
         return idx < len(self.edges) and self.edges[idx][1] == '-'
 
     def isEmpty(self):

@@ -37,7 +37,7 @@ For 0.0.2: [The 'desireable features' release.  This should contain
 			o Tests for BuildMessage functionality
 			o Tests for ModuleManager functionality
 			o Mention in the spec.
-			- Arg! Make space-bound zlib work under Python <2.2.
+			o Arg! Make space-bound zlib work under Python <2.2.
 		o Timeout connections.
 			o Implement timeout logic in MMTPServer
 			o Implement in ServerMain
@@ -160,7 +160,7 @@ Required for "1.0":
 			- Hunt down leaks
 	- Build and install process
 	  	- The version string should be given in only one place
-		- Use sane arguments when testing with multiple python versions
+		o Use sane arguments when testing with multiple python versions
 		o Get SSL as needed
 		- Well-tested 'make install'
 		- RPMS, debs, and so on

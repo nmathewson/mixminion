@@ -1,6 +1,6 @@
 include README HACKING LICENSE Makefile TODO pycheckrc
-include contrib/unittest.py
-include etc/mixminiond.conf
+include contrib/unittest.py contrib/zlibutil.py
+include etc/mixminiond.conf 
 # Old versions of distutils miss header files
 include src/_minionlib.h
 # Not used yet:

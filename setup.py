@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: setup.py,v 1.18 2002/12/31 04:42:15 nickm Exp $
+# $Id: setup.py,v 1.19 2002/12/31 17:40:54 nickm Exp $
 import sys
 
 # Check the version.  We need to make sure version_info exists before we
@@ -45,11 +45,16 @@ try:
 except:
     shutil.copy("contrib/unittest.py", "lib/mixminion/_unittest.py")
 
-# Install textwrap if python doesn't provide it. (This goes for all python<2.3)
+# Install textwrap if Python doesn't provide it. (This goes for all python<2.3)
 try:
     import textwrap
 except:
     shutil.copy("contrib/textwrap.py", "lib/mixminion/_textwrap.py")
+
+# If we have a version of Python older than 2.2, we can't do bounded-space
+# decompression without magic.  That magic is written by Zooko.
+if sys.version_info[:3] < (2,2,0):
+    shutil.copy("contrib/zlibutil.py", "lib/mixminion/_zlibutil.py")
 
 #======================================================================
 # Detect endian-ness
@@ -106,10 +111,41 @@ mixminion.Main.main(sys.argv)
 f.close()
 
 #======================================================================
+# Define a helper to let us run commands from the compiled code.
+from distutils.core import Command
+
+class runMMCommand(Command):
+    # Based on setup.py from Zooko's pyutil package, which is in turn based on
+    # http://mail.python.org/pipermail/distutils-sig/2002-January/002714.html
+    description = "Run a subcommand from mixminion.Main"
+    user_options = [
+        ('subcommand=', None, 'Subcommand to run')]
+
+    def initialize_options(self):
+        self.subcommand = "unittests"
+        
+    def finalize_options(self):
+        build = self.get_finalized_command('build')
+        self.build_purelib = build.build_purelib
+        self.build_platlib = build.build_platlib
+        
+    def run(self):
+        self.run_command('build')
+        old_path = sys.path
+        sys.path[0:0] = [ self.build_purelib, self.build_platlib ]
+        try:
+            minion = __import__("mixminion.Main", globals(), "", [])
+            minion.Main.main(["mixminion.Main", self.subcommand])
+        finally:
+            sys.path = old_path
+        
+#======================================================================
 # Now, tell setup.py how to cope.
 import distutils.core
 from distutils.core import setup, Extension
 from distutils import sysconfig
+
+
 
 INCLUDE_DIRS.append("src")
 
@@ -131,7 +167,8 @@ setup(name='Mixminion',
       package_dir={ '' : 'lib' },
       packages=['mixminion', 'mixminion.server', 'mixminion.directory'],
       scripts=[SCRIPT_PATH],
-      ext_modules=[extmodule])
+      ext_modules=[extmodule],
+      cmdclass={'run': runMMCommand})
 
 try:
     os.unlink(SCRIPT_PATH)

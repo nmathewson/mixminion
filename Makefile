@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.22 2002/12/31 04:40:28 nickm Exp $
+# $Id: Makefile,v 1.23 2002/12/31 17:40:54 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -57,6 +57,7 @@ clean:
 	rm -rf build dist
 	rm -f lib/mixminion/_unittest.py
 	rm -f lib/mixminion/_textwrap.py
+	rm -f lib/mixminion/_zlibutil.py
 	rm -f lib/mixminion/*.pyc
 	rm -f lib/mixminion/*.pyo
 	rm -f lib/mixminion/*/*.pyc
@@ -66,13 +67,13 @@ clean:
 
 test: do_build
 	@$(FINDPYTHON); \
-	echo $$PYTHON -tt build/lib*/mixminion/Main.py unittests; \
-	($$PYTHON -tt build/lib*/mixminion/Main.py unittests)
+	echo $$PYTHON setup.py run --subcommand=unittests; \
+	$$PYTHON setup.py run --subcommand=unittests
 
 time: do_build
 	@$(FINDPYTHON); \
-	echo $$PYTHON -tt build/lib*/mixminion/Main.py benchmarks; \
-	($$PYTHON -tt build/lib*/mixminion/Main.py benchmarks)
+	echo $$PYTHON setup.py run --subcommand=benchmarks; \
+	$$PYTHON setup.py run --subcommand=benchmarks
 
 #======================================================================
 # Install target (minimal.)

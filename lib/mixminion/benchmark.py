@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.21 2002/12/31 04:48:47 nickm Exp $
+# $Id: benchmark.py,v 1.22 2002/12/31 17:40:54 nickm Exp $
 
 """mixminion.benchmark
 
@@ -19,7 +19,8 @@ import cPickle
 from time import time
 
 import mixminion._minionlib as _ml
-from mixminion.BuildMessage import _buildHeader, buildForwardMessage
+from mixminion.BuildMessage import _buildHeader, buildForwardMessage, \
+     compressData, uncompressData
 from mixminion.Common import secureDelete, installSignalHandlers, \
      waitForChildren, formatBase64
 from mixminion.Crypto import *
@@ -403,6 +404,26 @@ IP: 1.1.1.1
 def buildMessageTiming():
     print "#================= BUILD MESSAGE ====================="
     pk = pk_generate()
+
+    for payload in "Hello!!!"*128, "Hello!!!"*(128*28):
+        print "Compress %sK" % (len(payload)/1024), \
+              timeit(lambda p=payload: compressData(p),
+                     100)
+
+    compressed = compressData("Hello!!!"*128)
+    print "Uncompress (1K, no max)", \
+          timeit(lambda c=compressed: uncompressData(c), 1000)
+    compressed = compressData("Hello!!!"*(128*28))
+    print "Unompress (28K, no max)", \
+          timeit(lambda c=compressed: uncompressData(c), 1000)
+
+    compressed = compressData("Hello!!!"*128)
+    print "Uncompress (1K, 1K max)", \
+          timeit(lambda c=compressed: uncompressData(c, 1024), 1000)
+    compressed = compressData("Hello!!!"*(128*28))
+    print "Unompress (28K, 28K max)", \
+          timeit(lambda c=compressed: uncompressData(c, 28<<10), 1000)
+    
     payload = ("Junky qoph flags vext crwd zimb."*1024)[:22*1024]
     serverinfo = [FakeServerInfo("127.0.0.1", 48099, pk,"x"*20)
                   ] * 16
@@ -437,6 +458,7 @@ def buildMessageTiming():
     bm(8,1,40)
     bm(8,8,20)
     bm(16,16,10)
+    
 #----------------------------------------------------------------------
 class DummyLog:
     def seenHash(self,h): return 0
@@ -656,4 +678,3 @@ def timeAll(name, args):
     timeEfficiency()
     #import profile
     #profile.run("import mixminion.benchmark; mixminion.benchmark.directoryTiming()")
-

@@ -1,16 +1,20 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.25 2002/12/29 21:00:18 nickm Exp $
+# $Id: BuildMessage.py,v 1.26 2002/12/31 17:40:54 nickm Exp $
 
 """mixminion.BuildMessage
 
    Code to construct messages and reply blocks, and to decode received
    message payloads."""
 
+import sys
 import zlib
 import operator
 import mixminion.Crypto as Crypto
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG
+
+if sys.version[:3] < (2,2,0):
+    import mixminion._zlibutil as zlibutil
 
 __all__ = ['buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
            'buildReplyBlock', 'decodePayload' ]
@@ -648,20 +652,34 @@ def uncompressData(payload, maxLength=None):
 
     if len(payload) < 6 or payload[0:2] != '\x78\xDA':
         raise ParseError("Invalid zlib header")
+
+    # This code is necessary because versions of Python before 2.2 didn't
+    # support limited-size versions of zlib.decompress.  We use a helper
+    # function helpfully submitted by Zooko.
+    if sys.version_info[:3] < (2,2,0) and maxLength is not None:
+        try:
+            return zlibutil.safe_zlib_decompress_to_retval(payload,
+                                                      maxLength,
+                                                  max(maxLength*3, 1<<20))
+        except zlibutil.TooBigError:
+            raise CompressedDataTooLong()
+        except zlibutil.DecompressError, e:
+            raise ParseError("Error in compressed data")
+    
     try:
-        # We can't just call zlib.decompress(payload), since we'll eventually
+        # We can't just call zlib.decompress(payload), since we may
         # want to limit the output size.
+        
         zobj = zlib.decompressobj(zlib.MAX_WBITS)
         # Decompress the payload.
         if maxLength is None:
             d = zobj.decompress(payload)
         else:
-            #XXXX Arg!  The 'maxlength' argument to decompress wasn't
-            #XXXX introduced until Python 2.2.  I'll need to fall back
-            #XXXX on blunter means.
+            # If we _do_ have Python 2.2, this is the easy way to do it.  It
+            # also uses less RAM in the failing case.
             d = zobj.decompress(payload, maxLength)
-        if zobj.unconsumed_tail:
-            raise CompressedDataTooLong()
+            if zobj.unconsumed_tail:
+                raise CompressedDataTooLong()
             
         # Get any leftovers, which shouldn't exist.
         nil = zobj.flush()
