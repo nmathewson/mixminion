@@ -30,14 +30,14 @@ diff -urNad /home/weasel/projects/debian/debian/mixminion/Mixminion-0.0.7/setup.
          }
  elif sys.platform != 'win32':
      EXTRA = {
--        'data_files' : [("man/man1", ["etc/mixminion.1"]),
--                        ("man/man5", ["etc/mixminionrc.5",
--                                      "etc/mixminiond.conf.5"]),
--                        ("man/man8", ["etc/mixminiond.8"])]
-+        'data_files' : [("share/man/man1", ["etc/mixminion.1"]),
-+                        ("share/man/man5", ["etc/mixminionrc.5",
-+                                            "etc/mixminiond.conf.5"]),
-+                        ("share/man/man8", ["etc/mixminiond.8"])]
+-        'data_files' : [("man/man1", ["doc/mixminion.1"]),
+-                        ("man/man5", ["doc/mixminionrc.5",
+-                                      "doc/mixminiond.conf.5"]),
+-                        ("man/man8", ["doc/mixminiond.8"])]
++        'data_files' : [("share/man/man1", ["doc/mixminion.1"]),
++                        ("share/man/man5", ["doc/mixminionrc.5",
++                                            "doc/mixminiond.conf.5"]),
++                        ("share/man/man8", ["doc/mixminiond.8"])]
          }
  else:
      EXTRA = {}
