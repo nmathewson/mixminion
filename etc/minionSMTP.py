@@ -103,20 +103,20 @@ class minionSMTP(smtpd.SMTPServer):
             return "501 no text/plain body found"
 
         # Base mixminion command
-        cmd = 'mixminion send'
+        cmd = ['mixminion', 'send']
         
         # Augment the command with a nickname
         if nickname != '':
-            cmd += ' --from=\"'+nickname+'\"'
+            cmd.append('--from=%s'%nickname)
 
         if subject != '':
-            cmd += ' --subject=\"'+subject+'\"'
+            cmd.append('--subject=%s'%subject)
 
         for address in rcpttos:
             # For each address it sends the message using mixminion.
-            cmd += ' -t '+ address
-            (sout,sin) = os.popen2(cmd)
-            print cmd
+            cmdFull = cmd + ['-t', address]
+            (sout,sin) = os.popen2(cmdFull)
+            print cmdFull
             print body
             sout.write(body)
             sout.close()
