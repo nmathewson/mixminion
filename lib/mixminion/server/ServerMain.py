@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.131 2004/07/27 04:33:20 nickm Exp $
+# $Id: ServerMain.py,v 1.132 2004/07/27 04:42:33 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -1109,12 +1109,12 @@ class MixminionServer(_Scheduler):
            packets to send, and sends them to the appropriate queues.
         """
 
-        now = time.time()
         # Before we mix, we need to log the hashes to avoid replays.
         try:
             # There's a threading issue here... in between this sync and the
             # 'mix' below, nobody should insert into the mix pool.
             self.mixPool.lock()
+            now = time.time()
             self.packetHandler.syncLogs()
 
             LOG.trace("Mix interval elapsed")
