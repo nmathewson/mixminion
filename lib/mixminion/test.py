@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.138 2003/07/13 03:45:34 nickm Exp $
+# $Id: test.py,v 1.139 2003/07/15 04:40:57 nickm Exp $
 
 """mixminion.tests
 
@@ -4368,6 +4368,10 @@ class EventStatsTests(unittest.TestCase):
         s = "\n".join(sOrig.split("\n")[1:])
         expected = """\
   ReceivedPacket: 1
+  ReceivedConnection: 0
+  AttemptedConnect: 0
+  SuccessfulConnect: 0
+  FailedConnect: 0
   AttemptedRelay: 1
   SuccessfulRelay: 0
   FailedRelay: 1

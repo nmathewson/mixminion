@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.45 2003/07/15 01:57:12 nickm Exp $
+# $Id: MMTPServer.py,v 1.46 2003/07/15 04:41:18 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -597,6 +597,8 @@ class MMTPServerConnection(SimpleTLSConnection):
         SimpleTLSConnection.__init__(self, sock, tls, 1,
                                      "%s:%s"%sock.getpeername())
         
+        EventStats.log.receivedConnection() #FFFF addr
+
         self.messageConsumer = consumer
         self.junkCallback = lambda : None
         self.rejectCallback = lambda : None
@@ -810,7 +812,8 @@ class MMTPClientConnection(SimpleTLSConnection):
         self.finishedCallback = finishedCallback
         self.protocol = None
         self._curMessage = self._curHandle = None
-        
+
+        EventStats.log.attemptedConnect() #FFFF addr        
         debug("Opening client connection to %s", self.address)
 
     def isActive(self):
@@ -853,6 +856,8 @@ class MMTPClientConnection(SimpleTLSConnection):
             return
         else:
             debug("KeyID is valid from %s", self.address)
+
+        EventStats.log.successfulConnect()
 
         self.beginWrite("MMTP %s\r\n"%(",".join(self.PROTOCOL_VERSIONS)))
         self.finished = self.__sentProtocol
@@ -974,6 +979,8 @@ class MMTPClientConnection(SimpleTLSConnection):
             statFn = EventStats.log.failedRelay
         else:
             statFn = EventStats.log.unretriableRelay
+        if self.finished is self.__setupFinished:
+            EventStats.log.failedConnect() #FFFF addr
         if self._curHandle is not None:
             self._curHandle.failed(retriable)
             statFn()
@@ -1095,6 +1102,7 @@ class MMTPAsyncServer(AsyncServer):
         except socket.error, e:
             LOG.error("Unexpected socket error connecting to %s:%s: %s",
                       ip, port, e)
+            EventStats.log.failedConnect() #FFFF addr
             for m in self.messageList:
                 try:
                     m.failed(1)

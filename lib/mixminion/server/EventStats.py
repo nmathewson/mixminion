@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.7 2003/07/13 03:45:35 nickm Exp $
+# $Id: EventStats.py,v 1.8 2003/07/15 04:41:18 nickm Exp $
 
 """mixminion.server.EventStats
 
@@ -16,7 +16,11 @@ from mixminion.Common import formatTime, LOG, previousMidnight, floorDiv, \
 
 # _EVENTS: a list of all recognized event types.
 _EVENTS = [ 'ReceivedPacket',
-           
+
+            'ReceivedConnection',
+
+            'AttemptedConnect', 'SuccessfulConnect', 'FailedConnect',
+
             'AttemptedRelay', 'SuccessfulRelay',
             'FailedRelay', 'UnretriableRelay',
            
@@ -51,6 +55,20 @@ class NilEventLog:
     def receivedPacket(self, arg=None):
         """Called whenever a packet is received via MMTP."""
         self._log("ReceivedPacket", arg)
+    def receivedConnection(self, arg=None):
+        """DOCDOC"""
+        self._log("ReceivedConnection", arg)
+
+    def attemptedConnect(self, arg=None):
+        """DOCDOC"""
+        self._log("AttemptedConnect", arg)
+    def successfulConnect(self, arg=None):
+        """DOCDOC"""
+        self._log("SuccessfulConnect", arg)
+    def failedConnect(self, arg=None):
+        """DOCDOC"""
+        self._log("FailedConnect", arg)
+
     def attemptedRelay(self, arg=None):
         """Called whenever we attempt to relay a packet via MMTP."""
         self._log("AttemptedRelay", arg)

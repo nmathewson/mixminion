@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.20 2003/07/13 03:45:35 nickm Exp $
+# $Id: HashLog.py,v 1.21 2003/07/15 04:41:18 nickm Exp $
 
 """mixminion.server.HashLog
 
@@ -133,6 +133,15 @@ class HashLog:
 
         LOG.debug("Opening database %s for packet digests", filename)
         self.log = anydbm.open(filename, 'c')
+        if not hasattr(self.log, 'sync'):
+            if hasattr(self.log, '_commit'):
+                # Workaround for dumbdbm to allow syncing. (Standard in 
+                # Python 2.3.)
+                self.log.sync = self.log._commit
+            else:
+                # Otherwise, force a no-op sync method.
+                self.log.sync = lambda : None
+
         if isinstance(self.log, dumbdbm._Database):
             LOG.warn("Warning: logging packet digests to a flat file.")
         try:
@@ -140,7 +149,7 @@ class HashLog:
                 raise MixFatalError("Log KEYID does not match current KEYID")
         except KeyError:
             self.log["KEYID"] = keyid
-            if hasattr(self.log, 'sync'): self.log.sync()
+            self.log.sync()
 
         # Scan the journal file
         self.journalFileName = filename+"_jrnl"
@@ -197,8 +206,7 @@ class HashLog:
             self.__lock.acquire()
             for hash in self.journal.keys():
                 self.log[hash] = "1"
-            if hasattr(self.log, "sync"):
-                self.log.sync()
+            self.log.sync()
             os.close(self.journalFile)
             self.journalFile = os.open(self.journalFileName,
                        _JOURNAL_OPEN_FLAGS|os.O_TRUNC, 0600)
