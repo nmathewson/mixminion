@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.32 2003/05/29 02:15:01 nickm Exp $
+# $Id: ServerKeys.py,v 1.33 2003/05/29 05:47:32 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -32,7 +32,7 @@ from mixminion.ServerInfo import ServerInfo, PACKET_KEY_BYTES, MMTP_KEY_BYTES,\
 from mixminion.Common import AtomicFile, LOG, MixError, MixFatalError, \
      ceilDiv, createPrivateDir, \
      checkPrivateFile, formatBase64, formatDate, formatTime, previousMidnight,\
-     secureDelete
+     secureDelete, writeFile
 
 #----------------------------------------------------------------------
 
@@ -411,7 +411,7 @@ class ServerKeyring:
                                                    keys.getMMTPKey(),
                                                    self._getDHFile())
 
-    def updateKeys(self, packetHandler, mmtpServer, when=None):
+    def updateKeys(self, packetHandler, mmtpServer, statusFile=None,when=None):
         """DOCDOC: Return next rotation."""
         self.removeDeadKeys()
         self.currentKeys = keys = self.getServerKeysets(when)
@@ -428,6 +428,11 @@ class ServerKeyring:
                 hashLogs.append(mixminion.server.HashLog.HashLog(
                     k.getHashLogFileName(), k.getPacketKeyID()))
             packetHandler.setKeys(packetKeys, hashLogs)
+
+        if statusFile:
+            writeFile(statusFile,
+                    "".join(["%s\n"%k.getDescriptorFileName() for k in keys]),
+                    0644)
 
         self.nextUpdate = None
         self.getNextKeyRotation(keys)
@@ -693,7 +698,7 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
 
     config_s = config['Server']
     info_s = info['Server']
-    if config_s['Nickname'] and (info_s['Nickname'] != config_s['Nickname']):
+    if info_s['Nickname'] != config_s['Nickname']:
         warn("Mismatched nicknames: %s in configuration; %s published.",
              config_s['Nickname'], info_s['Nickname'])
 
@@ -806,11 +811,6 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
 
     # Now, we pull all the information we need from our configuration.
     nickname = config['Server']['Nickname']
-    if not nickname:
-        nickname = socket.gethostname()
-        if not nickname or nickname.lower().startswith("localhost"):
-            nickname = config['Incoming/MMTP'].get('IP', "<Unknown host>")
-        LOG.warn("No nickname given: defaulting to %r", nickname)
     contact = config['Server']['Contact-Email']
     comments = config['Server']['Comments']
     if not now:

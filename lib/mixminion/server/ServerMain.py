@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.62 2003/05/29 02:01:34 nickm Exp $
+# $Id: ServerMain.py,v 1.63 2003/05/29 05:47:32 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -31,6 +31,7 @@
 #                              published [present if this desc is published]
 #                     key_0002/...
 #                conf/miniond.conf [configuration file]
+#                current-desc
 #                stats [DOCDOC]
 #                version [DOCDOC]
 
@@ -654,7 +655,9 @@ class MixminionServer(_Scheduler):
         LOG.debug("Initializing MMTP server")
         self.mmtpServer = _MMTPServer(config, None)
         LOG.debug("Initializing keys")
-        self.keyring.updateKeys(self.packetHandler, self.mmtpServer)
+        self.descriptorFile = os.path.join(homeDir, "current-desc")
+        self.keyring.updateKeys(self.packetHandler, self.mmtpServer,
+                                self.descriptorFile)
 
         publishedIP, publishedPort, publishedKeyID = self.keyring.getAddress()
 
@@ -718,7 +721,8 @@ class MixminionServer(_Scheduler):
             return time.time() + 120
 
         try:
-            self.keyring.updateKeys(self.packetHandler, self.mmtpServer)
+            self.keyring.updateKeys(self.packetHandler, self.mmtpServer,
+                                    self.descriptorFile)
             return self.keyring.getNextKeyRotation()
         finally:
             if lock: self.keyring.unlock()
