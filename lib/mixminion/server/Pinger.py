@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.4 2004/07/28 00:04:06 nickm Exp $
+# $Id: Pinger.py,v 1.5 2004/07/28 06:07:33 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -124,11 +124,11 @@ class PingLog:
                     LOG.debug("Removing expired events file %s", fn)
                     bad.append(os.path.join(self.location, fn))
                 elif tp == "pend":
-                    if self.lastPending:
+                    if lastPending:
                         LOG.debug("Removing old pending-pings file %s",
                                   lastPending)
                         bad.append(os.path.join(self.location,lastPending))
-                        self.lastPending = fn
+                        lastPending = fn
             if deleteFn:
                 deleteFn(bad)
             else:
@@ -189,7 +189,7 @@ class PingLog:
         return fns
 
     def processPing(self, packet):#instanceof DeliveryPacket with type==ping
-        assert packet.getExitType() != mixminion.Packet.PING_TYPE
+        assert packet.getExitType() == mixminion.Packet.PING_TYPE
         addr = packet.getAddress()
         if len(addr) != mixminion.Crypto.DIGEST_LEN:
             LOG.warn("Ignoring malformed ping packet (exitInfo length %s)",
@@ -341,7 +341,7 @@ class PingStatusLog(PingLog):
         stats = [ pr for _,pr in stats ]
         self.lock.acquire()
         try:
-            stats.append(self.pingStatus.checkPointResults())
+            stats.append(self.pingStatus.checkpointResults())
         finally:
             self.lock.release()
 
@@ -418,6 +418,7 @@ class PingStatus:
             self.start = lastResults.start
             self.liveness = lastResults.liveness
             self.serverUptime = lastResults.serverUptime
+            self.serverDowntime = lastResults.serverDowntime
             self.pings = lastResults.pings
             self.pendingPings = lastResults.pendingPings
         else:
@@ -475,7 +476,7 @@ class PingStatus:
         elif eType == 'GOT_PING':
             h = event[1]
             try:
-                tSent, path = self.pendingPing[h]
+                tSent, path = self.pendingPings[h]
             except KeyError:
                 # we didn't send it, or can't remember sending it.
                 LOG.warn("Received a ping I don't remember sending (%s)",
@@ -559,7 +560,7 @@ class PingResults:
         self.days = days # list of OneDayPingResults
         self.summary = summary
 
-GRACE_PERIOD = ONE_DAY
+GRACE_PERIOD = 2*60*60
 WEIGHT_AGE = [ 5, 10, 10, 10, 10, 9, 8, 5, 3, 2, 2, 1, 0, 0, 0, 0, 0 ]
 
 def calculatePingResults(periods, endAt):
@@ -582,13 +583,14 @@ def calculatePingResults(periods, endAt):
                 day = floorDiv(send-startAt, ONE_DAY)
                 if day<0: continue
                 pingsByDay[day].setdefault(path,[]).append((send,recv))
-    for send,path in periods[-1].values():
-        if send+GRACE_PERIOD > endAt:
-            continue
-        day = floorDiv(send-startAt, ONE_DAY)
-        if day<0: continue
-        pingsByDay[day].setdefault(path,[]).append((send,None))
-        allPaths[path]=1
+    if len(periods):
+        for send,path in periods[-1].pendingPings.values():
+            if send+GRACE_PERIOD > endAt:
+                continue
+            day = floorDiv(send-startAt, ONE_DAY)
+            if day<0: continue
+            pingsByDay[day].setdefault(path,[]).append((send,None))
+            allPaths[path]=1
 
     maxDelay = {}
     delays = {}
@@ -599,8 +601,8 @@ def calculatePingResults(periods, endAt):
         delays[path] = []
         summary.nSent[path]=0
         summary.nRcvd[path]=0
-    for idx in xrange(KEEP_HISTORY_DAYS+1):
-        for path, pings in pingsByDay[idx].keys():
+    for idx in xrange(USE_HISTORY_DAYS+1):
+        for path, pings in pingsByDay[idx].items():
             nRcvd = 0
             nLost = 0
             totalDelay = 0.0
@@ -616,7 +618,10 @@ def calculatePingResults(periods, endAt):
                         maxDelay[path]=delay
                     delays[path].append(delay)
             results[idx].reliability[path] = float(nRcvd)/(nRcvd+nLost)
-            results[idx].latency[path] = totalDelay/nRcvd
+            if nRcvd > 0:
+                results[idx].latency[path] = totalDelay/nRcvd
+            else:
+                results[idx].latency[path] = None
             summary.nSent[path] += len(pings)
             summary.nRcvd[path] += nRcvd
 
@@ -629,7 +634,7 @@ def calculatePingResults(periods, endAt):
 
     for idx in xrange(USE_HISTORY_DAYS+1):
         weightAge = WEIGHT_AGE[idx]
-        for path, pings in pingsByDay[-idx].keys():
+        for path, pings in pingsByDay[-idx].items():
             if not delays[path]:
                 continue
             d = delays[path]
@@ -672,7 +677,7 @@ def calculatePingResults(periods, endAt):
         if upTotal+downTotal < 60*60: continue
         summary.uptime[s] = float(upTotal)/(upTotal+downTotal)
 
-    return PingResults(results, s)
+    return PingResults(results, summary)
 
 class PingGenerator:
     """DOCDOC"""
@@ -872,6 +877,7 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
         for n1, n2 in pingable:
             self._sendOnePing([n1,n2], [myDescriptor])
             self._schedulePing((n1,n2), now+60)
+            #XXXX008 we need to reschedule pings when a new directory arrives
 
 #class GeometricLinkPaddingGenerator
 
