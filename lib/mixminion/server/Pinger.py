@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.5 2004/07/28 06:07:33 nickm Exp $
+# $Id: Pinger.py,v 1.6 2004/08/07 14:08:23 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -384,7 +384,7 @@ def iteratePingLog(file, func):
             continue
         gr = m.groups()
         # parse time, event; make sure right # of args.
-        tm = calendar.timegm(map(string.atoi, gr[:6]))
+        tm = int(calendar.timegm(map(string.atoi, gr[:6])))
         event = tuple(gr[6].split())
         if _EVENT_ARGS.get(event[0]) != len(event)-1:
             # warn unknown, warn bad n args
@@ -564,7 +564,7 @@ GRACE_PERIOD = 2*60*60
 WEIGHT_AGE = [ 5, 10, 10, 10, 10, 9, 8, 5, 3, 2, 2, 1, 0, 0, 0, 0, 0 ]
 
 def calculatePingResults(periods, endAt):
-    startAt = previousMidnight(endAt) - ONE_DAY*(USE_HISTORY_DAYS)
+    startAt = int(previousMidnight(endAt)) - ONE_DAY*(USE_HISTORY_DAYS)
 
     results = [ OneDayPingResults() for _ in xrange(USE_HISTORY_DAYS+1) ]
     summary = OneDayPingResults()
@@ -580,14 +580,14 @@ def calculatePingResults(periods, endAt):
         for path,timings in p.pings.items():
             allPaths[path]=1
             for send,recv in timings:
-                day = floorDiv(send-startAt, ONE_DAY)
+                day = floorDiv(int(send-startAt), ONE_DAY)
                 if day<0: continue
                 pingsByDay[day].setdefault(path,[]).append((send,recv))
     if len(periods):
         for send,path in periods[-1].pendingPings.values():
             if send+GRACE_PERIOD > endAt:
                 continue
-            day = floorDiv(send-startAt, ONE_DAY)
+            day = floorDiv(int(send-startAt), ONE_DAY)
             if day<0: continue
             pingsByDay[day].setdefault(path,[]).append((send,None))
             allPaths[path]=1
@@ -665,7 +665,7 @@ def calculatePingResults(periods, endAt):
         upTotal = 0
         downTotal = 0
         for p in periods:
-            day = floorDiv(p.start-startAt, ONE_DAY)
+            day = floorDiv(int(p.start-startAt), ONE_DAY)
             if day<0: continue
             up = p.serverUptime.get(s,0)
             down = p.serverUptime.get(s,0)
@@ -739,7 +739,7 @@ class _PingScheduler:
     def _getPingInterval(self, path):
         raise NotImplemented
     def _schedulePing(self,path,now=None):
-        if now is None: now = time.time()
+        if now is None: now = int(time.time())
         periodStart = self._getPeriodStart(now)
         interval = self._getPingInterval(path)
         t = periodStart + self._getPerturbation(path, periodStart, interval)
@@ -773,7 +773,7 @@ class OneHopPingGenerator(_PingScheduler,PingGenerator):
         _PingScheduler.__init__(self)
 
     def scheduleAllPings(self, now=None):
-        if now is None: now = time.time()
+        if now is None: now = int(time.time())
         servers = self.directory.getAllServers()
         nicknames = {}
         for s in servers:

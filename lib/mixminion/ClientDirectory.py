@@ -1202,10 +1202,18 @@ class ClientDirectory:
         if prng is None:
             prng = mixminion.Crypto.getCommonPRNG()
 
+        path1, path2 = pathSpec.path1[:], pathSpec.path2[:]
+
         paths = []
         lastHop = exitAddress.getLastHop()
         if lastHop:
             plausibleExits = []
+            if path2 and path2[-1]:
+                fixed = path2[-1].getFixedServer(self, startAt,endAt)
+                if fixed and fixed.getNickname().lower() == lastHop.lower():
+                    lastHop = None
+            if lastHop:
+                path2.append(ServerPathElement(lastHop))
         else:
             plausibleExits = exitAddress.getExitServers(self,startAt,endAt)
             if exitAddress.isSSFragmented:
@@ -1215,18 +1223,16 @@ class ClientDirectory:
         for _ in xrange(nPaths):
             p1 = []
             p2 = []
-            for p in pathSpec.path1:
+            for p in path1:
                 p1.extend(p.getServerNames())
-            for p in pathSpec.path2:
+            for p in path2:
                 p2.extend(p.getServerNames())
 
             p = p1+p2
             # Make the exit hop _not_ be None; deal with getPath brokenness.
             #XXXX refactor this.
-            if lastHop:
-                if not p or not p[-1] or p[-1].lower()!=lastHop.lower():
-                    p.append(lastHop)
-            elif p[-1] == None and not exitAddress.isReply:
+            if p[-1] == None and not exitAddress.isReply:
+                assert not lastHop
                 p[-1] = prng.pick(plausibleExits)
 
             if pathSpec.lateSplit:
@@ -1234,16 +1240,16 @@ class ClientDirectory:
             else:
                 n1 = len(p1)
 
-            path = self._getPath(p, startAt=startAt, endAt=endAt)
-            path1,path2 = path[:n1], path[n1:]
-            paths.append( (path1,path2) )
+            result = self._getPath(p, startAt=startAt, endAt=endAt)
+            r1,r2 = result[:n1], result[n1:]
+            paths.append( (r1,r2) )
             if pathSpec.isReply or pathSpec.isSURB:
                 LOG.info("Selected path is %s",
-                         ",".join([s.getNickname() for s in path]))
+                         ",".join([s.getNickname() for s in result]))
             else:
                 LOG.info("Selected path is %s:%s",
-                         ",".join([s.getNickname() for s in path1]),
-                         ",".join([s.getNickname() for s in path2]))
+                         ",".join([s.getNickname() for s in r1]),
+                         ",".join([s.getNickname() for s in r2]))
 
         return paths
 

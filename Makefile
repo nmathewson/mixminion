@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.69 2004/05/02 18:39:26 nickm Exp $
+# $Id: Makefile,v 1.70 2004/08/07 14:08:23 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -231,7 +231,8 @@ download-openssl:
         elif [ -x "`which curl 2>&1`" ] ; then                            \
 	  cd contrib; curl -o $(OPENSSL_FILE) $(OPENSSL_URL);             \
 	else                                                              \
-          echo "I can't find wget or curl.  I can't download openssl.";   \
+          echo "I can't find wget or curl.  Please download $(OPENSSL_URL)";\
+	  echo "and put the file in ./contrib";                           \
 	fi
 
 destroy-openssl:

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.51 2004/01/03 07:35:23 nickm Exp $
+# $Id: benchmark.py,v 1.52 2004/08/07 14:08:23 nickm Exp $
 
 """mixminion.benchmark
 
@@ -799,6 +799,10 @@ def testLeaks2():
     s20 = "a"*20
     p = pk_generate(512)
     n,e = p.get_public_key()
+
+    if not os.path.exists("/dev/null"):
+        print "No /dev/null found; dying"
+        return
 
     f = open("/dev/null", 'w')
     while 1:

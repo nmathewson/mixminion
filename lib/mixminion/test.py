@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.201 2004/07/27 04:34:36 nickm Exp $
+# $Id: test.py,v 1.202 2004/08/07 14:08:23 nickm Exp $
 
 """mixminion.tests
 
@@ -1817,12 +1817,13 @@ class FakePRNG:
 class FakeServerInfo:
     """Represents a Mixminion server, and the information needed to send
        messages to it."""
-    def __init__(self, addr, port, key, keyid):
+    def __init__(self, addr, port, key, keyid, ip4=0):
         assert key.get_modulus_bytes() == 256
         self.addr = addr
         self.port = port
         self.key = key
         self.keyid = keyid
+        self.ip4 = ip4
 
     def getNickname(self): return "N(%s:%s)"%(self.addr,self.port)
     def getIP(self): return self.addr
@@ -1832,11 +1833,19 @@ class FakeServerInfo:
     def supportsPacketVersion(self): return 1
 
     def getRoutingInfo(self):
-        return IPV4Info(self.addr, self.port, self.keyid)
+        if self.ip4:
+            return self.getIPV4Info()
+        else:
+            return self.getMMTPHostInfo()
     def getIPV4Info(self):
-        return self.getRoutingInfo()
+        return IPV4Info(self.addr, self.port, self.keyid)
+    def getMMTPHostInfo(self):
+        return MMTPHostInfo(self.addr, self.port, self.keyid)
     def getRoutingFor(self,other,swap):
-        tp = [FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE][swap]
+        if other.ip4:
+            tp = [FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE][swap]
+        else:
+            tp = [FWD_HOST_TYPE,SWAP_FWD_HOST_TYPE][swap]
         return (tp, other.getRoutingInfo().pack())
 
 
@@ -1924,12 +1933,12 @@ class BuildMessageTests(TestCase):
         head = bhead([self.server1, self.server2],
                      ["9"*16, "1"*16], 99, "Hi mom", AESCounterPRNG())
 
-        ipv4 = mixminion.Packet.IPV4Info
+        host = mixminion.Packet.MMTPHostInfo
         self.do_header_test(head,
                             (self.pk1, self.pk2),
                             ["9"*16, "1"*16],
-                            (FWD_IPV4_TYPE, 99),
-                            (ipv4("127.0.0.2",3,"Z"*20).pack(),
+                            (FWD_HOST_TYPE, 99),
+                            (host("127.0.0.2",3,"Z"*20).pack(),
                              "Hi mom"))
 
     def test_buildheader_3hops(self):
@@ -1939,9 +1948,9 @@ class BuildMessageTests(TestCase):
         head = bhead([self.server1, self.server2, self.server3], secrets,
                       99, "Hi mom", AESCounterPRNG())
         pks = (self.pk1,self.pk2,self.pk3)
-        rtypes = (FWD_IPV4_TYPE, FWD_IPV4_TYPE, 99)
-        rinfo = (mixminion.Packet.IPV4Info("127.0.0.2", 3, "Z"*20).pack(),
-                 mixminion.Packet.IPV4Info("127.0.0.3", 5, "Q"*20).pack(),
+        rtypes = (FWD_HOST_TYPE, FWD_HOST_TYPE, 99)
+        rinfo = (mixminion.Packet.MMTPHostInfo("127.0.0.2", 3, "Z"*20).pack(),
+                 mixminion.Packet.MMTPHostInfo("127.0.0.3", 5, "Q"*20).pack(),
                  "Hi mom")
         self.do_header_test(head, pks, secrets, rtypes, rinfo)
 
@@ -2054,7 +2063,7 @@ class BuildMessageTests(TestCase):
                      longStr,
                      AESCounterPRNG())
         pks = (self.pk2,self.pk1)
-        rtypes = (FWD_IPV4_TYPE,99)
+        rtypes = (FWD_HOST_TYPE,99)
         rinfo = (tag+longStr2,longStr)
         self.do_header_test(head, pks, secrets, rtypes, rinfo)
 
@@ -2183,11 +2192,11 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ( (self.pk1, self.pk2), None,
-                               (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE),
+                               (FWD_HOST_TYPE, SWAP_FWD_HOST_TYPE),
                                (self.server2.getRoutingInfo().pack(),
                                 self.server3.getRoutingInfo().pack()) ),
                              ( (self.pk3, self.pk2), None,
-                               (FWD_IPV4_TYPE, 500),
+                               (FWD_HOST_TYPE, 500),
                                (self.server2.getRoutingInfo().pack(),
                                 "Goodbye") ),
                              "Hello!!!!")
@@ -2201,7 +2210,7 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
-                               (SWAP_FWD_IPV4_TYPE,),
+                               (SWAP_FWD_HOST_TYPE,),
                                (self.server3.getRoutingInfo().pack(),) ),
                              ( (self.pk3,), None,
                                (500,),
@@ -2220,7 +2229,7 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ( (self.pk1,), None,
-                               (SWAP_FWD_IPV4_TYPE,),
+                               (SWAP_FWD_HOST_TYPE,),
                                (self.server3.getRoutingInfo().pack(),) ),
                              ( (self.pk3,), None,
                                (DROP_TYPE,),
@@ -2245,11 +2254,11 @@ class BuildMessageTests(TestCase):
                 return payload.getUncompressedContents()
             self.do_message_test(m,
                                  ( (self.pk1, self.pk2), None,
-                                   (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE),
+                                   (FWD_HOST_TYPE, SWAP_FWD_HOST_TYPE),
                                    (self.server2.getRoutingInfo().pack(),
                                     self.server3.getRoutingInfo().pack()) ),
                                  ( (self.pk3, self.pk2), None,
-                                   (FWD_IPV4_TYPE, 500),
+                                   (FWD_HOST_TYPE, 500),
                                    (self.server2.getRoutingInfo().pack(),
                                     "Phello") ),
                                  "<<<<Hello>>>>"*100,
@@ -2313,11 +2322,11 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
-                              (FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE),
+                              (FWD_HOST_TYPE,SWAP_FWD_HOST_TYPE),
                               (self.server1.getRoutingInfo().pack(),
                                self.server3.getRoutingInfo().pack())),
                              (pks_1, hsecrets,
-                              (FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,SMTP_TYPE),
+                              (FWD_HOST_TYPE,FWD_HOST_TYPE,FWD_HOST_TYPE,FWD_HOST_TYPE,SMTP_TYPE),
                               infos+("no-such-user@invalid",)),
                              "Information???",
                              decoder=decoder)
@@ -2327,20 +2336,20 @@ class BuildMessageTests(TestCase):
                      "fred", "Tyrone Slothrop", 3)
 
         sec,(loc,), _ = self.do_header_test(reply.header, pks_1, None,
-                            (FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,MBOX_TYPE),
+                            (FWD_HOST_TYPE,FWD_HOST_TYPE,FWD_HOST_TYPE,FWD_HOST_TYPE,MBOX_TYPE),
                             infos+(None,))
 
         self.assertEquals(loc[20:], "fred")
 
         # (Test reply block formats)
         self.assertEquals(reply.timestamp, 3)
-        self.assertEquals(reply.routingType, SWAP_FWD_IPV4_TYPE)
+        self.assertEquals(reply.routingType, SWAP_FWD_HOST_TYPE)
         self.assertEquals(reply.routingInfo,
                           self.server3.getRoutingInfo().pack())
         self.assertEquals(reply.pack(),
                           "SURB\x00\x01\x00\x00\x00\x03"+reply.header+
                          "\x00"+chr(len(self.server3.getRoutingInfo().pack()))+
-                          "\x00\x02"+reply.encryptionKey+
+                          "\x00\x04"+reply.encryptionKey+
                           self.server3.getRoutingInfo().pack())
         self.assertEquals(reply.pack(), parseReplyBlock(reply.pack()).pack())
         txt = reply.packAsText()
@@ -2392,11 +2401,11 @@ class BuildMessageTests(TestCase):
 
         self.do_message_test(m,
                              ((self.pk3, self.pk1), None,
-                              (FWD_IPV4_TYPE,SWAP_FWD_IPV4_TYPE),
+                              (FWD_HOST_TYPE,SWAP_FWD_HOST_TYPE),
                               (self.server1.getRoutingInfo().pack(),
                                self.server3.getRoutingInfo().pack())),
                              (pks_1, None,
-                              (FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,MBOX_TYPE),
+                              (FWD_HOST_TYPE,FWD_HOST_TYPE,FWD_HOST_TYPE,FWD_HOST_TYPE,MBOX_TYPE),
                               infos+("fred",)),
                              message,
                              decoder=decoder2)
@@ -2596,7 +2605,7 @@ class PacketHandlerTests(TestCase):
             res = sp.processPacket(m)
             self.assert_(isinstance(res, DeliveryPacket) or
                          isinstance(res, RelayedPacket))
-            if rt in (FWD_IPV4_TYPE, SWAP_FWD_IPV4_TYPE):
+            if rt in (FWD_HOST_TYPE, SWAP_FWD_HOST_TYPE):
                 self.assert_(not res.isDelivery())
                 self.assertEquals(res.getAddress().pack(), ri)
                 m = res.getPacket()
@@ -2622,7 +2631,7 @@ class PacketHandlerTests(TestCase):
 
         self.do_test_chain(m,
                            [self.sp1,self.sp2,self.sp3],
-                           [FWD_IPV4_TYPE, FWD_IPV4_TYPE, SMTP_TYPE],
+                           [FWD_HOST_TYPE, FWD_HOST_TYPE, SMTP_TYPE],
                            [self.server2.getRoutingInfo().pack(),
                             self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"],
@@ -2634,7 +2643,7 @@ class PacketHandlerTests(TestCase):
 
         self.do_test_chain(m,
                            [self.sp1,self.sp3],
-                           [FWD_IPV4_TYPE, SMTP_TYPE],
+                           [FWD_HOST_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"],
                            p)
@@ -2642,7 +2651,7 @@ class PacketHandlerTests(TestCase):
         # Try servers with multiple keys
         m = bfm(BuildMessage.encodeMessage("\n"+p,0)[0],
                 SMTP_TYPE, "nobody@invalid", [self.server2], [self.server3])
-        self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_IPV4_TYPE, SMTP_TYPE],
+        self.do_test_chain(m, [self.sp2_3, self.sp2_3], [FWD_HOST_TYPE, SMTP_TYPE],
                            [self.server3.getRoutingInfo().pack(),
                             "nobody@invalid"], p)
 
@@ -2657,8 +2666,8 @@ class PacketHandlerTests(TestCase):
             self.do_test_chain(m,
                                [self.sp1,self.sp2,self.sp1,
                                 self.sp3,self.sp1,self.sp2],
-                               [FWD_IPV4_TYPE,FWD_IPV4_TYPE,FWD_IPV4_TYPE,
-                                FWD_IPV4_TYPE,FWD_IPV4_TYPE,SMTP_TYPE],
+                               [FWD_HOST_TYPE,FWD_HOST_TYPE,FWD_HOST_TYPE,
+                                FWD_HOST_TYPE,FWD_HOST_TYPE,SMTP_TYPE],
                                [self.server2.getRoutingInfo().pack(),
                                 self.server1.getRoutingInfo().pack(),
                                 self.server3.getRoutingInfo().pack(),
@@ -2680,7 +2689,7 @@ class PacketHandlerTests(TestCase):
 
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_IPV4_TYPE, SMTP_TYPE],
+                                 [FWD_HOST_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  p)
@@ -2705,7 +2714,7 @@ class PacketHandlerTests(TestCase):
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_IPV4_TYPE, SMTP_TYPE],
+                                 [FWD_HOST_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  pbin)
@@ -2722,7 +2731,7 @@ class PacketHandlerTests(TestCase):
                 [self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_IPV4_TYPE, SMTP_TYPE],
+                                 [FWD_HOST_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2737,7 +2746,7 @@ class PacketHandlerTests(TestCase):
                  [self.server3], getRSAKey(0,1024))
         pkt = self.do_test_chain(m,
                                  [self.sp1,self.sp3],
-                                 [FWD_IPV4_TYPE, SMTP_TYPE],
+                                 [FWD_HOST_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2756,7 +2765,7 @@ class PacketHandlerTests(TestCase):
                 SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1, self.sp3],
-                                 [FWD_IPV4_TYPE, SMTP_TYPE],
+                                 [FWD_HOST_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2772,7 +2781,7 @@ class PacketHandlerTests(TestCase):
                 SMTP_TYPE, "nobody@invalid",[self.server1], [self.server3])
         pkt = self.do_test_chain(m,
                                  [self.sp1, self.sp3],
-                                 [FWD_IPV4_TYPE, SMTP_TYPE],
+                                 [FWD_HOST_TYPE, SMTP_TYPE],
                                  [self.server3.getRoutingInfo().pack(),
                                   "nobody@invalid"],
                                  "")
@@ -2788,7 +2797,7 @@ class PacketHandlerTests(TestCase):
         brbi = BuildMessage._buildReplyBlockImpl
 
         # A long intermediate header needs to fail.
-        server1X = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20)
+        server1X = FakeServerInfo("127.0.0.1", 1, self.pk1, "X"*20, 1)
         class _packable:
             def pack(self): return "x"*200
         server1X.getRoutingInfo = lambda _packable=_packable: _packable()
@@ -2851,12 +2860,12 @@ class PacketHandlerTests(TestCase):
             # (We temporarily override the setting from 'BuildMessage',
             #  not Packet; BuildMessage has already imported a copy of this
             #  constant.)
-            global SWAP_FWD_IPV4_TYPE# override the copy used by FakeServerInfo
-            save = SWAP_FWD_IPV4_TYPE
-            SWAP_FWD_IPV4_TYPE = 50
+            global SWAP_FWD_HOST_TYPE# override the copy used by FakeServerInfo
+            save = SWAP_FWD_HOST_TYPE
+            SWAP_FWD_HOST_TYPE = 50
             m_x = bfm(zPayload, 500, "", [self.server1], [self.server2])
         finally:
-            SWAP_FWD_IPV4_TYPE = save
+            SWAP_FWD_HOST_TYPE = save
         self.failUnlessRaises(ContentError, self.sp1.processPacket, m_x)
 
         # Subhead with bad length
@@ -2870,8 +2879,8 @@ class PacketHandlerTests(TestCase):
         # Bad IPV4 info
         subh_real = pk_decrypt(m[:256], self.pk1)
         subh = parseSubheader(subh_real)
-        subh.setRoutingInfo(subh.routinginfo + "X")
-        m_x = pk_encrypt(subh.pack()+subh.underflow[:-1], self.pk1)+m[256:]
+        subh.routingtype = FWD_IPV4_TYPE
+        m_x = pk_encrypt(subh.pack()+subh.underflow, self.pk1)+m[256:]
         self.failUnlessRaises(ParseError, self.sp1.processPacket, m_x)
 
         # Bad Major or Minor
@@ -7748,7 +7757,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ServerMainTests))
+        suite.addTest(tc(ClientDirectoryTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.133 2004/07/27 23:12:16 nickm Exp $
+# $Id: ServerMain.py,v 1.134 2004/08/07 14:08:24 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -1209,6 +1209,11 @@ def closeUnusedFDs():
     #  would miss the magic copies in sys.__stdin__, sys.__stdout__, etc.
     #  Using os.dup2 instead just nukes the old file for us, and keeps the
     #  fd from getting reused.)
+    if not os.path.exists("/dev/null"):
+        if sys.platform == 'win32':
+            return
+        raise MixFatalError("No /dev/null found; dying.")
+
     nullfd = os.open("/dev/null", os.O_RDWR|os.O_APPEND)
     os.dup2(nullfd, sys.stdin.fileno())
     os.dup2(nullfd, sys.stdout.fileno())

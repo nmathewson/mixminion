@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.75 2004/07/27 03:00:14 nickm Exp $
+# $Id: BuildMessage.py,v 1.76 2004/08/07 14:08:23 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -255,6 +255,8 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
         LOG.warn("Inferring expiry time for reply block")
         expiryTime = min([s.getValidUntil() for s in path])
 
+    checkPathLength(None, path, exitType, exitInfo, explicitSwap=0)
+
     LOG.debug("Building reply block for path %s",
                    [s.getNickname() for s in path])
     LOG.debug("  Delivering to %04x:%r", exitType, exitInfo)
@@ -274,12 +276,9 @@ def _buildReplyBlockImpl(path, exitType, exitInfo, expiryTime=0,
     header = _buildHeader(path, headerSecrets, exitType, tag+exitInfo,
                           paddingPRNG=Crypto.getCommonPRNG())
 
-    # XXXX007 switch to Host info.  We need to use IPV4 for reply blocks
-    # XXXX007 for now, since we don't know which servers will support HOST.
-    # XXXX007    (Do this after all hosts have upgraded to 0.0.6 or later.)
     return ReplyBlock(header, expiryTime,
-                      SWAP_FWD_IPV4_TYPE,
-                      path[0].getIPV4Info().pack(), sharedKey), secrets, tag
+                     SWAP_FWD_HOST_TYPE,
+                     path[0].getMMTPHostInfo().pack(), sharedKey), secrets, tag
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
 def buildReplyBlock(path, exitType, exitInfo, userKey,
@@ -297,7 +296,7 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
 
        NOTE: We used to allow another kind of 'non-state-carrying' reply
        block that stored its secrets on disk, and used an arbitrary tag to
-       determine
+       determine which set of secrets to use.
        """
     if secretRNG is None:
         secretRNG = Crypto.getCommonPRNG()
@@ -322,14 +321,15 @@ def buildReplyBlock(path, exitType, exitInfo, userKey,
 
 def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0,
                     suppressTag=0):
-    """Given two path legs, an exit type and an exitInfo, raise an error
-       if we can't build a hop with the provided legs.  If suppressTag is
-       true, no decoding handle will be included.
+    """Given two path legs (lists of servers), an exit type and an
+       exitInfo, raise an error if we can't build a header with the
+       provided legs.  If suppressTag is true, no decoding handle will
+       be included.
 
        The leg "path1" may be null.
     """
     err = 0 # 0: no error. 1: 1st leg too big. 2: 1st leg okay, 2nd too big.
-    if path1 is not None:
+    if path1 is not None and path2 is not None:
         try:
             rt,ri = path1[-1].getRoutingFor(path2[0],swap=1)
             _getRouting(path1, rt, ri)
@@ -343,7 +343,12 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0,
         exitInfo = ""
     if err == 0:
         try:
-            _getRouting(path2, exitType, exitInfo)
+            if path2 and not isinstance(path2, ReplyBlock):
+                try:
+                    _getRouting(path2, exitType, exitInfo)
+                except:
+                    print ">>>>>",path2
+                    raise
         except MixError:
             err = 2
     if err and not explicitSwap:
@@ -525,6 +530,10 @@ def _buildPacket(payload, exitType, exitInfo,
             raise MixError("Implausibly short exit info: %r"%exitInfo)
         if exitType < MIN_EXIT_TYPE and exitType != DROP_TYPE:
             raise MixError("Invalid exit type: %4x"%exitType)
+
+    checkPathLength(path1, path2, exitType, exitInfo,
+                    explicitSwap=(reply is None),
+                    suppressTag=suppressTag)
 
     ### SETUP CODE: let's handle all the variant cases.
 

@@ -23,40 +23,64 @@ For 0.0.8:
                         o Make MMTP delivery use per-destination queue.
                         o Test upgrade path.
                 . Implement pinging
-                        . Generate pings
+                        o Generate pings
                                 o Link padding
                                 o One-hop pings
-                                . Two-hop pings
+                                o Two-hop pings
                         o Log pings, failed connects, successful connects
-                        - Grovel over ping logs as needed
-                        - Generate statistics from logs; remember stats
+                        o Grovel over ping logs as needed
+                        o Generate statistics from logs; remember stats
                           across invocations.
                         - Tests for pinging
+                - Pretty-print stats
         - Distributed directories
+               - Spec changes
+                       - Statistics go in format?
+                       - Specify intermediate/final formats
+                       - Intermediate format is server list with signed vote
+                       - Final is multi-signed server-list-with-votes.
+                       - List of other good directories (clique is who?)
+                       - URL layout.
+               - Configuration: where are the directory servers?
+               - Server
+                       - Implement formats: gen and parse
+                       - Implement generate-dir-with-votes
+                       - Implement read-multi-dirs-with-votes
+                       - Implement download-multiple-directories
+                       - Implement compute-vote-and-sign
+                       - Implement download-multiple-signed-dirs
+                       - Implement add-one-more-sig
+                       - Document how to run a directory
+                - Client
+                       - Choose random URL
+                       - Validate multiple signatures
+                       - Which sigs are valid?  Enough?
+                       - Document how to change directoryu
+                - Test everything
         . Bugs
                 o Make tests pass with bizarre umasks.  (Try 0077, 0000,
                   etc.)
-                - Specify acceptable versions in config file for directory,
+                o Specify acceptable versions in config file for directory,
                   not in ServerList.py
-                - Make build process mention where to download openssl if
+                o Make build process mention where to download openssl if
                   neither wget nor curl is found.
                 - Make client run and unittests not die when there is no
                   thread module.
-                - Have -P *5 -t mbox:foo@server always always mean
+                o Have -P *5 -t mbox:foo@server always always mean
                   -P *5,server -t mbox:foo
                 - Make generate-surb --status-fd output decoding-handle,
                   if that can be made secure.
-                - checkPathLength is great; somebody should invoke it. :/
+                o checkPathLength is great; somebody should invoke it. :/
                 - time.gmtime is *not* a precise inverse of calendar.timegm,
                   since the latter doesn't know about leapseconds.  Fix this;
                   it can confuse the unit tests and maybe worse.  We can
                   catch it by looking at time.gmtime(78969600) and seeing
                   whether we get (1972,7,3,0,0,0) or one second before.
-                - Regenerate SSL certificates more frequently.
-                - Drop support for pre-0.0.6 servers; Don't generate IPV4Info
+                o Regenerate SSL certificates more frequently.
+                o Drop support for pre-0.0.6 servers; Don't generate IPV4Info
                   any more.
                 - Use DB_RECOVER and DB_RECOVER_FATAL as appropriate
-                - Tolerate missing /dev/null
+                o Tolerate missing /dev/null
                 o Don't crash when calling mixminion clean-queue
         - Documentation
                 - Make README and Makefile be clearer about how to proceed
