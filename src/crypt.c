@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.15 2002/12/16 02:40:11 nickm Exp $ */
+/* $Id: crypt.c,v 1.16 2002/12/16 15:18:33 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -737,6 +737,8 @@ PyTypeObject mm_RSA_Type = {
         (char*)mm_RSA_Type__doc__
 };
 
+#define OAEP_OVERHEAD 42
+
 const char mm_add_oaep_padding__doc__[]=
    "add_oaep_padding(s, param, keylen) -> str\n\n"
    "Adds OAEP padding to a string.  Keylen is the length of the RSA key to\n"
@@ -810,11 +812,12 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
                 return NULL;
         }
 
-        if (!(output = PyString_FromStringAndSize(NULL,keylen))) {
+        r = keylen-OAEP_OVERHEAD;
+        if (!(output = PyString_FromStringAndSize(NULL, r))) {
                 PyErr_NoMemory(); return NULL;
         }
 
-        r = RSA_padding_check_PKCS1_OAEP(PyString_AS_STRING(output), keylen,
+        r = RSA_padding_check_PKCS1_OAEP(PyString_AS_STRING(output), r,
                                          input+1, inputlen-1, keylen,
                                          param, paramlen);
         if (r <= 0) {
