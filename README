@@ -1,4 +1,4 @@
-$Id: README,v 1.38 2003/03/26 16:36:46 nickm Exp $
+$Id: README,v 1.39 2003/03/27 15:34:37 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.3
 
@@ -371,6 +371,12 @@ instead of "mixminion send":
          mixminion generate-surb --lifetime=1           (1 day)
       Note that if you choose an overlong lifetime, there may not be enough
       servers whose keys will be valid for the entire period.
+
+      If you maintain multiple pseudonymous identities, to avoid a
+      SURB-swapping attack, you should use the --identity option so that
+      you can later see which messages were to sent to which SURB identity.
+         mixminion generate-surb --identity=alice -o alices_surb
+         mixminion generate-surb --identity=bob   -o bobs_surb
 
 [NEW IN 0.0.3] Once you have a reply block for a user, you can send reply
 messages by typing:

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.68 2003/03/27 10:30:59 nickm Exp $
+# $Id: ClientMain.py,v 1.69 2003/03/27 15:34:37 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -2408,6 +2408,7 @@ Options:
   -b, --binary               Write the reply blocks in binary mode instead
                                of ascii mode.
   -n <N>, --count=<N>        Generate <N> reply blocks. (Defaults to 1.)
+  --identity=<name>          Specify a pseudonymous identity.
 
 EXAMPLES:
   Generate a reply block to deliver messages to the address given in
