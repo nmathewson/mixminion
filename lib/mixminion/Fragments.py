@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Fragments.py,v 1.7 2003/08/25 23:44:30 nickm Exp $
+# $Id: Fragments.py,v 1.8 2003/08/28 01:40:07 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -11,7 +11,8 @@ import time
 import mixminion._minionlib
 import mixminion.Filestore
 from mixminion.Crypto import ceilDiv, getCommonPRNG, whiten, unwhiten
-from mixminion.Common import LOG, previousMidnight, MixError, MixFatalError
+from mixminion.Common import disp64, LOG, previousMidnight, MixError, \
+     MixFatalError
 from mixminion.Packet import ENC_FWD_OVERHEAD, PAYLOAD_LEN, \
      FRAGMENT_PAYLOAD_OVERHEAD
 
@@ -165,7 +166,7 @@ class FragmentPool:
         s = self.db.getStatusAndTime(fragmentPacket.msgID)
         if s:
             LOG.debug("Dropping fragment of %s message %r",
-                      s[0].lower(), fragmentPacket.msgID)
+                      s[0].lower(), disp64(fragmentPacket.msgID,13))
             return
 
         # Otherwise, create a new metadata object for this fragment...
@@ -187,13 +188,17 @@ class FragmentPool:
             h = self.store.queueMessageAndMetadata(fragmentPacket.data, meta)
             # And *now* update the message state.
             state.addFragment(h, meta)
+            LOG.debug("Stored fragment %s of message %s",
+                      fragmentPacket.index, disp64(fragmentPacket.msgID,13))
         except MismatchedFragment:
             # Remove the other fragments, mark msgid as bad.
+            LOG.warn("Found inconsistent fragment %s in message %s",
+                      fragmentPacket.index, disp64(fragmentPacket.msgID,13))
             self._deleteMessageIDs({ meta.messageid : 1}, "REJECTED", now)
         except UnneededFragment:
             # Discard this fragment; we don't need it.
-            LOG.debug("Dropping unneeded fragment %s of message %r",
-                      fragmentPacket.index, fragmentPacket.msgID)
+            LOG.debug("Dropping unneeded fragment %s of message %s",
+                      fragmentPacket.index, disp64(fragmentPacket.msgID,13))
 
     def getReadyMessage(self, msgid):
         """Return the complete message associated with messageid 'msgid'.
@@ -264,15 +269,16 @@ class FragmentPool:
             try:
                 mid = fm.messageid
                 if badMessageIDs.has_key(mid):
-                    # We've already rejected fragments associated with this ID.
-                    continue
-                # All is well; try to register the fragment/chunk.  If it's
-                # redundant or inconsistent, raise an exception.
-                state = self._getState(fm)
-                if fm.isChunk:
-                    state.addChunk(h, fm)
+                    # We've already decided to reject fragments with this ID.
+                    pass
                 else:
-                    state.addFragment(h, fm)
+                    # All is well; try to register the fragment/chunk.  If it's
+                    # redundant or inconsistent, raise an exception.
+                    state = self._getState(fm)
+                    if fm.isChunk:
+                        state.addChunk(h, fm)
+                    else:
+                        state.addFragment(h, fm)
             except MismatchedFragment:
                 # Mark the message ID for this fragment as inconsistent.
                 badMessageIDs[mid] = 1
@@ -295,7 +301,7 @@ class FragmentPool:
                       fm.idx, fm.messageid)
             self.store.removeMessage(h)
 
-        # Now nuke inconsistant messages.
+        # Now nuke inconsistent messages.
         self._deleteMessageIDs(badMessageIDs, "REJECTED")
 
     def _deleteMessageIDs(self, messageIDSet, why, today=None):
@@ -307,6 +313,8 @@ class FragmentPool:
               why -- 'REJECTED' or 'COMPLETED'.
         """
         assert why in ("REJECTED", "COMPLETED")
+        if not messageIDSet:
+            return
         if today is None:
             today = time.time()
         today = previousMidnight(today)
@@ -542,7 +550,7 @@ class MessageState:
            chunks."""
         r = []
         for chunkno in self.chunks.keys():
-            r.extend([ h for h,_ in self.fragmentsByChunk[chunkno]])
+            r.extend([ h for h,_ in self.fragmentsByChunk[chunkno].values()])
         return r
 
 class FragmentDB(mixminion.Filestore.DBBase):

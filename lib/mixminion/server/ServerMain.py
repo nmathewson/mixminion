@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.90 2003/08/25 23:44:30 nickm Exp $
+# $Id: ServerMain.py,v 1.91 2003/08/28 01:40:08 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -63,7 +63,7 @@ import mixminion.server.EventStats as EventStats
 
 from bisect import insort
 from mixminion.Common import LOG, LogStream, MixError, MixFatalError,\
-     UIError, ceilDiv, createPrivateDir, formatBase64, formatTime, \
+     UIError, ceilDiv, createPrivateDir, disp64, formatTime, \
      installSIGCHLDHandler, Lockfile, LockfileLocked, readFile, secureDelete, \
      tryUnlink, waitForChildren, writeFile
 
@@ -260,8 +260,11 @@ class MixPool:
             packet = self.queue.getObject(h)
             if packet.isDelivery():
                 h2 = self.moduleManager.queueDecodedMessage(packet)
-                LOG.debug("  (sending message MIX:%s to exit modules as MOD:%s)"
-                          , h, h2)
+                if h2:
+                    LOG.debug("  (sending message MIX:%s to exit modules as MOD:%s)"
+                              , h, h2)
+                else:
+                    LOG.debug("  (exit modules received message MIX:%s without queueing.)", h)
             else:
                 address = packet.getAddress()
                 h2 = self.outgoingQueue.queueDeliveryMessage(packet, address)

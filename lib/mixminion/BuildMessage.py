@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.56 2003/08/25 21:05:33 nickm Exp $
+# $Id: BuildMessage.py,v 1.57 2003/08/28 01:40:07 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -14,6 +14,7 @@ import mixminion.Crypto as Crypto
 import mixminion.Fragments
 from mixminion.Packet import *
 from mixminion.Common import MixError, MixFatalError, LOG, UIError
+import mixminion.Packet
 import mixminion._minionlib
 
 if sys.version_info[:3] < (2,2,0):
@@ -67,7 +68,7 @@ def encodeMessage(message, overhead, uncompressedFragmentPrefix="",
     if uncompressedFragmentPrefix:
         payload = uncompressedFragmentPrefix+payload
     # Now generate a message ID
-    messageid = Crypto.getCommonPRNG().getBytes(20)
+    messageid = Crypto.getCommonPRNG().getBytes(FRAGMENT_MESSAGEID_LEN)
     # Figure out how many chunks to divide it into...
     p = mixminion.Fragments.FragmentationParams(len(payload), overhead)
     # ... fragment the payload into chunks...
@@ -122,7 +123,8 @@ def _buildForwardMessage(payload, exitType, exitInfo, path1, path2,
         raise MixError("Second leg of path is empty")
 
     suppressTag = 0
-    if exitType == DROP_TYPE:
+    #XXXX006 refactor _TYPES_WITHOUT_TAGS
+    if exitType == DROP_TYPE or mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType):
         suppressTag = 1
 
     assert len(payload) == PAYLOAD_LEN
@@ -335,8 +337,10 @@ def checkPathLength(path1, path2, exitType, exitInfo, explicitSwap=0):
             _getRouting(path1, SWAP_FWD_TYPE, path2[0].getRoutingInfo().pack())
         except MixError:
             err = 1
-    # Add tag as needed to last exitinfo.
-    if exitType != DROP_TYPE and exitInfo is not None:
+    # Add a dummy tag as needed to last exitinfo.
+    if (exitType != DROP_TYPE 
+        and not mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType) 
+        and exitInfo is not None):
         exitInfo += "X"*20
     else:
         exitInfo = ""
@@ -371,13 +375,19 @@ def decodePayload(payload, tag, key=None, userKeys=None):
     elif type(userKeys) is types.StringType:
         userKeys = { "" : userKeys }
 
-    if len(payload) != PAYLOAD_LEN or len(tag) != TAG_LEN:
-        raise MixError("Wrong payload or tag length")
+    if len(payload) != PAYLOAD_LEN:
+        raise MixError("Wrong payload length")
+    
+    if len(tag) not in (0, TAG_LEN):
+        raise MixError("Wrong tag length: %s"%len(tag))
 
     # If the payload already contains a valid checksum, it's a forward
     # message.
     if _checkPayload(payload):
         return parsePayload(payload)
+
+    if not tag:
+        return None
 
     # If H(tag|userKey|"Validate") ends with 0, then the message _might_
     # be a reply message using H(tag|userKey|"Generate") as the seed for
@@ -505,7 +515,7 @@ def _buildMessage(payload, exitType, exitInfo,
         reply = path2
         path2 = None
     else:
-        if len(exitInfo) < TAG_LEN and exitType != DROP_TYPE:
+        if len(exitInfo) < TAG_LEN and exitType != DROP_TYPE and not mixminion.Packet._TYPES_WITHOUT_TAGS.get(exitType):
             raise MixError("Implausibly short exit info: %r"%exitInfo)
         if exitType < MIN_EXIT_TYPE and exitType != DROP_TYPE:
             raise MixError("Invalid exit type: %4x"%exitType)
@@ -700,7 +710,10 @@ def _getRandomTag(rng):
 
 def _checkPayload(payload):
     'Return true iff the hash on the given payload seems valid'
-    return payload[2:22] == Crypto.sha1(payload[22:])
+    if ord(payload[0]) & 0x80:
+        return payload[3:23] == Crypto.sha1(payload[23:])
+    else:
+        return payload[2:22] == Crypto.sha1(payload[22:])
 
 def _getRouting(path, exitType, exitInfo):
     """Given a list of ServerInfo, and a final exitType and exitInfo,

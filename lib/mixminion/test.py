@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.148 2003/08/25 21:05:34 nickm Exp $
+# $Id: test.py,v 1.149 2003/08/28 01:40:08 nickm Exp $
 
 """mixminion.tests
 
@@ -2220,6 +2220,16 @@ class BuildMessageTests(TestCase):
             self.assertEquals(decoded, p)
         else:
             self.assertEquals(decoded, p.getUncompressedContents())
+
+    def test_fragments(self):
+        msg = Crypto.getCommonPRNG().getBytes(30000)
+        prefix = "Prefix!"
+        payloads = BuildMessage.encodeMessage(msg, 0, prefix)
+        self.assertEquals(len(payloads), 3)
+        p1 = BuildMessage.decodePayload(payloads[0], "")
+        p2 = BuildMessage.decodePayload(payloads[1], "")
+        p3 = BuildMessage.decodePayload(payloads[2], "")
+        self.assert_(None not in [p1, p2, p3])
 
     def test_decoding(self):
         # Now we create a bunch of fake payloads and try to decode them.
@@ -6525,7 +6535,12 @@ class FragmentTests(TestCase):
         # Change index of message to impossible value, make sure m3 gets
         # dropped.
         pkts3[60].index = 66
-        pool.addFragment(pkts3[60])
+        try:
+            suspendLog()
+            pool.addFragment(pkts3[60])
+        finally:
+            s = resumeLog()
+        self.assert_(stringContains(s, "Found inconsistent fragment"))
         self.assertEquals(pool.store.count(), 4+4)
         for i in xrange(40,55):
             pool.addFragment(pkts3[i])
@@ -6554,7 +6569,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(FragmentTests))
+        suite.addTest(tc(BuildMessageTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

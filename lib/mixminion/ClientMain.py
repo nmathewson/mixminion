@@ -1735,11 +1735,12 @@ class MixminionClient:
         for msg in parseTextEncodedMessages(s, force=force):
             if msg.isOvercompressed() and not force:
                 LOG.warn("Message is a possible zlib bomb; not uncompressing")
-            if msg.isFragment:
+            if msg.isFragment():
                 raise UIError("Sorry -- no support yet for client-side defragmentation.")
             elif not msg.isEncrypted():
                 results.append(msg.getContents())
             else:
+                assert msg.isEncrypted()
                 surbKeys = self.keys.getSURBKeys()
                 p = mixminion.BuildMessage.decodePayload(msg.getContents(),
                                                          tag=msg.getTag(),

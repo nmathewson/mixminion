@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.56 2003/08/21 21:34:02 nickm Exp $
+# $Id: Main.py,v 1.57 2003/08/28 01:40:07 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -203,8 +203,6 @@ def rejectCommand(cmd,args):
     sys.exit(1)
 
 def printUsage():
-    import mixminion
-    print "Mixminion version %s" % mixminion.__version__
     print _USAGE
     print "NOTE: This software is for testing only.  The user set is too small"
     print "      to be anonymous, and the code is too alpha to be reliable."
@@ -259,6 +257,8 @@ def main(args):
         sys.exit(1)
 
     if args[1] not in ('unittests', 'benchmarks', 'version'):
+        import mixminion
+        print "Mixminion version %s" % mixminion.__version__
         print "This software is for testing purposes only."\
               "  Anonymity is not guaranteed."
 

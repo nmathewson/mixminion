@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.52 2003/08/25 23:44:30 nickm Exp $
+# $Id: Modules.py,v 1.53 2003/08/28 01:40:08 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -563,10 +563,12 @@ class FragmentDeliveryQueue:
         if packet.isError():
             LOG.warn("Dropping FRAGMENT packet with decoding error: %s",
                      packet.error)
+            return
         elif not packet.isFragment():
             LOG.warn("Dropping FRAGMENT packet with non-fragment payload.")
+            print packet.type, packet.isfrag
             return
-        if packet.getAddress():
+        elif packet.getAddress():
             LOG.warn("Dropping FRAGMENT packet with spurious addressing info.")
             return
         # Should be instance of FragmentPayload.
@@ -610,27 +612,29 @@ class _FragmentedDeliveryMessage:
         """Create a _FragmentedDeliveryMessage object from an instance of
            mixminion.Packet.ServerSideFragmentedMessage."""
         self.m = ssfm
+        self.exitType = self.m.routingtype
+        self.address = self.m.routinginfo
         self.contents = None
-    def __getstate__(self):
-        return ( self.m , )
-    def __setstate__(self, s):
-        self.m = s[0]
-        self.contents = None
+        self.tp = None
+        self.headers = None
+
     def isDelivery(self): return 1
-    def getExitType(self): return self.m.routingtype
-    def getAddress(self): return self.m.exitinfo
+    def getExitType(self): return self.exitType
+    def getAddress(self): return self.address
     def getContents(self):
         if self.contents is None: self.decode()
         return self.contents
-    def isPlaintext(self): return 1
+    def isPlaintext(self): 
+        if self.contents is None: self.decode()
+        return self.tp == 'plain'
     def isFragment(self): return 0
     def isEncrypted(self): return 0
-    def isError(self):
+    def isError(self): 
         if self.contents is None: self.decode()
-        return self.isError
+        return self.tp == 'err'
     def isOvercompressed(self):
         if self.contents is None: self.decode()
-        return self.isOvercompressed
+        return self.tp == 'long'
     def isPrintingAscii(self):
         if self.contents is None: self.decode()
         return isPrintingAscii(self.contents, allowISO=1)
@@ -656,13 +660,20 @@ class _FragmentedDeliveryMessage:
     def decode(self):
         maxLen = 20*len(self.m.compressedContents)
         try:
-            c = uncompressData(self.m.uncompressedContents, maxLen)
+            c = uncompressData(self.m.compressedContents, maxLen)
+            self.contents, self.headers = \
+                           mixminion.Packet.parseMessageAndHeaders(c)
+            self.tp = 'plain'
         except CompressedDataTooLong:
             self.contents = self.m.uncompressedContents
+            self.tp = 'long'
             self.headers = {}
             return
-        self.contents, self.headers = \
-                       mixminion.Packet.parseMessageAndHeaders(c)
+        except MixError, e:
+            self.contents = str(e)
+            self.headers = {}
+            self.tp = 'err'
+        del self.m
         
 #----------------------------------------------------------------------
 class EmailAddressSet:

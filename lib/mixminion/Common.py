@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.106 2003/08/25 21:05:33 nickm Exp $
+# $Id: Common.py,v 1.107 2003/08/28 01:40:07 nickm Exp $
 
 """mixminion.Common
 
@@ -9,7 +9,8 @@ __all__ = [ 'IntervalSet', 'Lockfile', 'LockfileLocked', 'LOG', 'LogStream',
             'MixError',
             'MixFatalError', 'MixProtocolError', 'UIError', 'UsageError',
             'armorText', 'ceilDiv', 'checkPrivateDir', 'checkPrivateFile',
-            'createPrivateDir', 'encodeBase64', 'floorDiv', 'formatBase64',
+            'createPrivateDir', 'disp64', 
+            'encodeBase64', 'floorDiv', 'formatBase64',
             'formatDate', 'formatFnameTime', 'formatTime',
             'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
             'previousMidnight', 'readFile', 'readPickled',
@@ -178,6 +179,15 @@ def encodeBase64(s, lineWidth=64, oneline=0):
         return "".join([ s.strip() for s in pieces ])
     else:
         return "".join(pieces)
+
+def disp64(s,n=-1):
+    """Return a 'beautified' base64 for use in log messages."""
+    s = formatBase64(s)
+    if n >= 0:
+        s = s[:n]
+    while s.endswith('='):
+        s = s[:-1]
+    return s
 
 def englishSequence(lst, empty="none"):
     """Given a sequence of items, return the sequence formatted

@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.23 2003/08/25 23:44:30 nickm Exp $
+# $Id: PacketHandler.py,v 1.24 2003/08/28 01:40:08 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets on a server"""
 
@@ -146,7 +146,7 @@ class PacketHandler:
         keys = Crypto.Keyset(subh.secret)
 
         # Replay prevention
-        replayhash = keys.get(Crypto.REPLAY_PREVENTION_MODE, 20)
+        replayhash = keys.get(Crypto.REPLAY_PREVENTION_MODE, Crypto.DIGEST_LEN)
         if hashlog.seenHash(replayhash):
             raise ContentError("Duplicate message detected.")
         else:
@@ -273,7 +273,8 @@ class DeliveryPacket:
         """Construct a new DeliveryPacket."""
         assert 0 <= routingType <= 0xFFFF
         assert len(applicationKey) == 16
-        #assert len(tag) == 20 #XXXX make tag system sane.
+        #assert len(tag) == 20 #XXXX006 make tag system sane.
+        assert len(tag) == 20 or routingType == Packet.FRAGMENT_TYPE
         assert len(payload) == 28*1024
         self.exitType = routingType
         self.address = routingInfo
@@ -285,6 +286,17 @@ class DeliveryPacket:
         self.headers = None
         self.isfrag = 0
         self.dPayload = None
+        self.error = None #DOCDOC
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # XXXX006 remove
+        if not hasattr(self, 'isfrag'):
+            self.isfrag = 0
+        if not hasattr(self, 'dPayload'):
+            self.dPayload = None
+        if not hasattr(self, 'error'):
+            self.error = None
 
     def isDelivery(self):
         """Return true iff this packet is a delivery (non-relay) packet."""

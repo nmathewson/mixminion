@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.57 2003/08/25 21:05:34 nickm Exp $
+# $Id: Packet.py,v 1.58 2003/08/28 01:40:08 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -13,6 +13,7 @@ __all__ = [ 'compressData', 'CompressedDataTooLong', 'DROP_TYPE',
             'ENC_FWD_OVERHEAD', 'ENC_SUBHEADER_LEN',
             'encodeMailHeaders', 'encodeMessageHeaders',
             'FRAGMENT_PAYLOAD_OVERHEAD', 'FWD_TYPE', 'FragmentPayload',
+            'FRAGMENT_MESSAGEID_LEN', 'FRAGMENT_TYPE', 
             'HEADER_LEN', 'IPV4Info', 'MAJOR_NO', 'MBOXInfo',
             'MBOX_TYPE', 'MINOR_NO', 'MIN_EXIT_TYPE',
             'MIN_SUBHEADER_LEN', 'Packet',
@@ -83,10 +84,13 @@ MIN_EXIT_TYPE  = 0x0100  # The numerically first exit type.
 SMTP_TYPE      = 0x0100  # Mail the message
 MBOX_TYPE      = 0x0101  # Send the message to one of a fixed list of addresses
 NEWS_TYPE      = 0x0102  # Post the message to some ngs, and maybe mail it too
-FRAGMENT_TYPE  = 0x0103  # Find the actual deliver info in the message payload 
+FRAGMENT_TYPE  = 0x0103  # Find the actual delivery info in the message payload
 MAX_EXIT_TYPE  = 0xFFFF
 
-# Set of exit types that don't get tag fields.
+# Set of exit types that don't get tag fields. 
+# XXXX006 This interface is really brittle; it needs to change.  I added it 
+# XXXX006 in order to allow 'fragment' to be an exit type without adding a
+# XXXX006 needless tag field to every fragment routing info.  
 _TYPES_WITHOUT_TAGS = { FRAGMENT_TYPE : 1 }
 
 class ParseError(MixError):
@@ -148,7 +152,7 @@ def parseSubheader(s):
     underflow = ""
     if rlen < len(ri):
         ri, underflow = ri[:rlen], ri[rlen:]
-    if rt >= MIN_EXIT_TYPE and not _TYPES_WITHOUT_TAGS.get(rt) and rlen < 20:
+    if rt >= MIN_EXIT_TYPE and not _TYPES_WITHOUT_TAGS.get(rt) and rlen < TAG_LEN:
         raise ParseError("Subheader missing tag")
     return Subheader(major,minor,secret,digest,rt,ri,rlen,underflow)
 
@@ -192,6 +196,7 @@ class Subheader:
         """Return the part of the routingInfo that contains the delivery
            address.  (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
+        #XXXX006 This interface is completely insane.  Change it.
         if _TYPES_WITHOUT_TAGS.get(self.routingtype):
             return self.routinginfo
         else:
@@ -202,6 +207,7 @@ class Subheader:
         """Return the part of the routingInfo that contains the decoding
            tag. (Requires that routingType is an exit type.)"""
         assert self.routingtype >= MIN_EXIT_TYPE
+        #XXXX006 This interface is completely insane.  Change it.
         if _TYPES_WITHOUT_TAGS.get(self.routingtype):
             return ""
         else:
@@ -704,7 +710,7 @@ class TextEncodedMessage:
            a tag.
            """
         assert messageType in ('TXT', 'ENC', 'LONG', 'BIN', 'FRAG')
-        assert tag is None or (messageType == 'ENC' and len(tag) == 20)
+        assert tag is None or (messageType == 'ENC' and len(tag) == TAG_LEN)
         self.contents = contents
         self.messageType = messageType
         self.tag = tag
