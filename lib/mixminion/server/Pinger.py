@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.6 2004/08/07 14:08:23 nickm Exp $
+# $Id: Pinger.py,v 1.7 2004/12/02 06:47:08 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -14,6 +14,8 @@
    Third, we use the timing/uptime information in the second part
    above to try to infer how reliable the other nodes in the network
    are.
+
+   This module requires python 2.2 or later, and the sqlite module.
 """
 
 import bisect
@@ -38,646 +40,474 @@ from mixminion.Common import MixError, ceilDiv, createPrivateDir, \
      floorDiv, formatBase64, formatFnameDate, formatTime, LOG, parseFnameDate,\
      previousMidnight, readPickled, secureDelete, writePickled
 
+try:
+    import sqlite
+except ImportError:
+    sqlite = None
+
 KEEP_HISTORY_DAYS = 15
 USE_HISTORY_DAYS = 12
 HEARTBEAT_INTERVAL = 30*60
 ONE_DAY = 24*60*60
 
-class PingLog:
-    """DOCDOC
-       stores record of pinger events
-    """
-    HEARTBEAT_INTERVAL = 30*60
-    def __init__(self, location):
-        createPrivateDir(location)
-        self.location = location
-        self.file = None
-        self.fname = None
-        self.lock = threading.RLock()
-        self.rotate()
+REALTYPES = { 'time' : 'integer',
+              'boolean' : 'integer',
+              'integer' : 'integer',
+              'float' : 'float',
+              'varchar' : 'varchar',
+              }
 
-    def _getDateString(self, now):
-        return formatFnameDate(now)
-
-    def rotate(self,now=None):
-        self.lock.acquire()
+_MERGE_DONE = object()
+def _wrapNext(next):
+    def fn():
         try:
-            date = self._getDateString(now)
-            if self.file is not None:
-                if self.fname.endswith(date):
-                    # no need to rotate.
-                    return
-                self.rotated()
-                self.close()
-                self._rotateHook()
-            self.fname = os.path.join(self.location, "events-"+date)
-            self.file = open(self.fname, 'a')
-        finally:
-            self.lock.release()
+            return next()
+        except StopIteration:
+            return _MERGE_DONE
+    return fn
 
-    def _rotateHook(self,fname=None):
-        pass
-
-    def close(self):
-        self.lock.acquire()
-        try:
-            if self.file is not None:
-                self.file.close()
-                self.file = None
-        finally:
-            self.lock.release()
-
-    def _parseFname(self,fn):
-        if not fn.startswith("events-"):
-            return None,None
-        try:
-            date = parseFnameDate(fn[7:15])
-        except ValueError:
-            return None,None
-        tp = fn[15:]
-        if tp == "":
-            return date,"log"
-        elif tp == ".stat.gz":
-            return date,"stat"
-        elif tp == ".pend.gz":
-            return date,"pend"
+_MERGE_ITERS = """
+def mergeIters(iterable1, iterable2):
+    n1 = _wrapNext(iter(iterable1).next)
+    n2 = _wrapNext(iter(iterable2).next)
+    peek1 = n1()
+    peek2 = n2()
+    while peek1 is not DONE and peek2 is not DONE:
+        if peek1 <= peek2:
+            yield peek1
+            peek1 = n1()
         else:
-            return None,None
+            yield peek2
+            peek2 = n2()
+    while peek1 is not DONE:
+        yield peek1
+        peek1 = n1()
+    while peek2 is not DONE:
+        yield peek2
+        peek2 = n2()
+"""
 
-    def clean(self, now=None, deleteFn=None):
-        if now is None:
-            now = time.time()
+class _MergeIters:
+    """Given two iterators yielding their items in order, yield the ordered
+       merge of their items.
+    """
+    _DONE = object()
+    def __init__(self, iterable1, iterable2):
+        self.n1 = iter(iterable1).next
+        self.n2 = iter(iterable2).next
+        try:
+            self.peek1 = self.n1()
+        except StopIteration:
+            self.peek1 = self._DONE
+        try:
+            self.peek2 = self.n2()
+        except StopIteration:
+            self.peek2 = self._DONE()
+    def __iter__(self):
+        return self
+    def __next__(self):
+        if self.peek1 is self._DONE:
+            if self.peek2 is self._DONE:
+                raise StopIteration
+            else:
+                p1 = 0
+        elif self.peek2 is self._DONE:
+            p1 = 1
+        else:
+            p1 = self.peek1 < self.peek2
+
+        if p1:
+            r = self.peek1
+            try:
+                self.peek1 = self.n1()
+            except StopIteration:
+                self.peek1 = self._DONE
+        else:
+            try:
+                self.peek2 = self.n2()
+            except StopIteration:
+                self.peek2 = self._DONE
+
+        return r
+
+
+WEIGHT_AGE_PERIOD = 24*60*60
+WEIGHT_AGE = [ 5, 10, 10, 10, 10, 9, 8, 5, 3, 2, 2, 1, 0, 0, 0, 0, 0 ]
+UPTIME_GRANULARITY = 24*60*60
+PING_GRANULARITY = 24*60*60
+
+class PingLog:
+    def __init__(self, connection):
+        self.connection = connection
+        self.cursor = connection.cursor()
+        self.lock = threading.RLock()
+        self.serverNames = {}
+        self.serverReliability = {}
+        self._createAllTables()
+
+    def _objectExists(self, name, objType):
+        # hold lock.
+        self.cursor.execute(
+            "SELECT * FROM SQLITE_MASTER WHERE type = %s AND name = %s",
+            (objType,name))
+        rs = self.cursor.fetchall()
+        return len(rs) > 0
+
+    def _createTable(self, name, rows):
+        # hold lock
+        if self._objectExists(name,"table"):
+            return
+
+        body = []
+        for r in rows:
+            if len(r) == 2:
+                body.append("%s %s"%(r[0],REALTYPES[r[1]]))
+            else:
+                assert len(r) == 3
+                body.append("%s %s %s"%(r[0],REALTYPES[r[1]],r[2]))
+
+        stmt = "CREATE TABLE %s (%s)" % (name,", ".join(body))
+        #print "about to execute <<%s>>"%stmt
+        self.cursor.execute(stmt)
+        self.connection.commit()
+
+    def _createIndex(self, name, tablename, columns, unique=0):
+        #hold lock
+        if self._objectExists(name, "index"):
+            return
+
+        if unique:
+            u = "UNIQUE "
+        else:
+            u = ""
+        stmt = "CREATE %sINDEX %s ON %s (%s)"%(
+            u, name, tablename, ", ".join(columns))
+        #print "About to execute <<%s>>"%stmt
+        self.cursor.execute(stmt)
+        self.connection.commit()
+
+    def _createAllTables(self):
+        cur = self.cursor
         self.lock.acquire()
         try:
-            self.rotate(now)
-            bad = []
-            lastPending = None
-            cutoff = previousMidnight(now) - ONE_DAY*(KEEP_HISTORY_DAYS)
-            filenames = os.listdir(self.location)
-            filenames.sort() # consider files in order of time.
-            for fn in os.listdir(self.location):
-                date,tp = self._parseFname(fn)
-                if not date:
-                    LOG.warn("Unrecognized events file %s",fn)
-                    continue
-                elif date < cutoff:
-                    LOG.debug("Removing expired events file %s", fn)
-                    bad.append(os.path.join(self.location, fn))
-                elif tp == "pend":
-                    if lastPending:
-                        LOG.debug("Removing old pending-pings file %s",
-                                  lastPending)
-                        bad.append(os.path.join(self.location,lastPending))
-                        lastPending = fn
-            if deleteFn:
-                deleteFn(bad)
-            else:
-                secureDelete(bad, blocking=1)
+            # Raw data
+            self._createTable("lifetimes",
+                              [("up",       "time", "not null"),
+                               ("stillup",  "time"),
+                               ("shutdown", "boolean")])
+            self._createTable("pings",
+                              [("hash",     "varchar", "primary key"),
+                               ("path",     "varchar", "not null"),
+                               ("sentat",   "time",    "not null"),
+                               ("received", "time")])
+            self._createTable("connects",
+                              [("at",       "time", "not null"),
+                               ("server",   "varchar", "not null"),
+                               ("success",  "boolean", "not null")])
+            self._createTable("servers",
+                              [("name", "varchar", "unique not null")])
+            # Results
+            self._createTable("uptimes",
+                              [("start", "time", "not null"),
+                               ("end",   "time", "not null"),
+                               ("name",  "varchar", "not null"),
+                               ("uptime", "float", "not null")])
+            self._createTable("echolotOneHops",#XXXX008 NOT RIGHT!
+                              [("servername",  "time", "not null"),
+                               ("at",          "time", "not null"),
+                               ("latency",     "integer", "not null"),
+                               ("wreliability","float", "not null")])
+
+            self._createIndex("lifetimesUp", "lifetimes", ["up"])
+            self._createIndex("pingsHash",   "pings", ["hash"], unique=1)
+            # ???? what else on pings?
+            self._createIndex("connectsAt", "connects", ["at"])
+        finally:
+            self.lock.release()
+
+    def _loadServers(self):
+        # hold lock.
+        self.serverNames = {}
+        cur = self.cursor
+        cur.execute("SELECT name FROM servers")
+        res = cur.fetchall()
+        for name, in res:
+            self.serverNames[name] = 1
+
+        cur.execute("SELECT servername, MAX(at), wreliablity FROM"
+                    " echolotOneHops")
+        res = cur.fetchall()
+        for name,_,rel in res:
+            self.reliability[name]=rel
+
+    def _addServer(self, name):
+        # hold lock.
+        if self.serverNames.has_key(name):
+            return
+        print "!!!!",name
+        self.cursor.execute("INSERT INTO servers (name) VALUES (%s)", name)
+
+    def rotate(self, now=None):
+        self.lock.acquire()
+        if now is None: now = time.time()
+        cutoff = self._time(now - KEEP_HISTORY_DAYS * ONE_DAY)
+        cur = self.cursor
+        try:
+            cur.execute("DELETE FROM lifetimes WHERE stillup < %s", cutoff)
+            cur.execute("DELETE FROM pings WHERE sentat < %s", cutoff)
+            cur.execute("DELETE FROM connects WHERE at < %s", cutoff)
+            self.connection.commit()
         finally:
             self.lock.release()
 
     def flush(self):
         self.lock.acquire()
         try:
-            if self.file is not None:
-                self.file.flush()
+            self.connection.commit()
         finally:
             self.lock.release()
 
-    def _event(self,tm,event):
-        pass
-
-    def _write(self,*msg):
+    def close(self):
         self.lock.acquire()
         try:
-            now = time.time()
-            m = "%s %s\n" % (formatTime(now)," ".join(msg))
-            self.file.write(m)
-            self.file.flush()
-            self._event(now, msg)
+            self.connection.close()
+            del self.connection
         finally:
             self.lock.release()
 
-    def startup(self):
-        self._write("STARTUP")
+    def _execute(self, sql, args):
+        self.lock.acquire()
+        try:
+            #print "about to execute %s %s"%(sql,args)
+            self.cursor.execute(sql, args)
+        finally:
+            self.lock.release()
 
+    def _time(self, t):
+        return long(t)
+
+    def _now(self):
+        return long(time.time())
+
+    _STARTUP = "INSERT INTO lifetimes (up, stillup, shutdown) VALUES (%s,%s, 0)"
+    def startup(self):
+        self._startTime = now = self._now()
+        self._execute(self._STARTUP, (now,now))
+
+    _SHUTDOWN = "UPDATE lifetimes SET stillup = %s, shutdown = %s WHERE up = %s"
     def shutdown(self):
-        self._write("SHUTDOWN")
+        if self._startTime is None: self.startup()
+        self._execute(self._SHUTDOWN, (self._now(), self._now(), self._startTime))
+
+    _HEARTBEAT = "UPDATE lifetimes SET stillup = %s WHERE up = %s"
+    def heartbeat(self):
+        if self._startTime is None: self.startup()
+        self._execute(self._HEARTBEAT, (self._now(), self._startTime))
 
     def rotated(self):
-        self._write("ROTATE")
-
-    def connected(self, nickname):
-        self._write("CONNECTED",nickname)
-
-    def connectFailed(self, nickname):
-        self._write("CONNECT_FAILED",nickname)
-
-    def queuedPing(self, hash, path):
-        self._write("PING",formatBase64(hash),path)
-
-    def gotPing(self, hash):
-        self._write("GOT_PING",formatBase64(hash))
-
-    def heartbeat(self):
-        self._write("STILL_UP")
-
-    def _getAllFilenames(self):
-        fns = [ fn for fn in os.listdir(self.location) if
-                fn.startswith("events-") ]
-        fns.sort()
-        return fns
-
-    def processPing(self, packet):#instanceof DeliveryPacket with type==ping
-        assert packet.getExitType() == mixminion.Packet.PING_TYPE
-        addr = packet.getAddress()
-        if len(addr) != mixminion.Crypto.DIGEST_LEN:
-            LOG.warn("Ignoring malformed ping packet (exitInfo length %s)",
-                     len(packet.address))
-            return
-        if addr != mixminion.Crypto.sha1(packet.payload):
-            LOG.warn("Received ping packet with corrupt payload; ignoring")
-            return
-        LOG.debug("Received valid ping packet [%s]",formatBase64(addr))
-        self.gotPing(addr)
-
-    def calculateStatistics(self,now=None):
         pass
 
-    def getLatestStatistics(self):
-        return None
+    _CONNECTED = ("INSERT INTO connects (at, server, success) "
+                  "VALUES (%s,%s,%s)")
+    def connected(self, nickname, success=1):
+        self._execute(self._CONNECTED, (self._now(), nickname.lower(), success))
 
-class PingStatusLog(PingLog):
-    MAX_PING_AGE = 12 * ONE_DAY
+    def connectFailed(self, nickname):
+        self.connected(nickname, 0)
 
-    def __init__(self, location):
-        PingLog.__init__(self,location)
-        self.pingStatus = None
-        self.latestStatistics = None
-        self._loadDepth=0
-        self._loadPingStatus()
+    _QUEUED_PING = ("INSERT INTO pings (hash, path, sentat, received)"
+                    "VALUES (%s,%s,%s,%s)")
+    def queuedPing(self, hash, path):
+        assert len(hash) == mixminion.Crypto.DIGEST_LEN
+        self._execute(self._QUEUED_PING,
+                      (formatBase64(hash), path, self._now(), 0))
 
-    def _event(self,tm,event):
-        # lock is held.
-        self.pingStatus.addEvent(tm,event)
+    _GOT_PING = "UPDATE pings SET received = %s WHERE hash = %s"
+    def gotPing(self, hash):
+        assert len(hash) == mixminion.Crypto.DIGEST_LEN
+        n = self._execute(self._GOT_PING, (self._now(), formatBase64(hash)))
+        if n == 0:
+            LOG.warn("Received ping with no record of its hash")
+        elif n > 1:
+            LOG.warn("Received ping with multiple hash entries!")
 
-    def _rotateHook(self,fname=None):
-        # hold lock
-        if fname is None:
-            fname = self.fname
-        pr = self.pingStatus.splitResults(_nocopy=1)
-        pend = pr.pendingPings
-        pr.pendingPings=None
-        # separate these for space savings.
-        writePickled(os.path.join(fname+".pend.gz"),
-                     pend,gzipped=1)
-        writePickled(os.path.join(fname+".stat.gz"),pr,gzipped=1)
-
-    def _rescanImpl(self):
-        # hold lock; restore pingStatus.
-        fnames = [ fn for fn in os.listdir(self.location) if
-                   self._parseFname(fn)[1] == 'log' ]
-        fnames.sort() # go by date.
-
-        self.pingStatus = ps = PingStatus()
-        for fn in fnames[:-1]:
-            f = open(fn, 'r')
-            try:
-                ps.addFile(f)
-            finally:
-                f.close()
-            if fn != self.fname:
-                self._rotateHook(fn)
-
-    def _loadPingStatusImpl(self, binFname, pendFname, logFname):
-        # lock is held if any refs to objects are held.
-        if binFname:
-            results = readPickled(os.path.join(self.location,binFname),gzipped=1)
-            if results._version != PeriodResults.MAGIC:
-                return 1
-            pending = readPickled(os.path.join(self.location,pendFname),gzipped=1)
-            results.pendingPings=pending
-            ps = PingStatus(results)
-        else:
-            ps = PingStatus()
-        if logFname and os.path.exists(os.path.join(self.location,logFname)):
-            f = open(os.path.join(self.location,logFname), 'r')
-            ps.addFile(f)
-            f.close()
-        self.pingStatus = ps
-        return 0
-
-    def _loadPingStatus(self):
-        # lock is held if any refs to objects are held.
-        LOG.info("Loading ping status from disk")
-        dateSet = {}
-        for fn in os.listdir(self.location):
-            date, tp = self._parseFname(fn)
-            dateSet.setdefault(date,{})[tp]=fn
-        dates = dateSet.keys()
-        dates.sort()
-        rescan = 0
-        # All files but the current one should have stat.  The last stat
-        # should have a pend.  Otherwise, rescan.
-        lastStat = None
-        for d in dates:
-            l,s=dateSet[d].get('log'), dateSet[d].get('stat')
-            if not l or os.path.join(self.location,l) == self.fname:
-                continue
-            if not s and not rescan:
-                LOG.info("Ping-log file %s without ping-stats file; rescanning.", l)
-                rescan = 1
-            lastStat = d
-        if lastStat and not dateSet[lastStat].has_key('pend'):
-            LOG.info("No pending-pings file to match last ping-stats file; rescanning.")
-            rescan = 1
-
-        if rescan:
-            if self._loadDepth:
-                raise MixError("Recursive rescan")
-            self._rescanImpl()
-            self._loadDepth += 1
-            try:
-                self._loadPingStatus()
-            finally:
-                self._loadDepth -= 1
-            return
+    def calculateUptimes(self, startTime, endTime):
+        cur = self.cursor
+        self.lock.acquire()
 
         try:
-            if lastStat:
-                rescan = self._loadPingStatusImpl(dateSet[lastStat]['stat'],
-                                                  dateSet[lastStat]['pend'],
-                                                  self.fname)
+            cur.execute("DELETE FROM uptimes WHERE start = %s AND end = %s",
+                        startTime, endTime)
+
+            lifetimeEvents = []
+            # First, calculate my own uptime.
+            self.heartbeat()
+
+            lifetimeEvents = []
+            cur.execute("SELECT MAX(up) FROM lifetimes WHERE up < %s",startTime)
+            res = cur.fetchall()
+            if res:
+                cur.execute("SELECT up,stillup FROM lifetimes WHERE up >= %s"
+                            " AND up <= %s", res[0][0], endTime)
             else:
-                rescan = self._loadPingStatusImpl(None,None,self.fname)
-        except (cPickle.UnpicklingError, OSError, ValueError):
-            LOG.error_exc(sys.exc_info(), "Error while loading ping status")
+                cur.execute("SELECT up,stillup FROM lifetimes WHERE"
+                            " up <= %s", endTime)
+            events = cur.fetchall()
+            myUptime = 0
+            for start,end in events:
+                lifetimeEvents.append((start,'up'))
+                lifetimeEvents.append((end,'down'))
+                if start < startTime: start = startTime
+                if end > endTime: end = endTime
+                myUptime += end-start
 
-        if rescan:
-            #XXXX duplicate code.
-            if self._loadDepth:
-                raise MixError("Recursive rescan")
-            self._rescanImpl()
-            self._loadDepth += 1
-            try:
-                self._loadPingStatus()
-            finally:
-                self._loadDepth -= 1
+            cur.execute("INSERT INTO uptimes (start, end, name, uptime)"
+                        " VALUES (%s, %s, '<self>', %s)",
+                        (self._time(startTime), self._time(endTime),
+                         float(myUptime)/(endTime-startTime)))
+            lifetimeEvents.sort()
+            lifetimeEvents.append((sys.maxint,1))
 
-    def calculateStatistics(self,now=None):
+            # Okay, now everybody else.
+            for s in self.serverNames.keys():
+                cur.execute("SELECT at, success FROM events"
+                            " WHERE server = %s AND at >= %s AND at <= %s"
+                            " ORDER BY at",
+                            s, startTime, endTime)
+                myStatus = None
+                mySince = None
+                hisStatus = None
+                hisLast = None
+                hisTimes = [ 0,0 ]
+                for at, event in _MixIters(lifetimeEvents, iter(cur)):
+                    if event == 'up':
+                        if not myStatus: mySince = at
+                        myStatus = 1
+                    elif event == 'down':
+                        if myStatus: mySince = at
+                        myStatus = 0
+                    else:
+                        # event is 0 or 1; I tried to connect at
+                        # 'at' and succeeded or failed.
+                        if hisLast and hisLast > mySince:
+                            # The last thing that happened: I tried and
+                            # succeeeded or failed.
+                            t = (at-hisLast)/2
+                            hisTimes[hisStatus] += t
+                            hisTimes[event] += t
+                        elif myStatus:
+                            # The last thing that happened: I came online.
+                            hisTimes[event] += at-mySince
+                        else:
+                            # The last thing that happened: I went offline??
+                            LOG.warn("Internal error in calculateUptimes")
+                        hisStatus = event
+                        hisLast = at
+                if hisTimes == [0,0]:
+                    continue
+                fraction = float(hisTimes[1])/(hisTimes[0]+hisTimes[1])
+                cur.execute("INSERT INTO uptimes (start, end, name, uptime)"
+                            " VALUES (%s, %s, %s, %s",
+                            (startTime, endTime, s, fraction))
+            self.connection.commit()
+        finally:
+            self.lock.release()
+
+    def _calculateOneHopResults(self, serverName, startTime, now=None):
+        # hold lock; commit when done.
+        cur = self.cursor
+        GRANULARITY = 24*60*60
         if now is None:
             now = time.time()
-        self.rotate()
-        cutoff = previousMidnight(now)-KEEP_HISTORY_DAYS*ONE_DAY
-        stats = []
-        for fn in os.listdir(self.location):
-            date, tp = self._parseFname(fn)
-            if tp != 'stat': continue
-            if date < cutoff: continue
-            if os.path.join(self.location,fn) == self.fname: continue
-            stats.append((date,
-                       readPickled(os.path.join(self.location,fn),gzipped=1)))
-        stats.sort()
-        stats = [ pr for _,pr in stats ]
-        self.lock.acquire()
+        nPeriods = ceilDiv(now-startTime, GRANULARITY)
+        nSent = [0]*nPeriods
+        nReceived = [0]*nPeriods
+        totalWeights = 0.0
+        totalWeighted = 0.0
+        perTotalWeights = [0]*nPeriods
+        perTotalWeighted = [0]*nPeriods
+        allLatentcies = []
+        nPings = 0
+        cur.execute("SELECT sentat, received FROM pings WHERE path = %s"
+                    " AND sentat >= %s AND sentat <= %s",
+                    (serverName, startTime, now ))
+        for sent,received in cur:
+            nPings += 1
+            if received:
+                allLatencies.append(received-sent)
+        allLatencies.sort()
+
+        cur.execute("SELECT sentat, received FROM pings WHERE path = %s"
+                    " AND sentat >= %s AND sentat <= %s",
+                    (serverName, startTime, now ))
+        for sent,received in cur:
+            pIdx = floorDiv(sent-startTime, GRANULARITY)
+            nSent[pIdx] += 1
+            if received:
+                nReceived[pIdx] += 1
+                w2 = 1
+            else:
+                mod_age = (now-sent-15*60)*0.8
+                w2 = bisect.bisect_left(allLatencies, mod_age)/float(nPings)
+
+            if pIdx < len(WEIGHT_AGE):
+                w1 = WEIGHT_AGE[nPeriods-pIdx-1]
+            else:
+                w1 = 0
+
+            perTotalWeights[pIdx] += w1*w2
+            if received:
+                perTotalWeighted[pIdx] += w1*w2
+
+        allLatencies.sort()
+        if allLatencies:
+            latency = allLatencies[floorDiv(len(allLatencies),2)]
+        else:
+            latency = 0
+
+        reliability = reduce(operator.add, perTotalWeighted)/float(
+            reduce(operator.add, perTotalWeights))
+
+        cur.execute("INSERT INTO echolotOneHops (servername, at, latency,"
+                    " wreliability) VALUES (%s, %s, %s, %s)",
+                    (serverName, now, latency, reliability))
+
+    def _calculateChainCounts(self, startAt, endAt, path):
+        # hold lock.
+        cur.execute("SELECT count() FROM pings WHERE path = %s"
+                    " AND sent >= %s AND sent <= %s",
+                    (path,startAt,endAt))
+        nSent, = cur.fetchone()
+        cur.execute("SELECT count() FROM pings WHERE path = %s"
+                    " AND sent >= %s AND sent <= %s AND received > 0",
+                    (path,startAt,endAt))
+        nReceived, = cur.fetchone()
+
+        servers = path.split(",")
         try:
-            stats.append(self.pingStatus.checkpointResults())
-        finally:
-            self.lock.release()
+            rels = [ self.reliability[s] for s in servers ]
+            product = reduce(operator.mul, rels)
+        except IndexError:
+            product = None
 
-        stats = calculatePingResults(stats, now)
+        return nSent, nReceived, product
 
-        self.lock.acquire()
-        try:
-            self.latestStatistics = stats
-        finally:
-            self.lock.release()
+    def _2chainIsBroken(self, startAt, endAt, path):
+        #lock
+        nSent, nReceived, product = self._calculateChainCounts()
+        frac = float(nReceived)/nSent
+        return nSent >= 3 and product is not None and frac <= product*0.3
 
-        return stats
+    def _2chainIsInteresting(self, startAt, endAt, path):
+        #lock
+        nSent, nReceived, product = self._calculateChainCounts()
+        frac = float(nReceived)/nSent
+        return (nSent < 3 and nReceived == 0) or (
+            product is not None and frac <= product*0.3)
 
-    def getLatestStatistics(self):
-        return self.latestStatistics
-
-def iteratePingLog(file, func):
-    _EVENT_ARGS = {
-        "STARTUP" : 0,
-        "SHUTDOWN" : 0,
-        "ROTATE" : 0,
-        "CONNECTED" : 1,
-        "CONNECT_FAILED" : 1,
-        "PING" : 2,
-        "GOT_PING" : 1,
-        "STILL_UP" : 0 }
-    _PAT = re.compile(
-        r"^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) (\w+ ?.*)")
-
-    if hasattr(file,"xreadlines"):
-        readLines = file.xreadlines
-    else:
-        readLines = file.readlines
-
-    for line in readLines():
-        if line.startswith("#"):
-            return
-        m = _PAT.match(line)
-        if not m:
-            continue
-        gr = m.groups()
-        # parse time, event; make sure right # of args.
-        tm = int(calendar.timegm(map(string.atoi, gr[:6])))
-        event = tuple(gr[6].split())
-        if _EVENT_ARGS.get(event[0]) != len(event)-1:
-            # warn unknown, warn bad n args
-            continue
-        func(tm, event)
-
-def readPingLog(file):
-    results = []
-    iteratePingLog(file, lambda t,e,r=results:r.append(t,e))
-    return results
-
-class PeriodResults:
-    MAGIC = "PeriodResults-0.0"
-    def __init__(self, start, end, liveness, serverUptime,
-                 serverDowntime, serverStatus,
-                 pings, pendingPings):
-        self.start = start
-        self.end = end
-        self.liveness = liveness
-        self.serverUptime = serverUptime # nickname->n_sec.
-        self.serverDowntime = serverDowntime # nickname->n_sec.
-        self.serverStatus = serverStatus
-        self.pings = pings # must be a copy.
-        self.pendingPings = pendingPings # must be a copy.
-        self._version = self.MAGIC
-
-class PingStatus:
-    def __init__(self, lastResults=None):
-        if lastResults is not None:
-            # must copy
-            self.start = lastResults.start
-            self.liveness = lastResults.liveness
-            self.serverUptime = lastResults.serverUptime
-            self.serverDowntime = lastResults.serverDowntime
-            self.pings = lastResults.pings
-            self.pendingPings = lastResults.pendingPings
-        else:
-            self.start = None
-            self.liveness = 0 # n_sec
-            self.serverUptime = {} # map from nickname->n_sec
-            self.serverDowntime = {} # map from nickname->n_sec
-            self.pings = {} # map from path->[(sent,received)...]
-            self.pendingPings = {} # map from pinghash->(sent,path)
-
-        self.lastEventTime = None
-        self.serverStatus = {} # nickname->"U"/"D", as-of
-        self.lastUpdated = None
-
-    def checkpointResults(self, _nocopy=0):
-        if self.lastEventTime is None:
-            return None
-        if _nocopy:
-            c = lambda x:x
-        else:
-            c = lambda x:x.copy()
-        self.update(self.lastEventTime)
-        return PeriodResults(self.start, self.lastEventTime,
-                             self.liveness, c(self.serverUptime),
-                             c(self.serverDowntime),
-                             c(self.serverStatus),
-                             c(self.pings),
-                             c(self.pendingPings))
-
-    def splitResults(self, _nocopy=0):
-        if self.lastEventTime is None:
-            return None
-        pr = self.checkpointResults(_nocopy=1)
-        if _nocopy:
-            c = lambda x:x
-        else:
-            c = lambda x:x.copy()
-        self.serverUptime = {}
-        self.serverDowntime = {}
-        self.serverStatus = c(self.serverStatus)
-        self.pings = {}
-        self.pendingPings = c(self.pendingPings)
-        return pr
-
-    def expirePings(self, cutoff):
-        for h,(sent,path) in self.pendingPings.items():
-            if sent<cutoff:
-                self.pings[path].setdefault(path,[]).append((sent,None))
-                del self.pendingPings[h]
-
-    def addEvent(self, tm, event):
-        eType = event[0]
-        if eType == 'PING':
-            self.pendingPings[event[1]] = tm, event[2]
-        elif eType == 'GOT_PING':
-            h = event[1]
-            try:
-                tSent, path = self.pendingPings[h]
-            except KeyError:
-                # we didn't send it, or can't remember sending it.
-                LOG.warn("Received a ping I don't remember sending (%s)",
-                         event[1])
-            else:
-                del self.pendingPings[event[1]]
-                self.pings.setdefault(path, []).append((tSent,tm))
-        elif eType == 'CONNECTED':
-            try:
-                s, tLast = self.serverStatus[event[1]]
-            except KeyError:
-                self.serverStatus[event[1]] = ('U', tm)
-            else:
-                if s == 'D':
-                    try:
-                        self.serverDowntime[event[1]] += tm-tLast
-                    except KeyError:
-                        self.serverDowntime[event[1]] = tm-tLast
-                    self.serverStatus[event[1]] = ('U', tm)
-        elif eType == 'CONNECT_FAILED':
-            try:
-                s, tLast = self.serverStatus[event[1]]
-            except KeyError:
-                self.serverStatus[event[1]] = ('D', tm)
-            else:
-                if s == 'U':
-                    try:
-                        self.serverDowntime[event[1]] += tm-tLast
-                    except KeyError:
-                        self.serverDowntime[event[1]] = tm-tLast
-                    self.serverStatus[event[1]] = ('U', tm)
-        elif eType == 'SHUTDOWN':
-            self.diedAt(tm)
-        elif eType == 'STARTUP':
-            if self.lastEventTime:
-                self.diedAt(self.lastEventTime)
-
-        if self.start is None:
-            self.start = tm
-
-        self.lastEventTime = tm
-
-    def addFile(self, file):
-        iteratePingLog(file, self.addEvent)
-
-    def update(self, liveAt):
-        for nickname, (status, tLast) in self.serverStatus.items():
-            if status == 'U':
-                m = self.serverUptime
-            else:
-                m = self.serverDowntime
-            if liveAt < tLast: continue
-            try:
-                m[nickname] += liveAt-tLast
-            except KeyError:
-                m[nickname] = liveAt-tLast
-
-        if self.lastUpdated is not None and self.lastUpdated < liveAt:
-            self.liveness += liveAt-self.lastUpdated
-
-        self.lastUpdated = liveAt
-
-    def diedAt(self, diedAt):
-        self.update(diedAt)
-
-        self.serverStatus = {}
-        self.lastEventTime = None
-
-class OneDayPingResults:
-    #XXXX008 move to ClientDirectory?
-    def __init__(self):
-        self.start = 0
-        self.end = 0
-        self.uptime = {} # nickname->pct
-        self.reliability = {} # path->pct
-        self.latency = {} # path->avg
-
-class PingResults:
-    #XXXX008 move to ClientDirectory?
-    def __init__(self, days, summary):
-        self.days = days # list of OneDayPingResults
-        self.summary = summary
-
-GRACE_PERIOD = 2*60*60
-WEIGHT_AGE = [ 5, 10, 10, 10, 10, 9, 8, 5, 3, 2, 2, 1, 0, 0, 0, 0, 0 ]
-
-def calculatePingResults(periods, endAt):
-    startAt = int(previousMidnight(endAt)) - ONE_DAY*(USE_HISTORY_DAYS)
-
-    results = [ OneDayPingResults() for _ in xrange(USE_HISTORY_DAYS+1) ]
-    summary = OneDayPingResults()
-    summary.start = startAt
-    summary.end = endAt
-    for idx in xrange(USE_HISTORY_DAYS+1):
-        results[idx].start = startAt+(ONE_DAY*idx)
-        results[idx].end = startAt+(ONE_DAY*idx) - 1
-
-    pingsByDay = [ {} for _ in xrange(USE_HISTORY_DAYS+1) ]
-    allPaths = {}
-    for p in periods:
-        for path,timings in p.pings.items():
-            allPaths[path]=1
-            for send,recv in timings:
-                day = floorDiv(int(send-startAt), ONE_DAY)
-                if day<0: continue
-                pingsByDay[day].setdefault(path,[]).append((send,recv))
-    if len(periods):
-        for send,path in periods[-1].pendingPings.values():
-            if send+GRACE_PERIOD > endAt:
-                continue
-            day = floorDiv(int(send-startAt), ONE_DAY)
-            if day<0: continue
-            pingsByDay[day].setdefault(path,[]).append((send,None))
-            allPaths[path]=1
-
-    maxDelay = {}
-    delays = {}
-    summary.nSent = {}
-    summary.nRcvd = {}
-    for path in allPaths.keys():
-        maxDelay[path] = 0
-        delays[path] = []
-        summary.nSent[path]=0
-        summary.nRcvd[path]=0
-    for idx in xrange(USE_HISTORY_DAYS+1):
-        for path, pings in pingsByDay[idx].items():
-            nRcvd = 0
-            nLost = 0
-            totalDelay = 0.0
-            for (send,recv) in pings:
-                if recv is None:
-                    nLost += 1
-                    continue
-                else:
-                    nRcvd += 1
-                    delay = recv-send
-                    totalDelay += delay
-                    if delay > maxDelay[path]:
-                        maxDelay[path]=delay
-                    delays[path].append(delay)
-            results[idx].reliability[path] = float(nRcvd)/(nRcvd+nLost)
-            if nRcvd > 0:
-                results[idx].latency[path] = totalDelay/nRcvd
-            else:
-                results[idx].latency[path] = None
-            summary.nSent[path] += len(pings)
-            summary.nRcvd[path] += nRcvd
-
-    totalWeight = {}
-    totalWeightReceived = {}
-    for path in allPaths.keys():
-        delays[path].sort()
-        totalWeight[path] = 0
-        totalWeightReceived[path] = 0
-
-    for idx in xrange(USE_HISTORY_DAYS+1):
-        weightAge = WEIGHT_AGE[idx]
-        for path, pings in pingsByDay[-idx].items():
-            if not delays[path]:
-                continue
-            d = delays[path]
-            for send,recv in pings:
-                if recv is not None:
-                    totalWeightReceived[path] += weightAge
-                    totalWeight[path] += weightAge
-                else:
-                    fracMax = (endAt-send-15*60) * 0.8
-                    weightLatent = (bisect.bisect(d, fracMax)/len(d))
-                    totalWeight[path] += weightLatent*weightAge
-
-    for path in allPaths.keys():
-        if not totalWeight[path]:
-            summary.reliability[path]=None
-            continue
-        summary.reliability[path] = (
-            (float(totalWeightReceived[path])/totalWeight[path]))
-        d = delays[path]
-        summary.latency[path] = d[floorDiv(len(d),2)]
-
-    allServers = {}
-    for p in periods:
-        for s in p.serverUptime.keys(): allServers[s]=1
-        for s in p.serverDowntime.keys(): allServers[s]=1
-
-    for s in allServers.keys():
-        upTotal = 0
-        downTotal = 0
-        for p in periods:
-            day = floorDiv(int(p.start-startAt), ONE_DAY)
-            if day<0: continue
-            up = p.serverUptime.get(s,0)
-            down = p.serverUptime.get(s,0)
-            upTotal += up
-            downTotal += down
-            if up+down < 60*60:
-                continue
-            results[day].uptime[s] = float(up)/(up+down)
-        if upTotal+downTotal < 60*60: continue
-        summary.uptime[s] = float(upTotal)/(upTotal+downTotal)
-
-    return PingResults(results, summary)
+    def calculateDailyResults(self, server):
+        #XXXX
+        pass
 
 class PingGenerator:
     """DOCDOC"""
@@ -948,3 +778,12 @@ def getPingGenerator(config):
     pingers.append(TwoHopPingGenerator(config))
     pingers.append(TestLinkPaddingGenerator(config))
     return CompoundPingGenerator(pingers)
+
+def canRunPinger():
+    """DOCDOC"""
+    return sys.version_info[:2] >= (2,2) and sqlite is not None
+
+def openPingLog(location):
+    # FFFF eventually, we should maybe support more than pysqlite.  But let's
+    # FFFF not generalize until we have a 2nd case.
+    return PingLog(sqlite.connect(location))

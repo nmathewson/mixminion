@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.134 2004/08/07 14:08:24 nickm Exp $
+# $Id: ServerMain.py,v 1.135 2004/12/02 06:47:08 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -873,7 +873,7 @@ class MixminionServer(_Scheduler):
                        self.outgoingQueue.count())
 
         pingerEnabled = config['Pinging'].get("Enabled")
-        if pingerEnabled:
+        if pingerEnabled and mixminion.server.Pinger.canRunPinger():
             #FFFF Later, enable this stuff anyway, to make R-G-B mixing work.
             LOG.debug("Initializing ping log")
             pingerDir = os.path.join(config.getWorkDir(), "pinger")
@@ -885,6 +885,8 @@ class MixminionServer(_Scheduler):
 
             self.pingGenerator=mixminion.server.Pinger.getPingGenerator(config)
         else:
+            if pingerEnabled:
+                LOG.warn("Running a pinger requires Python 2.2 or later, and the pysqlite module")
             self.pingLog = None
             self.pingGenerator = None
 
