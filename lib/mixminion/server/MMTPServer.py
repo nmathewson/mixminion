@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.5 2002/12/21 01:54:23 nickm Exp $
+# $Id: MMTPServer.py,v 1.6 2002/12/29 20:31:57 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -54,10 +54,12 @@ class AsyncServer:
     #      in write events.
     # readers: map from fd to 'Connection' objects that are interested
     #      in read events.
+    # _timeout: the interval after which we drop open inactive connections.
     def __init__(self):
         """Create a new AsyncServer with no readers or writers."""
         self.writers = {}
         self.readers = {}
+        self._timeout = None
 
     def process(self, timeout):
         """If any relevant file descriptors become available within
@@ -136,6 +138,21 @@ class AsyncServer:
         r = self.readers.has_key(fd)
         if r: del self.readers[fd]
         if w: del self.writers[fd]
+
+    def tryTimeout(self, now):
+        """Timeout any connection that is too old."""
+        if self._timeout is None:
+            return
+        # All connections older than 'cutoff' get purged.
+        cutoff = now - self._timeout
+        # Maintain a set of filenos for connections we've checked, so we don't
+        # check any more than once.
+        filenos = {}
+        for group in self.readers, self.writers:
+            for fd, con in group.items():
+                if filenos.has_key(fd): continue
+                con.tryTimeout(cutoff)
+                filenos[fd] = 1
 
 class Connection:
     "A connection is an abstract superclass for asynchronous channels"
@@ -712,7 +729,6 @@ class MMTPAsyncServer(AsyncServer):
        MMTPClientConnection, with a function to add new connections, and
        callbacks for message success and failure."""
     ##
-    # _timeout: the interval after which we drop open inactive connections.
     def __init__(self, config, tls):
         AsyncServer.__init__(self)
 
@@ -767,14 +783,3 @@ class MMTPAsyncServer(AsyncServer):
     def onMessageSent(self, msg, handle):
         pass
 
-    def tryTimeout(self, now):
-        """Timeout any connection that is too old."""
-        cutoff = now - self._timeout
-        filenos = {}
-        for fd, r in self.readers.items():
-            r.tryTimeout(self._timeout)
-            filenos[fd] = 1
-        for fd, w in self.writers.items():
-            if filenos.has_key(fd): continue
-            w.tryTimeout(self._timeout)
-            filenos[fd] = 0
