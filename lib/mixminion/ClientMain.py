@@ -463,10 +463,6 @@ class MixminionClient:
         else:
             handles = self.queuePackets(pktList, routingInfo)
 
-        if len(pktList) > 1:
-            mword = "packets"
-        else:
-            mword = "packet"
 
         packetsSentByIndex = {}
         def callback(idx, packetsSentByIndex=packetsSentByIndex):
@@ -490,7 +486,12 @@ class MixminionClient:
         try:
             clientLock()
             if nGood:
+                if len(pktList) > 1:
+                    mword = "packets"
+                else:
+                    mword = "packet"
                 LOG.info("... %s %s sent", nGood, mword)
+                LOG.trace("Removing %s successful packets from queue", nGood)
             for idx in packetsSentByIndex.keys():
                 if handles and handles[idx]:
                     self.queue.removePacket(handles[idx])
@@ -507,8 +508,8 @@ class MixminionClient:
                 LOG.error("Error with queueing disabled: %s/%s lost",
                           nBad, nGood+nBad)
             elif nBad and lazyQueue:
-                LOG.info("Error while delivering %s; %s/%s left in queue",
-                         mword,nBad,nGood+nBad)
+                LOG.info("Error while delivering packets; %s/%s left in queue",
+                         nBad,nGood+nBad)
 
                 badPackets = [ pktList[idx] for idx in xrange(len(pktList))
                                if not packetsSentByIndex.has_key(idx) ]
@@ -893,8 +894,10 @@ class CLIArgumentParser:
 
         if self.wantClientDirectory:
             assert self.wantConfig
+            assert _CLIENT_LOCKFILE
             LOG.debug("Configuring server list")
-            self.directory = mixminion.ClientDirectory.ClientDirectory(userdir)
+            self.directory = mixminion.ClientDirectory.ClientDirectory(
+                userdir, _CLIENT_LOCKFILE)
             self.directory._installAsKeyIDResolver()
 
         if self.wantDownload:
@@ -909,7 +912,7 @@ class CLIArgumentParser:
                     clientUnlock()
 
         if self.wantClientDirectory or self.wantDownload:
-            self.directory.checkClientVersion()
+            self.directory.checkSoftwareVersion(client=1)
 
     def parsePath(self):
         # Sets: exitAddress, pathSpec.

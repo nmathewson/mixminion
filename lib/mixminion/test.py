@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.175 2004/01/08 18:09:49 nickm Exp $
+# $Id: test.py,v 1.176 2004/01/08 22:35:24 nickm Exp $
 
 """mixminion.tests
 
@@ -55,8 +55,10 @@ import mixminion.Crypto as Crypto
 import mixminion.Filestore
 import mixminion.Fragments
 import mixminion.MMTPClient
+import mixminion.NetUtils
 import mixminion.Packet
 import mixminion.ServerInfo
+import mixminion.ThreadUtils
 import mixminion.TLSConnection
 import mixminion._minionlib as _ml
 import mixminion.server.MMTPServer
@@ -722,9 +724,8 @@ World!
                           "A B C\n-----END X-----\n", ["X"], 1)
 
     def test_clearableQueue(self):
-        import Queue
         #FFFF This test is inadequate for weird multithreaded
-        q = mixminion.Common.ClearableQueue()
+        q = mixminion.ThreadUtils.ClearableQueue()
         self.assert_(q.empty())
         q.put(1)
         q.put(2)
@@ -732,7 +733,20 @@ World!
         self.assertEquals(1, q.get())
         q.clear()
         self.assert_(q.empty())
-        self.assertRaises(Queue.Empty, q.get_nowait)
+        self.assertRaises(mixminion.ThreadUtils.QueueEmpty, q.get_nowait)
+
+    def test_rwlock(self):
+        RWLock = mixminion.ThreadUtils.RWLock
+        lock = RWLock()
+        # XXXX007 This only tests non-blocking cases
+        lock.read_in()
+        lock.read_in()
+        lock.read_out()
+        lock.read_out()
+        lock.write_in()
+        lock.write_out()
+        lock.read_in()
+        lock.read_out()
 
     def test_englishSequence(self):
         es = englishSequence
@@ -6544,9 +6558,9 @@ class ClientDirectoryTests(TestCase):
             self.assertSameSD(edesc["Joe"][1],
                               ks.getServerInfo("Joe", startAt=now+10*oneDay))
             self.assertRaises(MixError, ks.getServerInfo, "Joe",
-                              startAt=now+30*oneDay)
+                              startAt=now+30*oneDay, strict=1)
             self.assertRaises(MixError, ks.getServerInfo, "Joe", startAt=now,
-                              endAt=now+6*oneDay)
+                              endAt=now+6*oneDay, strict=1)
             if i in (0,1,2):
                 ks = mixminion.ClientDirectory.ClientDirectory(dirname)
             if i == 1:
@@ -6959,7 +6973,7 @@ class ClientDirectoryTests(TestCase):
         ks.clean() # Should do nothing.
         ks = mixminion.ClientDirectory.ClientDirectory(dirname)
         ks.clean(now=now+oneDay*500) # Should zap all of imported servers.
-        raises(MixError, ks.getServerInfo, "Lola")
+        raises(MixError, ks.getServerInfo, "Lola", strict=1)
 
     def testFeatureMaps(self):
         from mixminion.ClientDirectory import compressFeatureMap
@@ -7501,7 +7515,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(FragmentTests))
+        suite.addTest(tc(ClientDirectoryTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
