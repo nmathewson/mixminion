@@ -1,4 +1,4 @@
-$Id: README,v 1.43 2003/05/30 07:04:09 nickm Exp $
+$Id: README,v 1.44 2003/05/30 08:29:17 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.4, Release Candidate 2.
 
@@ -269,9 +269,9 @@ IV. HOW TO INSTALL MIXMINION
 
 The quick version.
 ------------------
-  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4rc1.tar.gz>
+  <download and unpack http://www.mixminion.net/dist/Mixminion-0.0.4rc2.tar.gz>
 
-  % cd Mixminion-0.0.4rc1
+  % cd Mixminion-0.0.4rc2
   % make download-openssl
   % make build-openssl
   % make
