@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.67 2004/07/27 04:33:20 nickm Exp $
+# $Id: ServerKeys.py,v 1.68 2004/08/24 22:16:09 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -881,15 +881,15 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         warn("Mismatched ports: %s configured; %s published.",
              config_im['Port'], info_im['Port'])
 
-    info_ip = info_im.get('IP',None)
-    if config_im['IP'] == '0.0.0.0':
-        guessed = _guessLocalIP()
-        if guessed != info_ip:
-            warn("Mismatched IPs: Guessed IP (%s); %s published.",
-                 guessed, info_ip)
-    elif config_im['IP'] != info_ip:
-        warn("Mismatched IPs: %s configured; %s published.",
-             config_im['IP'], info_ip)
+##     info_ip = info_im.get('IP',None)
+##     if config_im['IP'] == '0.0.0.0':
+##         guessed = _guessLocalIP()
+##         if guessed != info_ip:
+##             warn("Mismatched IPs: Guessed IP (%s); %s published.",
+##                  guessed, info_ip)
+##     elif config_im['IP'] != info_ip:
+##         warn("Mismatched IPs: %s configured; %s published.",
+##              config_im['IP'], info_ip)
 
     info_host = info_im.get('Hostname',None)
     config_host = config_im['Hostname']
@@ -999,12 +999,14 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     mmtpProtocolsIn = ",".join(mmtpProtocolsIn)
     mmtpProtocolsOut = ",".join(mmtpProtocolsOut)
 
-    #XXXX008 remove: hasn't been needed since 0.0.5.
+
+    #XXXX009 remove: hasn't been checked since 007 or used since 005.
     identityKeyID = formatBase64(
                       mixminion.Crypto.sha1(
                           mixminion.Crypto.pk_encode_public_key(identityKey)))
 
     fields = {
+        # XXXX009 remove: hasn't been checked since 007.
         "IP": config['Incoming/MMTP'].get('IP', "0.0.0.0"),
         "Hostname": config['Incoming/MMTP'].get('Hostname', None),
         "Port": config['Incoming/MMTP'].get('Port', 0),

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.87 2004/05/18 02:55:14 nickm Exp $
+# $Id: Config.py,v 1.88 2004/08/24 22:16:08 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -418,7 +418,7 @@ _NICKNAME_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
 _NICKNAME_INITIAL_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"+
                            "abcdefghijklmnopqrstuvwxyz")
 
-MAX_NICKNAME = 128
+MAX_NICKNAME = 24
 def _parseNickname(s):
     """Validation function.  Returns true iff s contains a valid
        server nickname -- that is, a string of 1..128 characters,
@@ -678,7 +678,7 @@ class _ConfigFile:
     #
     # Fields to be set by a subclass:
     #     _syntax is map from sec->{key:
-    #                               (ALLOW/REQUIRE/ALLOW*/REQUIRE*,
+    #                               (ALLOW/REQUIRE/ALLOW*/REQUIRE*/IGNORE,
     #                                 type,
     #                                 default, ) }
     #     _restrictFormat is 1/0: do we allow full RFC822ness, or do
@@ -735,7 +735,7 @@ class _ConfigFile:
     _restrictKeys = 1
     _restrictSections = 1
 
-    def __init__(self, filename=None, string=None, assumeValid=0):
+    def __init__(self, filename=None, string=None, assumeValid=0, keep=0):
         """Create a new _ConfigFile.  If <filename> is set, read from
            a corresponding file.  If <string> is set, parse its contents.
 
@@ -753,13 +753,17 @@ class _ConfigFile:
         self.assumeValid = assumeValid
 
         if filename:
-            contents = mixminion.Common.readPossiblyGzippedFile(filename)
+            assert string is None
+            string = mixminion.Common.readPossiblyGzippedFile(filename)
             self.fname = filename
-            self.__load(contents)
         else:
             assert string is not None
             self.fname = None
-            self.__load(string)
+
+        self.__load(string)
+
+        if keep:
+            self._originalContents = string
 
     def __load(self, fileContents):
         """As in .reload(), but takes an open file object _or_ a string."""
@@ -841,17 +845,19 @@ class _ConfigFile:
                                           % (k, line))
                     else:
                         section[k] = v
-                else:
-                    assert rule in ('REQUIRE*','ALLOW*')
+                elif rule in ('REQUIRE*','ALLOW*'):
                     try:
                         section[k].append(v)
                     except KeyError:
                         section[k] = [v]
+                else:
+                    assert rule == 'IGNORE'
+                    pass
 
             # Check for missing entries, setting defaults and detecting
             # missing requirements as we go.
             for k, (rule, parseType, default) in secConfig.items():
-                if k == '__SECTION__':
+                if k == '__SECTION__' or rule == 'IGNORE':
                     continue
                 elif not section.has_key(k):
                     if rule in ('REQUIRE', 'REQUIRE*'):

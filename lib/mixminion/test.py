@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.202 2004/08/07 14:08:23 nickm Exp $
+# $Id: test.py,v 1.203 2004/08/24 22:16:08 nickm Exp $
 
 """mixminion.tests
 
@@ -69,6 +69,7 @@ import mixminion.server.ServerKeys
 import mixminion.server.ServerMain
 import mixminion.directory.ServerList
 import mixminion.directory.ServerInbox
+import mixminion.directory.DirFormats
 import mixminion.directory.DirMain
 import mixminion.directory.Directory
 from mixminion.Common import *
@@ -4769,7 +4770,7 @@ class ServerInfoTests(TestCase):
         info = mixminion.ServerInfo.ServerInfo(string=inf)
         eq = self.assertEquals
         eq(info['Server']['Descriptor-Version'], "0.2")
-        eq(info['Incoming/MMTP']['IP'], "192.168.0.1")
+        self.assert_(stringContains(inf, "\nIP: 192.168.0.1\n"))
         eq(info['Incoming/MMTP']['Hostname'], "Theserver")
         eq(info['Server']['Nickname'], "The-Server")
         self.failUnless(0 <= time.time()-info['Server']['Published'] <= 120)
@@ -4779,7 +4780,6 @@ class ServerInfoTests(TestCase):
            10*24*60*60)
         eq(info['Server']['Contact'], "a@b.c")
         eq(info['Server']['Software'], "Mixminion %s"%mixminion.__version__)
-        eq(info['Server']['Packet-Formats'], None)
         eq(info['Server']['Packet-Versions'], ["0.3"])
         eq(info['Server']['Comments'],
            "This is a test of the emergency broadcast system")
@@ -4914,8 +4914,8 @@ class ServerInfoTests(TestCase):
             os.path.join(keydir, "mix.key"))
         eq(packetKey.get_public_key(),
            info['Server']['Packet-Key'].get_public_key())
-        eq(Crypto.sha1(identity.encode_key(1)),
-           info['Incoming/MMTP']['Key-Digest'])
+#        eq(Crypto.sha1(identity.encode_key(1)),
+#           info['Incoming/MMTP']['Key-Digest'])
 
         # Now check the digest and signature
         identityPK = info['Server']['Identity']
@@ -4936,7 +4936,6 @@ class ServerInfoTests(TestCase):
         eq(info.isValidated(), loaded.isValidated())
 
         # Other functionality.
-        eq(info.getIPV4Info(), IPV4Info("192.168.0.1", 48099, info.getKeyDigest()))
         eq(info.getMMTPHostInfo(), MMTPHostInfo("Theserver", 48099, info.getKeyDigest()))
         eq(info.getMMTPHostInfo(), info.getRoutingInfo())
         self.assert_(info.canStartAt())
@@ -5053,7 +5052,6 @@ IP: 192.168.100.4
         self.assertEquals(key3.getPacketKey().get_public_key(),
                           key2.getPacketKey().get_public_key())
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver3")
-        eq(info3['Incoming/MMTP']['IP'], "192.168.100.3")
         self.assert_('smtp' in info3.getCaps())
 
         # Check routing info
@@ -5071,7 +5069,6 @@ IP: 192.168.100.4
             undoReplacedAttributes()
         info3 = key3.getServerDescriptor()
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver4")
-        eq(info3['Incoming/MMTP']['IP'], "192.168.100.4")
 
     def test_directory(self):
         eq = self.assertEquals
@@ -6257,16 +6254,20 @@ class ServerKeysTests(TestCase):
 
         # Does 'regenerate' work?
         cfg2 = SERVERCFG%{'home':_FAKE_HOME}
-        cfg2 = cfg2.replace("10.0.0.1", "10.0.0.2")
+        cfg2 = cfg2.replace("Theserver5", "Theserver999")
         config2 = mixminion.server.ServerConfig.ServerConfig(string=cfg2)
 
         self.assert_(curKey.isPublished())
         curKey.load()
         key0 = curKey.getPacketKeyID()
-        curKey.regenerateServerDescriptor(config2, keyring.getIdentityKey())
+        try:
+            overrideDNS({"Theserver999" : '1.0.0.1'})
+            curKey.regenerateServerDescriptor(config2, keyring.getIdentityKey())
+        finally:
+            undoReplacedAttributes()
         self.assert_(not curKey.isPublished())
         inf = curKey.getServerDescriptor()
-        self.assertEquals(inf['Incoming/MMTP']['IP'], "10.0.0.2")
+        self.assertEquals(inf['Incoming/MMTP']['Hostname'], "Theserver999")
         curKey.load()
         self.assertEquals(key0, curKey.getPacketKeyID())
 
@@ -7757,7 +7758,8 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(ClientDirectoryTests))
+        suite.addTest(tc(ServerKeysTests))
+        suite.addTest(tc(ServerInfoTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

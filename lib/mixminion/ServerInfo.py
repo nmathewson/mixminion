@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.85 2004/07/27 03:10:03 nickm Exp $
+# $Id: ServerInfo.py,v 1.86 2004/08/24 22:16:08 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -123,29 +123,28 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Published": ("REQUIRE", "time", None),
                      "Valid-After": ("REQUIRE", "date", None),
                      "Valid-Until": ("REQUIRE", "date", None),
-                     #XXXX008 change this to 'require': servers have all
-                     #XXXX008 had it since 007.
-                     "Contact": ("ALLOW", None, None),
+                     "Contact": ("REQUIRE", None, None),
                      "Comments": ("ALLOW", None, None),
                      "Packet-Key": ("REQUIRE", "publicKey", None),
                      "Contact-Fingerprint": ("ALLOW", None, None),
-                     "Packet-Formats": ("ALLOW", None, None),#XXXX008 remove
                      # XXXX008 change these next few to "REQUIRE"; servers
                      # XXXX008 have had them all since 0.0.5
-                     "Packet-Versions": ("ALLOW", "list", '0.3'),
+                     "Packet-Versions": ("REQUIRE", "list", '0.3'),
                      "Software": ("ALLOW", None, None),
                      "Secure-Configuration": ("ALLOW", "boolean", None),
                      "Why-Insecure": ("ALLOW", None, None),
                      },
         "Incoming/MMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     "IP": ("ALLOW", "IP", None),#XXXX008 remove
-                     "Hostname": ("ALLOW", "host", None),#XXXX008 require;since 0.0.6
+                     #XXXX0010 remove; ungenerated since 009.
+                     "IP": ("IGNORE", "IP", None),
+                     "Hostname": ("REQUIRE", "host", None),
                      "Port": ("REQUIRE", "int", None),
-                     "Key-Digest": ("ALLOW", "base64", None),#XXXX008 rmv; not used since 0.0.5
                      "Protocols": ("REQUIRE", "list", None),
                      "Allow": ("ALLOW*", "addressSet_allow", None),
                      "Deny": ("ALLOW*", "addressSet_deny", None),
+                     #XXXX0010 remove; ungenerated since 009.
+                     "Key-Digest":("IGNORE", None, None),
                      },
         "Outgoing/MMTP" : {
                      "Version": ("REQUIRE", None, None),
@@ -155,16 +154,13 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         "Delivery/MBOX" : {
                      "Version": ("REQUIRE", None, None),
-                     # XXXX008 change to 'REQUIRE'; since 0.0.6
-                     "Maximum-Size": ("ALLOW", "int", "32"),
-                     # XXXX008 change to 'REQUIRE'; since 0.0.6
-                     "Allow-From": ("ALLOW", "boolean", "yes"),
+                     "Maximum-Size": ("REQUIRE", "int", "32"),
+                     "Allow-From": ("REQUIRE", "boolean", "yes"),
                      },
         "Delivery/SMTP" : {
                      "Version": ("REQUIRE", None, None),
-                     # XXXX008 change to 'REQUIRE'; since 0.0.6
-                     "Maximum-Size": ("ALLOW", "int", "32"),
-                     "Allow-From": ("ALLOW", "boolean", "yes"),
+                     "Maximum-Size": ("REQUIRE", "int", "32"),
+                     "Allow-From": ("REQUIRE", "boolean", "yes"),
                      },
         "Delivery/Fragmented" : {
                      "Version": ("REQUIRE", None, None),
@@ -189,7 +185,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
          }
 
     def __init__(self, fname=None, string=None, assumeValid=0,
-                 validatedDigests=None):
+                 validatedDigests=None, _keepContents=0): #DOCDOC
         """Read a server descriptor from a file named <fname>, or from
              <string>.
 
@@ -201,7 +197,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """
         self._isValidated = 0
         self._validatedDigests = validatedDigests
-        mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid)
+        mixminion.Config._ConfigFile.__init__(self, fname, string, assumeValid,
+                                              keep=_keepContents)
         del self._validatedDigests
 
     def prevalidate(self, contents):
@@ -288,11 +285,6 @@ class ServerInfo(mixminion.Config._ConfigFile):
             if inMMTP['Version'] != '0.1':
                 raise ConfigError("Unrecognized MMTP descriptor version %s"%
                                   inMMTP['Version'])
-            if len(inMMTP['Key-Digest']) != DIGEST_LEN:
-                raise ConfigError("Invalid key digest %s"%
-                                  formatBase64(inMMTP['Key-Digest']))
-            if not inMMTP['IP'] and not inMMTP['Hostname']:
-                raise ConfigError("Incoming/MMTP section has neither IP nor hostname")
 
         ## Outgoing/MMTP section
         outMMTP = self['Outgoing/MMTP']
@@ -315,14 +307,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
            descriptor."""
         return self['Server']['Digest']
 
-    def getIP(self):
-        """Returns this server's IP address.  (Returns None for servers
-           running version 0.0.7 or later.)"""
-        return self['Incoming/MMTP'].get('IP')
-
     def getHostname(self):
-        """Return this server's Hostname. (Returns None for servers running
-           version 0.0.5 or earlier.)"""
+        """Return this server's Hostname."""
         return self['Incoming/MMTP'].get("Hostname")
 
     def getPort(self):
@@ -337,20 +323,12 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """Returns a hash of this server's identity key."""
         return sha1(pk_encode_public_key(self['Server']['Identity']))
 
-    def getIPV4Info(self):
-        """Returns a mixminion.Packet.IPV4Info object for routing messages
-           to this server.  (Returns None for servers running version 0.0.5
-           or earlier.)"""#DOCDOC wrong!
-        ip = self.getIP()
-        if ip is None: return None
-        return mixminion.Packet.IPV4Info(ip, self.getPort(), self.getKeyDigest())
-
     def getMMTPHostInfo(self):
         """Returns a mixminion.Packet.MMTPHostInfo object for routing messages
            to this server.  (Returns None for servers running version 0.0.7
            or later.)""" #DOCDOC wrong!
         host = self.getHostname()
-        if host is None: return None
+        assert host
         return mixminion.Packet.MMTPHostInfo(
             host, self.getPort(), self.getKeyDigest())
 
@@ -358,14 +336,15 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """Return whichever of MMTPHostInfo or IPV4 info is best for
            delivering to this server (assuming that the sending host
            supports both."""
-        if self.getHostname():
-            return self.getMMTPHostInfo()
-        else:
-            return self.getIPV4Info()
+        return self.getMMTPHostInfo()
 
     def getIdentity(self):
         """Return this server's public identity key."""
         return self['Server']['Identity']
+
+    def getIdentityDigest(self):
+        """DOCDOC"""
+        return sha1(pk_encode_public_key(self.getIdentity()))
 
     def getIncomingMMTPProtocols(self):
         """Return a list of the MMTP versions supported by this this server
@@ -397,8 +376,6 @@ class ServerInfo(mixminion.Config._ConfigFile):
             return 1
         myOutProtocols = self.getOutgoingMMTPProtocols()
         otherInProtocols = otherDesc.getIncomingMMTPProtocols()
-        if not self.getHostname() and not otherDesc.getIP():
-            return 0
         for out in myOutProtocols:
             if out in otherInProtocols:
                 return 1
@@ -424,14 +401,9 @@ class ServerInfo(mixminion.Config._ConfigFile):
            point."""
         assert self.canRelayTo(otherDesc)
         assert 0 <= swap <= 1
-        if self.getHostname() and otherDesc.getHostname():
-            ri = otherDesc.getMMTPHostInfo().pack()
-            rt = [mixminion.Packet.FWD_HOST_TYPE,
-                  mixminion.Packet.SWAP_FWD_HOST_TYPE][swap]
-        else:
-            ri = otherDesc.getIPV4Info().pack()
-            rt = [mixminion.Packet.FWD_IPV4_TYPE,
-                  mixminion.Packet.SWAP_FWD_IPV4_TYPE][swap]
+        ri = otherDesc.getMMTPHostInfo().pack()
+        rt = [mixminion.Packet.FWD_HOST_TYPE,
+              mixminion.Packet.SWAP_FWD_HOST_TYPE][swap]
 
         return rt, ri
 
@@ -517,7 +489,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """
         valid = self.getIntervalSet()
         for o in others:
-            if (o.isNewerThan(self) and
+            if (o.getDigest() != self.getDigest() and
+                o.isNewerThan(self) and
                 o.getNickname().lower() == self.getNickname().lower()):
                 valid -= o.getIntervalSet()
         return valid.isEmpty()
@@ -604,6 +577,99 @@ class ServerDirectory:
     def get(self, item, default=None):
         return self.header.get(item, default)
 
+class SignedDirectory:
+    ## Fields: DOCDOC
+    # signatues
+    # dirInfo
+    # servers
+    # signers
+    # goodServerNames
+    def __init__(self, string=None, fname=None, validatedDigests=None,
+                 _keepServerContents=0):
+        """DOCDOC
+           raises ConfigError.
+        """
+        if string:
+            contents = string
+        else:
+            contents = readPossiblyGzippedFile(fname)
+
+        contents = _cleanForDigest(contents)
+
+        digest = _getMultisignedDirectoryDigest(contents)
+        sigs, info, servers = splitMultisignedDirectory(contents)
+        del contents
+
+        self.signatures = [ ]
+
+        # Check signature digests.
+        badsigs = 0
+        for idx in range(len(sigs)):
+            sig = _DirectorySignature(sigs[idx])
+            if sig.getDigest() != digest:
+                LOG.warn("Mismatched digest on signature #%s; skipping",
+                         idx)
+                badsigs += 1
+            else:
+                self.signatures.append(sig)
+
+        # Parse the DirectoryInfo
+        self.dirInfo = _DirectoryInfo(info)
+
+        # Parse the Server descriptors.
+        self.servers = [ ]
+        for s in servers:
+            si = ServerInfo(string=s, validatedDigests=validatedDigests,
+                            _keepServerContents=_keepServerContents)
+        self.goodServerNames = [ name.lower()
+             for name in self.dirInfo['Directory-Info']['Recommended-Servers'] ]
+
+        self.signers = None
+
+    def getSigners(self):
+        #DOCDOC -- returns members of self.dirInfo.voters with valid signatures.
+        if self.signers is not None:
+            return self.signers
+
+        sigs = {}
+        self.signers = []
+        for s in self.signatures:
+            sigs[s.getKeyDigest()] = s
+        for digest, url in self.dirInfo.voters:
+            try:
+                s = sigs[digest]
+            except KeyError:
+                #XXXX008 warn
+                continue
+            if s.checkSignature():
+                # XXXX008 LOG.debug("Valid signature from %s")
+                self.signers.append[(digest, url)]
+            else:
+                #LOG.debug("Invalid signature from %s") XXXX008
+                continue
+
+        return self.signers
+
+    def getAllServers(self):
+        return self.servers
+
+    def getRecommendedNicknames(self):
+        return self.goodServerNames
+
+    def getServers(self):
+        #XXXX008 rename to getGoodServers
+        return [ s for s in self.allServers if
+                 s.getNickname().lower() in self.goodServerNicknames ]
+
+    def getSignatures(self):
+        return self.signatures
+
+    def __getitem__(self, item):
+        return self.dirInfo[item]
+
+    def get(self, item, default=None):
+        return self.header.get(item, default)
+
 class _DirectoryHeader(mixminion.Config._ConfigFile):
     """Internal object: used to parse, validate, and store fields in a
        directory's header sections.
@@ -672,6 +738,110 @@ class _DirectoryHeader(mixminion.Config._ConfigFile):
             raise ConfigError("Invalid signature")
         if self.expectedDigest != signedDigest:
             raise ConfigError("Signed digest was incorrect")
+
+class _DirectoryInfo(mixminion.Config._ConfigFile):
+    """Internal object: used to parse, validate, and store fields in a
+       directory's header sections.
+    """
+    ## Fields:
+    # voters = [ (key digest, URL base) ]
+    # DOCDOC
+    #
+    VERSION = "0.3"
+    _restrictFormat = 1
+    _restrictKeys = _restrictSections = 0
+    _syntax = {
+        "Directory-Info" : {
+           "__SECTION__" : ( "REQUIRE", None, None ),
+           "Version" : ("REQUIRE", None, None ),
+           "Status" : ("REQUIRE", None, None ),
+           "Valid-After" : ("REQUIRE", "date", None),
+           "Valid-Until" : ("REQUIRE", "date", None),
+           "Recommended-Servers" : ("REQUIRE", "list", None),
+           "Voting-Server" : ("REQUIRE*", None, None) },
+        "Recommended-Software" :
+           _DirectoryHeader._syntax["Recommended-Software"] }
+
+    def __init__(self, string):
+        self.sigStatus = None
+        mixminion.Config._ConfigFile.__init__(self, string=contents)
+
+    def prevalidate(self, contents):
+        for name, ents in contents:
+            if name == 'Directory-Info':
+                for k,v,_ in ents:
+                    if k == 'Version' and v.strip() != self.VERSION:
+                        raise ConfigError("Unrecognized descriptor version: %s"
+                                          % v.strip())
+
+    def validate(self):
+        sec = self['Directory-Info']
+        if sec['Status'] not in ("consensus", "vote"):
+            raise ConfigError("Unrecognized 'status' in directory")
+        if sec['Valid-Until'] <= direc['Valid-After']:
+            raise ConfigError("Directory is never valid")
+
+        self.voters = []
+        for s in sec['Voting-Server']:
+            lst = s.split(" ",1)
+            if len(lst) != 2:
+                raise ConfigError("Missing URLBase or fingerprint in Voting-Server")
+            self.voters.append((mixminion.Config._parseBase64(lst[0]),
+                                lst[1].strip()))
+
+class _DirectorySignature(mixminion.Config._ConfigFile):
+    """Internal object: used to parse, validate, and store fields in a
+       directory's signature section.
+    """
+    ## Fields:
+    # sigStatus: None/0/1
+    _restrictFormat = 1
+    _restrictKeys = _restrictSections = 1
+    _syntax = {
+        "Signed-Directory" : {
+           "__SECTION__" : ( "REQUIRE", None, None ),
+           "Directory-Identity" : ( "REQUIRE", "publicKey", None ),
+           "Directory-Digest" : ( "REQUIRE", "base64", None ),
+           "Directory-Signature" : ( "REQUIRE", "base64", None ) } }
+
+    def __init__(self, string):
+        self.sigStatus = None
+        mixminion.Config._ConfigFile.__init__(self, string=contents)
+
+    def validate(self):
+        sec = self['Signed-Directory']
+        idKeyBytes = sec['Directory-Identity'].get_modulus_bytes() 
+        if not (2048 <= idKeyBytes*8 <= 4096):
+            raise ConfigError("Identity key length is out of range (%s bits)"
+                              % idKeyBits*8)
+        if len(sec['Directory-Digest']) != DIGEST_LEN:
+            raise ConfigError("Impossible digest length (%s)"%
+                              len(sec['Directory-Digest']))
+
+    def getDigest(self):
+        return self['Signed-Directory']['Directory-Digest']
+
+    def getKeyDigest(self):
+        return sha1(pk_encode_public_key(
+              self['Signed-Directory']['Directory-Identity']))
+
+    def checkSignature(self):
+        if self.sigStatus is not None:
+            return self.sigStatus
+        sec = self['Signed-Directory']
+        try:
+            r = mixminion.Crypto.pk_check_signature(sec['Directory-Signature'],
+                                                    sec['Directory-Identity'])
+        except mixminion.Crypto.CryptoError:
+            self.sigStatus = 0
+        else:
+            if r == sec['Directory-Digest']:
+                self.sigStatus = 1
+            else:
+                self.sigStatus = 0
+
+        return self.sigStatus
+
 
 #----------------------------------------------------------------------
 def getServerInfoDigest(info):
@@ -745,3 +915,47 @@ _dir_special_line_re = re.compile(r'^Directory(?:Digest|Signature):.*$', re.M)
 def _getDirectoryDigestImpl(directory, rsa=None):
     return _getDigestImpl(directory, _dir_special_line_re,
                           "DirectoryDigest", "DirectorySignature", rsa)
+
+def _getMultisignedDirectoryDigest(directory):
+    try:
+        if directory.startswith("[Directory-Info]"):
+            idx = 0
+        else:
+            idx = directory.index("\n[Directory-Info]\n")+1
+    except IndexError:
+        raise ConfigError("No [Directory-Info] found.")
+    digest = sha1(directory[idx:])
+    return digest
+
+def _splitMultisignedDirectory(directory):
+    """DOCDOC -- returns [signature...],info,[server...]"""
+    sigs = []
+
+    # Extract all signatures.
+    while directory.startswith("[Directory-Signature]\n"):
+        eos = directory.find("\n[Directory-Signature]\n", 1)
+        if eos < 0:
+            eos = directory.find("\n[Directory-Info]\n")
+        if eos < 0:
+            raise ConfigError("Missing [Directory-Info] section")
+
+        sigs.append(directory[:eos+1])
+        directory = directory[eos+1:]
+
+    if not directory.startswith("[Directory-Info]\n"):
+        raise ConfigError("Missing [Directory-Info] section")
+
+    # Split the rest by [Server]; the first entry will be a [Directory-Info]
+    servers = []
+    while 1:
+        eos = directory.find("\n[Server]\n")
+        if eos < 0:
+            servers.append(directory)
+            break
+        else:
+            servers.append(directory[:eos+1])
+            directory = directory[eos+1:]
+
+    info = servers[0]
+    del servers[0]
+    return sigs, info, servers
