@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.25 2003/05/26 21:08:13 nickm Exp $
+# $Id: ServerConfig.py,v 1.26 2003/05/28 07:36:24 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -127,23 +127,21 @@ class ServerConfig(mixminion.Config._ConfigFile):
             reasons.append("StatsInterval is too short")
         if not server["EncryptIdentityKey"]:
             reasons.append("Identity key is not encrypted")
-        # ????004 Pkey lifetime, sloppiness?
+        # ???? Pkey lifetime, sloppiness?
         if server["MixAlgorithm"] not in _SECURE_MIX_RULES:
             reasons.append("Mix algorithm is not secure")
         else:
             if server["MixPoolMinSize"] < 5:
                 reasons.append("MixPoolMinSize is too small")
-            #MixPoolRate?
+            #???? MixPoolRate
         if server["MixInterval"].getSeconds() < 30*60:
             reasons.append("Mix interval under 30 minutes")
 
-        # ????004 DIRSERVERS?
+        # ???? Incoming/MMTP
 
-        # ????004 Incoming/MMTP
+        # ???? Outgoing/MMTP
 
-        # ????004 Outgoing/MMTP
-
-        # ????004 Modules?
+        # ???? Modules
 
         return reasons
 

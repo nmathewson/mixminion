@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientMain.py,v 1.78 2003/05/28 06:37:32 nickm Exp $
+# $Id: ClientMain.py,v 1.79 2003/05/28 07:36:24 nickm Exp $
 
 """mixminion.ClientMain
 
@@ -44,8 +44,10 @@ from mixminion.Packet import ParseError, parseMBOXInfo, parseReplyBlocks, \
      MBOX_TYPE, SMTP_TYPE, DROP_TYPE
 
 # FFFF This should be made configurable and adjustable.
-MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory.gz"
-MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
+MIXMINION_DIRECTORY_URL = "http://mixminion.net/directory/Directory_TEST.gz"
+#MIXMINION_DIRECTORY_FINGERPRINT = "CD80DD1B8BE7CA2E13C928D57499992D56579CCD"
+# XXXX004 This change is temporary
+MIXMINION_DIRECTORY_FINGERPRINT = "67BE06E7C2ADCCE3F389675F8796EAF681B9875F"
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
@@ -603,17 +605,7 @@ class ClientDirectory:
         nNeeded = len([info for info in servers if info is None])
         relays = self.__find(self.byCapability['relay'], startAt, endAt)
         unusedRelays = setSub(relays, used)
-        ALLOW_REUSE = 0
-        if ALLOW_REUSE and nNeeded <= len(unusedRelays):
-            # We can choose without replacement.
-            #XXXX004 this code needs to be chopped out.
-            newServers = prng.shuffle(unusedRelays, nNeeded)
-            j = 0
-            for i in xrange(len(servers)):
-                if servers[i] is None:
-                    servers[i] = newServers[j]
-                    j += 1
-        elif relays:
+        if relays:
             # We know at least one relay, but not enough to choose without
             # replacement.  First, give an appropriate warning...
 
@@ -1193,7 +1185,7 @@ class ClientQueue:
     #             the latest midnight preceeding the time when this
     #                 packet was inserted into the queue
     #           )
-    # XXXX004 change this to be OO; add nicknames.
+    # XXXX change this to be OO; add nicknames.
 
     # XXXX004 write unit tests
 

@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.42 2003/05/26 21:08:13 nickm Exp $
+# $Id: Main.py,v 1.43 2003/05/28 07:36:24 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -139,6 +139,7 @@ _COMMANDS = {
     "server-stop" :    ( 'mixminion.server.ServerMain', 'signalServer' ),
     "server-reload" :  ( 'mixminion.server.ServerMain', 'signalServer' ),
     "server-republish":( 'mixminion.server.ServerMain', 'runRepublish'),
+    "server-upgrade":  ( 'mixminion.server.ServerMain', 'runUpgrade'),
     "server-stats" :   ( 'mixminion.server.ServerMain', 'printServerStats' ),
     "dir":             ( 'mixminion.directory.DirMain', 'main'),
 }
@@ -167,6 +168,7 @@ _USAGE = (
   "       server-keygen  [Generate keys for a Mixminion server]\n"+
   "       server-DELKEYS [Remove generated keys for a Mixminion server]\n"+
   "       server-stats   [XXXX]\n"+
+  " {XXXX004 stuff has changed!\n"+
   "                             (For Developers)\n"+
   "       dir            [Administration for server directories]\n"+
   "       unittests      [Run the mixminion unit tests]\n"+
@@ -206,7 +208,7 @@ def main(args):
     if args[1] not in ('unittests', 'benchmarks'):
         print "==========================================================="
         print "                     TURN  BACK  NOW  !!!"
-        print "This version of Mixminion (0.0.4alpha2) is compatible with no"
+        print "This version of Mixminion (0.0.4alpha3) is compatible with no"
         print "other version.  Go check out the maintenance branch if you"
         print "want to use this software to run a server or send messages."
         print "==========================================================="

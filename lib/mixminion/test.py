@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.109 2003/05/27 17:24:49 nickm Exp $
+# $Id: test.py,v 1.110 2003/05/28 07:36:24 nickm Exp $
 
 """mixminion.tests
 
@@ -4894,8 +4894,8 @@ class ServerKeysTests(unittest.TestCase):
         if USE_SLOW_MODE:
             # These are slow, since they regenerate the DH params.
             # Test getDHFile
-            f = keyring.getDHFile()
-            f2 = keyring.getDHFile()
+            f = keyring._getDHFile()
+            f2 = keyring._getDHFile()
             self.assertEquals(f, f2)
 
             # Test getTLSContext

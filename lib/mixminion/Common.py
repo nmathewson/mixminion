@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.80 2003/05/28 06:37:32 nickm Exp $
+# $Id: Common.py,v 1.81 2003/05/28 07:36:24 nickm Exp $
 
 """mixminion.Common
 
@@ -398,6 +398,7 @@ class AtomicFile:
 
 def readFile(fn, binary=0):
     """DOCDOC"""
+    #XXXX004 use more.
     f = open(fn, ['r', 'rb'][binary])
     try:
         return f.read()
@@ -405,6 +406,8 @@ def readFile(fn, binary=0):
         f.close()
 
 def writeFile(fn, contents, mode=0600, binary=0):
+    """DOCDOC"""
+    #XXXX004 use more.
     tmpname = fn+".tmp"
     f, tmpname = openUnique(tmpname, ['w','wb'][binary], mode)
     try:

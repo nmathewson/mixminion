@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.26 2003/05/28 06:37:43 nickm Exp $
+# $Id: ServerKeys.py,v 1.27 2003/05/28 07:36:24 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -50,8 +50,8 @@ PREPUBLICATION_INTERVAL = 14*24*60*60
 # DOCDOC
 #
 #FFFF Make this configurable
-#DIRECTORY_UPLOAD_URL = "http://mixminion.net/cgi-bin/publish"
-DIRECTORY_UPLOAD_URL = "http://192.168.0.1/cgi-bin/publish"
+DIRECTORY_UPLOAD_URL = "http://mixminion.net/minion-cgi/publish"
+#DIRECTORY_UPLOAD_URL = "http://192.168.0.1/cgi-bin/publish"
 
 #----------------------------------------------------------------------
 class ServerKeyring:
@@ -89,7 +89,10 @@ class ServerKeyring:
 
     def checkKeys(self):
         """Internal method: read information about all this server's
-           currently-prepared keys from disk."""
+           currently-prepared keys from disk.
+
+           DOCDOC raises configerror...
+           """
         self.keySets = []
         firstKey = sys.maxint
         lastKey = 0
@@ -122,7 +125,6 @@ class ServerKeyring:
 
             # Find the server descriptor...
             keyset = ServerKeyset(self.keyDir, keysetname, self.hashDir)
-            # XXXX004 catch bad/missing serverdescriptor!
             t1, t2 = keyset.getLiveness()
             self.keySets.append( (t1, t2, keyset) )
                 
@@ -149,7 +151,7 @@ class ServerKeyring:
         """DOCDOC"""
         identity = None
         bad = []
-        for ks,_,_ in self.keySets:
+        for _,_,ks in self.keySets:
             ok = ks.checkConsistency(self.config, 0)
             if not ok:
                 bad.append(ks)
@@ -304,7 +306,7 @@ class ServerKeyring:
         """DOCDOC"""
         LOG.info("Regenerating server descriptors; keeping old keys.")
         identityKey = self.getIdentityKey()
-        for ks,_,_ in self.keySets:
+        for _,_,ks in self.keySets:
             ks.regenerateServerDescriptor(self.config, identityKey)
 
     def getNextKeygen(self):
@@ -375,13 +377,14 @@ class ServerKeyring:
             ks.load()
             keysets.append(ks)
 
-        #XXXX004 there should only be 2.
+        if len(keysets) > 2:
+            LOG.error("Got >2 active keys! That's not supposed to happen.")
+
         return keysets
 
-    def getDHFile(self):
+    def _getDHFile(self):
         """Return the filename for the diffie-helman parameters for the
            server.  Creates the file if it doesn't yet exist."""
-        #XXXX Make me private????004
         dhdir = os.path.join(self.homeDir, 'work', 'tls')
         createPrivateDir(dhdir)
         dhfile = os.path.join(dhdir, 'dhparam')
@@ -403,7 +406,7 @@ class ServerKeyring:
             keys = self.getServerKeysets()[-1]
         return mixminion._minionlib.TLSContext_new(keys.getCertFileName(),
                                                    keys.getMMTPKey(),
-                                                   self.getDHFile())
+                                                   self._getDHFile())
 
     def updateKeys(self, packetHandler, mmtpServer, when=None):
         """DOCDOC: Return next rotation."""
@@ -443,11 +446,11 @@ class ServerKeyring:
             add = min(addKeyEvents); rm = min(rmKeyEvents)
 
             if add < rm:
-                LOG.info("Next event: new key becomes valid at %s",
+                LOG.info("Next key event: new key becomes valid at %s",
                          formatTime(add,1))
                 self.nextUpdate = add
             else:
-                LOG.info("Next event: old key is removed at %s",
+                LOG.info("Next key event: old key is removed at %s",
                          formatTime(rm,1))
                 self.nextUpdate = rm
 
@@ -603,7 +606,10 @@ class ServerKeyset:
 
     def checkConsistency(self, config, log=1):
         """DOCDOC"""
-        return checkDescriptorConsistency(config,log,self.published)
+        return checkDescriptorConsistency(self.getServerDescriptor(),
+                                          config,
+                                          log=log,
+                                          isPublished=self.published)
 
     def publish(self, url):
         """DOCDOC Returns 'accept', 'reject', 'error'. """
@@ -633,7 +639,7 @@ class ServerKeyset:
         m = DIRECTORY_RESPONSE_RE.search(reply)
         if not m:
             LOG.error("Didn't understand reply from directory: %r",
-                      reply[:100])
+                      reply)
             return 'error'
         ok = int(m.group(1))
         msg = m.group(2)
@@ -659,7 +665,7 @@ class _WarnWrapper:
     def __call__(self, *args):
         self.called += 1
         if not self.published:
-            args = args[:]
+            args = list(args)
             args[0] = args[0].replace("published", "in unpublished descriptor")
         if not self.silence:
             LOG.warn(*args)
@@ -722,9 +728,9 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
         warn("Configured IP (%s) does not match published IP (%s)",
              config_im['IP'], info_ip)
 
-    if config_im['Enabled'] and not info_im['Enabled']:
+    if config_im['Enabled'] and not info_im.get('Version'):
         warn("Incoming MMTP enabled but not published.")
-    elif not config_im['Enabled'] and info_im['Enabled']:
+    elif not config_im['Enabled'] and info_im.get('Version'):
         warn("Incoming MMTP published but not enabled.")
 
     for section in ('Outgoing/MMTP', 'Delivery/MBOX', 'Delivery/SMTP'):

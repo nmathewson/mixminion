@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.42 2003/05/23 07:54:11 nickm Exp $
+# $Id: ServerInfo.py,v 1.43 2003/05/28 07:36:24 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -114,7 +114,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
             if name == 'Server':
                 for k,v,_ in ents:
                     if k == 'Descriptor-Version' and v.strip() != '0.2':
-                        raise ConfigError("Unrecognized descriptor version %s"
+                        raise ConfigError("Unrecognized descriptor version: %s"
                                           % v.strip())
             #XXXX Remove sections with unrecognized versions.
 

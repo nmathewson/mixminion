@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.59 2003/05/28 06:37:43 nickm Exp $
+# $Id: ServerMain.py,v 1.60 2003/05/28 07:36:24 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -94,12 +94,12 @@ def checkHomedirVersion(config):
 This server's files are stored in an older format, and are not compatible
 with this version of the mixminion server.  To upgrade, run:
      'mixminion server-upgrade'."""
-            sys.exit(0)
+            raise UIError
         else:
             print >>sys.stderr, """\
 This server's file are stored in format which this version of mixminion
 is too old to recognize."""
-            sys.exit(0)
+            raise UIError
 
     return 1
 
@@ -604,7 +604,10 @@ class MixminionServer(_Scheduler):
         # The pid file.
         self.pidFile = os.path.join(homeDir, "pid")
 
-        #XXXX004 Catch ConfigError for bad serverinfo.
+
+        # Try to read the keyring.  If we have a pre-0.0.4 version of
+        # mixminion, we might have some bad server descriptors lying
+        # around.  If so, tell the user to run server-upgrade.
         try:
             self.keyring = mixminion.server.ServerKeys.ServerKeyring(config)
         except mixminion.Config.ConfigError, e:
@@ -613,6 +616,7 @@ class MixminionServer(_Scheduler):
                               "format.\nConsider running 'mixminion server"
                               "-upgrade'")
             elif str(e).startswith("Unrecognized descriptor version"):
+                print e
                 raise UIError("The server homedir contains keys for an "
                               "unrecognized version of the server.")
             else:
@@ -971,6 +975,8 @@ def runServer(cmd, args):
         # the main loop starts.
         mixminion.Common.LOG.configure(config, keepStderr=1)
         LOG.debug("Configuring server")
+    except UIError:
+        raise
     except:
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
@@ -992,6 +998,8 @@ def runServer(cmd, args):
     # Configure event log
     try:
         EventStats.configureLog(config)
+    except UIError:
+        raise
     except:
         LOG.fatal_exc(sys.exc_info(), "")
         os._exit(0)
@@ -1004,6 +1012,8 @@ def runServer(cmd, args):
         mixminion.Crypto.init_crypto(config)
 
         server = MixminionServer(config)
+    except UIError:
+        raise
     except:
         info = sys.exc_info()
         LOG.fatal_exc(info,"Exception while configuring server")
@@ -1078,18 +1088,16 @@ def runUpgrade(cmd, args):
     keep = 0
     for keyset in keysets:
         try:
-            keyset.load()
+            inf = keyset.getServerDescriptor()
             keep += 1
         except mixminion.Config.ConfigError, e:
-            errors += 1
-            if e.startswith("Unrecognized descriptor version: 0.1"):
+            errors += 1            
+            if str(e).startswith("Unrecognized descriptor version: 0.1"):
                 print "Removing old keyset %s"%keyset.keyname
                 keyset.delete()
             else:
                 print "Unrecognized error from keyset %s: %s" % (
                     keyset.keyname, str(e))
-                
-
 
     # Now we need to clean out all the old queues -- the messages in them
     # are incompatible.

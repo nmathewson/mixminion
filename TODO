@@ -112,13 +112,13 @@ For 0.0.4:
                         o Tests
                 o Ability to generate new serverdesc with old keys.
                         o Implement
-                        o Test backend
+                        o Test backend, midend
                         o Automate
                         - Test
                 . Ability to notice discrepancies between SD and
                   server configuration.
                         o Implement
-.5                      - Test backend
+.5                      *- Test backend, midend
                         o Integrate with frontend
                         - Test
                 . Online key rotation
@@ -130,22 +130,22 @@ For 0.0.4:
                         o Trigger all of the above as timed events occur.
                         o Generate new SD's as needed
                         o Publish as needed
-2.5                     - Somehow test the whole business.
+2.5                     *- Somehow test the whole business.
                 . Rudimentary directory automation (with trivial pinging)
                         o CGI to receive server descriptors:
                                 o replace old ones if superceded, 
                                   reject them if invalid,
                                   and queue them if unrecognized.
                                 o The actual CGI
-2                               - Tests for above
+2                               *- Tests for above
                         o Ability to move servers from queue to good-list.
-0.5                             - Tests
+0.5                             *- Tests
                         . Code to remember whether descriptors are published,
                           and republish as needed
                                 o Implement
                                 o Add 'publish' option
                                 o Add explicit 'republish' command.
-1                               - Tests
+1                               *- Tests
                         o Design directory liveness format.  Maybe include
                           all servers in "live" list for now?
                         o Add code to make directory list some servers

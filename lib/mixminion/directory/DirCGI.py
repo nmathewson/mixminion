@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirCGI.py,v 1.3 2003/05/28 06:37:36 nickm Exp $
+# $Id: DirCGI.py,v 1.4 2003/05/28 07:36:24 nickm Exp $
 
 """mixminion.directory.DirCGI
 
@@ -8,7 +8,7 @@
 
 __all__ = [ ]
 
-DIRECTORY_BASE = None
+DIRECTORY_BASE = "/home/nickm/src/MixminionDirectory"
 
 import cgi
 import os
@@ -48,6 +48,5 @@ def run():
 
     inbox.receiveServer(desc, address)
 
-if not sys.modules.has_key('pychecker'):
-    run()
+
     
