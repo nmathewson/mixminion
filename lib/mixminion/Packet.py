@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.12 2002/10/14 03:03:42 nickm Exp $
+# $Id: Packet.py,v 1.13 2002/10/16 23:12:12 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -30,15 +30,18 @@ HEADER_LEN  = 128 * 16
 # Length of a single payload
 PAYLOAD_LEN = MESSAGE_LEN - HEADER_LEN*2
 
-# Smallest possible size for a subheader
-MIN_SUBHEADER_LEN = 42
-# Most information we can fit into a subheader
-MAX_SUBHEADER_LEN = 86
-# Longest routing info that will fit in the main subheader
-MAX_ROUTING_INFO_LEN = MAX_SUBHEADER_LEN - MIN_SUBHEADER_LEN
+# Bytes taken up by OAEP padding in RSA-encrypted data
+OAEP_OVERHEAD = 42
 
 # Length of a subheader, once RSA-encoded.
 ENC_SUBHEADER_LEN = 128
+# Smallest possible size for a subheader
+MIN_SUBHEADER_LEN = 42
+# Most information we can fit into a subheader before padding
+MAX_SUBHEADER_LEN = ENC_SUBHEADER_LEN - OAEP_OVERHEAD
+# Longest routing info that will fit in the main subheader
+MAX_ROUTING_INFO_LEN = MAX_SUBHEADER_LEN - MIN_SUBHEADER_LEN
+
 # Length of a digest
 DIGEST_LEN = 20
 # Length of a secret key
@@ -107,7 +110,7 @@ class Header:
            Returns a slice of the i-j'th subheaders of this header."""
         if j > 16: j = 16
         if i < 0: i += 16
-        if j < 0: j += 16 
+        if j < 0: j += 16
         return self.contents[i*ENC_SUBHEADER_LEN:
                              j*ENC_SUBHEADER_LEN]
 
@@ -237,19 +240,25 @@ class Subheader:
 #----------------------------------------------------------------------
 # UNENCRYPTED PAYLOADS
 
-# XXXX DOCUMENT CONTENTS
+# Length of the 'MessageID' field in a fragment payload
 FRAGMENT_MESSAGEID_LEN = 20
+# Maximum number of fragments associated with a given message
 MAX_N_FRAGMENTS = 0x7ffff
 
-#XXXX DOCDOC
+# Number of bytes taken up by header fields in a singleton payload.
 SINGLETON_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN
+# Number of bytes taken up by header fields in a fragment payload.
 FRAGMENT_PAYLOAD_OVERHEAD = 2 + DIGEST_LEN + FRAGMENT_MESSAGEID_LEN + 4
-OAEP_OVERHEAD = 42
-#XXXX DOC DOC  and e2e note is off by 4.
+# Number of bytes taken up from OAEP padding in an encrypted forward
+# payload, minus bytes saved by spilling the RSA-encrypted block into the
+# tag, minus the bytes taken by the session key.
+# XXXX (The e2e note is off by 4.)
 ENC_FWD_OVERHEAD = OAEP_OVERHEAD - TAG_LEN + SECRET_LEN
 
 def parsePayload(payload):
-    "XXXX"
+    """Convert a decoded mixminion payload into a SingletonPayload or a 
+       FragmentPayload object.  Raise ParseError on failure or data
+       corruption."""
     if len(payload) not in (PAYLOAD_LEN, PAYLOAD_LEN-ENC_FWD_OVERHEAD):
 	raise ParseError("Payload has bad length")
     bit0 = ord(payload[0]) & 0x80
@@ -258,13 +267,13 @@ def parsePayload(payload):
 	idx, hash, msgID, msgLen = struct.unpack(FRAGMENT_UNPACK_PATTERN,
 					 payload[:FRAGMENT_PAYLOAD_OVERHEAD])
 	idx &= 0x7f
-	contents = payload[FRAGMENT_PAYLOAD_OVERHEAD:] 
+	contents = payload[FRAGMENT_PAYLOAD_OVERHEAD:]
 	if msgLen <= len(contents):
 	    raise ParseError("Payload has an invalid size field")
 	return FragmentPayload(idx,hash,msgID,msgLen,contents)
     else:
 	# We have a singleton
-	size, hash = struct.unpack(SINGLETON_UNPACK_PATTERN, 
+	size, hash = struct.unpack(SINGLETON_UNPACK_PATTERN,
 				   payload[:SINGLETON_PAYLOAD_OVERHEAD])
 	contents = payload[SINGLETON_PAYLOAD_OVERHEAD:]
 	if size > len(contents):
@@ -279,22 +288,24 @@ SINGLETON_UNPACK_PATTERN = "!H%ds" % (DIGEST_LEN)
 FRAGMENT_UNPACK_PATTERN = "!H%ds%dsL" % (DIGEST_LEN, FRAGMENT_MESSAGEID_LEN)
 
 class SingletonPayload:
-    "XXXX"
+    """Represents the payload for a standalone mixminion message.
+       Fields:  size, hash, data.  (Note that data is padded.)"""
     def __init__(self, size, hash, data):
 	self.size = size
 	self.hash = hash
 	self.data = data
 
     def isSingleton(self):
-	"XXXX"
+	"""Returns true; this is a singleton payload."""
 	return 1
 
     def getContents(self):
-	"XXXX"
+	"""Returns the non-padding portion of this payload's data""" 
 	return self.data[:self.size]
 
     def pack(self):
-	"XXXX"
+	"""Check for reasonable values of fields, and return a packed payload.
+        """
 	assert (0x8000 & self.size) == 0
 	assert 0 <= self.size <= len(self.data)
 	assert len(self.hash) == DIGEST_LEN
@@ -304,7 +315,7 @@ class SingletonPayload:
 	return "%s%s" % (header, self.data)
 
 class FragmentPayload:
-    "XXXX"
+    """Represents the fields of a decoded fragment payload."""
     def __init__(self, index, hash, msgID, msgLen, data):
 	self.index = index
 	self.hash = hash
@@ -313,11 +324,11 @@ class FragmentPayload:
 	self.data = data
 
     def isSingleton(self):
-	"XXXX"
+	"""Return false; not a singleton"""
 	return 0
 
     def pack(self):
-	"XXXX"
+	"""Returns the string value of this payload."""
 	assert 0 <= self.index <= MAX_N_FRAGMENTS
 	assert len(self.hash) == DIGEST_LEN
 	assert len(self.msgID) == FRAGMENT_MESSAGEID_LEN
@@ -374,10 +385,10 @@ class ReplyBlock:
     def pack(self):
         """Returns the external representation of this reply block"""
         return struct.pack(RB_UNPACK_PATTERN,
-                           "SURB", 0x00, 0x01, self.timestamp, self.header, 
-                           len(self.routingInfo), self.routingType, 
+                           "SURB", 0x00, 0x01, self.timestamp, self.header,
+                           len(self.routingInfo), self.routingType,
 			   self.encryptionKey) + self.routingInfo
-                           
+
 #----------------------------------------------------------------------
 # Routing info
 
@@ -413,9 +424,9 @@ class IPV4Info:
     def pack(self):
         """Return the routing info for this address"""
         assert len(self.keyinfo) == DIGEST_LEN
-        return struct.pack(IPV4_PAT, inet_aton(self.ip), 
+        return struct.pack(IPV4_PAT, inet_aton(self.ip),
 			   self.port, self.keyinfo)
-    
+
     def __hash__(self):
 	return hash(self.pack())
 

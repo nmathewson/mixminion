@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.15 2002/10/14 03:03:42 nickm Exp $
+# $Id: BuildMessage.py,v 1.16 2002/10/16 23:12:11 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -12,13 +12,13 @@ from mixminion.Common import MixError, MixFatalError, getLog
 import mixminion.Crypto as Crypto
 import mixminion.Modules as Modules
 
-__all__ = [ 'Address', 
+__all__ = [ 'Address',
            'buildForwardMessage', 'buildEncryptedMessage', 'buildReplyMessage',
            'buildStatelessReplyBlock', 'buildReplyBlock', 'decodePayload',
-	   'decodeForwardPayload', 'decodeEncryptedForwardPayload', 
+	   'decodeForwardPayload', 'decodeEncryptedForwardPayload',
 	   'decodeReplyPayload', 'decodeStatelessReplyPayload' ]
 
-def buildForwardMessage(payload, exitType, exitInfo, path1, path2, 
+def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
 			paddingPRNG=None):
     """Construct a forward message.
             payload: The payload to deliver.  Must compress to under 28K-22b.
@@ -28,17 +28,17 @@ def buildForwardMessage(payload, exitType, exitInfo, path1, path2,
             path2: Sequence of ServerInfo objects for the 2nd leg of the path
 	    paddingPRNG
 
-        Note: If either path is empty, the message is vulnerable to tagging 
+        Note: If either path is empty, the message is vulnerable to tagging
          attacks! (FFFF we should check this.)
     """
     if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
 
     payload = _encodePayload(payload, 0, paddingPRNG)
     tag = _getRandomTag(paddingPRNG)
-    exitInfo = tag + exitInfo 
+    exitInfo = tag + exitInfo
     return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
 
-def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2, 
+def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
 				 key, paddingPRNG=None, secretRNG=None):
     """XXXX
     """
@@ -63,7 +63,7 @@ def buildEncryptedForwardMessage(payload, exitType, exitInfo, path1, path2,
     payload = encrypted + lionessPart
     tag = payload[:TAG_LEN]
     payload = payload[TAG_LEN:]
-    exitInfo = tag + exitInfo 
+    exitInfo = tag + exitInfo
     assert len(payload) == 28*1024
     return _buildMessage(payload, exitType, exitInfo, path1, path2,paddingPRNG)
 
@@ -74,7 +74,7 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     if paddingPRNG is None: paddingPRNG = Crypto.AESCounterPRNG()
 
     payload = _encodePayload(payload, 0, paddingPRNG)
-   
+
     # XXXX Document this mode
     k = Crypto.Keyset(replyBlock.encryptionKey).getLionessKeys(
 	                 Crypto.PAYLOAD_ENCRYPT_MODE)
@@ -84,11 +84,11 @@ def buildReplyMessage(payload, path1, replyBlock, paddingPRNG=None):
     return _buildMessage(payload, None, None,
                          path1=path1, path2=replyBlock)
 
-def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None, 
+def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
                     tag=None):
     """Return a 3-tuple containing (1) a newly-constructed reply block, (2)
        a list of secrets used to make it, (3) a tag.
-       
+
               path: A list of ServerInfo
               exitType: Routing type to use for the final node
               exitInfo: Routing info for the final node, not including tag.
@@ -97,7 +97,7 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
                  provided, uses an AES counter-mode stream seeded from our
                  entropy source.  Note: the secrets are generated so that they
                  will be used to encrypt the message in reverse order.
-              tag: If provided, a 159-bit tag.  If not provided, a new one 
+              tag: If provided, a 159-bit tag.  If not provided, a new one
                  is generated.
        """
     if secretPRNG is None:
@@ -115,7 +115,7 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
     if tag is None:
 	tag = _getRandomTag(secretPRNG)
 
-    header = _buildHeader(path, headerSecrets, exitType, tag+exitInfo, 
+    header = _buildHeader(path, headerSecrets, exitType, tag+exitInfo,
                           paddingPRNG=Crypto.AESCounterPRNG())
 
     return ReplyBlock(header, expiryTime,
@@ -123,7 +123,7 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
                       path[0].getRoutingInfo().pack(), sharedKey), secrets, tag
 
 # Maybe we shouldn't even allow this to be called with userKey==None.
-def buildStatelessReplyBlock(path, exitType, exitInfo, userKey, 
+def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
 			     expiryTime=0, secretRNG=None):
     """XXXX DOC IS NOW WRONG HERE
        Construct a 'stateless' reply block that does not require the
@@ -146,7 +146,7 @@ def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
        """
     #XXXX Out of sync with the spec.
     if secretRNG is None: secretRNG = Crypto.AESCounterPRNG()
-    
+
     while 1:
 	seed = _getRandomTag(secretRNG)
 	if Crypto.sha1(seed+userKey+"Validate")[-1] == '\x00':
@@ -164,17 +164,20 @@ def decodePayload(payload, tag, key=None, storedKeys=None, userKey=None):
         Contract: return payload on success; raise MixError on certain failure,
           return None if neither.
     """
+    if len(payload) != PAYLOAD_LEN or len(tag) != TAG_LEN:
+	raise MixError("Wrong payload or tag length")
+
     if _checkPayload(payload):
 	return decodeForwardPayload(payload)
 
-    if storedKeysFn is not None:
+    if storedKeys is not None:
 	secrets = storedKeys.get(tag)
 	if secrets is not None:
 	    del storedKeys[tag]
 	    return decodeReplyPayload(payload, secrets)
 
     if userKey is not None:
-	if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00': 
+	if Crypto.sha1(tag+userKey+"Validate")[-1] == '\x00':
 	    try:
 		return decodeStatelessReplyPayload(payload, tag, userKey)
 	    except MixError, _:
@@ -189,10 +192,12 @@ def decodePayload(payload, tag, key=None, storedKeys=None, userKey=None):
 
 def decodeForwardPayload(payload):
     "XXXX"
-    return _decodePayload(payload)
+    return decodePayloadImpl(payload)
 
 def decodeEncryptedForwardPayload(payload, tag, key):
     "XXXX"
+    assert len(tag) == TAG_LEN
+    assert len(payload) == PAYLOAD_LEN
     msg = tag+payload
     try:
 	rsaPart = Crypto.pk_decrypt(msg[:key.get_modulus_bytes()], key)
@@ -202,7 +207,7 @@ def decodeEncryptedForwardPayload(payload, tag, key):
     #XXXX magic string
     k = Crypto.Keyset(rsaPart[:SECRET_LEN]).getLionessKeys("End-to-end encrypt")
     rest = rsaPart[SECRET_LEN:] + Crypto.lioness_decrypt(rest, k)
-    return _decodePayload(rest)
+    return decodePayloadImpl(rest)
 
 def decodeReplyPayload(payload, secrets, check=0):
     "XXXX"
@@ -213,14 +218,14 @@ def decodeReplyPayload(payload, secrets, check=0):
 	if check and _checkPayload(payload):
 	    break
 
-    return _decodePayload(payload)
+    return decodePayloadImpl(payload)
 
 def decodeStatelessReplyPayload(payload, tag, userKey):
     "XXXX"
     seed = Crypto.sha1(tag+userKey+"Generate")[:16]
     prng = Crypto.AESCounterPRNG(seed)
     secrets = [ prng.getBytes(SECRET_LEN) for _ in xrange(17) ]
-			 
+			
     return decodeReplyPayload(payload, secrets, check=1)
 
 #----------------------------------------------------------------------
@@ -244,12 +249,12 @@ def _buildMessage(payload, exitType, exitInfo,
 
     The following fields are optional:
        paddingPRNG: A pseudo-random number generator used to pad the headers.
-         If not provided, we use a counter-mode AES stream seeded from our 
-         entropy source. 
-         
+         If not provided, we use a counter-mode AES stream seeded from our
+         entropy source.
+
        paranoia: If this is false, we use the padding PRNG to generate
          header secrets too.  Otherwise, we read all of our header secrets
-         from the true entropy source. 
+         from the true entropy source.
     """
     assert len(payload) == PAYLOAD_LEN
     reply = None
@@ -279,7 +284,7 @@ def _buildMessage(payload, exitType, exitInfo,
 
     # Generate secrets for path1.
     secrets1 = [ secretRNG.getBytes(SECRET_LEN) for _ in path1 ]
-    
+
     if path2:
         # Make secrets for header 2, and construct header 2.  We do this before
         # making header1 so that our rng won't be used for padding yet.
@@ -308,14 +313,14 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     if len(path) * ENC_SUBHEADER_LEN > HEADER_LEN:
         raise MixError("Too many nodes in path")
 
-    # Construct a list 'routing' of exitType, exitInfo.  
+    # Construct a list 'routing' of exitType, exitInfo.
     routing = [ (Modules.FWD_TYPE, node.getRoutingInfo().pack()) for
                 node in path[1:] ]
     routing.append((exitType, exitInfo))
-    
+
     # sizes[i] is size, in blocks, of subheaders for i.
     sizes =[ getTotalBlocksForRoutingInfoLen(len(ri)) for _, ri in routing]
-    
+
     # totalSize is the total number of blocks.
     totalSize = reduce(operator.add, sizes)
     if totalSize * ENC_SUBHEADER_LEN > HEADER_LEN:
@@ -324,8 +329,8 @@ def _buildHeader(path,secrets,exitType,exitInfo,paddingPRNG):
     # headerKey[i]==the AES key object node i will use to decrypt the header
     headerKeys = [ Crypto.Keyset(secret).get(Crypto.HEADER_SECRET_MODE)
                        for secret in secrets ]
-    
-    # Calculate junk.  
+
+    # Calculate junk.
     #   junkSeen[i]==the junk that node i will see, before it does any
     #                encryption.   Note that junkSeen[0]=="", because node 0
     #                sees no junk.
@@ -383,7 +388,7 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
     """
     assert len(payload) == PAYLOAD_LEN
     assert len(header1) == len(header2) == HEADER_LEN
-    
+
     if secrets2:
         # (Copy secrets2 so we don't reverse the original)
         secrets2 = secrets2[:]
@@ -409,7 +414,7 @@ def _constructMessage(secrets1, secrets2, header1, header2, payload):
     secrets1 = secrets1[:]
 
     # Now, encrypt header2 and the payload for each node in path1, reversed.
-    secrets1.reverse()    
+    secrets1.reverse()
     for secret in secrets1:
         ks = Crypto.Keyset(secret)
         hkey = ks.getLionessKeys(Crypto.HEADER_ENCRYPT_MODE)
@@ -438,7 +443,7 @@ def _encodePayload(payload, overhead, paddingPRNG):
     paddingLen = PAYLOAD_LEN - SINGLETON_PAYLOAD_OVERHEAD - overhead - length
     if paddingLen < 0:
 	raise MixError("Payload too long for singleton message")
-    
+
     payload += paddingPRNG.getBytes(paddingLen)
 
     return SingletonPayload(length, Crypto.sha1(payload), payload).pack()
@@ -448,7 +453,7 @@ def _getRandomTag(rng):
     b = ord(rng.getBytes(1)) & 0x7f
     return chr(b) + rng.getBytes(TAG_LEN-1)
 
-def _decodePayload(payload):
+def decodePayloadImpl(payload):
     if not _checkPayload(payload):
 	raise MixError("Hash doesn't match")
     payload = parsePayload(payload)
@@ -468,29 +473,52 @@ def _checkPayload(payload):
 _ZLIB_LIBRARY_OK = 0
 
 def compressData(payload):
-    """Given a string 'payload', compress it with zlib as specified in the
-       remailer spec."""
+    """Given a string 'payload', compress it with the 'deflate' method
+       as specified in the remailer spec and in RFC1951."""
     if not _ZLIB_LIBRARY_OK:
 	_validateZlib()
-    # Don't change any of these options; they're all mandated.  
+    # Don't change any of these options; they're all mandated.
     zobj = zlib.compressobj(zlib.Z_BEST_COMPRESSION, zlib.DEFLATED,
-			    zlib.MAX_WBITS, zlib.DEF_MEM_LEVEL, 
+			    zlib.MAX_WBITS, zlib.DEF_MEM_LEVEL,
 			    zlib.Z_DEFAULT_STRATEGY)
     s1 = zobj.compress(payload)
     s2 = zobj.flush()
-    return s1 + s2
+    s = s1 + s2
+
+    # Now we check the 2 bytes of zlib header.  Strictly speaking,
+    # these are irrelevant, as are the 4 bytes of adler-32 checksum at
+    # the end.  Still, we can afford 6 bytes per payload, and
+    # reconstructing the checksum to keep zlib happy is a bit of a pain.
+    # XXXX doc manditory '\x78\xDA' beginning in spec.
+    assert s[0] == '\x78' # deflate, 32K window
+    assert s[1] == '\xda' # no dict, max compression
+    return s
 
 def uncompressData(payload):
     """Uncompress a string 'payload'; raise ParseError if it is not valid
        compressed data."""
+    # XXXX ???? How to prevent zlib bombing?  Somebody could compress 28MB of
+    # XXXX ???? zero bytes down to fit in a single payload and use us to
+    # XXXX ???? mailbomb people, hard.
+    if len(payload) < 6 or payload[0:2] != '\x78\xDA':
+	raise ParseError("Invalid zlib header")
     try:
-	return zlib.decompress(payload)
+	# We can't just call zlib.decompress(payload), since we'll eventually
+	# want to limit the output size.
+	zobj = zlib.decompressobj(zlib.MAX_WBITS)
+	# Decompress the payload.
+	d = zobj.decompress(payload)
+	# Get any leftovers, which shouldn't exist.
+	nil = zobj.flush()
+	if nil != '':
+	    raise ParseError("Error in compressed data")
+	return d
     except zlib.error, _:
 	raise ParseError("Error in compressed data")
 
 def _validateZlib():
-    """Internal function:  Make sure that zlib is a recognized version, and 
-       that it compresses things as expected.  (This check is important, 
+    """Internal function:  Make sure that zlib is a recognized version, and
+       that it compresses things as expected.  (This check is important,
        because using a zlib version that compressed differently from zlib1.1.4
        would make senders partitionable by payload compression.)
     """
@@ -498,6 +526,8 @@ def _validateZlib():
     ver = getattr(zlib, "ZLIB_VERSION")
     if ver and ver < "1.1.2":
 	raise MixFatalError("Zlib version %s is not supported"%ver)
+
+    _ZLIB_LIBRARY_OK = 0.5
     if ver in ("1.1.2", "1.1.3", "1.1.4"):
 	_ZLIB_LIBRARY_OK = 1
 	return
@@ -506,10 +536,10 @@ def _validateZlib():
     # This test is inadequate, but it _might_ catch future incompatible
     # changes.
     _ZLIB_LIBRARY_OK = 0.5
-    good = 'x\xda\xed\xc6A\x11\x00 \x08\x00\xb0l\xd4\xf0\x87\x02\xf6o'+\
+    good = '\x78\xda\xed\xc6A\x11\x00 \x08\x00\xb0l\xd4\xf0\x87\x02\xf6o'+\
 	   '`\x0e\xef\xb6\xd7r\xed\x88S=7\xcd\xcc\xcc\xcc\xcc\xcc\xcc'+\
-	   '\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xbe\xdd\x03q'+\
-	   '\x8d\n\x93'
+	   '\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xbe\xdd\x03'+\
+	   'q\x8d\n\x93'
     if compressData("aZbAAcdefg"*1000) == good:
 	_ZLIB_LIBRARY_OK = 1
     else:

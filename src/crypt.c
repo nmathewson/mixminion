@@ -1,5 +1,5 @@
 /* Copyright (c) 2002 Nick Mathewson.  See LICENSE for licensing information */
-/* $Id: crypt.c,v 1.12 2002/08/21 15:54:48 nickm Exp $ */
+/* $Id: crypt.c,v 1.13 2002/10/16 23:12:13 nickm Exp $ */
 #include <Python.h>
 
 #include <time.h>
@@ -349,6 +349,15 @@ mm_rsa_generate(PyObject *self, PyObject *args, PyObject *kwdict)
 					 kwlist,
 					 &bits, &e))
 		return NULL;
+
+	if ((bits < 64) || (bits > 16384)) {
+		PyErr_SetString(mm_CryptoError, "Invalid length for RSA key");
+		return NULL;
+	} 
+	if (e < 2) {
+		PyErr_SetString(mm_CryptoError, "Invalid RSA exponent");
+		return NULL;
+	}
 
 	rsa = RSA_generate_key(bits, e, NULL, NULL);
 	if (rsa == NULL) {

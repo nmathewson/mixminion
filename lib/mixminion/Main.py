@@ -64,6 +64,7 @@ def correctPath(myself):
     try:
 	import mixminion.Main as _
     except ImportError, _:
+	print >>sys.stderr, _
 	print >>sys.stderr,"Unable to find correct path for mixminion."
 	sys.exit(1)
 

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.12 2002/09/10 14:45:30 nickm Exp $
+# $Id: Modules.py,v 1.13 2002/10/16 23:12:12 nickm Exp $
 
 """mixminion.Modules
 
@@ -19,6 +19,7 @@ import base64
 import mixminion.Config
 import mixminion.Packet
 import mixminion.Queue
+import mixminion.BuildMessage 
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
 from mixminion.Common import getLog, createPrivateDir, MixError
 
@@ -98,6 +99,7 @@ class DeliveryModule:
               deliverable later), or
 	    DELIVER_FAIL_NORETRY (if the message shouldn't be tried later)."""
         raise NotImplementedError("processMessage")
+
 
 class ImmediateDeliveryQueue:
     """Helper class usable as delivery queue for modules that don't
@@ -270,7 +272,6 @@ class ModuleManager:
             getLog().error("Unable to handle message with unknown type %s",
                            exitType)
 	    return
-	    
 	queue = self.queues[mod.getName()]
 	queue.queueMessage((exitType,exitInfo), message)
 
@@ -384,7 +385,7 @@ class MBoxModule(DeliveryModule):
 	except KeyError, _:
             getLog.warn("Unknown MBOX user %r", info.user)
 
-        msg = _escapeMessageForEmail(message)
+        msg = _escapeMessageForEmail(message, info.tag)
 
         fields = { 'user': address,
                    'return': self.returnAddress,
@@ -424,9 +425,19 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 
 #----------------------------------------------------------------------
 
+#XXXX DOCDOC
 _allChars = "".join(map(chr, range(256)))
 _nonprinting = "".join(map(chr, range(0x00, 0x07)+range(0x0E, 0x20)))
-def _escapeMessageForEmail(msg):
+def _escapeMessageForEmail(msg, tag):
+    m = decodePayload(tag, msg)
+    if m is None:
+	junk = 1
+	msg = base64.encodestring(msg)
+	tag = base64.encodestring(tag)
+    else:
+	printable = m.translate(_allChars, _nonprinting)
+	allChars
+
     printable = msg.translate(_allChars, _nonprinting)
     if msg[len(printable):] == '\x00'*(len(msg)-len(printable)):
         msg = msg[len(printable)]
@@ -445,3 +456,33 @@ you, or that it's just plain junk.
 %s
 ============ BASE-64 ENCODED ANONYMOUS MESSAGE ENDS\n""" % msg
 
+def _decodeMessage(self, message, exitInfo, text=0):
+    """XXXX DOCDOC
+	  -> ("TXT"|"BIN"|"ENC", payload, RI, tag|None) or None
+    """
+    if len(exitInfo) < 20:
+	return None
+    tag = exitInfo[:20]
+    ri = exitInfo[20:]
+
+    try:
+	m = mixminion.BuildMessage.decodePayload(message, tag)
+    except MixError, e:
+	return None
+
+    if m is None:
+	code = "ENC"
+    else:
+	tag = None
+	printable = msg.translate(_allChars, _nonprinting)
+	if msg[len(printable):] == '\x00'*(len(msg)-len(printable)):
+	    code = "TXT"
+	else:
+	    code = "BIN"
+
+    if text and (code != "TXT") :
+	message = base64.encodestring(message)
+    if text and tag:
+	tag = base64.encodestring(tag)
+
+    return code, message, ri, tag
