@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.33 2003/01/17 06:18:06 nickm Exp $
+# $Id: ServerMain.py,v 1.34 2003/02/04 02:33:47 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -248,26 +248,38 @@ class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):
         self.outgoingQueue.deliveryFailed(handle, retriable)
 #----------------------------------------------------------------------
 class CleaningThread(threading.Thread):
-    """Thread that handles file deletion."""
-    #DOCDOC
+    """Thread that handles file deletion.  Some methods of secure deletion
+       are slow enough that they'd block the server if we did them in the
+       main thread.
+    """
+    # Fields:
+    #   mqueue: A MessageQueue holding filenames to delete, or None to indicate
+    #     a shutdown.
     def __init__(self):
         threading.Thread.__init__(self)
         self.mqueue = MessageQueue()
 
     def deleteFile(self, fname):
+        """Schedule the file named 'fname' for deletion"""
         LOG.trace("Scheduling %s for deletion", fname)
         assert fname is not None
         self.mqueue.put(fname)
 
     def deleteFiles(self, fnames):
+        """Schedule all the files in the list 'fnames' for deletion"""
         for f in fnames:
             self.deleteFile(f)
 
     def shutdown(self):
+        """Tell this thread to shut down once it has deleted all pending
+           files."""
         LOG.info("Telling cleanup thread to shut down.")
         self.mqueue.put(None)
 
     def run(self):
+        """implementation of the cleaning thread's main loop: waits for
+           a filename to delete or an indication to shutdown, then
+           acts accordingly."""
         try:
             while 1:
                 fn = self.mqueue.get()
@@ -284,20 +296,27 @@ class CleaningThread(threading.Thread):
                           "Exception while cleaning; shutting down thread.")
 
 class ProcessingThread(threading.Thread):
+    """Background thread to handle CPU-intensive functions."""
+    # Fields:
+    #   mqueue: a MessageQueue of callable objects.
+    
     class _Shutdown:
         def __call__(self):
             raise self
-    
-    #DOCDOC
+
     def __init__(self, incomingQueue):
+        """Given a MessageQueue object, create a new processing thread."""
         threading.Thread.__init__(self)
-        self.mqueue = MessageQueue()
+        self.mqueue = incomingQueue
 
     def shutdown(self):
         LOG.info("Telling processing thread to shut down.")
         self.mqueue.put(ProcessingThread._Shutdown())
 
     def addJob(self, job):
+        """Adds a job to the message queue.  A job is a callable object
+           to be invoked by the processing thread.  If the job raises
+           ProcessingThread._Shutdown, the processing thread stops running."""
         self.mqueue.put(job)
 
     def run(self):
@@ -328,7 +347,7 @@ def _sigHupHandler(signal_num, _):
     GOT_HUP = 1
 
 def installSignalHandlers():
-    "DOCDOC"
+    """Install signal handlers for sigterm and sighup."""
     signal.signal(signal.SIGHUP, _sigHupHandler)
     signal.signal(signal.SIGTERM, _sigTermHandler)
 
@@ -355,7 +374,7 @@ class MixminionServer:
     # moduleManager: Instance of ModuleManager.  Map routing types to
     #    outging queues, and processes non-MMTP exit messages.
     # outgoingQueue: Holds messages waiting to be send via MMTP.
-    # DOCDOC cleaningThread, processingthread
+    # DOCDOC cleaningThread, processingthread, incomingQueue
     
     def __init__(self, config):
         """Create a new server from a ServerConfig."""

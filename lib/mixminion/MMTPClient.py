@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.18 2003/01/17 06:18:06 nickm Exp $
+# $Id: MMTPClient.py,v 1.19 2003/02/04 02:33:46 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -35,11 +35,14 @@ class BlockingClientConnection:
     # targetIP -- the dotted-quad, IPv4 address of our server.
     # targetPort -- the port on the server
     # targetKeyID -- sha1 hash of the ASN1 encoding of the public key we
-    #   expect the server to use.
+    #   expect the server to use, or None if we don't care.
     # context: a TLSContext object; used to create connections.
     # sock: a TCP socket, open to the server.
     # tls: a TLS socket, wrapping sock.
-    #DOCDOC protocol
+    # protocol: The MMTP protocol version we're currently using, or None
+    #     if negotiation hasn't completed.
+    # PROTOCOL_VERSIONS: (static) a list of protocol versions we allow,
+    #     in decreasing order of preference.
     PROTOCOL_VERSIONS = ['0.2', '0.1']
     def __init__(self, targetIP, targetPort, targetKeyID):
         """Open a new connection."""
@@ -48,7 +51,7 @@ class BlockingClientConnection:
         if targetKeyID != '\x00' *20:
             self.targetKeyID = targetKeyID
         else:
-            self.targetKeyID = None #DOCDOC
+            self.targetKeyID = None
         self.context = _ml.TLSContext_new()
         self.tls = None
         self.sock = None
@@ -160,8 +163,14 @@ class BlockingClientConnection:
 def sendMessages(targetIP, targetPort, targetKeyID, packetList,
                  connectTimeout=None):
     """Sends a list of messages to a server.
-        DOCDOC arguments
-        DOCDOC "JUNK", "RENEGOTIATE"
+
+       targetIP -- the address to connect to, in dotted-quad format.
+       targetPort -- the port to connect to.
+       targetKeyID -- the keyid to expect, or '\000...\000' to ignore
+           the server's keyid.
+       packetList -- a list of 32KB packets and control strings.  Control
+           strings must be one of "JUNK" to send a 32KB padding chunk,
+           or "RENEGOTIATE" to renegotiate the connection key.
     """
     # Generate junk before opening connection to avoid timing attacks
     packets = []
