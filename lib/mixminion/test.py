@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.110 2003/05/28 07:36:24 nickm Exp $
+# $Id: test.py,v 1.111 2003/05/29 01:56:08 nickm Exp $
 
 """mixminion.tests
 
@@ -3848,7 +3848,7 @@ IP: 192.168.0.99
             ServerInfo(string=inf2)
             self.fail("Missing ConfigError")
         except ConfigError, p:
-            self.assertEquals(str(p), "Unrecognized descriptor version 0.99")
+            self.assertEquals(str(p), "Unrecognized descriptor version: 0.99")
 
         # Try regenerating server descriptor with existing keys.
         key2 = mixminion.server.ServerKeys.ServerKeyset(d, "key2", d)
