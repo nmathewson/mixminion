@@ -1,5 +1,5 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.9 2004/01/12 04:48:16 nickm Exp $
+# $Id: DNSFarm.py,v 1.10 2004/02/02 07:05:50 nickm Exp $
 
 """mixminion.server.DNSFarm: code to implement asynchronous DNS resolves with
    background threads and cachhe the results.
@@ -9,8 +9,8 @@ import socket
 import threading
 import time
 import sys
+import mixminion.NetUtils
 from mixminion.Common import LOG
-from mixminion.NetUtils import getIP, nameIsStaticIP
 from mixminion.ThreadUtils import TimeoutQueue, QueueEmpty
 
 __all__ = [ 'DNSCache' ]
@@ -32,8 +32,10 @@ MAX_THREADS = 8
 # they're idele for more than MAX_THREAD_IDLE seconds.
 MAX_THREAD_IDLE = 5*60
 # We clear entries from the DNS cache when they're more than MAX_ENTRY_TTL
-# seconds old.
+# seconds old...
 MAX_ENTRY_TTL = 30*60
+# ...and entries from the reverse cache after MAX_RENTRY_TTL seconds.
+MAX_RENTRY_TTL = 24*60*60
 
 class DNSCache:
     """Class to cache answers to DNS requests and manager DNS threads."""
@@ -41,6 +43,7 @@ class DNSCache:
     # _isShutdown: boolean: are the threads shutting down?  (While the
     #     threads are shutting down, we don't answer any requests.)
     # cache: map from name to PENDING or getIP result.
+    # rCache: map from (family,lowercase IP) to (hostname, time).
     # callbacks: map from name to list of callback functions. (See lookup
     #     for definition of callback.)
     # lock: Lock to control access to this class's shared state.
@@ -52,6 +55,7 @@ class DNSCache:
     def __init__(self):
         """Create a new DNSCache"""
         self.cache = {}
+        self.rCache = {}
         self.callbacks = {}
         self.lock = threading.RLock()
         self.queue = TimeoutQueue()
@@ -70,6 +74,27 @@ class DNSCache:
             return self.cache.get(name)
         finally:
             self.lock.release()
+
+    def getNameByAddressNonblocking(self, addr, family=None):
+        """Given an IP address (and optionally a family), if we have gotten
+           the address as a result in the past, return the hostname that
+           most recently resolved to the address, or None if no such hostname
+           is found."""
+        if family is None:
+            if ':' in addr:
+                family = mixminion.NetUtils.AF_INET6
+            else:
+                family = mixminion.NetUtils.AF_INET
+        try:
+            self.lock.acquire()
+            v = self.rCache.get((family,addr.lower()))
+            if v is None:
+                return None
+            else:
+                return v[0]
+        finally:
+            self.lock.release()
+
     def lookup(self,name,cb):
         """Look up the name 'name', and pass the result to the callback
            function 'cb' when we're done.  The result will be of the
@@ -81,7 +106,7 @@ class DNSCache:
            so it shouldn't be especially time-consuming.
         """
         # Check for a static IP first; no need to resolve that.
-        v = nameIsStaticIP(name)
+        v = mixminion.NetUtils.nameIsStaticIP(name)
         if v is not None:
             cb(name,v)
             return
@@ -127,13 +152,18 @@ class DNSCache:
         try:
             self.lock.acquire()
 
-            # Purge old entries from the
+            # Purge old entries from the caches.
             cache = self.cache
             for name in cache.keys():
                 v = cache[name]
                 if v is PENDING: continue
                 if now-v[2] > MAX_ENTRY_TTL:
                     del cache[name]
+            rCache = self.rCache
+            for name in rCache.keys():
+                v=rCache[name]
+                if now-v[1] > MAX_RENTRY_TTL:
+                    del rCache[name]
 
             # Remove dead threads from self.threads.
             liveThreads = [ thr for thr in self.threads if thr.isAlive() ]
@@ -174,6 +204,9 @@ class DNSCache:
             self.lock.acquire()
             # Insert the value in the cache.
             self.cache[name]=val
+            # Insert the value in the reverse cache.
+            if val[0] != 'NOENT':
+                self.rCache[(val[0], val[1].lower())] = (name.lower(),val[2])
             # Get the callbacks for the name, if any.
             cbs = self.callbacks.get(name,[])
             try:
@@ -224,7 +257,7 @@ class DNSThread(threading.Thread):
                         return
                     # Else, resolve the IP and send the answer to the dnscache
                     _adjBusyThreads(1)
-                    result = getIP(hostname)
+                    result = mixminion.NetUtils.getIP(hostname)
                     _lookupDone(hostname, result)
                     _adjBusyThreads(-1)
             except QueueEmpty:

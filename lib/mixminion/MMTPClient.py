@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.51 2004/01/27 05:58:46 nickm Exp $
+# $Id: MMTPClient.py,v 1.52 2004/02/02 07:05:49 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -90,7 +90,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         if context is None:
             context = _ml.TLSContext_new()
         if serverName is None:
-            serverName = mixminion.ServerInfo.displayServer(
+            serverName = mixminion.ServerInfo.displayServerByRouting(
                 IPV4Info(targetAddr, targetPort, targetKeyID))
         if certCache is None:
             certCache = PeerCertificateCache()
@@ -393,7 +393,7 @@ def sendPackets(routing, packetList, timeout=300, callback=None):
            after each successful packet delivery.
     """
     # Find out where we're connecting to.
-    serverName = mixminion.ServerInfo.displayServer(routing)
+    serverName = mixminion.ServerInfo.displayServerByRouting(routing)
     if isinstance(routing, IPV4Info):
         family, addr = socket.AF_INET, routing.ip
     else:

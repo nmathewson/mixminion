@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.72 2004/01/07 02:50:08 nickm Exp $
+# $Id: Packet.py,v 1.73 2004/02/02 07:05:49 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -530,7 +530,7 @@ class ReplyBlock:
         self.encryptionKey = key
 
     def format(self):
-        from mixminion.ServerInfo import displayServer
+        import mixminion.ServerInfo
         digest = binascii.b2a_hex(sha1(self.pack()))
         expiry = formatTime(self.timestamp)
         if self.routingType == SWAP_FWD_IPV4_TYPE:
@@ -539,9 +539,10 @@ class ReplyBlock:
             routing = parseMMTPHostInfo(self.routingInfo)
         else:
             routing = None
+        server = mixminion.ServerInfo.displayServerByRouting(routing)
         return """Reply block hash: %s
 Expires at: %s GMT
-First server is: %s""" % (digest, expiry, displayServer(routing))
+First server is: %s""" % (digest, expiry, server)
 
     def pack(self):
         """Returns the external representation of this reply block"""

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.78 2004/01/27 05:55:54 nickm Exp $
+# $Id: ServerInfo.py,v 1.79 2004/02/02 07:05:49 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -8,7 +8,7 @@
    descriptors.
    """
 
-__all__ = [ 'ServerInfo', 'ServerDirectory', 'displayServer' ]
+__all__ = [ 'ServerInfo', 'ServerDirectory', 'displayServerByRouting' ]
 
 import re
 import time
@@ -40,55 +40,65 @@ PACKET_KEY_BYTES = 2048 >> 3
 MMTP_KEY_BYTES = 1024 >> 3
 
 # ----------------------------------------------------------------------
-def displayServer(s):
-    """Return the best possible human-readable name for a server 's'.
-       's' must be one of: None, IPV4Info, MMTPHostInfo, ServerInfo,
-       string.
+def displayServerByRouting(s):
+    """Return the best possible human-readable name for a server with
+       routinginfo 's'.  's' must be one of: IPV4Info, MMTPHostInfo.
     """
-    if isinstance(s, types.StringType):
-        return s
-    elif isinstance(s, ServerInfo):
-        if s.getHostname():
-            addr = "%s:%s" % (s.getHostname(), s.getPort())
-        else:
-            addr = "%s:%s" % (s.getIP(), s.getPort())
-        nickname = "'%s'" % s.getNickname()
-    elif (isinstance(s, mixminion.Packet.IPV4Info) or
-          isinstance(s, mixminion.Packet.MMTPHostInfo)):
-        nickname = getNicknameByKeyID(s.keyinfo)
-        if nickname:
-            nickname = "'%s'" % nickname
-        else:
-            nickname = 'server'
-        if isinstance(s, mixminion.Packet.IPV4Info):
-            addr = "%s:%s" % (s.ip, s.port)
-        else:
-            addr = "%s:%s" % (s.hostname, s.port)
-    elif s is None:
-        return "unknown server"
+    assert (isinstance(s, mixminion.Packet.IPV4Info) or
+            isinstance(s, mixminion.Packet.MMTPHostInfo))
+    nickname = getNicknameByKeyID(s.keyinfo)
+    if isinstance(s, mixminion.Packet.IPV4Info):
+        addr = "%s:%s" % (s.ip, s.port)
     else:
-        raise AssertionError # unreached
-
+        addr = "%s:%s" % (s.hostname, s.port)
+    if nickname:
+        nickname = "'%s'"%nickname
+    else:
+        nickname = "server"
     return "%s at %s" % (nickname, addr)
+
+def displayServerByAddress(ip, port, hostname=None):
+    """Return the best human-reasable name for a server at IP 'ip', hostname
+       'hostname', connecting from port 'port'.  Note that because reverse
+       caching is unreliable, and IP-based authentication is a lie, any
+       inferred nicknames are displayed as questionable.
+    """
+    nickname = None
+    if hostname is not None:
+        nickname = getNicknameByAddress(hostname)
+    if nickname is None:
+        nickname = getNicknameByAddress(ip)
+    if nickname is None:
+        nickname = ""
+    else:
+        nickname = " ('%s'?)" % nickname
+    return "server at %s:%s%s" %(ip, port, nickname)
 
 def getNicknameByKeyID(keyid):
     """Given a 20-byte keyid, look up the nickname of the corresponding
-       server.  Return the nickname on success and None if we don't recognize
-       the server.
-
-       FFFF Right now, this is not supported for servers, since they don't
-       FFFF download directories.
+       server.  Return the nickname on success and None if we don't
+       recognize the server.  If multiple servers match, return their
+       nicknames separated by slashes.
     """
     #FFFF Be cleverer with all-zero keyids.
-    if _keyIDToNicknameFn:
+    if _keyIDToNicknameFn is not None:
         return _keyIDToNicknameFn(keyid)
     else:
         return None
 
-# This variable should hold None, or a function that maps from keyids to
-# nicknames, and returns None on failure.  Currently set by
-# ClientDirectory.ClientDirectory._installAsKeyIDResolver().
+def getNicknameByAddress(address):
+    """Given an IP or hostname, look up the nickname of the corresponding
+       server.  Returns as for getNicknameByKeyID.
+    """
+    if _addressToNicknameFn is not None:
+        return _addressToNicknameFn(address)
+    else:
+        return None
+
+# These variables should hold None, or functions that implement getNicknameBy*.
+# Currently set by ClientDirectory.ClientDirectory._installAsKeyIDResolver().
 _keyIDToNicknameFn = None
+_addressToNicknameFn = None
 
 # ----------------------------------------------------------------------
 

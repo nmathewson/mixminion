@@ -25,7 +25,6 @@ from mixminion.Common import LOG, MixError, UIError, ceilDiv, \
      succeedingMidnight, writeFile, armorText, unarmorText
 from mixminion.Crypto import sha1, ctr_crypt, DIGEST_LEN, AES_KEY_LEN, \
      getCommonPRNG, trng
-from mixminion.ServerInfo import displayServer
 
 #----------------------------------------------------------------------
 class BadPassword(MixError):

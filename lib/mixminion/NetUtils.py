@@ -40,8 +40,8 @@ IPTOS_THROUGHPUT = getattr(mixminion._minionlib, "IPTOS_THROUGHPUT", None)
 
 #======================================================================
 def optimizeThroughput(sock):
-    """DOCDOC"""
-    if not IPTOS_THROUGHPUT: 
+    """Set the socket options on 'sock' to maximize throughput."""
+    if not IPTOS_THROUGHPUT:
         return
     if sys.platform in ('cygwin', 'dgux', 'sni-sysv'):
         # According to rumor, these platforms handle socket.IP_TOS

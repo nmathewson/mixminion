@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.115 2004/01/27 05:16:29 nickm Exp $
+# $Id: ServerMain.py,v 1.116 2004/02/02 07:05:50 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -366,7 +366,7 @@ class OutgoingQueue(mixminion.server.ServerQueue.DeliveryQueue):
                 for pending in packets ]
             LOG.trace("Delivering packets OUT:[%s] to %s",
                       " ".join([p.getHandle() for p in packets]),
-                      mixminion.ServerInfo.displayServer(routing))
+                      mixminion.ServerInfo.displayServerByRouting(routing))
             self.server.sendPacketsByRouting(routing, deliverable)
 
 class _MMTPServer(mixminion.server.MMTPServer.MMTPAsyncServer):

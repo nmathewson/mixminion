@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.180 2004/01/27 05:14:31 nickm Exp $
+# $Id: test.py,v 1.181 2004/02/02 07:05:49 nickm Exp $
 
 """mixminion.tests
 
@@ -4461,38 +4461,44 @@ Contact-Email: a@b.c
 
 class ServerInfoTests(TestCase):
     def test_displayServer(self):
-        ds = mixminion.ServerInfo.displayServer
+        dsbr = mixminion.ServerInfo.displayServerByRouting
+        dsba = mixminion.ServerInfo.displayServerByAddress
         eq = self.assertEquals
-        eq(ds(None), "unknown server")
-        eq(ds("Fred"), "Fred")
 
         # Test without keyid resolver
-        eq(ds(IPV4Info("1.2.3.4", 48099, "x"*20)),
+        eq(dsbr(IPV4Info("1.2.3.4", 48099, "x"*20)),
            "server at 1.2.3.4:48099")
-
-        eq(ds(MMTPHostInfo("a.b.com", 48099, "x"*20)),
+        eq(dsbr(MMTPHostInfo("a.b.com", 48099, "x"*20)),
            "server at a.b.com:48099")
+        eq(dsba("1.2.3.4",48099), "server at 1.2.3.4:48099")
+        eq(dsba("1.2.3.4",48099, "X.Y"), "server at 1.2.3.4:48099")
 
         # Test with keyid resolver
         def resolver(keyid):
             if keyid[0] == 'a': return "Kenichi"
             elif keyid[1] == 'b': return "Tima"
             else: return None
+        def reverseResolver(addr):
+            if addr == "1.2.3.4": return "Each"
+            elif addr == "a.b.c.d": return "Peach"
+            else: return None
         try:
             mixminion.ServerInfo._keyIDToNicknameFn = resolver
-            eq(ds(IPV4Info("1.2.3.4", 48099, "b"*20)),
+            mixminion.ServerInfo._addressToNicknameFn = reverseResolver
+            eq(dsbr(IPV4Info("1.2.3.4", 48099, "b"*20)),
                "'Tima' at 1.2.3.4:48099")
-            eq(ds(IPV4Info("1.2.3.4", 48099, "x"*20)),
+            eq(dsbr(IPV4Info("1.2.3.4", 48099, "x"*20)),
                "server at 1.2.3.4:48099")
-            eq(ds(MMTPHostInfo("ken.com", 48099, "a"*20)),
+            eq(dsbr(MMTPHostInfo("ken.com", 48099, "a"*20)),
                "'Kenichi' at ken.com:48099")
+            eq(dsba("1.2.3.4",48099), "server at 1.2.3.4:48099 ('Each'?)")
+            eq(dsba("1.2.3.4",48099,"a.b.c.d"),
+               "server at 1.2.3.4:48099 ('Peach'?)")
+            eq(dsba("3.4.5.6",48099,"x.y.z"),
+               "server at 3.4.5.6:48099")
         finally:
             mixminion.ServerInfo._keyIDToNicknameFn = None
-
-            # Test serverinfos
-        examples = getExampleServerDescriptors()
-        eq(ds(mixminion.ServerInfo.ServerInfo(string=examples["Fred"][0])),
-           "'Fred' at Fred:48099")
+            mixminion.ServerInfo._addressToNicknameFn = None
 
     def test_ServerInfo(self):
         # Try generating a serverinfo and see if its values are as expected.
@@ -7537,7 +7543,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(MMTPTests))
+        suite.addTest(tc(ServerInfoTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

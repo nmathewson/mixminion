@@ -22,7 +22,8 @@ For 0.0.7:
                 . Servers should use downloaded directories to print useful
                   nicknames for other servers rather than just IP addresses.
                         o For outgoing connections
-                        - For incoming connections
+                        o For incoming connections
+                        . Test
                 - Have callers of Packet/BuildMessage/DeliveryPacket
                   decide whether to look for a tag in the RI field.
                 D Make processing thread and module thread general

@@ -30,7 +30,7 @@ from mixminion.Packet import encodeMailHeaders, ParseError, parseMBOXInfo, \
      parseReplyBlocks, parseSMTPInfo, parseTextEncodedMessages, \
      parseTextReplyBlocks, ReplyBlock, parseMessageAndHeaders
 
-from mixminion.ServerInfo import displayServer, ServerInfo
+from mixminion.ServerInfo import displayServerByRouting, ServerInfo
 
 #----------------------------------------------------------------------
 # Global variable; holds an instance of Common.Lockfile used to prevent
@@ -572,13 +572,13 @@ class MixminionClient:
         sentSome = 0; sentAll = 1
         for routing, packets in self._sortPackets(packets):
             LOG.info("Sending %s packets to %s...",
-                     len(packets), displayServer(routing))
+                     len(packets), displayServerByRouting(routing))
             try:
                 self.sendPackets(packets, routing, noQueue=1, warnIfLost=0)
                 sentSome = 1
             except MixError, e:
                 LOG.error("Can't deliver packets to %s: %s; leaving in queue",
-                          displayServer(routing), str(e))
+                          displayServerByRouting(routing), str(e))
                 sentAll = 0
 
         if sentAll:
@@ -596,7 +596,8 @@ class MixminionClient:
             byRouting = self._sortPackets(
                 [ (h, self.queue.getRouting(h)) for h in handles ],
                 shuffle = 0)
-            byName = [ (displayServer(ri), lst) for ri,lst in byRouting ]
+            byName = [ (displayServerByRouting(ri), lst)
+                       for ri,lst in byRouting ]
             byName.sort()
             if not byName:
                 LOG.info("No packets removed.")
@@ -1868,7 +1869,7 @@ def listQueue(cmd, args):
         print "(No packets in queue)"
         return
 
-    res_items = [ (displayServer(ri),count,date)
+    res_items = [ (displayServerByRouting(ri),count,date)
                   for ri,(count,date) in res.items() ]
     res_items.sort()
     now = time.time()

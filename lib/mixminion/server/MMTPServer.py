@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.73 2004/01/27 05:56:21 nickm Exp $
+# $Id: MMTPServer.py,v 1.74 2004/02/02 07:05:50 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -27,6 +27,7 @@ import threading
 import time
 from types import StringType
 
+import mixminion.ServerInfo
 import mixminion.TLSConnection
 import mixminion._minionlib as _ml
 from mixminion.Common import MixError, MixFatalError, MixProtocolError, \
@@ -37,7 +38,6 @@ from mixminion.MMTPClient import PeerCertificateCache, MMTPClientConnection
 from mixminion.NetUtils import getProtocolSupport, AF_INET, AF_INET6
 import mixminion.server.EventStats as EventStats
 from mixminion.Filestore import CorruptedFile
-from mixminion.ServerInfo import displayServer
 from mixminion.ThreadUtils import MessageQueue, QueueEmpty
 
 __all__ = [ 'AsyncServer', 'ListenConnection', 'MMTPServerConnection',
@@ -232,7 +232,7 @@ class ListenConnection(Connection):
     def process(self, r, w, x):
         #XXXX007 do something with x
         con, addr = self.sock.accept()
-        LOG.debug("Accepted connection from %s (fd %s)", addr, con.fileno())
+        LOG.debug("Accepted connection from %s", addr)
         self.connectionFactory(con)
         return self.isOpen,0,self.isOpen
 
@@ -259,10 +259,12 @@ class MMTPServerConnection(mixminion.TLSConnection.TLSConnection):
     #   rejectPackets -- flag: do we reject the packets we've received?
     MESSAGE_LEN = 6 + (1<<15) + 20
     PROTOCOL_VERSIONS = ['0.3']
-    def __init__(self, sock, tls, consumer, rejectPackets=0):
-        addr,port=sock.getpeername()
-        serverName = "%s:%s (fd %s)"%(addr,port,sock.fileno())
-
+    def __init__(self, sock, tls, consumer, rejectPackets=0, serverName=None):
+        if serverName is None:
+            addr,port = sock.getpeername()
+            serverName = mixminion.ServerInfo.displayServerByAddress(addr,port)
+        serverName += " (fd %s)"%sock.fileno()
+        
         mixminion.TLSConnection.TLSConnection.__init__(
             self, tls, sock, serverName)
         EventStats.log.receivedConnection()
@@ -502,7 +504,14 @@ class MMTPAsyncServer(AsyncServer):
         finally:
             self._lock.release()
         sock.setblocking(0)
-        con = MMTPServerConnection(sock, tls, self.onPacketReceived)
+
+        addr, port = sock.getpeername()
+        hostname = self.dnsCache.getNameByAddressNonblocking(addr)
+        name = mixminion.ServerInfo.displayServerByAddress(
+            addr, port, hostname)
+
+        con = MMTPServerConnection(sock, tls, self.onPacketReceived,
+                                   serverName=name)
         self.register(con)
         return con
 
@@ -521,7 +530,7 @@ class MMTPAsyncServer(AsyncServer):
            corresponding packets to the corresponding sever, doing a DNS
            lookup first if necessary.
         """
-        serverName = displayServer(routing)
+        serverName = mixminion.ServerInfo.displayServerByRouting(routing)
         if isinstance(routing, IPV4Info):
             self._sendPackets(AF_INET, routing.ip, routing.port,
                               routing.keyinfo, deliverable, serverName)

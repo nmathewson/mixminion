@@ -60,7 +60,9 @@ class ClientDirectory:
     # byNickname: Map from nickname.lower() to list of (ServerInfo, source)
     #   tuples.
     # byKeyID: Map from desc.getKeyDigest() to list of (ServerInfo,source)
-    # allServers: DOCDOC
+    # blockedNickname: Map from nickname to list of '*' (blocked in every
+    #   position), 'entry' (blocked as entry node), 'exit' (blocked as exit
+    #   node).
     # __scanning: Flag to prevent recursive invocation of self.rescan().
     # __downloading: Flag to prevent simultaneous invocation of
     #    downloadDirectory()
@@ -99,7 +101,7 @@ class ClientDirectory:
         self.__downloading = 0
         self._lock = RWLock()
         self.config = None
-        self.blockedNicknames = {} #nickname->['*','entry','exit']
+        self.blockedNicknames = {}
         if diskLock is None:
             self._diskLock = threading.RLock()
         else:
@@ -112,7 +114,7 @@ class ClientDirectory:
             self._diskLock.release()
 
     def configure(self, config):
-        """DOCDOC"""
+        """Adjust this ClientDirectory to account for blocked servers."""
         sec = config.get("Security", {})
         blocked = {}
         for lst in sec.get("BlockServers", []):
@@ -127,6 +129,7 @@ class ClientDirectory:
         self._lock.write_in()
         try:
             self.blockedNicknames = blocked
+            self.__rebuildTables()
         finally:
             self._lock.write_out()
 
@@ -388,8 +391,9 @@ class ClientDirectory:
 
     def _installAsKeyIDResolver(self):
         """Use this ClientDirectory to identify servers in calls to
-           ServerInfo.displayServer."""
+           ServerInfo.displayServer*."""
         mixminion.ServerInfo._keyIDToNicknameFn = self.getNicknameByKeyID
+        mixminion.ServerInfo._addressToNicknameFn = self.getNicknameByAddress
 
     def importFromFile(self, filename):
         """Import a new server descriptor stored in 'filename'"""
@@ -484,18 +488,15 @@ class ClientDirectory:
         return len(badSources)
 
     def __rebuildTables(self):
-        """Helper method.  Reconstruct byNickname, byKeyID, and allServers
-           from the internal state of this object.  Caller must hold write
-           lock."""
+        """Helper method.  Reconstruct byNickname and byKeyIDk from the
+           internal state of this object.  Caller must hold write lock.
+        """
         self.byNickname = {}
         self.byKeyID = {}
-        self.allServers = []
-        self.byCapability = { } #DOCDOC disused
         self.goodServerNicknames = {}
 
         for info, where in self.serverList:
             nn = info.getNickname().lower()
-            self.allServers.append((info,where))
             self.goodServerNicknames[nn] = 1
 
         for info, where in self.fullServerList:
@@ -600,7 +601,10 @@ class ClientDirectory:
         return u.values()
 
     def __nicknameIsBlocked(self, nn, isEntry=0, isExit=0):
-        """DOCDOC"""
+        """Return true iff 'nn' is blocked.  By default, check for nicknames
+           blocked in every position.  If isEntry is true, also check for
+           nicknames blocked as entries; and if isExit is true, also check
+           for nicknames blocked as exits."""
         b = self.blockedNicknames.get(nn.lower(), None)
         if b is None:
             return 0
@@ -614,20 +618,26 @@ class ClientDirectory:
             return 0
 
     def __excludeBlocked(self, lst, isEntry=0, isExit=0):
-        """DOCDOC"""
+        """Given a list of ServerInfo, return a new list with all the
+           blocked servers removed.  'isEntry' and 'isExit' are as for
+           __nicknameIsBlocked.
+        """
         res = []
         for info in lst:
             if not self.__nicknameIsBlocked(info.getNickname(),isEntry,isExit):
                 res.append(info)
         return res
 
-    def getNicknameByIP(self, ip):
-        """DOCDOC"""
+    def getNicknameByAddress(self, addr):
+        """Given an address (IP or hostname) return the nickname of
+           the server with that hostname.  Return None if no such
+           server is known, and a slash-separated string if multiple
+           servers are known."""
         self._lock.read_in()
         try:
             nicknames = []
             for desc,where in self.fullServerList:
-                if desc.getIP() == ip:
+                if addr in (desc.getIP(), desc.getHostname()):
                     if desc.getNickname() not in nicknames:
                         nicknames.append(desc.getNickname())
             return "/".join(nicknames)
@@ -635,8 +645,9 @@ class ClientDirectory:
             self._lock.read_out()
 
     def getNicknameByKeyID(self, keyid):
-        """Given a keyid, return the nickname of the server with that keyid.
-           Return None if no such server is known."""
+        """Given a keyid, return the nickname of the server with that
+           keyid.  Return None if no such server is known, and a
+           slash-separated string if multiple servers are known."""
         self._lock.read_in()
         try:
             s = self.byKeyID.get(keyid)
@@ -651,7 +662,8 @@ class ClientDirectory:
             self._lock.read_out()
 
     def getKeyIDByNickname(self, nickname):
-        """DOCDOC"""
+        """Given the nickname of the server, return the corresponding
+           keyid, or None if the nickname is not recognized."""
         self._lock.read_in()
         try:
             s = self.byNickname.get(nickname.lower())
@@ -677,9 +689,10 @@ class ClientDirectory:
     def getLiveServers(self, startAt=None, endAt=None, isEntry=0, isExit=0):
         """Return a list of all server desthat are live from startAt through
            endAt.  The list is in the standard (ServerInfo,where) format,
-           as returned by __find.
-           DOCDOC no blocked or notrecommended
-           """
+           as returned by __find.  If 'isEntry' or 'isExit' is true, return
+           servers suitable as entries or exits.  Exclude servers in
+           the not-recommended or blocked lists.
+        """
         if startAt is None:
             startAt = time.time()
         if endAt is None:
@@ -687,7 +700,7 @@ class ClientDirectory:
         self._lock.read_in()
         try:
             return self.__excludeBlocked(
-                self.__find(self.allServers, startAt, endAt),
+                self.__find(self.serverList, startAt, endAt),
                 isEntry=isEntry, isExit=isExit)
         finally:
             self._lock.read_out()
@@ -739,7 +752,7 @@ class ClientDirectory:
                         LOG.info("Couldn't remove %s: %s", s[2:], e)
             finally:
                 self._diskLock.release()
-            for field in 'fullServerList', 'serverList', 'allServers':
+            for field in 'fullServerList', 'serverList':
                 val = getattr(self, field)
                 val = [ (i,w) for i,w in val if not badSources.has_key(w) ]
                 setattr(self,field,val)
@@ -931,7 +944,7 @@ class ClientDirectory:
                 servers.append(self.getServerInfo(name, startAt, endAt, 1))
 
         # Now figure out which relays we haven't used yet.
-        relays = self.__find(self.allServers, startAt, endAt)
+        relays = self.__find(self.serverList, startAt, endAt)
         relays = self.__excludeBlocked(relays)
         if not relays:
             raise UIError("No relays known")
