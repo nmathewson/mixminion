@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.13 2002/10/16 23:12:12 nickm Exp $
+# $Id: Modules.py,v 1.14 2002/10/21 02:30:14 nickm Exp $
 
 """mixminion.Modules
 
@@ -19,7 +19,7 @@ import base64
 import mixminion.Config
 import mixminion.Packet
 import mixminion.Queue
-import mixminion.BuildMessage 
+import mixminion.BuildMessage
 from mixminion.Config import ConfigError, _parseBoolean, _parseCommand
 from mixminion.Common import getLog, createPrivateDir, MixError
 
@@ -86,16 +86,16 @@ class DeliveryModule:
 
     def createDeliveryQueue(self, queueDir):
 	"""Return a DeliveryQueue object suitable for delivering messages
-	   via this module.  The default implementation returns a 
-	   SimpleModuleDeliveryQueue,  which (though adequate) doesn't 
+	   via this module.  The default implementation returns a
+	   SimpleModuleDeliveryQueue,  which (though adequate) doesn't
 	   batch messages intended for the same destination."""
         return SimpleModuleDeliveryQueue(self, queueDir)
 
     def processMessage(self, message, exitType, exitInfo):
 	"""Given a message with a given exitType and exitInfo, try to deliver
            it.  Return one of:
-            DELIVER_OK (if the message was successfully delivered), 
-	    DELIVER_FAIL_RETRY (if the message wasn't delivered, but might be 
+            DELIVER_OK (if the message was successfully delivered),
+	    DELIVER_FAIL_RETRY (if the message wasn't delivered, but might be
               deliverable later), or
 	    DELIVER_FAIL_NORETRY (if the message shouldn't be tried later)."""
         raise NotImplementedError("processMessage")
@@ -131,9 +131,9 @@ class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
     def __init__(self, module, directory):
 	mixminion.Queue.DeliveryQueue.__init__(self, directory)
 	self.module = module
-    
+
     def deliverMessages(self, msgList):
-	for handle, addr, message, n_retries in msgList:	  
+	for handle, addr, message, n_retries in msgList:	
 	    try:
 		exitType, exitInfo = addr
 		result = self.module.processMessage(message,exitType,exitInfo)
@@ -152,13 +152,13 @@ class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
 
 class ModuleManager:
     """A ModuleManager knows about all of the modules in the systems.
-   
-       A module may be in one of three states: unloaded, registered, or 
+
+       A module may be in one of three states: unloaded, registered, or
        enabled.  An unloaded module is just a class in a python module.
        A registered module has been loaded, configured, and listed with
        the ModuleManager, but will not receive messags until it has been
        enabled."""
-    ## 
+    ##
     # Fields
     #    syntax: extensions to the syntax configuration in Config.py
     #    modules: a list of DeliveryModule objects
@@ -168,7 +168,7 @@ class ModuleManager:
     #    queueRoot: directory where all the queues go.
     #    queues: a map from module name to queue (Queue objects must support
     #            queueMessage and sendReadyMessages as in DeliveryQueue.)
-    
+
     def __init__(self):
         self.syntax = {}
         self.modules = []
@@ -177,7 +177,7 @@ class ModuleManager:
 	self.path = []
 	self.queueRoot = None
 	self.queues = {}
-        
+
         self.registerModule(MBoxModule())
         self.registerModule(DropModule())
 
@@ -233,7 +233,7 @@ class ModuleManager:
 	    self.registerModule(pyClass())
 	except Exception, e:
 	    raise MixError("Error initializing module %s" %className)
-	    
+	
     def validate(self, sections, entries, lines, contents):
         for m in self.modules:
             m.validateConfig(sections, entries, lines, contents)
@@ -257,7 +257,7 @@ class ModuleManager:
     def cleanQueues(self):
 	for queue in self.queues.values():
 	    queue.cleanQueue()
-	    
+	
     def disableModule(self, module):
 	"""Unmaps all the types for a module object."""
         for t in module.getExitTypes():
@@ -341,8 +341,8 @@ class MBoxModule(DeliveryModule):
 	    raise ConfigError("Missing ReturnAddress field in Delivery/MBOX")
 	if not self.contact:
 	    raise ConfigError("Missing RemoveContact field in Delivery/MBOX")
-			      
-        
+			
+
         self.nickname = config['Server']['Nickname']
         if not self.nickname:
             self.nickname = socket.gethostname()
@@ -369,7 +369,7 @@ class MBoxModule(DeliveryModule):
                   [Delivery/MBOX]
                   Version: 0.1
                """
-    
+
     def getName(self):
         return "MBOX"
 
@@ -427,55 +427,48 @@ def sendSMTPMessage(server, toList, fromAddr, message):
 
 #XXXX DOCDOC
 _allChars = "".join(map(chr, range(256)))
+# XXXX Are there any nonprinting chars >= 0x7f to worry about now?
 _nonprinting = "".join(map(chr, range(0x00, 0x07)+range(0x0E, 0x20)))
 def _escapeMessageForEmail(msg, tag):
-    m = decodePayload(tag, msg)
-    if m is None:
-	junk = 1
-	msg = base64.encodestring(msg)
-	tag = base64.encodestring(tag)
-    else:
-	printable = m.translate(_allChars, _nonprinting)
-	allChars
-
-    printable = msg.translate(_allChars, _nonprinting)
-    if msg[len(printable):] == '\x00'*(len(msg)-len(printable)):
-        msg = msg[len(printable)]
-        return """\
-============ ANONYMOUS MESSAGE BEGINS
-%s
-============ ANONYMOUS MESSAGE ENDS\n""" %msg
-    else:
-        msg = base64.encodestring(msg)
-        return """\
-This message is encoded in Base64 because it contains some nonprintable
-characters.  It's possible that this message is a non-text object, that
-it was sent to using a reply block, that it was corrupted on its way to
-you, or that it's just plain junk.
-============ BASE-64 ENCODED ANONYMOUS MESSAGE BEGINS
-%s
-============ BASE-64 ENCODED ANONYMOUS MESSAGE ENDS\n""" % msg
-
-def _decodeMessage(self, message, exitInfo, text=0):
     """XXXX DOCDOC
-	  -> ("TXT"|"BIN"|"ENC", payload, RI, tag|None) or None
-    """
-    if len(exitInfo) < 20:
+         -> None | str """
+    m = _decodeAndEscapeMessage(msg, tag, text=1)
+    if m is None:
 	return None
-    tag = exitInfo[:20]
-    ri = exitInfo[20:]
+    code, msg, tag = m
 
+    if code == 'ENC':
+	junk_msg = """\
+This message is not in plaintext.  It's either 1) a reply; 2) a forward
+message encrypted to you; or 3) junk.\n\n"""
+    else:
+	junk_msg = ""
+
+    if tag is not None:
+	tag = "Decoding handle: "+tag+"\n"
+    else:
+	tag = ""
+
+    return """\
+%s============ ANONYMOUS MESSAGE BEGINS
+%s%s============ ANONYMOUS MESSAGE ENDS\n""" %(junk_msg, tag, msg)
+
+def _decodeAndEscapeMessage(payload, tag, text=0):
+    """XXXX DOCDOC
+	  -> ("TXT"|"BIN"|"ENC", message, tag|None) or None
+    """
     try:
-	m = mixminion.BuildMessage.decodePayload(message, tag)
+	message = mixminion.BuildMessage.decodePayload(payload, tag)
     except MixError, e:
 	return None
 
-    if m is None:
+    if message is None:
 	code = "ENC"
+	message = payload
     else:
 	tag = None
-	printable = msg.translate(_allChars, _nonprinting)
-	if msg[len(printable):] == '\x00'*(len(msg)-len(printable)):
+	printable = message.translate(_allChars, _nonprinting)
+	if len(printable) == len(message):
 	    code = "TXT"
 	else:
 	    code = "BIN"
@@ -484,5 +477,6 @@ def _decodeMessage(self, message, exitInfo, text=0):
 	message = base64.encodestring(message)
     if text and tag:
 	tag = base64.encodestring(tag)
+	if tag[-1] == '\n': tag = tag[:-1]
 
-    return code, message, ri, tag
+    return code, message, tag
