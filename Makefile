@@ -1,5 +1,5 @@
 # Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.41 2003/05/05 00:22:54 nickm Exp $
+# $Id: Makefile,v 1.42 2003/05/25 20:55:29 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -89,13 +89,13 @@ time:
 install: do_build
 	@$(FINDPYTHON); \
 	if [ 'x' = "x$(PREFIX)" ] ; then                                     \
-	  echo $$PYTHON setup.py install --compile --optimize=1;             \
-	  $$PYTHON setup.py install --compile --optimize=1;                  \
+	  echo $$PYTHON setup.py install --compile --optimize=1 --force;     \
+	  $$PYTHON setup.py install --compile --optimize=1 --force;          \
 	else                                                                 \
 	  PREFIX=$(PREFIX);                                                  \
 	  export PREFIX;                                                     \
-	  echo $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1; \
-	  $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1;\
+	  echo $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force; \
+	  $$PYTHON setup.py install --prefix=$(PREFIX) --compile --optimize=1 --force;\
 	fi
 
 #	  echo "MIXMINION SAYS: Please ignore the warning about sys.path:"
