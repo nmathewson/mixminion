@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: testSupport.py,v 1.6 2002/11/21 19:43:29 nickm Exp $
+# $Id: testSupport.py,v 1.7 2002/11/22 21:12:05 nickm Exp $
 
 """mixminion.testSupport
 
@@ -69,13 +69,8 @@ class DirectoryStoreModule(DeliveryModule):
 	else:
 	    return ImmediateDeliveryQueue(self)
 	
-    def processMessage(self, message, exitType, exitInfo):
+    def processMessage(self, message, tag, exitType, exitInfo):
 	assert exitType == 0xFFFE
-	if len(exitInfo) > 20:
-	    tag = exitInfo[:20]
-	    exitInfo = exitInfo[20:]
-	else:
-	    tag = "\000"*20
 
 	if exitInfo == 'fail':
 	    return DELIVER_FAIL_RETRY
@@ -153,7 +148,8 @@ def mix_mktemp(extra=""):
 		    print "Directory %s has fishy permissions %o" %(parent,m)
 		    sys.exit(1)
 		if st[stat.ST_UID] not in (0, os.getuid()):
-		    print "Directory %s has bad owner %s" % st[stat.ST_UID]
+		    print "Directory %s has bad owner %s" % (parent, 
+							     st[stat.ST_UID])
 		    sys.exit(1)
 		    
 	_MM_TESTING_TEMPDIR = temp

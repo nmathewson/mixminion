@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: BuildMessage.py,v 1.16 2002/10/16 23:12:11 nickm Exp $
+# $Id: BuildMessage.py,v 1.17 2002/11/22 21:12:05 nickm Exp $
 
 """mixminion.BuildMessage
 
@@ -126,6 +126,8 @@ def buildReplyBlock(path, exitType, exitInfo, expiryTime=0, secretPRNG=None,
 def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
 			     expiryTime=0, secretRNG=None):
     """XXXX DOC IS NOW WRONG HERE
+       (exitInfo doesn't include tag)
+
        Construct a 'stateless' reply block that does not require the
        reply-message recipient to remember a list of secrets.
        Instead, all secrets are generated from an AES counter-mode
@@ -144,6 +146,7 @@ def buildStatelessReplyBlock(path, exitType, exitInfo, userKey,
                   userKey: an AES key to encrypt the seed, or None.
                   email: If true, delivers via SMTP; else delivers via MBOX
        """
+
     #XXXX Out of sync with the spec.
     if secretRNG is None: secretRNG = Crypto.AESCounterPRNG()
 
@@ -261,6 +264,11 @@ def _buildMessage(payload, exitType, exitInfo,
     if isinstance(path2, ReplyBlock):
         reply = path2
         path2 = None
+    else:
+	if len(exitInfo) < TAG_LEN:
+	    raise MixError("Implausibly short exit info: %r"%exitInfo)
+	if exitType < Modules.MIN_EXIT_TYPE and exitType != Modules.DROP_TYPE:
+	    raise MixError("Invalid exit type: %4x"%exitType)
 
     ### SETUP CODE: let's handle all the variant cases.
 

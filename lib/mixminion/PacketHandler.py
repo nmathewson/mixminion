@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: PacketHandler.py,v 1.8 2002/09/10 14:45:30 nickm Exp $
+# $Id: PacketHandler.py,v 1.9 2002/11/22 21:12:05 nickm Exp $
 
 """mixminion.PacketHandler: Code to process mixminion packets"""
 
@@ -58,8 +58,8 @@ class PacketHandler:
            Returns one of:
                     None [if the mesesage should be dropped.]
                     ("EXIT",
-                       (routing_type, routing_info, application_key,
-                        payload)) [if this is the exit node]
+                       (exit_type, exit_info, application_key,
+                        tag, payload)) [if this is the exit node]
                     ("QUEUE", (ipv4info, message_out))
                         [if this is a forwarding node]
 
@@ -145,8 +145,9 @@ class PacketHandler:
         # further.
         if rt >= Modules.MIN_EXIT_TYPE:
             return ("EXIT",
-                    (rt, subh.routinginfo,
+                    (rt, subh.getExitAddress(),
                      keys.get(Crypto.APPLICATION_KEY_MODE),
+		     subh.getTag(),
                      payload))
 
         # If we're not an exit node, make sure that what we recognize our

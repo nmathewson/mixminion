@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.13 2002/11/22 00:26:36 nickm Exp $
+# $Id: ServerMain.py,v 1.14 2002/11/22 21:12:05 nickm Exp $
 
 """mixminion.ServerMain
 
@@ -360,8 +360,8 @@ class MixPool:
 	for h in handles:
 	    tp, info = self.queue.getObject(h)
 	    if tp == 'EXIT':
-		rt, ri, app_key, payload = info
-		self.moduleManager.queueMessage(payload, rt, ri)
+		rt, ri, app_key, tag, payload = info
+		self.moduleManager.queueMessage(payload, tag, rt, ri)
 	    else:
 		assert tp == 'QUEUE'
 		ipv4, msg = info
@@ -622,6 +622,7 @@ def removeKeys(cmd, args):
         sys.exit(1)
 
     config = readConfigFile(configFile)
+    mixminion.Common.configureShredCommand(config)
     getLog().setMinSeverity("INFO")
     keyring = ServerKeyring(config)
     keyring.checkKeys()

@@ -17,31 +17,12 @@ FOR 0.0.1: (The first alpha)
          need not be automated.]
 
 	. Server
-		o Startup, config
-		o Hardwired code to drop undeliverable messages
-		o Document ServerMain
-		o Unit test for keyset 
-		o Make at least one delivery happen
-			o BUG: Make sure hashlogs get written
-			o BUG: "Unable to handle message with unknown type...
-		o Use real cottrell mixing again.
 		- More explicit overview of queues.
-		o Need 'nuke keys' CLI.
-			o Implement
-			o Test
 		- Unit tests for various queues.
-		o Better debugging logs
 		- Test code to start 3 or 4 servers on one machine and
                   try sending some messages through.
-	o CLI for server
-		o Common CLI code.	
-		o Run server
-		o Generate future key
-			o Keygen in server keyring
-			o CLI
 	*- CLI client
 		- Send a message
-		D Generate a message
 		- Linkage from command line to helper class
 		o Design directory layout
 		D Storage for serverinfo
@@ -49,24 +30,13 @@ FOR 0.0.1: (The first alpha)
 				o Make RSA pickleable
 			o Test
 		- Test CLI client
-	o Config
-		o Infer nickname
-		o Stub validation function for client
-		o Stub validation function for server
-		o Warn about unimplemented allow/deny
-		o Warn about all unimplemented features
-		o Make all config files reject bogus characters.
-		o Example config
 	. Build
-		o Ability to pull ssl.
-		o Ability to build ssl.
-		o Good error message on missing zlib module
 		- Use sane arguments when testing with multiple python versions
 		- Marginal 'make install'
 	- Integration testing
 		- Better log messages at all points throughout system.
 		. Fake delivery module for MBOX-less testing of core
-			*- Tests for fake delivery module
+			*- Test fake delivery module
 		- Automated tests for several servers running on one machine.
 		- Tests for servers on several different machines.
 	. MBox module
@@ -74,38 +44,28 @@ FOR 0.0.1: (The first alpha)
 		- Test
 	. SMTP-Via-Mixmaster module
 		o Implement
+		o Implement address validation so we don't get into trouble.
 		- Document
 		- Test
-SPEC	o E2E functionality
-		o Build singleton messages of all kinds, with compression
-		o Decode singleton messages of all kinds
-		o Generic decoder
-		o ModuleManager changes
-		o Testing
-			o Test end-to-end build/decode
-			o Test compression
-			o Test helpers for failing cases
-			o Test exact output formats on build*Message
-			o Test failing cases for decode*Payload
-			o Test decode*Payload on canned input
-			o Test ModuleManager changes
-	o Rename versions to 0.1.
-	- Rename semantics:
-	        - Rename 'tag' -> 'decoding handle'.  Make it a separate
-		  field rather than a prefix of 'exitInfo'
-		- Disable 'non-state-carrying' reply blocks.  Rename 'statful'
+	- Rename semantics for e2e suff:
+	        D Rename 'tag' -> 'decoding handle'.  
+		o Make tag a separate field rather than a prefix of 'exitInfo'
+			o Implement.
+			o Tests for new members of subheader.
+		- Disable 'non-state-carrying' reply blocks.  Rename 'stateful'
 		  (non-state-carrying) and 'stateless' (state-carrying) to
 		  something less contradictory
-	o Change output of dates to avoid potential GMT confusion.
-	o Change spec to reflect new date format
-	o Marginally clean shutdown for server
-	o Versioning :)
 	- Final license
 	- Documentation
 		- Contributor's guide
 		- Basic HOWTO
 		- Difference between XXXX FFFF ????
 		- Overall design
+	- Patch specification:
+	  	- SPEC comments from code
+		- Incorporate e2e mixminion design
+		- Rename stateful, stateless SURBs
+		
 	- Separate package for server code.
 
 Required for "1.0":
@@ -148,8 +108,8 @@ Required for "1.0":
 	- Configurablity
 	  	- Support for one-side-only MMTP configurations.
 		- Make Mix algorithm configurable
-		. Infer server IP
-		- Freak out properly on missing/unpublishable IP.
+		o Infer server IP
+		. Freak out properly on missing/unpublishable IP.
 		- Make listening configurable for multiple ports/ips, not
 		  all of which need be published.  Perhaps allow different
 		  rules for each listener.
@@ -162,6 +122,7 @@ Required for "1.0":
 		- Make server gripe loudly when config doesn't match published
 		  serverinfo.
 	- Client support
+	  	- Generate (but don't send) a message
 		- Generate a reply block
 		- Read message from reply block
 		- Path selection
@@ -172,6 +133,7 @@ Required for "1.0":
 		- Examine reply block
 		- Send message to user with known key
 		- Send message to user with known server
+		- Real server directory management
 		- Real PKI
 	        - Queue a bunch of messages at the client level.
 	- MMTP / async

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.14 2002/11/21 16:55:49 nickm Exp $
+# $Id: Packet.py,v 1.15 2002/11/22 21:12:05 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -16,9 +16,11 @@ __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
 	    'SINGLETON_PAYLOAD_OVERHEAD', 'OAEP_OVERHEAD',
 	    'FRAGMENT_PAYLOAD_OVERHEAD', 'ENC_FWD_OVERHEAD']
 
+import re
 import struct
 from socket import inet_ntoa, inet_aton
 from mixminion.Common import MixError, floorDiv
+import mixminion.Modules
 
 # Major and minor number for the understood packet format.
 MAJOR_NO, MINOR_NO = 0,1
@@ -138,6 +140,8 @@ def parseSubheader(s):
     ri = s[MIN_SUBHEADER_LEN:]
     if rlen < len(ri):
         ri = ri[:rlen]
+    if rt >= mixminion.Modules.MIN_EXIT_TYPE and rlen < 20:
+	raise ParseError("Subheader missing tag")
     return Subheader(major,minor,secret,digest,rt,ri,rlen)
 
 def getTotalBlocksForRoutingInfoLen(bytes):
@@ -179,6 +183,18 @@ class Subheader:
                 "secret=%(secret)r, digest=%(digest)r, "+
                 "routingtype=%(routingtype)r, routinginfo=%(routinginfo)r, "+
                 "routinglen=%(routinglen)r)")% self.__dict__
+
+    def getExitAddress(self):
+	# XXXX SPEC This is not explicit in the spec.
+	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
+	assert len(self.routinginfo) >= TAG_LEN
+	return self.routinginfo[TAG_LEN:]
+    
+    def getTag(self):
+	# XXXX SPEC This is not explicit in the spec.
+	assert self.routingtype >= mixminion.Modules.MIN_EXIT_TYPE
+	assert len(self.routinginfo) >= TAG_LEN
+	return self.routinginfo[:TAG_LEN]
 
     def setRoutingInfo(self, info):
         """Change the routinginfo, and the routinglength to correspond."""
@@ -437,41 +453,41 @@ class IPV4Info:
 	return (type(self) == type(other) and self.ip == other.ip and
 		self.port == other.port and self.keyinfo == other.keyinfo)
 
+# XXXX Support subdomains and quotesd strings
+_ATOM_PAT = r'[^\x00-\x20()\[\]()<>@,;:\\".\x7f-\xff]+'
+_LOCAL_PART_PAT = r"(?:%s)(?:\.(?:%s))*" % (_ATOM_PAT, _ATOM_PAT)
+_RFC822_PAT = r"\A%s@%s\Z" % (_LOCAL_PART_PAT, _LOCAL_PART_PAT)
+RFC822_RE = re.compile(_RFC822_PAT)
+
 def parseSMTPInfo(s):
-    """Convert the encoding of an SMTP routinginfo into an SMTPInfo object."""
-    if len(s) <= TAG_LEN:
-	raise ParseError("SMTP routing info is too short")
-    return SMTPInfo(s[TAG_LEN:], s[:TAG_LEN])
+    """Convert the encoding of an SMTP exitinfo into an SMTPInfo object."""
+    m = RFC822_RE.match(s)
+    if not m:
+	raise ParseError("Invalid rfc822 mailbox %r" % s)
+    return SMTPInfo(s)
 
 class SMTPInfo:
-    """Represents the routinginfo for an SMTP hop.
+    """Represents the exit address for an SMTP hop.
 
-       Fields: email (an email address), tag (20 bytes)."""
-    def __init__(self, email, tag):
-	assert len(tag) == TAG_LEN
+       Fields: email (an email address)"""
+    def __init__(self, email):
         self.email = email
-        self.tag = tag
 
     def pack(self):
         """Returns the wire representation of this SMTPInfo"""
-	return self.tag + self.email
+	return self.email
 
 def parseMBOXInfo(s):
-    """Convert the encoding of an MBOX routinginfo into an MBOXInfo
-       object."""
-    if len(s) < TAG_LEN:
-	raise ParseError("MBOX routing info is too short")
-    return MBOXInfo(s[TAG_LEN:], s[:TAG_LEN])
+    """Convert the encoding of an MBOX exitinfo into an MBOXInfo address"""
+    return MBOXInfo(s)
 
 class MBOXInfo:
-    """Represents the routinginfo for an MBOX hop.
+    """Represents the exitinfo for an MBOX hop.
 
-       Fields: user (a user identifier), tag (20 bytes)."""
-    def __init__(self, user, tag):
-	assert len(tag) == TAG_LEN
+       Fields: user (a user identifier)"""
+    def __init__(self, user):
         self.user = user
-        self.tag = tag
 
     def pack(self):
         """Return the external representation of this routing info."""
-	return self.tag + self.user
+	return self.user

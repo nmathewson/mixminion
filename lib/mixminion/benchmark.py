@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.11 2002/11/22 00:21:20 nickm Exp $
+# $Id: benchmark.py,v 1.12 2002/11/22 21:12:05 nickm Exp $
 
 """mixminion.benchmark
 
@@ -363,7 +363,7 @@ def buildMessageTiming():
         tm = timeit_( \
               lambda np1=np1,np2=np2,it=it,serverinfo=serverinfo,
                       payload=payload: buildForwardMessage(payload,
-                                               1,
+                                               500,
                                                "Hello",
                                                serverinfo[:np1],
                                                serverinfo[:np2]), it)

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.16 2002/11/21 18:26:12 nickm Exp $
+# $Id: Modules.py,v 1.17 2002/11/22 21:12:05 nickm Exp $
 
 """mixminion.Modules
 
@@ -91,7 +91,7 @@ class DeliveryModule:
 	   batch messages intended for the same destination."""
         return SimpleModuleDeliveryQueue(self, queueDir)
 
-    def processMessage(self, message, exitType, exitInfo):
+    def processMessage(self, message, tag, exitType, exitInfo):
 	"""Given a message with a given exitType and exitInfo, try to deliver
            it.  Return one of:
             DELIVER_OK (if the message was successfully delivered),
@@ -108,9 +108,9 @@ class ImmediateDeliveryQueue:
     def __init__(self, module):
 	self.module = module
 
-    def queueMessage(self, (exitType, exitInfo), message):
+    def queueMessage(self, (exitType, address, tag), message):
 	try:
-	    res = self.module.processMessage(message, exitType, exitInfo)
+	    res = self.module.processMessage(message, exitType, tag, address)
 	    if res == DELIVER_OK:
 		return
 	    elif res == DELIVER_FAIL_RETRY:
@@ -135,8 +135,8 @@ class SimpleModuleDeliveryQueue(mixminion.Queue.DeliveryQueue):
     def deliverMessages(self, msgList):
 	for handle, addr, message, n_retries in msgList:	
 	    try:
-		exitType, exitInfo = addr
-		result = self.module.processMessage(message,exitType,exitInfo)
+		exitType, address, tag = addr
+		result = self.module.processMessage(message,tag,exitType,address)
 		if result == DELIVER_OK:
 		    self.deliverySucceeded(handle)
 		elif result == DELIVER_FAIL_RETRY:
@@ -277,14 +277,14 @@ class ModuleManager:
 	if self.queues.has_key(module.getName()):
 	    del self.queues[module.getName()]
 
-    def queueMessage(self, message, exitType, exitInfo):
+    def queueMessage(self, message, tag, exitType, address):
         mod = self.typeToModule.get(exitType, None)
         if mod is None:
             getLog().error("Unable to handle message with unknown type %s",
                            exitType)
 	    return
 	queue = self.queues[mod.getName()]
-	queue.queueMessage((exitType,exitInfo), message)
+	queue.queueMessage((exitType, address, tag), message)
 
     def sendReadyMessages(self):
 	for name, queue in self.queues.items():
@@ -308,7 +308,7 @@ class DropModule(DeliveryModule):
         return [ DROP_TYPE ]
     def createDeliveryQueue(self, directory):
 	return ImmediateDeliveryQueue(self)
-    def processMessage(self, message, exitType, exitInfo):
+    def processMessage(self, message, tag, exitType, exitInfo):
         getLog().debug("Dropping padding message")
         return DELIVER_OK
 
@@ -386,16 +386,16 @@ class MBoxModule(DeliveryModule):
     def getExitTypes(self):
         return [ MBOX_TYPE ]
 
-    def processMessage(self, message, exitType, exitInfo):
+    def processMessage(self, message, tag, exitType, address):
         assert exitType == MBOX_TYPE
         getLog().trace("Received MBOX message")
-        info = mixminion.Packet.parseMBOXInfo(exitInfo)
+        info = mixminion.Packet.parseMBOXInfo(address)
 	try:
 	    address = self.addresses[info.user]
 	except KeyError, _:
             getLog.warn("Unknown MBOX user %r", info.user)
 
-        msg = _escapeMessageForEmail(message, info.tag)
+        msg = _escapeMessageForEmail(message, tag)
 
         fields = { 'user': address,
                    'return': self.returnAddress,
@@ -478,15 +478,16 @@ class MixmasterSMTPModule(SMTPModule):
         self.tmpQueue = mixminion.Queue.queue(queueDir+"_tmp", 1, 1)
         self.tmpQueue.removeAll()
         return _MixmasterSMTPModuleDeliveryQueue(self, queueDir)
-    def processMessage(self, message, exitType, exitInfo):
+    def processMessage(self, message, tag, exitType, smtpAddress):
         assert exitType == SMTP_TYPE
-        info = mixminion.Packet.parseSMTPInfo(exitInfo)
+	# parseSMTPInfo will raise a parse error if the mailbox is invalid.
+        info = mixminion.Packet.parseSMTPInfo(smtpAddress)
 
-        msg = _escapeMessageForEmail(message, info.tag)
+        msg = _escapeMessageForEmail(message, tag)
         handle = self.tmpQueue.queueMessage(msg)
-        
+
         cmd = self.command
-        opts = self.options + (info.email,
+        opts = self.options + ("-t", info.email,
                                self.tmpQueue.getMessagePath(handle))
         code = os.spawnl(os.P_WAIT, cmd, cmd, *opts)
         getLog().debug("Queued Mixmaster message: exit code %s", code)
@@ -556,6 +557,8 @@ def _decodeAndEscapeMessage(payload, tag, text=0):
     """XXXX DOCDOC
 	  -> ("TXT"|"BIN"|"ENC", message, tag|None) or None
     """
+    if not tag:
+	raise ContentError("Missing tag from message")
     try:
 	message = mixminion.BuildMessage.decodePayload(payload, tag)
     except MixError, _:
