@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.9 2003/01/04 04:38:45 nickm Exp $
+# $Id: Modules.py,v 1.10 2003/01/04 20:42:38 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -19,6 +19,11 @@ import sys
 import smtplib
 import socket
 import base64
+
+if sys.version_info[:2] >= (2,3):
+    import textwrap
+else:
+    import mixminion._textwrap as textwrap
 
 import mixminion.BuildMessage
 import mixminion.Config
@@ -106,7 +111,7 @@ class DeliveryModule:
             DELIVER_FAIL_NORETRY (if the message shouldn't be tried later).
 
            (This method is only used by your delivery queue; if you use
-            a nonstandard delivery queue, you don't need to implement this."""
+            a nonstandard delivery queue, you don't need to implement this.)"""
         raise NotImplementedError("processMessage")
 
 class ImmediateDeliveryQueue:
@@ -211,6 +216,7 @@ class ModuleManager:
 
         self.registerModule(MBoxModule())
         self.registerModule(DropModule())
+        self.registerModule(DirectSMTPModule())
         self.registerModule(MixmasterSMTPModule())
 
         self._isConfigured = 0
@@ -379,6 +385,104 @@ class DropModule(DeliveryModule):
         return DELIVER_OK
 
 #----------------------------------------------------------------------
+class EmailAddressSet:
+    """A set of email addresses stored on disk, for use in blacklisting email
+       addresses. DOCDOC"""
+    #XXXX002 test
+    ## Fields
+    # addresses -- A dict whose keys are lowercased email addresses
+    # domains -- A dict whose keys are lowercased domains ("foo.bar.baz")
+    #   DOCDOC sub
+    # users -- A dict whose keys are lowercased users ("foo")
+    # patterns -- A list of regular expression objects.
+    def __init__(self, fname=None, string=None):
+        """Read the address set from a file or a string. DOCDOC"""
+        if string is None:
+            f = open(fname, 'r')
+            string = f.read()
+            f.close()
+
+        self.addresses = {}
+        self.domains = {}
+        self.users = {}
+        self.patterns = []
+
+        lines = string.split("\n")
+        lineno = 0
+        for line in lines:
+            lineno += 1
+            line = line.strip()
+            if not line or line[0] == '#':
+                # Blank line or comment; skip.
+                continue
+            line = line.split(" ", 1)
+            if len(line) != 2:
+                raise ConfigError("Invalid line at %s"%lineno)
+            cmd = line[0].lower()
+            arg = line[1].strip()
+            if cmd == 'address':
+                if not isSMTPMailbox(arg):
+                    LOG.warn("Address %s on %s doesn't look valid to me.",
+                             arg, lineno)
+                self.addresses[arg.lower()] = 1
+            elif cmd == 'user':
+                if not isSMTPMailbox(arg+"@x"):
+                    LOG.warn("User %s on %s doesn't look valid to me.",
+                             arg, lineno)
+                self.users[arg.lower()] = 1
+            elif cmd == 'domain':
+                if not isSMTPMailbox("x@"+arg):
+                    LOG.warn("Domain %s on %s doesn't look valid to me.",
+                             arg, lineno)
+                if not self.domains.has_key(arg.lower()):
+                    self.domains[arg.lower()] = 1
+            elif cmd == 'subdomains':
+                if not isSMTPMailbox("x@"+arg):
+                    LOG.warn("Domain %s on %s doesn't look valid to me.",
+                             arg, lineno)
+                self.domains[arg.lower()] = 'SUB'
+            elif cmd == 'pattern':
+                if not arg[0] == '/' and arg[-1] == '/':
+                    raise ConfigError("Pattern %s on %s is missing /s.",
+                                      arg, lineno)
+                arg = arg[1:-1]
+                # FFFF As an optimization, we may be able to coalesce some
+                # FFFF of these patterns.  I doubt this will become 
+                self.patterns.append(re.compile(arg, re.I))
+            else:
+                raise ConfigError("Unrecognized command %s on line %s",
+                                  cmd, lineno)
+
+    def contains(self, address):
+        """Return true iff this this address set contains the address
+           'address'.
+
+           The result will only be accurate if 'address' is a
+           valid restricted RFC822 address as checked by isSMTPMailbox.
+        """
+        #DOCDOC
+        lcaddress = address.lower()
+        if self.addresses.has_key(lcaddress):
+            return 1
+
+        user, dom = lcaddress.split("@", 1)
+        if self.users.has_key(user) or self.domains.has_key(dom):
+            return 1
+
+        domparts = dom.split(".")
+        domparts.reverse()
+        dom = domparts[0]
+        if self.domains.get(
+        for d in domparts[1:]:
+
+
+        for pat in self.patterns:
+            if pat.search(address):
+                return 1
+
+        return 0
+                
+#----------------------------------------------------------------------
 class MBoxModule(DeliveryModule):
     """Implementation for MBOX delivery: sends messages, via SMTP, to
        addresses from a local file.  The file must have the format
@@ -427,7 +531,6 @@ class MBoxModule(DeliveryModule):
             if not isSMTPMailbox(sec[field]):
                 LOG.warn("Value of %s (%s) doesn't look like an email address",
                          field, sec[field])
-
 
     def configure(self, config, moduleManager):
         if not config['Delivery/MBOX'].get("Enabled", 0):
@@ -535,6 +638,80 @@ class SMTPModule(DeliveryModule):
     def getExitTypes(self):
         return [ mixminion.Packet.SMTP_TYPE ]
 
+class DirectSMTPModule(SMTPModule):
+    #XXXX DOCDOC!!!!
+    # server
+    # blacklist
+    # server
+    # header
+    # returnAddress
+    #XXXX002 test
+    def __init__(self):
+        SMTPModule.__init__(self)
+
+    def getConfigSyntax(self):
+        return { "Delivery/SMTP" :
+                 { 'Enabled' : ('REQUIRE', _parseBoolean, "no"),
+                   'BlacklistFile' : ('ALLOW', None, None), 
+                   'SMTPServer' : ('ALLOW', None, 'localhost'), #Required on e
+                   'Messsage' : ('ALLOW', None, ""),
+                   'ReturnAddress': ('ALLOW', None, None), #Required on e
+                   'SubjectLine' : ('ALLOW', None,
+                                    'Type-III Anonymous Message'),
+                   
+                   }
+                 }
+
+    def validateConfig(self, sections, entries, lines, contents):
+        sec = sections['Delivery/SMTP']
+        if not sec.get('Enabled'):
+            return
+        for field in 'SMTPServer', 'ReturnAddress':
+            if not sec.get(field):
+                raise ConfigError("Missing field %s in [Delivery/SMTP]"%field)
+        fn = sec.get('BlacklistFile')
+        if fn and not not os.path.exists(fn):
+            raise ConfigError("Blacklist file %s seems not to exist"%fn)
+        if not isSMTPMailbox(sec['ReturnAddress']):
+            LOG.warn("Return address (%s) doesn't look like an email address",
+                     sec['ReturnAddress'])
+
+    def configure(self, config, manager):
+        sec = config['Delivery/SMTP']
+        if not sec.get('Enabled'):
+            manager.disableModule(self)
+            return
+
+        self.server = sec['SMTPServer']
+        if sec['BlacklistFile']:
+            self.blacklist = EmailAddressSet(fname=sec['BlacklistFile'])
+        else:
+            self.blacklist = None
+        message = textwrap.wrap(sec.get('Message',"")).strip()
+        subject = sec['Subject']
+        self.returnAddress = sec['ReturnAddress']
+
+        self.header = "From: %s\nSubject: %s\n\n%s" %(
+            self.returnAddress, subject, message)
+
+    def processMessage(self, message, tag, exitType, address):
+        assert exitType == mixminion.Packet.SMTP_TYPE
+        LOG.trace("Received SMTP message")
+        # parseSMTPInfo will raise a parse error if the mailbox is invalid.
+        address = mixminion.Packet.parseSMTPInfo(address).email
+
+        # Now, have we blacklisted this address?
+        if self.blacklist and self.blacklist.contains(address):
+            LOG.warn("Dropping message to blacklisted address %r", address)
+            return DELIVER_FAIL_NORETRY
+
+        # Decode and escape the message, and get ready to send it.
+        msg = _escapeMessageForEmail(message, tag)
+        msg = "To: %s\n%s\n\n%s"%(address, self.header, msg)
+
+        # Send the message.
+        return sendSMTPMessage(self.server, [address], self.returnAddress, msg)
+
 class MixmasterSMTPModule(SMTPModule):
     """Implements SMTP by relaying messages via Mixmaster nodes.  This
        is kind of unreliable and kludgey, but it does allow us to
@@ -632,6 +809,9 @@ def sendSMTPMessage(server, toList, fromAddr, message):
        MTA."""
     # FFFF This implementation can stall badly if we don't have a fast
     # FFFF local MTA.
+
+    # FFFF We should leave the connection open if we're going to send many
+    # FFFF messages in a row.    
     LOG.trace("Sending message via SMTP host %s to %s", server, toList)
     con = smtplib.SMTP(server)
     try:
