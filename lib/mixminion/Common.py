@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.141 2004/07/27 03:05:47 nickm Exp $
+# $Id: Common.py,v 1.142 2004/07/27 21:51:18 nickm Exp $
 
 """mixminion.Common
 
@@ -597,24 +597,28 @@ def writeFile(fn, contents, mode=0600, binary=0, fsync=0):
 
     replaceFile(tmpname, fn)
 
-def readPickled(fn):
+def readPickled(fn, gzipped=0):
     """Given the name of a file containing a pickled object, return the pickled
        object."""
     f = open(fn, 'rb')
+    if gzipped:
+        f = gzip.GzipFile(fileobj=f, mode='rb')
     try:
         return cPickle.load(f)
     finally:
         f.close()
 
-def writePickled(fn, obj, mode=0600):
+def writePickled(fn, obj, mode=0600, gzipped=0):
     """Given a filename and an object to be pickled, pickles the object into
        a temporary file, then replaces the file with the temporary file.
     """
     tmpname = fn + ".tmp"
     f, tmpname = openUnique(tmpname, 'wb', mode)
+    if gzipped:
+        f = gzip.GzipFile(fileobj=f, filename=fn, mode='wb')
     try:
         try:
-            cPickle.dump(obj, f, 1)
+            cPickle.dump(obj, f, -1)
         finally:
             f.close()
     except:
