@@ -61,8 +61,6 @@ For 0.0.7:
                                 o Set and adjust caps.
                                 o Configuration to enable caps
                                 - Test
-                        - Limit number of packets sent over single client
-                          connection.
         o Security
                 X Make createPrivateDirs gripe about group-writable parent
                   dirs.  [Actually, this has been done for a while!]
@@ -101,6 +99,9 @@ Reach for 0.0.7:
                 - Retrying should be per-destination, not per-packet.
                   Otherwise, we can leak which packets were first attempted
                   when.
+                - Limit number of packets sent over single client
+                  connection.
+
 
 Require for "0.1.0" (the in-theory-as-good-as-type-II release):
   [Release criteria: Workable replacement for type II.  At least as

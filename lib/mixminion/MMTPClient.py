@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.53 2004/02/06 23:14:28 nickm Exp $
+# $Id: MMTPClient.py,v 1.54 2004/02/15 23:25:33 nickm Exp $
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client
@@ -148,8 +148,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
         "Helper: begin transmitting the next available packet."
         # There _is_ a next available packet, right?
         assert self.packets and self._isConnected
-        pkt = self.packets[0]
-        del self.packets[0]
+        pkt = self.packets.pop(0)
 
         if pkt.isJunk():
             control = "JUNK\r\n"
@@ -295,8 +294,7 @@ class MMTPClientConnection(mixminion.TLSConnection.TLSConnection):
                 self.startShutdown()
                 return
             ack = self.getInbuf(self.ACK_LEN, clear=1)
-            good, bad = self.expectedAcks[0]
-            del self.expectedAcks[0]
+            good, bad = self.expectedAcks.pop(0)
             if ack == good:
                 LOG.debug("Packet delivered to %s",self.address)
                 self.nPacketsAcked += 1

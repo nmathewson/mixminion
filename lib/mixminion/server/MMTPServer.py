@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.77 2004/02/07 07:25:14 nickm Exp $
+# $Id: MMTPServer.py,v 1.78 2004/02/15 23:25:34 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -637,8 +637,7 @@ class MMTPAsyncServer(AsyncServer):
            This function should only be called from the main thread.
         """
         while len(self.clientConByAddr) < self.maxClientConnections and self.pendingPackets:
-            args = self.pendingPackets[0]
-            del self.pendingPackets[0]
+            args = self.pendingPackets.pop(0)
             LOG.debug("Sending %s delayed packets...",len(args[5]))
             self._sendPackets(*args)
 
