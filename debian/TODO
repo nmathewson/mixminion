@@ -6,12 +6,22 @@ Legend:
 	D Deferred
 	X Abandoned
 
-For the first upload:
-	o setup logrotate to cleanup var/log/mixminion/
 	- lintian thinks /usr/lib/python2.3/site-packages/mixminion/Main.py is
 	  a scrypt and should be +x.  Lintian also complains about the weird
 	  shebang (unusual-interpreter).
 	  Either define overrides or remove the shebang
 	- run server-upgrade on upgrade?
+	- teach mixminion that /home g+w staff is fine on Debian.
 
 	upstream issues:
+	- give me a mixminiond check-conf which would tell me whether the
+	  current config is correct.  Right now if the config is broken
+	  (say a bad nickname) mixminiond start will print the error message
+	  and the init script will stop.
+
+	  Since I would like to separate config (user) errors from other
+	  errors I would like to first check if the config is sane,
+	  exit gracefully (0) if not (so that upgrades work).  If then
+	  server start fails, the init script should exit with error (1).
+
+
