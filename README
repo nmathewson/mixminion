@@ -1,4 +1,4 @@
-$Id: README,v 1.65 2003/12/12 22:37:12 nickm Exp $
+$Id: README,v 1.66 2003/12/12 23:01:31 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.6rc2, from the Mixminion CVS repository.
 
@@ -232,7 +232,7 @@ The very easy version: For Windows
 
    First, make sure that you're running Win98 or later.
 
-   Download 'mixminion-v0.0.6rc2-win32.zip", and unpack it anywhere you like.
+   Download 'Mixminion-0.0.6rc2.win32.zip", and unpack it anywhere you like.
    It will create a directory named 'mixminion'.
 
    Use mixminion.exe from that directory as your command-line client.
@@ -249,7 +249,7 @@ The slightly harder version: For Windows with Python 2.3
    First, make sure that you have the latest official release of Python 2.3
    installed.  As of 5 Dec 2003, this is 2.3.2.
 
-   Download and run "mixminion-v0.0.6rc2.win32-py2.3.exe".  It will unpack
+   Download and run "Mixminion-0.0.6rc2.win32-py2.3.exe".  It will unpack
    its files into your Python directory.
 
    The script to invoke Mixminion will be stored in the 'Scripts'
