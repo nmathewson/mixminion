@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: benchmark.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
+# $Id: benchmark.py,v 1.3 2002/05/29 22:51:58 nickm Exp $
 from time import time
 
 loop_overhead = {}
@@ -57,6 +57,7 @@ def cryptoTiming():
     s2K = s1K*2
     s4K = s2K*2
     s8K = s4K*2
+    s28K = s1K*28
     s32K = s8K*4
 
     print "#==================== CRYPTO ======================="
@@ -64,6 +65,7 @@ def cryptoTiming():
 
     print "SHA1 (short)", timeit((lambda : sha1(short)), 100000)
     print "SHA1 (8K)", timeit((lambda : sha1(s8K)), 10000)
+    print "SHA1 (28K)", timeit((lambda : sha1(s28K)), 1000)
     print "SHA1 (32K)", timeit((lambda : sha1(s32K)), 1000)
 
     shakey = "8charstr"*2
@@ -71,8 +73,8 @@ def cryptoTiming():
     #print timeit((lambda : _ml.sha1(short,shakey)), 100000)
     #print "Keyed SHA1 (8K)", timeit((lambda : _ml.sha1(s8K, shakey)), 10000)
     #print "Keyed SHA1 (32K)", timeit((lambda : _ml.sha1(s32K, shakey)), 1000)
-    print "Lioness-keyed SHA1 (32K, unoptimized)", timeit(
-        (lambda : _ml.sha1("".join([shakey,s32K,shakey]))), 1000)
+    print "Lioness-keyed SHA1 (28K, unoptimized)", timeit(
+        (lambda : _ml.sha1("".join([shakey,s28K,shakey]))), 1000)
 
     print "TRNG (20 byte)", timeit((lambda: trng(20)), 100)
     print "TRNG (128 byte)", timeit((lambda: trng(128)), 100)
@@ -84,11 +86,13 @@ def cryptoTiming():
     key = "8charstr"*2
     print "aes (short)", timeit((lambda: ctr_crypt(short,key)), 100000)
     print "aes (1K)", timeit((lambda: ctr_crypt(s1K,key)), 10000)
+    print "aes (28K)", timeit((lambda: ctr_crypt(s28K,key)), 100)
     print "aes (32K)", timeit((lambda: ctr_crypt(s32K,key)), 100)
 
     key = _ml.aes_key(key)
     print "aes (short,pre-key)", timeit((lambda: ctr_crypt(short,key)), 100000)
     print "aes (1K,pre-key)", timeit((lambda: ctr_crypt(s1K,key)), 10000)
+    print "aes (28K,pre-key)", timeit((lambda: ctr_crypt(s28K,key)), 100)
     print "aes (32K,pre-key)", timeit((lambda: ctr_crypt(s32K,key)), 100)
 
     print "aes (32K,pre-key,unoptimized)", timeit(
@@ -96,6 +100,7 @@ def cryptoTiming():
 
     print "prng (short)", timeit((lambda: prng(key,8)), 100000)
     print "prng (1K)", timeit((lambda: prng(key,1024)), 10000)
+    print "prng (28K)", timeit((lambda: prng(key,28678)), 100)
     print "prng (32K)", timeit((lambda: prng(key,32768)), 100)
     print "prng (32K, unoptimized)", timeit(
         (lambda: ctr_crypt('\x00'*32768, key)), 100)
@@ -104,10 +109,12 @@ def cryptoTiming():
     print "lioness E (1K)", timeit((lambda: lioness_encrypt(s1K, lkey)), 1000)
     print "lioness E (2K)", timeit((lambda: lioness_encrypt(s1K, lkey)), 1000)
     print "lioness E (4K)", timeit((lambda: lioness_encrypt(s4K, lkey)), 1000)
+    print "lioness E (28K)", timeit((lambda: lioness_encrypt(s28K, lkey)), 100)
     print "lioness E (32K)", timeit((lambda: lioness_encrypt(s32K, lkey)), 100)
     print "lioness D (1K)", timeit((lambda: lioness_decrypt(s1K, lkey)), 1000)
     print "lioness D (2K)", timeit((lambda: lioness_decrypt(s1K, lkey)), 1000)
     print "lioness D (4K)", timeit((lambda: lioness_decrypt(s4K, lkey)), 1000)
+    print "lioness D (28K)", timeit((lambda: lioness_decrypt(s28K, lkey)), 100)
     print "lioness D (32K)", timeit((lambda: lioness_decrypt(s32K, lkey)), 100)
 
     s70b = "10character"*7

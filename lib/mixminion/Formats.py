@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Formats.py,v 1.2 2002/05/29 18:54:43 nickm Exp $
+# $Id: Formats.py,v 1.3 2002/05/29 22:51:58 nickm Exp $
 """mixminion.Formats
 
    Functions, classes, and constants to parse and unparse Mixminion messages
@@ -7,7 +7,7 @@
 
 __all__ = [ 'ParseError', 'Message', 'Header', 'Subheader',
             'parseMessage', 'parseHeader', 'parseSubheader',
-            'getTotalBlocksForRoutingInfo',
+            'getTotalBlocksForRoutingInfoLen',
             'IPV4Info', 'SMTPInfo',
             'parseIPV4Info', 'parseSMTPInfo',
             'ENC_SUBHEADER_LEN', 'HEADER_LEN',
@@ -58,7 +58,7 @@ def parseMessage(s):
         
     return Message(s[:HEADER_LEN],
                    s[HEADER_LEN:HEADER_LEN*2],
-                   s[HEADER_LEN*2])
+                   s[HEADER_LEN*2:])
 
 class Message:
     """Represents a complete Mixminion packet
@@ -123,7 +123,7 @@ def parseSubheader(s):
         ri = ri[:rlen]
     return Subheader(major,minor,secret,digest,rt,ri,rlen)
 
-def getTotalBlocksForRoutingInfo(bytes):
+def getTotalBlocksForRoutingInfoLen(bytes):
     if bytes <= MAX_ROUTING_INFO_LEN:
         return 1
     else:
@@ -167,7 +167,7 @@ class Subheader:
     def getNExtraBlocks(self):
         """Returns the number of extra blocks that will be needed to fit
            the routinginfo."""
-        return getTotalBlocksForRoutingInfo(self.routinglen)-1
+        return getTotalBlocksForRoutingInfoLen(self.routinglen)-1
 
     def appendExtraBlocks(self, data):
         """appendExtraBlocks(str)
@@ -211,7 +211,25 @@ class Subheader:
                 result.append(content)
             return result
 
-IPV4_PAT = "!H%ds" % DIGEST_LEN
+IPV4_PAT = "!4sH%ds" % DIGEST_LEN
+
+def _packIP(s):
+    "xxxx"
+    addr = s.split(".")
+    if len(addr) != 4:
+        raise ParseError("Malformed IP address")
+    try:
+        addr = map(int, addr)
+    except ValueError:
+        raise ParseError("Malformed IP address")
+    for i in addr:
+        if not (0 <= i <= 255): raise ParseError("Malformed IP address")
+    return struct.pack("!BBBB", *addr)
+
+def _unpackIP(s):
+    "XXXX"
+    if len(s) != 4: raise ParseError("Malformed IP")
+    return ".".join(map(str, struct.unpack("!BBBB", s)))
 
 def parseIPV4Info(s):
     """parseIP4VInfo(s) -> IPV4Info
@@ -220,6 +238,7 @@ def parseIPV4Info(s):
     if len(s) != 4+2+DIGEST_LEN:
         raise ParseError("IPV4 information with wrong length")
     ip, port, keyinfo = struct.unpack(IPV4_PAT, s)
+    ip = _unpackIP(ip)
     return IPV4Info(ip, port, keyinfo)
 
 class IPV4Info:
@@ -230,8 +249,8 @@ class IPV4Info:
         self.keyinfo = keyinfo
 
     def pack(self):
-        assert len(keyinfo) == DIGEST_LEN
-        return struct.pack(IPV4_PAT, self.ip, self.port, keyinfo)
+        assert len(self.keyinfo) == DIGEST_LEN
+        return struct.pack(IPV4_PAT, _packIP(self.ip), self.port, self.keyinfo)
 
 def parseSMTPInfo(s):
     "XXXX"

@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.3 2002/05/29 18:54:43 nickm Exp $
+# $Id: test.py,v 1.4 2002/05/29 22:51:58 nickm Exp $
 
 import unittest
 
@@ -295,6 +295,28 @@ class FormatTests(unittest.TestCase):
         self.assertEquals(s.getExtraBlocks(), extra)
 
         #XXXX Need failing tests, routinginfo tests.
+
+    def test_headers(self):
+        pass #XXXX
+
+    def test_message(self):
+        # 9 is relatively prime to all pwrs of 2.
+        m = ("abcdefghi"*(10000))[:32768]
+        msg = parseMessage(m)
+        self.assert_(msg.pack() == m)
+        self.assert_(msg.header1 == m[:2048])
+        self.assert_(msg.header2 == m[2048:4096])
+        self.assert_(msg.payload == m[4096:])
+        # FAILING CASES XXXX
+            
+    def test_ipv4info(self):
+        pass #XXXX
+
+    def test_smtpinfo(self):
+        pass #XXXX
+
+    def test_localinfo(self):
+        pass #XXXX
         
 #----------------------------------------------------------------------
 from mixminion.HashLog import HashLog
@@ -367,25 +389,159 @@ class HashLogTests(unittest.TestCase):
 
         h.close()
 
-    def test_headers(self):
-        pass #XXXX
 
-    def test_message(self):
-        pass #XXXX
-
-    def test_ipv4info(self):
-        pass #XXXX
-
-    def test_smtpinfo(self):
-        pass #XXXX
-
-    def test_localinfo(self):
-        pass #XXXX
-
-#----------------------------------------------------------------------
-import mixminion.ServerProcess
 #----------------------------------------------------------------------
 import mixminion.BuildMessage
+
+class FakePRNG:
+    def getBytes(self,n):
+        return "\x00"*n
+
+class BuildMessageTests(unittest.TestCase):
+    def setUp(self):
+        from ServerInfo import ServerInfo
+        self.pk1 = pk_generate()
+        self.pk2 = pk_generate()
+        self.pk3 = pk_generate()
+        self.n_1 = pk_get_modulus(self.pk1)
+        self.n_2 = pk_get_modulus(self.pk2)
+        self.n_3 = pk_get_modulus(self.pk3)
+        self.server1 = ServerInfo("127.0.0.1", 1, self.n_1, "X"*20)
+        self.server2 = ServerInfo("127.0.0.2", 3, self.n_2, "Z"*20)
+        self.server3 = ServerInfo("127.0.0.3", 5, self.n_3, "Q"*20)
+
+    def test_buildheader_1hop(self):
+        bhead = mixminion.BuildMessage._buildHeaders
+
+        head = bhead([self.server1], ["9"*16], 99, "Hi mom", AESCounterPRNG())
+        self.do_header_test(head,
+                            (self.pk1,),
+                            ["9"*16,],
+                            (99,),
+                            ("Hi mom",))
+
+    def test_buildheader_2hops(self):
+        bhead = mixminion.BuildMessage._buildHeaders
+        # 2 hops
+        head = bhead([self.server1, self.server2],
+                     ["9"*16, "1"*16], 99, "Hi mom", AESCounterPRNG()) 
+
+        ipv4 = mixminion.Formats.IPV4Info
+        self.do_header_test(head,
+                            (self.pk1, self.pk2),
+                            ["9"*16, "1"*16],
+                            (mixminion.Modules.FWD_TYPE, 99),
+                            (ipv4("127.0.0.2",3,"Z"*20).pack(),
+                             "Hi mom"))
+                            
+    def test_buildheader_3hops(self):
+        bhead = mixminion.BuildMessage._buildHeaders
+        # 3 hops
+        secrets = ["9"*16, "1"*16, "z"*16]
+        head = bhead([self.server1, self.server2, self.server3], secrets,
+                      99, "Hi mom", AESCounterPRNG())
+        pks = (self.pk1,self.pk2,self.pk3)
+        rtypes = (mixminion.Modules.FWD_TYPE,
+                  mixminion.Modules.FWD_TYPE,
+                  99)
+        rinfo = (mixminion.Formats.IPV4Info("127.0.0.2", 3, "Z"*20).pack(),
+                 mixminion.Formats.IPV4Info("127.0.0.3", 5, "Q"*20).pack(),
+                 "Hi mom")
+        self.do_header_test(head, pks, secrets, rtypes, rinfo)
+
+    def do_header_test(self, head, pks, secrets, rtypes, rinfo):
+        self.assertEquals(len(head), mixminion.Formats.HEADER_LEN)
+        for pk, secret, rt, ri in zip(pks, secrets,rtypes,rinfo):
+            subh = mixminion.Formats.parseSubheader(pk_decrypt(head[:128], pk))
+            self.assertEquals(subh.secret, secret)
+            self.assertEquals(subh.major, mixminion.Formats.MAJOR_NO)
+            self.assertEquals(subh.minor, mixminion.Formats.MINOR_NO)
+            self.assertEquals(subh.routingtype, rt)
+            self.assertEquals(subh.routinginfo, ri)
+            self.assertEquals(subh.digest, sha1(head[128:]))
+            ks = Keyset(secret)
+            key = ks.get(HEADER_SECRET_MODE)
+            prngkey = ks.get(RANDOM_JUNK_MODE)
+            head = ctr_crypt(head[128:]+prng(prngkey,128), key)
+
+    def test_extended_routinginfo(self):
+        #XXXX!!!! Code doesn't work 
+        pass
+
+    def test_constructmessage(self):
+        consMsg = mixminion.BuildMessage._constructMessage
+        
+        h1 = "abcdefgh"*(2048//8)
+        h2 = "aBcDeFgH"*(2048//8)
+
+        ######
+        ### non-reply case
+        secrets1 = [ x * 16 for x in "sqmsh"]
+        secrets2 = [ x * 16 for x in "osfrg"]
+        pld = """
+           Everyone has the right to freedom of opinion and expression; this
+           right includes freedom to hold opinions without interference and
+           to seek, receive and impart information and ideas through any
+           media and regardless of frontiers. 
+           """
+        pld += "\000"*(28*1024-len(pld))
+        
+        message = consMsg(secrets1, secrets2, h1, h2, pld)
+
+        self.assertEquals(len(message), mixminion.Formats.MESSAGE_LEN)
+        msg = mixminion.Formats.parseMessage(message)
+        head1, head2, payload = msg.header1, msg.header2, msg.payload
+        self.assert_(h1 == head1)
+
+        for path in secrets1, secrets2:
+            for s in path:
+                ks = Keyset(s)
+                hkey = ks.getLionessKeys(HEADER_ENCRYPT_MODE)
+                pkey = ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE)
+                if path is secrets1:
+                    head2 = lioness_decrypt(head2, hkey)
+                payload = lioness_decrypt(payload, pkey)
+
+            if path is secrets1:
+                swapkey = mixminion.Crypto.lioness_keys_from_payload(payload)
+                head2 = lioness_decrypt(head2, swapkey)
+
+        self.assert_(head2 == h2)
+        self.assert_(payload == pld)
+
+        #### Reply case
+        message = consMsg(secrets1, None, h1, h2, pld)
+        self.assertEquals(len(message), mixminion.Formats.MESSAGE_LEN)
+        msg = mixminion.Formats.parseMessage(message)
+        head1, head2, payload = msg.header1, msg.header2, msg.payload
+        self.assert_(h1 == head1)
+
+        for s in secrets1:
+            ks = Keyset(s)
+            hkey = ks.getLionessKeys(HEADER_ENCRYPT_MODE)
+            pkey = ks.getLionessKeys(PAYLOAD_ENCRYPT_MODE)
+            head2 = lioness_decrypt(head2, hkey)
+            payload = lioness_decrypt(payload, pkey)
+        swapkey = mixminion.Crypto.lioness_keys_from_payload(payload)
+        head2 = lioness_decrypt(head2, swapkey)
+
+        self.assert_(head2 == h2)
+        self.assert_(payload == pld)
+        
+    def test_buildmessage(self):
+        #XXXX
+        pass
+
+    def test_buildreply(self):
+        #XXXX
+        pass
+
+    def test_buildstatelessreply(self):
+        #XXXX
+        pass
+            
+#----------------------------------------------------------------------
+import mixminion.ServerProcess
 #----------------------------------------------------------------------
 
 def testSuite():
@@ -396,6 +552,7 @@ def testSuite():
     suite.addTest(tc(CryptoTests))
     suite.addTest(tc(FormatTests))
     suite.addTest(tc(HashLogTests))
+    suite.addTest(tc(BuildMessageTests))
     return suite
 
 def testAll():

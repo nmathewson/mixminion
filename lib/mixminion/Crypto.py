@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Crypto.py,v 1.3 2002/05/29 18:54:43 nickm Exp $
+# $Id: Crypto.py,v 1.4 2002/05/29 22:51:58 nickm Exp $
 """mixminion.Crypto
 
    This package contains all the cryptographic primitives required
@@ -17,7 +17,8 @@ __all__ = [ 'init_crypto', 'sha1',  'ctr_crypt', 'prng',
             'pk_get_modulus', 'pk_from_modulus',
             'pk_encode_private_key', 'pk_decode_private_key',
             'Keyset', 'AESCounterPRNG',
-            'HEADER_SECRET_MODE', 'PRNG_MODE', 'HEADER_ENCRYPT_MODE',
+            'HEADER_SECRET_MODE', 'PRNG_MODE', 'RANDOM_JUNK_MODE',
+            'HEADER_ENCRYPT_MODE',
             'PAYLOAD_ENCRYPT_MODE', 'HIDE_HEADER_MODE' ]
 
 AES_KEY_LEN = 128/8
@@ -47,6 +48,12 @@ def strxor(s1, s2):
     Computes the bitwise xor of two strings.  Raises an exception if the
     strings' lengths are unequal."""
     return _ml.strxor(s1, s2)
+
+def aes_key(key):
+    """aes_key(key) ->  aes_key
+
+       Returns an opaque precomputation of the 16-byte AES key, key."""
+    return _ml.aes_key(key)
 
 def ctr_crypt(s, key, idx=0):
     """ctr_crypt(s, key, idx=0) -> str
@@ -182,7 +189,7 @@ def pk_decode_private_key(s):
 #----------------------------------------------------------------------
 
 HEADER_SECRET_MODE = "HEADER SECRET KEY"
-PRNG_MODE = "RANDOM JUNK"
+PRNG_MODE = RANDOM_JUNK_MODE = "RANDOM JUNK"
 HEADER_ENCRYPT_MODE = "HEADER ENCRYPT"
 PAYLOAD_ENCRYPT_MODE = "PAYLOAD ENCRYPT"
 HIDE_HEADER_MODE = "HIDE HEADER"

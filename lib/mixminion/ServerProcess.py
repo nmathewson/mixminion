@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerProcess.py,v 1.2 2002/05/29 17:46:23 nickm Exp $
+# $Id: ServerProcess.py,v 1.3 2002/05/29 22:51:58 nickm Exp $
 
 import mixminion.Crypto as Crypto
 import mixminion.Formats as Formats
@@ -35,6 +35,8 @@ class ServerProcess:
         if subh.major != 3 or subh.minor != 0:
             raise ContentError("Invalid protocol version")
 
+        # XXX Check digest, then decrypt the rest?  Or decrypt the rest,
+        # XXX then check the digest???  The spec is inconsistant.
         digest = Crypto.sha1(header1[1:])
         if digest != subh.digest:
             raise ContentError("Invalid digest")

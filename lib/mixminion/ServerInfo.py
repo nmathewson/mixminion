@@ -1,5 +1,5 @@
 # Copyright 2002 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.1 2002/05/29 03:52:13 nickm Exp $
+# $Id: ServerInfo.py,v 1.2 2002/05/29 22:51:58 nickm Exp $
 
 #XXXX DOC
 
@@ -18,5 +18,5 @@ class ServerInfo:
     def getAddr(self): return self.addr
     def getPort(self): return self.port
     def getModulus(self): return self.modulus
-    return getKeyID(self): return self.keyid
+    def getKeyID(self): return self.keyid
     
