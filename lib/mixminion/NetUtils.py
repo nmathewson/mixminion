@@ -63,7 +63,17 @@ getIPs.__doc__ = \
 def getIP(name, preferIP4=PREFER_INET4):
     """Resolve the hostname 'name' and return the 'best' answer.  An
        answer is either a 3-tuple as returned by getIPs, or a 3-tuple of
-       ('NOENT', reason, Time) if no answers were found."""
+       ('NOENT', reason, Time) if no answers were found.
+
+       If both IPv4 and IPv6 addresses are found, return an IPv4 address
+       iff preferIPv4 is true.
+
+       If this host does not support IPv6, never return an IPv6 address;
+       return a ('NOENT', reason, Time) tuple if only ipv6 addresses are
+       found.
+    """
+    _,haveIP6 = getProtocolSupport()
+    if not haveIP6: haveIP4 = 1 
     try:
         r = getIPs(name)
         inet4 = [ addr for addr in r if addr[0] == AF_INET ]
@@ -71,6 +81,10 @@ def getIP(name, preferIP4=PREFER_INET4):
         if not (inet4 or inet6):
             LOG.warn("getIP returned no inet addresses for %r",name)
             return ("NOENT", "No inet addresses returned", time.time())
+        if inet6 and not inet4 and not haveIP6:
+            return ("NOENT", 
+                 "All addresses were IPv6, and this host has no IPv6 support",
+                 time.time())
         best4=best6=None
         if inet4: best4=inet4[0]
         if inet6: best6=inet6[0]
@@ -209,7 +223,7 @@ def getProtocolSupport():
             s.close()
 
     _PROTOCOL_SUPPORT = tuple(res)
-    return res
+    return _PROTOCOL_SUPPORT
 
 #----------------------------------------------------------------------
 

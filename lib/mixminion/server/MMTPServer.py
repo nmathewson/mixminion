@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.67 2004/01/04 02:44:10 nickm Exp $
+# $Id: MMTPServer.py,v 1.68 2004/01/08 18:09:50 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -510,6 +510,7 @@ class MMTPAsyncServer(AsyncServer):
                            self=self, routing=routing, deliverable=deliverable,
                            serverName=serverName):
                 if family == "NOENT":
+                    LOG.warn("Couldn't resolve %r: %s", name, addr)
                     # The lookup failed, so tell all of the message objects.
                     for m in deliverable:
                         try:

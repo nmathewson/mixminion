@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DNSFarm.py,v 1.5 2003/11/28 04:14:04 nickm Exp $
+# $Id: DNSFarm.py,v 1.6 2004/01/08 18:09:50 nickm Exp $
 
 """mixminion.server.DNSFarm: code to implement asynchronous DNS resolves with
    background threads and cachhe the results.
@@ -84,6 +84,7 @@ class DNSCache:
         if v is not None:
             cb(name,v)
             return
+
         try:
             self.lock.acquire()
             v = self.cache.get(name)
@@ -92,11 +93,14 @@ class DNSCache:
                 self.callbacks.setdefault(name, []).append(cb)
             # If we aren't looking up the answer, start looking it up.
             if v is None:
+                LOG.trace("DNS cache starting lookup of %r", name)
                 self._beginLookup(name)
         finally:
             self.lock.release()
         # If we _did_ have an answer, invoke the callback now.
         if v is not None and v is not PENDING:
+            LOG.trace("DNS cache returning cached value %s for %r",
+                      v,name)
             cb(name,v)
 
     def shutdown(self, wait=0):

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.174 2004/01/07 02:50:08 nickm Exp $
+# $Id: test.py,v 1.175 2004/01/08 18:09:49 nickm Exp $
 
 """mixminion.tests
 
@@ -6047,6 +6047,10 @@ class DNSFarmTests(TestCase):
                          'bar'    : '18:0FFF::4:1',
                          'baz.com': '10.99.22.8'},
                         delay=DELAY)
+            # Override getProtocolSupport so we don't convert IPv6 addrs to 
+            # an error if we're running on a host with no IPv6 support.
+            mixminion.NetUtils._PROTOCOL_SUPPORT = (1,1)
+
             self.assertEquals(None, cache.getNonblocking("foo"))
             start = time.time()
             cache.lookup('foo',callback)
@@ -6098,6 +6102,7 @@ class DNSFarmTests(TestCase):
             self.assertEquals(5, len(receiveDict))
         finally:
             undoReplacedAttributes()
+            mixminion.NetUtils._PROTOCOL_SUPPORT = None
 
 #----------------------------------------------------------------------
 
