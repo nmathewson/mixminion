@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.86 2004/12/27 00:15:57 nickm Exp $
+# $Id: MMTPServer.py,v 1.87 2005/05/03 03:28:47 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -769,9 +769,10 @@ class MMTPAsyncServer(AsyncServer):
                 family, ip, port, keyID, serverName=serverName,
                 context=self.clientContext, certCache=self.certificateCache)
             nickname = mixminion.ServerInfo.getNicknameByKeyID(keyID)
-            if nickname is None:
-                nickname = "<unknown>"
-            con.configurePingLog(self.pingLog, nickname)
+            if nickname is not None:
+                # If we recognize this server, then we'll want to tell
+                # the ping log what happens to our connection attempt.
+                con.configurePingLog(self.pingLog, nickname)
             #con.allPacketsSent = finished #XXXX007 wrong!
             con.onClosed = finished
         except (socket.error, MixProtocolError), e:
