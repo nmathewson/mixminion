@@ -889,6 +889,22 @@ class ClientDirectory:
         """DOCDOC"""
         return self.allServers
 
+    def getAllNicknames(self):
+        """DOCDOC"""
+        lst = self.byNicknames.keys()
+        lst.sort()
+        return lst
+
+    def getRecommendedNicknames(self):
+        """DOCDOC"""
+        lst = self.goodNicknames.keys()
+        lst.sort()
+        return lst
+
+    def getServersByNickname(self):
+        """DOCDOC"""
+        return self.__find(self.allServers, 0, sys.maxint)
+
     def _installAsKeyIDResolver(self):
         """Use this ClientDirectory to identify servers in calls to
            ServerInfo.displayServer*.

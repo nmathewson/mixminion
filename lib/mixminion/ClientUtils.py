@@ -495,7 +495,8 @@ class _KeyringImpl:
 
 class Keyring(_LazyEncryptedStore):
     """Class to wrap a lazy-loaded file holding a bundle of SURB keys for
-       a client.  The format is as described in E2E-spec.txt, appendix A.2."""
+       a client.  The format is as described in E2E-spec.txt, appendix A.2.
+    """
     def __init__(self, fname, pwdManager):
         """Create a new LazyEncryptedStore
               fname -- The name of the file to hold the encrypted object.
