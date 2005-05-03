@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.90 2004/12/13 07:06:10 nickm Exp $
+# $Id: ServerInfo.py,v 1.91 2005/05/03 03:29:35 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -174,7 +174,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      "Configuration": ("ALLOW", None, None),
                      },
         }
-    _features = { "capabilities" : 1, "caps" : 1 }
+    _features = { "capabilities" : 1, "caps" : 1,
+                  "fignerprint" : 1 }
     expected_versions = {
          "Server" : ( "Descriptor-Version", "0.2"),
          "Incoming/MMTP" : ("Version", "0.1"),
@@ -346,6 +347,16 @@ class ServerInfo(mixminion.Config._ConfigFile):
         """DOCDOC"""
         return sha1(pk_encode_public_key(self.getIdentity()))
 
+    def getIdentityFingerprint(self):
+        """DOCDOC"""
+        d = getIdentityDigest(self)
+        assert (len(d) % 2) == 0
+        b = binascii.b2a_hex(d)
+        r = []
+        for i in xrange(0, len(b), 4):
+            r.append(b[i:i+4])
+        return " ".join(r)
+
     def getIncomingMMTPProtocols(self):
         """Return a list of the MMTP versions supported by this this server
            for incoming packets."""
@@ -500,6 +511,8 @@ class ServerInfo(mixminion.Config._ConfigFile):
         if sec == '-':
             if name in ("caps", "capabilities"):
                 return " ".join(self.getCaps())
+            elif name == 'fingerprint':
+                return self.getIdentityFingerprint()
             assert 0
         else:
             return mixminion.Config._ConfigFile.getFeature(self,sec,name)
