@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.91 2005/05/03 03:29:35 nickm Exp $
+# $Id: ServerInfo.py,v 1.92 2005/05/03 06:10:37 arma Exp $
 
 """mixminion.ServerInfo
 
@@ -175,7 +175,7 @@ class ServerInfo(mixminion.Config._ConfigFile):
                      },
         }
     _features = { "capabilities" : 1, "caps" : 1,
-                  "fignerprint" : 1 }
+                  "fingerprint" : 1 }
     expected_versions = {
          "Server" : ( "Descriptor-Version", "0.2"),
          "Incoming/MMTP" : ("Version", "0.1"),
