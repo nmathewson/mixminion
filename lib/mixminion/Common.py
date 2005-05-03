@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.144 2005/02/07 06:18:40 nickm Exp $
+# $Id: Common.py,v 1.145 2005/05/03 03:30:07 nickm Exp $
 
 """mixminion.Common
 
@@ -562,6 +562,13 @@ class AtomicFile:
     def __del__(self):
         if self.f:
             LOG.error("Atomic file not closed/discarded: %s",self.tmpname)
+
+def iterFileLines(f):
+    #XXXXXX DOCDOC TESTTEST XXXX008
+    if xreadlines is not None:
+        return xreadlines.xreadlines(f)
+    else:
+        return iter(f)
 
 def readFile(fn, binary=0):
     """Return the contents of the file named <fn>."""
