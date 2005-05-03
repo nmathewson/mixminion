@@ -1,5 +1,5 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirFormats.py,v 1.4 2004/12/13 07:06:10 nickm Exp $
+# $Id: DirFormats.py,v 1.5 2005/05/03 03:26:50 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -59,9 +59,13 @@ def generateVoteDirectory(identity, servers, goodServerNames,
     valid = []
     for server in servers:
         try:
-            s = mixminion.ServerInfo.ServerInfo(
-                string=str(server), validatedDigests=validatedDigests,
-                _keepContents=1)
+            if isinstance(server, mixminion.ServerInfo.ServerInfo):
+                assert server._originalContents
+                s = server
+            else:
+                s = mixminion.ServerInfo.ServerInfo(
+                    string=str(server), validatedDigests=validatedDigests,
+                    _keepContents=1)
         except ConfigError,e:
             LOG.warn("Rejecting malformed serverinfo: %s",e)
         else:
