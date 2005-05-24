@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientAPI.py,v 1.5 2005/05/03 03:31:40 nickm Exp $
+# $Id: ClientAPI.py,v 1.6 2005/05/24 17:27:44 nickm Exp $
 
 """mixminion.ClientAPI
 
@@ -233,7 +233,7 @@ class ClientEnv:
         return self._config
 
     def _getClientDirectory(self):
-        if self,_clientDirectory is None:
+        if self._clientDirectory is None:
             CD = mixminion.ClientDirectory.ClientDirectory
             config = self._getConfig()
             diskLock = self._getDiskLock()
@@ -340,7 +340,7 @@ class ClientEnv:
         if pathSpec._forReply and not messageDest.isSURB():
             raise MixError(
                 "Can't use a non-SURB destination for a reply message")
-        else if messageDest.isSURB() and not pathSpec._forReply():
+        elif messageDest.isSURB() and not pathSpec._forReply():
             raise MixError(
                 "Can't use a SURB as a destination for a non-reply message")
 
@@ -654,7 +654,7 @@ class PacketDest(_Encodeable):
     """A PacketDest is an address where a Mix receives packets; we use it
        to describe a packet's first hop.
     """
-    def __init__(self, routing)
+    def __init__(self, routing):
         self._routing = routing #IVP4/MMTPHostInfo
 
 class MsgDest(_Encodeable):
