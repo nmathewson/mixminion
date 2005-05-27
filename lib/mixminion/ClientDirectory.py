@@ -891,7 +891,7 @@ class ClientDirectory:
 
     def getAllNicknames(self):
         """DOCDOC"""
-        lst = self.byNicknames.keys()
+        lst = self.byNickname.keys()
         lst.sort()
         return lst
 

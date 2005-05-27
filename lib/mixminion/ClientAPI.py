@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientAPI.py,v 1.6 2005/05/24 17:27:44 nickm Exp $
+# $Id: ClientAPI.py,v 1.7 2005/05/27 18:17:38 nickm Exp $
 
 """mixminion.ClientAPI
 
@@ -28,6 +28,8 @@ __all__ = [ "MixError", "ClientEnv", "Mix", "PathSpec", "Path",
 
 import mixminion.Config
 import mixminion.ClientUtils
+import mixminion.ClientDirectory
+import os
 
 # The operations in this file raise 'MixError' on failure.
 from mixminion.Common import MixError
@@ -106,7 +108,8 @@ class ClientEnv:
         self._fragmentPool = None
         self._logHandler = None
         self._statusLogHandler = None
-
+        self._clientDirectory = None
+        
     # ------------------------------------------------------------
     # Configuration functions
     def loadConfig(self, location=None):
