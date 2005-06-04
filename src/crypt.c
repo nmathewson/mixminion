@@ -1,5 +1,5 @@
 /* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information*/
-/* $Id: crypt.c,v 1.36 2004/03/06 00:04:38 nickm Exp $ */
+/* $Id: crypt.c,v 1.37 2005/06/04 13:44:45 nickm Exp $ */
 #include <Python.h>
 
 #ifdef MS_WINDOWS
@@ -42,6 +42,8 @@
 #ifdef MS_WINDOWS
 #define WIN_ERR(s) PyErr_SetString(PyExc_WindowsError, s)
 #endif
+
+#define PyString_AS_USTRING(o) ((unsigned char*)PyString_AS_STRING(o))
 
 char mm_CryptoError__doc__[] =
   "mixminion._minionlib.SSLError\n\n"
@@ -92,7 +94,7 @@ mm_sha1(PyObject *self, PyObject *args, PyObject *kwdict)
         Py_BEGIN_ALLOW_THREADS
         SHA1_Init(&ctx);
         SHA1_Update(&ctx,cp,len);
-        SHA1_Final(PyString_AS_STRING(output),&ctx);
+        SHA1_Final(PyString_AS_USTRING(output),&ctx);
         memset(&ctx,0,sizeof(ctx));
         Py_END_ALLOW_THREADS
 
@@ -155,7 +157,7 @@ mm_aes_key(PyObject *self, PyObject *args, PyObject *kwdict)
                 PyErr_NoMemory(); goto err;
         }
         Py_BEGIN_ALLOW_THREADS
-        r = AES_set_encrypt_key(key, keylen*8, aes_key);
+        r = AES_set_encrypt_key((unsigned char*)key, keylen*8, aes_key);
         Py_END_ALLOW_THREADS
         if (r) {
                 mm_SSL_ERR(1);
@@ -190,7 +192,7 @@ PyObject*
 mm_aes_ctr128_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 {
         static char *kwlist[] = { "key", "string", "idx", "prng", NULL };
-        unsigned char *input;
+        char *input;
         int inputlen, prng=0;
         long idx=0;
         AES_KEY *aes_key = NULL;
@@ -236,7 +238,7 @@ PyObject*
 mm_aes128_block_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
 {
         static char *kwlist[] = { "key", "block", "encrypt", NULL };
-        char *input;
+        unsigned char *input;
         long inputlen;
         int encrypt=0;
         PyObject *result;
@@ -259,9 +261,9 @@ mm_aes128_block_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
         if (encrypt) {
-                AES_encrypt(input, PyString_AS_STRING(result), aes_key);
+                AES_encrypt(input, PyString_AS_USTRING(result), aes_key);
         } else {
-                AES_decrypt(input, PyString_AS_STRING(result), aes_key);
+                AES_decrypt(input, PyString_AS_USTRING(result), aes_key);
         }
 
         return result;
@@ -295,7 +297,7 @@ mm_strxor(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
-        outp = PyString_AS_STRING(output);
+        outp = PyString_AS_USTRING(output);
         Py_BEGIN_ALLOW_THREADS
         while (s1len--) {
                 *(outp++) = *(s1++) ^ *(s2++);
@@ -462,7 +464,7 @@ mm_openssl_rand(PyObject *self, PyObject *args, PyObject *kwdict)
         }
 
         Py_BEGIN_ALLOW_THREADS
-        r = RAND_bytes(PyString_AsString(result), bytes);
+        r = RAND_bytes(PyString_AS_USTRING(result), bytes);
         Py_END_ALLOW_THREADS
 
         if (!r) {
@@ -510,7 +512,7 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
         int stringlen, pub, encrypt;
 
         int keylen, i;
-        char *out;
+        unsigned char *out;
         PyObject *output;
         assert(mm_RSA_Check(self));
 
@@ -527,7 +529,7 @@ mm_RSA_crypt(PyObject *self, PyObject *args, PyObject *kwdict)
         keylen = BN_num_bytes(rsa->n);
 
         output = PyString_FromStringAndSize(NULL, keylen);
-        out = PyString_AS_STRING(output);
+        out = PyString_AS_USTRING(output);
         Py_BEGIN_ALLOW_THREADS
         if (encrypt) {
                 if (pub)
@@ -641,7 +643,7 @@ mm_RSA_encode_key(PyObject *self, PyObject *args, PyObject *kwdict)
                 return NULL;
         }
 
-        output = PyString_FromStringAndSize(out, len);
+        output = PyString_FromStringAndSize((char*)out, len);
         free(out);
         if (!output) {
                 PyErr_NoMemory();
@@ -1091,7 +1093,7 @@ mm_add_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
         }
 
         Py_BEGIN_ALLOW_THREADS
-        r = RSA_padding_add_PKCS1_OAEP(PyString_AS_STRING(output), keylen,
+        r = RSA_padding_add_PKCS1_OAEP(PyString_AS_USTRING(output), keylen,
                                        input, inputlen,
                                        param, paramlen);
         Py_END_ALLOW_THREADS
@@ -1139,7 +1141,7 @@ mm_check_oaep_padding(PyObject *self, PyObject *args, PyObject *kwargs)
         }
 
         Py_BEGIN_ALLOW_THREADS
-        r = RSA_padding_check_PKCS1_OAEP(PyString_AS_STRING(output), r,
+        r = RSA_padding_check_PKCS1_OAEP(PyString_AS_USTRING(output), r,
                                          input+1, inputlen-1, keylen,
                                          param, paramlen);
         Py_END_ALLOW_THREADS
@@ -1286,7 +1288,7 @@ mm_generate_cert(PyObject *self, PyObject *args, PyObject *kwargs)
 #define SET_PART(n, part, val)                                   \
         if ((nid = OBJ_txt2nid(part)) == NID_undef) goto error;  \
         if (!X509_NAME_add_entry_by_NID(n, nid, MBSTRING_ASC,    \
-                                        val, -1, -1, 0)) goto error;
+                                    (unsigned char*)val, -1, -1, 0)) goto error;
 
         if (!(name = X509_NAME_new()))
                 goto error;
