@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.24 2004/12/12 22:28:39 nickm Exp $
+# $Id: Filestore.py,v 1.25 2005/06/04 13:46:01 nickm Exp $
 
 """mixminion.Filestore
 
@@ -26,7 +26,7 @@ import types
 import whichdb
 
 from mixminion.Common import MixError, MixFatalError, secureDelete, LOG, \
-     createPrivateDir, readFile, replaceFile, tryUnlink
+     createPrivateDir, readFile, replaceFile, tryUnlink, writePickled
 from mixminion.Crypto import getCommonPRNG
 
 __all__ = [ "StringStore", "StringMetadataStore",
@@ -939,3 +939,46 @@ class WritethroughDict:
         self.cache = cache = {}
         for k in keys:
             cache[k] = cPickle.loads(self.db[k])
+
+class PickleCache:
+    """DOCDOC"""
+    def __init__(self, fname_base, fname_cache):
+        self._fname_base = fname_base
+        self._fname_cache = fname_cache
+        self._dirty = 0
+
+    def _setFromPickle(self, p):
+        raise NotImplemented
+
+    def _getForPickle(self, p):
+        raise NotImplemented
+
+    def _reload(self):
+        raise NotImplemented
+
+    def _loadFromCache(self):
+        # raise OSError or return false on can't/shouldn't load.
+        try:
+            cache_mtime = os.stat(self._fname_cache)[stat.ST_MTIME]
+            file_mtime = os.stat(self._fname_base)[stat.ST_MTIME]
+        except OSError:
+            return 0
+        if file_mtime >= cache_mtime:
+            return 0
+        try:
+            p = readPickled(self._fname_cache)
+        except (OSError, cPickle.UnpicklingError), _:
+            return 0
+        if not self._setFromPickle(p):
+            return 0
+        self._dirty = 0
+        return 1
+
+    def load(self):
+        if not self._loadFromCache():
+            self._reload()
+            self._dirty = 1
+
+    def save(self, mode):
+        writePickled(self._fname_cache, self._getForPickle(), mode=mode)
+        self._dirty = 0
