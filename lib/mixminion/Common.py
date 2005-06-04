@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.145 2005/05/03 03:30:07 nickm Exp $
+# $Id: Common.py,v 1.146 2005/06/04 13:52:14 nickm Exp $
 
 """mixminion.Common
 
@@ -12,8 +12,8 @@ __all__ = [ 'IntervalSet', 'Lockfile', 'LockfileLocked', 'LOG', 'LogStream',
             'createPrivateDir', 'disp64',
             'encodeBase64', 'englishSequence', 'floorDiv', 'formatBase64',
             'formatDate', 'formatFnameDate', 'formatFnameTime', 'formatTime',
-            'installSIGCHLDHandler', 'isSMTPMailbox', 'openUnique',
-            'parseFnameDate',
+            'installSIGCHLDHandler', 'isSMTPMailbox', 'iterFileLines',
+            'openUnique', 'parseFnameDate',
             'previousMidnight', 'readFile', 'readPickled',
             'readPossiblyGzippedFile', 'secureDelete', 'stringContains',
             'succeedingMidnight', 'tryUnlink', 'unarmorText',
@@ -50,6 +50,12 @@ try:
     import pwd, grp
 except ImportError:
     pwd = grp = None
+
+try:
+    file.__iter__
+    xreadlines = None
+except (KeyError, AttributeError), _:
+    import xreadlines
 
 from types import StringType
 
@@ -337,8 +343,6 @@ def unarmorText(s, findTypes, base64=1, base64fn=None):
 
 #----------------------------------------------------------------------
 
-#----------------------------------------------------------------------
-
 # A set of directories we've issued warnings about -- we won't check
 # them again.
 _WARNED_DIRECTORIES = {}
@@ -509,7 +513,6 @@ def configureFileParanoia(config):
 #----------------------------------------------------------------------
 # File helpers
 
-
 # On windows, rename(f1,f2) fails if f2 already exists.  These wrappers
 # handle replacing files.
 if sys.platform == 'win32':
@@ -564,7 +567,10 @@ class AtomicFile:
             LOG.error("Atomic file not closed/discarded: %s",self.tmpname)
 
 def iterFileLines(f):
-    #XXXXXX DOCDOC TESTTEST XXXX008
+    """Return an object suitable for use in a for loop that will iterate the
+       lines of the file 'f'.  Uses the xreadlines module if necessary,
+       or file.__iter__ if possible.
+    """
     if xreadlines is not None:
         return xreadlines.xreadlines(f)
     else:
@@ -1391,23 +1397,28 @@ class IntervalSet:
         self.edges = newEdges
 
     def __add__(self, other):
+        "Return the union of this IntervalSet and other"
         r = self.copy()
         r += other
         return r
 
     def __sub__(self, other):
+        "Return the disjunction of this IntervalSet and other"
         r = self.copy()
         r -= other
         return r
 
     def __mul__(self, other):
+        "Return the intersection of this IntervalSet and other"
         r = self.copy()
         r *= other
         return r
 
     def getIntervalContaining(self, point):
-        """DOCDOC"""
-        #XXXX008 test
+        """If this set has any interval containing 'point', return
+           a 2-tuple containing the start and end of that interval.
+           Otherwise return (None,None).
+        """
         idx = bisect.bisect(self.edges, (point, '-'))
         if idx < len(self.edges) and self.edges[idx][1] == '-':
             return (self.edges[idx-1][0], self.edges[idx][0])
@@ -1444,8 +1455,7 @@ class IntervalSet:
         return s
 
     def spanLength(self):
-        """DOCDOC"""
-        #XXXX008 testme
+        """Return the sum of the lengths of the intervals in this set."""
         r = 0
         for i in xrange(0, len(self.edges), 2):
             r += self.edges[i+1][0] - self.edges[i][0]
@@ -1604,6 +1614,7 @@ class Lockfile:
     # filename--the name of the file to lock
     # count--the recursion depth of the lock; 0 is unlocked.
     # fd--If fd>1, a file descriptor open to 'filename'.  Otherwise, None.
+    # rlock--a lock controlling access to this data structure.
     def __init__(self, filename):
         """Create a new Lockfile object to acquire and release a lock on
            'filename'"""
