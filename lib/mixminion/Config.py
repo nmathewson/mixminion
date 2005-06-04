@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.88 2004/08/24 22:16:08 nickm Exp $
+# $Id: Config.py,v 1.89 2005/06/04 13:52:42 nickm Exp $
 
 """Configuration file parsers for Mixminion client and server
    configuration.
@@ -341,7 +341,10 @@ def _parseBase64(s,_hexmode=0):
         else:
             return binascii.a2b_base64(s)
     except (TypeError, binascii.Error, binascii.Incomplete):
-        raise ConfigError("Invalid Base64 data")
+        if _hexmode:
+            raise ConfigError("Invalid hexadecimal data")
+        else:
+            raise ConfigError("Invalid Base64 data")
 
 def _parseHex(s):
     """Validation function.  Converts a hex-64 encoded config value into
@@ -388,7 +391,7 @@ def _parseDate(s):
 _time_re = re.compile(r"^(\d\d\d\d)-(\d\d)-(\d\d)\s+"
                       r"(\d\d):(\d\d):(\d\d)((?:\.\d\d\d)?)$")
 def _parseTime(s):
-    """Validation function.  Converts from YYYY/MM/DD HH:MM:SS format
+    """Validation function.  Converts from YYYY-MM-DD HH:MM:SS format
        to a (float) time value for GMT."""
     m = _time_re.match(s.strip())
     if not m:
@@ -752,13 +755,9 @@ class _ConfigFile:
 
         self.assumeValid = assumeValid
 
-        if filename:
-            assert string is None
+        if filename and not string:
             string = mixminion.Common.readPossiblyGzippedFile(filename)
-            self.fname = filename
-        else:
-            assert string is not None
-            self.fname = None
+        self.fname = filename
 
         self.__load(string)
 
@@ -987,7 +986,8 @@ class ClientConfig(_ConfigFile):
                    { '__SECTION__' : ('ALLOW', None, None),
                      'ServerURL' : ('ALLOW*', None, None),
                      'MaxSkew' : ('ALLOW', "interval", "10 minutes"),
-                     'DirectoryTimeout' : ('ALLOW', "interval", "1 minute") },
+                     'DirectoryTimeout' : ('ALLOW', "interval", "1 minute"),
+                     'AllowOldDirectoryFormat': ("ALLOW", 'boolean', 'true') },
         'User' : { 'UserDir' : ('ALLOW', "filename", DEFAULT_USER_DIR) },
         'Security' : { 'SURBAddress' : ('ALLOW', None, None),
                        'SURBLifetime' : ('ALLOW', "interval", "7 days"),
@@ -1058,15 +1058,15 @@ class ClientConfig(_ConfigFile):
         return 120
 
     def isServerConfig(self):
-        """DOCDOC"""
+        """Return true iff this is a server configuration."""
         return 0
 
     def getUserDirectory(self):
-        """DOCDOC"""
+        """Return the configured user directory."""
         return os.path.expanduser(self["User"].get("UserDir",DEFAULT_USER_DIR))
 
     def getDirectoryRoot(self):
-        """DOCDOC"""
+        """Return the location where mixminion should store its files."""
         return self.getUserDirectory()
 
 def _validateHostSection(sec):
