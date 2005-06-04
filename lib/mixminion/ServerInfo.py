@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.92 2005/05/03 06:10:37 arma Exp $
+# $Id: ServerInfo.py,v 1.93 2005/06/04 13:53:25 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -9,7 +9,7 @@
    """
 
 __all__ = [ 'ServerInfo', 'ServerDirectory', 'displayServerByRouting',
-            'getNicknameByKeyID' ]
+            'getNicknameByKeyID', 'SignedDirectory', 'parseDirectory' ]
 
 import re
 import time
@@ -344,11 +344,15 @@ class ServerInfo(mixminion.Config._ConfigFile):
         return self['Server']['Identity']
 
     def getIdentityDigest(self):
-        """DOCDOC"""
+        """Return the digest of this server's public identity key.
+           (SHA-1 digest of ASN.1-encodd key).
+        """
         return sha1(pk_encode_public_key(self.getIdentity()))
 
     def getIdentityFingerprint(self):
-        """DOCDOC"""
+        """Return the digest of this server's public identity key, encoded in
+           hexadecimal, with every 4 characters separated by spaces.
+        """
         d = getIdentityDigest(self)
         assert (len(d) % 2) == 0
         b = binascii.b2a_hex(d)
@@ -613,10 +617,9 @@ class SignedDirectory:
         sigs, info, servers = _splitMultisignedDirectory(contents)
         del contents
 
-        self.signatures = [ ]
-
         # Check signature digests.
         badsigs = 0
+        self.signatures = [ ]
         for idx in range(len(sigs)):
             sig = _DirectorySignature(sigs[idx])
             if sig.getDigest() != digest:
@@ -628,7 +631,6 @@ class SignedDirectory:
 
         # Parse the DirectoryInfo
         self.dirInfo = _DirectoryInfo(info)
-
         # Parse the Server descriptors.
         self.servers = [ ]
         for s in servers:
@@ -685,6 +687,15 @@ class SignedDirectory:
 
     def get(self, item, default=None):
         return self.header.get(item, default)
+
+def parseDirectory(fname, validatedDigests=None):
+    """DOCDOC"""
+    s = readPossiblyGzippedFile(fname)
+    if s.startswith("[Directory]\n"):
+        tp = ServerDirectory
+    else:
+        tp = SignedDirectory
+    return tp(fname=fname, string=s, validatedDigests=validatedDigests)
 
 class _DirectoryHeader(mixminion.Config._ConfigFile):
     """Internal object: used to parse, validate, and store fields in a
@@ -951,7 +962,12 @@ def _getMultisignedDirectoryDigest(directory):
     return digest
 
 def _splitMultisignedDirectory(directory):
-    """DOCDOC -- returns [signature...],info,[server...]"""
+    """Given a multiply-signed directory in a string 'directory', return
+       a 3-tuple containing:
+          - a list of signature sections.
+          - the directory header
+          - a list of serverinfo sections.
+    """
     sigs = []
 
     # Extract all signatures.
