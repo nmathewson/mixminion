@@ -1,12 +1,12 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.13 2005/05/03 03:26:50 nickm Exp $
+# $Id: ServerInbox.py,v 1.14 2005/06/04 13:55:04 nickm Exp $
 
 """mixminion.directory.ServerInbox
 
    A ServerInbox holds server descriptors received from the outside world
    that are not yet ready to be included in the directory.  It is designed
    to be written to by an untrusted user (e.g., CGI).
-   """
+"""
 
 __all__ = [ 'ServerInbox' ]
 
@@ -21,8 +21,11 @@ class ServerInbox:
        world that are not yet ready to be included in the directory.
        """
     ## Fields:
+    # store: A ServerStore to hold server files.  Must be readable/writeable by
+    #    directory server user and CGI user.
+    # voteFile: A VoteFile obejct.  Must be readable by CGI user.
     def __init__(self, store, voteFile):
-        """DOCDOC"""
+        """Create a new ServerInbox."""
         self.store = store
         self.voteFile = voteFile
 
@@ -44,18 +47,23 @@ class ServerInbox:
             now = time.time()
 
         try:
+            #XXXX digest cache??
             server = ServerInfo(string=text,assumeValid=0,_keepContents=1)
         except MixError, e:
             LOG.warn("Rejected invalid server from %s: %s", source,e)
             raise UIError("Server descriptor was not valid: %s"%e)
 
         status = self.voteFile.getServerStatus(server)
-        if status == "mismatch":#XXXX missing case? (I found an elif here)
-            LOG.warn("Rejected server with mismatched identity for %s from %s",
+        if status == "mismatch":
+            LOG.warn("Rejected server with mismatched identity for %r from %s",
                      nickname, source)
             self.store.addServer(server)
             raise UIError(("I already know a server named "
                            "%s with a different key.")%server.getNickname())
+        elif status == "ignore":
+            LOG.warn("Rejected descriptor for ignored server %r from %s",
+                     nickname, source)
+            return
 
         if server.isExpiredAt(time.time()):
             LOG.warn("Rejecting expired descriptor from %s", source)
@@ -63,7 +71,7 @@ class ServerInbox:
                           " is probably skewed.")
 
         if status in ("yes", "no", "abstain"):
-            LOG.warn("Received update for already-seen server %r from %s (vote=%s)",
+            LOG.info("Received update for server %r from %s (vote=%s)",
                      server.getNickname(), source, status)
             self.store.addServer(server)
             return 1
@@ -76,6 +84,9 @@ class ServerInbox:
                 "Server queued pending manual checking")
 
     def moveEntriesToStore(self, intoStore):
+        """Invoked by directory server.  Re-scan elements of the store,
+           moving them into another store 'intoStore' as appropriate.
+        """
         keys = self.store.listKeys()
         unknown = {}
         for k in keys:
@@ -88,7 +99,7 @@ class ServerInbox:
                 if status not in ("ignore", "mismatch"):
                     intoStore.addServer(s)
                     if status == 'unknown':
-                        unknown[(s.getNickname(), getIdentityFingerprint())]=1
+                        unknown[(s.getNickname(), s.getIdentityFingerprint())]=1
                 self.store.delServer(k)
             if unknown:
                 self.voteFile.appendUnknownServers(unknown.keys())

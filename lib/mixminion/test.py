@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.216 2004/12/20 04:16:20 nickm Exp $
+# $Id: test.py,v 1.217 2005/06/04 13:55:04 nickm Exp $
 
 """mixminion.tests
 
@@ -506,12 +506,13 @@ class MiscTests(TestCase):
                 checkEq((a-b)*(b-a), nil)
                 checkEq((a-b)+(b-a)+a*b, a+b)
 
-        ## Contains
+        ## Contains / getIntervalContaining
         t = self.assert_
         # 1. With nil
         t(5 not in nil)
         t(oneToTen not in nil)
         t(fromFibToFib not in nil)
+        eq((None,None), nil.getIntervalContaining(5))
         # 2. Self in self
         for iset in nil, oneToTen, tenToTwenty, fromSquareToSquare:
             t(iset in iset)
@@ -522,6 +523,11 @@ class MiscTests(TestCase):
         t(10 not in oneToTen)
         t(0 not in oneToTen)
         t(11 not in oneToTen)
+        eq((1,10), oneToTen.getIntervalContaining(1))
+        eq((1,10), oneToTen.getIntervalContaining(9.9))
+        eq((None,None), oneToTen.getIntervalContaining(0))
+        eq((None,None), oneToTen.getIntervalContaining(10))
+        eq((None,None), oneToTen.getIntervalContaining(11))
         # 4. Simple sets: A contains B.
         t(fourToFive in oneToTen) # contained wholly
         t(oneToTen in zeroToTen) #contains on one side.
@@ -540,6 +546,29 @@ class MiscTests(TestCase):
         t(35 in fromSquareToSquare)
         t(36 not in fromSquareToSquare)
         t(100 not in fromSquareToSquare)
+        eq((None,None), fromSquareToSquare.getIntervalContaining(0))
+        eq((1,4), fromSquareToSquare.getIntervalContaining(1))
+        eq((1,4), fromSquareToSquare.getIntervalContaining(2))
+        eq((None,None), fromSquareToSquare.getIntervalContaining(4))
+        eq((None,None), fromSquareToSquare.getIntervalContaining(8))
+        eq((9,16), fromSquareToSquare.getIntervalContaining(9))
+        eq((9,16), fromSquareToSquare.getIntervalContaining(15))
+        eq((None,None), fromSquareToSquare.getIntervalContaining(16))
+        eq((25,36), fromSquareToSquare.getIntervalContaining(35))
+        eq((None,None), fromSquareToSquare.getIntervalContaining(36))
+        eq((None,None), fromSquareToSquare.getIntervalContaining(49))
+
+        # SpanLength
+        eq(0, nil.spanLength())
+        eq(0, nil2.spanLength())
+        eq(0, nil3.spanLength())
+        eq(9, oneToTen.spanLength())
+        eq(1, fourToFive.spanLength())
+        eq(20, zeroToTwenty.spanLength())
+        eq(20, zeroToTwenty.spanLength())
+        eq(13, fromPrimeToPrime.spanLength())
+        eq(21, fromSquareToSquare.spanLength())
+        eq(33, fromFibToFib.spanLength())
 
     def _intervalEq(self, a, *others):
         eq = self.assertEquals
@@ -791,6 +820,23 @@ World!
         self.assertEquals("fred or joe", es(["fred", "joe"], compound="or"))
         self.assertEquals("fred, joe, or bob",
                           es(["fred", "joe", "bob"], compound="or"))
+
+    def test_fileops(self):
+        # XXXXX Test more file ops.
+        fn = mix_mktemp()
+        for _ in 1,2:
+            f = open(fn, 'w')
+            tst = [ "I think the fact\n",
+                    "that we are not currently under siege\n",
+                    "by unscrupulous minions\n",
+                    "speaks for itself\n" ]
+            f.write("".join(tst))
+            f.close()
+            f = open(fn, 'r')
+            lst = [ item for item in iterFileLines(f) ]
+            f.close()
+            self.assertEquals(lst, tst)
+            tst.append("unterminated line")
 
 #----------------------------------------------------------------------
 
@@ -5074,7 +5120,12 @@ IP: 192.168.100.4
         info3 = key3.getServerDescriptor()
         eq(info3['Incoming/MMTP']['Hostname'], "Theserver4")
 
-    def testOldDirectory(self):
+
+#----------------------------------------------------------------------
+# Directories
+
+class DirectoryServerTests(TestCase):
+    def x_testOldDirectory(self):
         #XXXX008 split this into serverlist and serverdirectory tests.
         eq = self.assertEquals
         examples = getExampleServerDescriptors()
@@ -5296,6 +5347,57 @@ IP: 192.168.100.4
             id0, voters, va,
             [ ("voter1",s_vote1), ("voter2",s_vote2), ("voter3",s_vote3) ],
             vd1)
+
+    def testVoteFile(self):
+        VF = mixminion.directory.Directory.VoteFile
+        d = mix_mktemp()
+        fn = os.path.join(d, "votes")
+        createPrivateDir(d)
+        key0 = getRSAKey(0,2048)
+        key1 = getRSAKey(1,2048)
+        key2 = getRSAKey(2,2048)
+        key3 = getRSAKey(3,2048)
+        key4 = getRSAKey(4,2048)
+        key5 = getRSAKey(5,2048)
+
+        fp0 = mixminion.Crypto.pk_fingerprint(key0)
+        fp1 = mixminion.Crypto.pk_fingerprint(key1)
+        fp2 = mixminion.Crypto.pk_fingerprint(key2)
+        fp3 = mixminion.Crypto.pk_fingerprint(key3)
+        fp4 = mixminion.Crypto.pk_fingerprint(key4)
+        fp5 = mixminion.Crypto.pk_fingerprint(key5)
+
+        writeFile(fn,
+                  ("yes fred %(fp0)s\n"
+                   "#foo \n"
+                   "no carol %(fp1)s\n"
+                   "ignore alice %(fp2)s\n"
+                   "abstain joe %(fp3)s\n"
+                   "# yes fred %(fp2)s\n"
+                   "#no ernesto %(fp5)s\n"
+                   "#lemon curry\n")%locals())
+
+        vf = VF(fn)
+        self.assertEquals("yes", vf.getStatus(fp0, "fred"))
+        self.assertEquals("mismatch", vf.getStatus(fp0, "federico"))
+        self.assertEquals("no", vf.getStatus(fp1, "carol"))
+        self.assertEquals("no", vf.getStatus(fp1, "carolxx"))
+        self.assertEquals("ignore", vf.getStatus(fp2, ""))
+        self.assertEquals("abstain", vf.getStatus(fp3, ""))
+        self.assertEquals("unknown", vf.getStatus(fp4, ""))
+        self.assertEquals("unknown", vf.getStatus(fp5, ""))
+        self.assert_("ernesto" in vf.haveComment[fp5])
+        now = mixminion.Config._parseTime("2005-06-03 03:26:20")
+        vf.appendUnknownServers([("Terrence", fp5),
+                                 ("carla", fp5),
+                                 ("ernesto", fp5),
+                                 ], now=now)
+        vf.save()
+        self.assertEndsWith(readFile(fn),
+                            ("#lemon curry\n"
+                             "#   Added 2005-06-03 03:26:20 [GMT]:\n"
+                             "#abstain Terrence %(fp5)s\n"
+                             "#abstain carla %(fp5)s\n")%locals())
 
 #----------------------------------------------------------------------
 # EventStats
@@ -6616,15 +6718,25 @@ def getDirectory(servers, identity):
     cfg = {"Directory":{"ClientVersions":[mixminion.__version__],
                         "ServerVersions":["1.0",mixminion.__version__],
                         } }
-    SL = mixminion.directory.ServerList.ServerList(mix_mktemp(), cfg)
     active = IntervalSet()
+    sis = []
+    nicknames = {}
     for s in servers:
-        SL.importServerInfo(s)
-        s = mixminion.ServerInfo.ServerInfo(fname=s, assumeValid=1)
-        active += s.getIntervalSet()
+        si = mixminion.ServerInfo.ServerInfo(fname=s, assumeValid=1,
+                                             _keepContents=1)
+        active += si.getIntervalSet()
+        sis.append(si)
+        nicknames[si.getNickname()]=1
+    nicknames = nicknames.keys()
+    nicknames.sort()
     start, end = active.start(), active.end()
-    SL.generateDirectory(start, end, 0, identity)
-    return SL.getDirectoryFilename()
+    val = mixminion.directory.DirFormats._generateDirectory(
+        identity, "consensus", sis, nicknames,
+        [(mixminion.Crypto.pk_fingerprint(identity), "nil")], time.time(),
+        [mixminion.__version__], [mixminion.__version__])
+    tmp = mix_mktemp()
+    writeFile(tmp, val)
+    return tmp
 
 # variable to hold the latest instance of FakeBCC.
 BCC_INSTANCE = None
@@ -6870,7 +6982,6 @@ class ClientUtilTests(TestCase):
 
 class ClientDirectoryTests(TestCase):
     def testClientDirectory(self):
-        """Check out ClientMain's directory implementation"""
         eq = self.assertEquals
         neq = self.assertNotEquals
         ServerInfo = mixminion.ServerInfo.ServerInfo
@@ -6955,6 +7066,7 @@ class ClientDirectoryTests(TestCase):
             self.assertSameSD(ks.getServerInfo("Bob"), edesc["Bob"][3])
             self.assertSameSD(ks.getServerInfo("Bob", startAt=now+oneDay*5),
                               edesc["Bob"][4])
+
 
             if i in (0,1,2):
                 ks = mixminion.ClientDirectory.ClientDirectory(config)
@@ -7911,7 +8023,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(PingerTests))
+        suite.addTest(tc(DirectoryServerTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,
@@ -7931,6 +8043,8 @@ def testSuite():
                    NetUtilTests,
                    DNSFarmTests,
                    ClientUtilTests,
+
+                   DirectoryServerTests,
 
                    ModuleTests,
                    ClientDirectoryTests,

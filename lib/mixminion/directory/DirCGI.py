@@ -1,5 +1,5 @@
 # Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirCGI.py,v 1.8 2003/07/10 23:11:30 nickm Exp $
+# $Id: DirCGI.py,v 1.9 2005/06/04 13:55:04 nickm Exp $
 
 """mixminion.directory.DirCGI
 
@@ -8,6 +8,7 @@
 
 __all__ = [ ]
 
+# Edit this to the configured value "Homedir" in .mixminion_dir.cf
 DIRECTORY_BASE = "/home/nickm/src/MixminionDirectory"
 
 import cgi

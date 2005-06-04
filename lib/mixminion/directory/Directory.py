@@ -1,5 +1,5 @@
 # Copyright 2003-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.19 2005/05/03 03:26:50 nickm Exp $
+# $Id: Directory.py,v 1.20 2005/06/04 13:55:04 nickm Exp $
 
 """mixminion.directory.Directory
 
@@ -8,7 +8,9 @@
 
 __all__ = [ 'ServerList', 'MismatchedID', 'DirectoryConfig', 'Directory' ]
 
+import binascii
 import os
+import re
 import stat
 import time
 
@@ -16,7 +18,8 @@ import mixminion.Config
 import mixminion.Crypto
 
 from mixminion.Common import LOG, MixError, MixFatalError, UIError, \
-     formatBase64, writePickled, readPickled, formatTime
+     formatBase64, iterFileLines, writePickled, readPickled, formatTime
+
 
 class Directory:
     """Wrapper class for directory filestores.
@@ -25,10 +28,6 @@ class Directory:
        that contains servers which have been uploaded but not yet inserted
        into the directory, and a 'ServerList' which contains the servers in
        the directory along with the directory's private keys and so on.
-
-       A directory server also keeps an 'IDCache' that's readable by the CGI
-       user and read/writable by the directory user.  It maps nicknames to
-       identity keys.
 
        The 'ServerInbox' is readable and (mostly) writable by the CGI user.
        The 'ServerList' is private, and only readable by the directory user.
@@ -40,7 +39,8 @@ class Directory:
        Layout:
           BASEDIR/dir            [Base for ServerList.]
           BASEDIR/inbox          [Base for ServerInbox.]
-          BASEDIR/identity_cache [File for IDCache.]
+
+       DOCDOC
     """
     ##Fields:
     # config: a DirectoryConfig instance
@@ -166,9 +166,6 @@ class DirectoryConfig(mixminion.Config._ConfigFile):
            "CGIGroup" : ('REQUIRE', None, None),
         },
         'Directory' : {
-           "BadServer" : ("ALLOW*", None, None),
-           "BadServerFile" : ("ALLOW*", "filename", None),
-           "ExcludeServer" : ("ALLOW*", None, None),
            "ClientVersions" : ("REQUIRE", "list", None),
            "ServerVersions" : ("REQUIRE", "list", None),
         },
@@ -223,126 +220,133 @@ class DirectoryConfig(mixminion.Config._ConfigFile):
             raise mixminion.Config.ConfigError("User %s is not in group %s"
                                 %(cgiuser, cgigrp))
 
-class VoteFile:
+class VoteFile(mixminion.Filestore.PickleCache):
     """File listing dirserver's current disposition towards various
        nickname/identity comibations.  Each can be voted 'yes', 'no',
-       or 'abstain'.
+       'abstain', or 'ignore'.
     """
     ## Fields:
     # status: identity fingerprint -> ("yes", "nickname") | ("no", None) |
     #     ("abstain", None) | ("ignore", None)
-    # fname
-    # dirty, uid, gid
+    # haveComment: fingerprint -> [ nickname ] for servers in comments.
+    # uid, gid
     def __init__(self, fname, uid=None, gid=None):
-        self.fname = fname
+        mixminion.Filestore.PickleCache.__init__(
+            self, fname, fname+".cache")
         self.uid = uid
-        self.gid = gig
-        if not self._loadFromCache():
-            self._load(fname)
+        self.gid = gid
+        self.status = None
+        self.load()
 
-    def _load(self, fname):
-        pat = re.compile(r'(yes|no|abstain|ignore)\s+(\S+)\s+([a-fA-F0-9 ]+)')
-        f = open(fname, 'r')
+    def _reload(self,):
+        pat = re.compile(r'(\#?)\s*(yes|no|abstain|ignore)\s+(\S+)\s+([a-fA-F0-9 ]+)')
+        f = open(self._fname_base, 'r')
         try:
             status = {}
             lineof = {}
             byName = {}
+            haveComment = {}
             lineno = 0
-            for line in open(fname, 'r').readlines():
+            fname = self._fname_base
+            for line in iterFileLines(f):
                 lineno += 1
                 line = line.strip()
-                if not line or line[0] == '#': continue
+                if not line: continue
                 m = pat.match(line)
                 if not m:
-                    LOG.warn("Skipping ill-formed line %s in %s",lineno,fname)
+                    if line[0] != '#':
+                        LOG.warn("Skipping ill-formed line %s of %s",lineno,fname)
                     continue
-                vote, nickname, fingerprint = m.groups()
+                commented, vote, nickname, fingerprint = m.groups()
                 try:
                     mixminion.Config._parseNickname(nickname)
                 except mixminion.Config.ConfigError, e:
-                    LOG.warn("Skipping bad nickname '%s', on line %s of %s: %s",
-                             nickname, lineno, fname, e)
+                    if not commented:
+                        LOG.warn("Skipping bad nickname '%s', on line %s of %s: %s",
+                                 nickname, lineno, fname, e)
                     continue
-                try:
-                    ident = binascii.a2b_hex(fingerprint.replace(" ", ""))
-                    if len(ident) != mixminion.Crypto.DIGEST_LEN:
-                        raise TypeError("Wrong length for digest")
-                except TypeError, e:
-                    LOG.warn("Invalid fingerprint on line %s of %s: %s", lineno,
-                             fname, e)
-                    continue
-                if status.has_key(ident):
-                    LOG.warn("Ignoring duplicate entry for fingprint on line %s (first appeared on line %s)", lineno, lineof[ident])
-                    continue
-                lineof[ident] = lineno
-                if vote == 'yes':
-                    status[ident] = (vote, nickname)
-                    if byName.has_key(nickname.lower()):
-                        LOG.warn("Ignoring second yes-vote for a nickname %r",
-                                 nickname)
+                fingerprint = _normalizeFingerprint(fingerprint)
+                if len(fingerprint) != mixminion.Crypto.DIGEST_LEN * 2:
+                    if not commented:
+                        LOG.warn("Bad length for digest on line %s of %s",
+                                 lineno, fname)
                         continue
-                    byName[nickname] = ident
+                if status.has_key(fingerprint):
+                    if not commented:
+                        LOG.warn("Ignoring duplicate entry for fingerprint on line %s (first appeared on line %s)", lineno, lineof[fingerprint])
+                    continue
+                lineof[fingerprint] = lineno
+                if commented:
+                    haveComment.setdefault(fingerprint, []).append(
+                        nickname.lower())
+                elif vote == 'yes':
+                    status[fingerprint] = (vote, nickname)
+                    if byName.has_key(nickname.lower()):
+                        if not commented:
+                            LOG.warn("Ignoring second yes-vote for a nickname %r",
+                                     nickname)
+                        continue
+                    byName[nickname.lower()] = fingerprint
                 else:
-                    status[ident] = (vote, None)
+                    status[fingerprint] = (vote, None)
             self.status = status
-            self.dirty = 1
+            self.haveComment = haveComment
         finally:
             f.close()
 
-    def appendUnknownServers(self, lst):
+    def _getForPickle(self):
+        return ("VoteCache-1", self.status, self.haveComment)
+
+    def _setFromPickle(self, p):
+        if not isinstance(p, types.TupleType) or p[0] != 'VoteCache-1':
+            return 0
+        self.status = p[1]
+        self.haveComment = p[2]
+        return 1
+
+    def appendUnknownServers(self, lst, now=None):
         # list of [(nickname, fingerprint) ...]
+        lst = [ (name, fp) for name, fp in lst if name.lower() not in
+                self.haveComment.get(_normalizeFingerprint(fp), ()) ]
         if not lst:
             return
-        f = open(fname, 'a+')
+        if now is None:
+            now = time.time()
+        date = formatTime(now,localtime=1)
+        f = open(self._fname_base, 'a+')
         try:
             f.seek(-1, 2)
             nl = (f.read(1) == '\n')
             if not nl: f.write("\n")
+            f.write("#   Added %s [GMT]:\n"%formatTime(now))
             for name, fp in lst:
-                f.write("#   Added %s\n#abstain %s %s\n"%(date, name, fp))
+                f.write("#abstain %s %s\n"%(name, fp))
+                self.haveComment.setdefault(fp, []).append(
+                    binascii.b2a_hex(fp))
         finally:
             f.close()
 
-    def _loadFromCache(self):
-        # raise OSError or return false on can't/shouldn't load.
-        cacheFname = self.fname + ".cache"
-        try:
-            cache_mtime = os.stat(cacheFname)[stat.ST_MTIME]
-            file_mtime =  os.stat(self.fname)[stat.ST_MTIME]
-        except OSError:
-            return 0
-        if file_mtime >= cache_mtime:
-            return 0
-        try:
-            p = readPickled(cacheFname)
-        except (OSError, cPickle.UnpicklingError), _:
-            return 0
-        if type(p) != types.TupleType or p[0] != 'VoteCache-0':
-            return 0
-        self.status = p[1]
-        self.dirty = 0
-        return 1
-
-    def saveCache(self):
-        cacheFname = self.fname + ".cache"
-        writePickled(cacheFname, ("VoteCache-0", self.status), 0640)
+    def save(self):
+        mixminion.Filestore.PickleCache.save(self, 0640)
         if self.uid is not None and self.gid is not None:
-            _set_uid_gid_mode(cacheFname, self.uid, self.gid, 0640)
-            _set_uid_gid_mode(self.name, self.uid, self.gid, 0640)
-        self.dirty = 0
+            _set_uid_gid_mode(self._fname_cache, self.uid, self.gid, 0640)
+            _set_uid_gid_mode(self._fname_base,  self.uid, self.gid, 0640)
 
-    def getServerStatus(self, server):
-        # status + 'unknown' + 'mismatch'
-        ident = server.getIdentityDigest()
+    def getStatus(self, fingerprint, nickname):
         try:
-            vote, nickname = self.status[ident]
+            vote, nick = self.status[_normalizeFingerprint(fingerprint)]
         except KeyError:
             return "unknown"
 
-        if vote == 'yes' and nickname != server.getNickname():
+        if vote == 'yes' and nickname.lower() != nick.lower():
             return "mismatch"
 
         return vote
+
+    def getServerStatus(self, server):
+        # status + 'unknown' + 'mismatch'
+        return self.getStatus(server.getIdentityFingerprint(),
+                              server.getNickname())
 
 def _set_uid_gid_mode(fn, uid, gid, mode):
     """Change the permissions on the file named 'fname', so that fname
@@ -353,3 +357,6 @@ def _set_uid_gid_mode(fn, uid, gid, mode):
         os.chown(fn, uid, gid)
     if (st[stat.ST_MODE] & 0777) != mode:
         os.chmod(fn, mode)
+
+def _normalizeFingerprint(fingerprint):
+    return fingerprint.replace(" ", "").upper()

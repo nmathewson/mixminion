@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerList.py,v 1.57 2005/05/03 03:26:50 nickm Exp $
+# $Id: ServerList.py,v 1.58 2005/06/04 13:55:04 nickm Exp $
 
 """mixminion.directory.ServerList
 
@@ -19,7 +19,6 @@ __all__ = [ 'ServerList' ]
 import os
 import time
 import threading
-import xreadlines
 
 import mixminion
 import mixminion.Config
@@ -30,7 +29,7 @@ from mixminion.Crypto import pk_decode_public_key, pk_encode_public_key, \
      pk_same_public_key
 from mixminion.Common import IntervalSet, LOG, MixError, MixFatalError, \
      UIError, createPrivateDir, formatBase64, formatDate, formatFnameTime, \
-     formatTime, Lockfile, openUnique, previousMidnight, readFile, \
+     formatTime, iterFileLines, Lockfile, openUnique, previousMidnight, readFile,\
      readPickled, readPossiblyGzippedFile, stringContains, writeFile, \
      writePickled
 from mixminion.Config import ConfigError
@@ -201,7 +200,7 @@ class ServerStore:
             pass
 
     def loadServer(self, key, keepContents=0, assumeValid=1):
-        #XXXX digest-cache
+        #XXXX008 digest-cache
         return ServerInfo(fname=os.path.join(self._loc,key),
                           assumeValid=assumeValid,
                           _keepContents=keepContents)
@@ -309,7 +308,7 @@ class LiveServerList:
 
     def addServersFromRawDirectoryFile(self, file):
         curLines = []
-        for line in mixminion.Common.iterFileLines(file):
+        for line in iterFileLines(file):
             if line == '[Server]\n' and curLines:
                 self._addOneFromRawLines(curLines)
                 del curLines[:]
