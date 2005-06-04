@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.10 2005/02/07 06:18:40 nickm Exp $
+# $Id: ThreadUtils.py,v 1.11 2005/06/04 13:54:14 nickm Exp $
 
 """mixminion.ThreadUtils
 
@@ -124,7 +124,7 @@ else:
 
 #----------------------------------------------------------------------
 class DummyLock:
-    """DOCDOC"""
+    """Fake lock-like object to use when no locking is needed."""
     def __init__(self):
         pass
     def acquire(self):
@@ -280,8 +280,8 @@ class RWLock:
             self.rwOK.release()
 
 #----------------------------------------------------------------------
-# Processing threads
-#DOCDOC
+# Processing threads: used to make tasks happen in background.
+
 #XXXX008 add tests for these.
 
 class ProcessingThread(threading.Thread):
@@ -290,6 +290,7 @@ class ProcessingThread(threading.Thread):
        Currently used to process packets in the background."""
     # Fields:
     #   mqueue: a ClearableQueue of callable objects.
+    #   threadName: the name of this thread (used in log msgs)
     class _Shutdown:
         """Callable that raises itself when called.  Inserted into the
            queue when it's time to shut down."""
@@ -303,9 +304,10 @@ class ProcessingThread(threading.Thread):
         self.threadName = name
 
     def shutdown(self,flush=1):
-        """DOCDOC"""
+        """Tells this thread to shut down once the current job is done."""
         LOG.info("Telling %s to shut down.", self.threadName)
-        if flush: self.mqueue.clear()
+        if flush:
+            self.mqueue.clear()
         self.mqueue.put(ProcessingThread._Shutdown())
 
     def addJob(self, job):
@@ -315,6 +317,7 @@ class ProcessingThread(threading.Thread):
         self.mqueue.put(job)
 
     def run(self):
+        """Internal: main body of processing thread."""
         try:
             while 1:
                 job = self.mqueue.get()
