@@ -385,7 +385,7 @@ class DirectoryBackedDescriptorSource(DescriptorSource):
                 fname = self.fnameBase + ext
                 if not os.path.exists(fname):
                     continue
-                serverDir = mixminion.ServerInfo.ServerDirectory(
+                serverDir = mixminion.ServerInfo.parseDirectory(
                     fname=fname, validatedDigests=self._s.digestMap)
                 lastDownload = os.stat(fname)[stat.ST_MTIME]
             if serverDir is None:
@@ -515,17 +515,21 @@ class DirectoryBackedDescriptorSource(DescriptorSource):
         lock.read_out()
 
         try:
-            directory = mixminion.ServerInfo.ServerDirectory(
+            directory = mixminion.ServerInfo.parseDirectory(
                 fname=tmpname,
                 validatedDigests=digestMap)
         except mixminion.Config.ConfigError, e:
             raise GotInvalidDirectoryError(
                 "Received an invalid directory: %s"%e)
 
-        identity = directory['Signature']['DirectoryIdentity']
-        fp = MIXMINION_DIRECTORY_FINGERPRINT #XXXX
-        if fp and mixminion.Crypto.pk_fingerprint(identity) != fp:
-            raise MixFatalError("Bad identity key on directory")
+        if isinstance(directory, mixminion.ServerInfo.ServerDirectory):
+            identity = directory['Signature']['DirectoryIdentity']
+            fp = MIXMINION_DIRECTORY_FINGERPRINT #XXXX
+            if fp and mixminion.Crypto.pk_fingerprint(identity) != fp:
+                raise MixFatalError("Bad identity key on directory")
+        else:
+            #XXXX CHECK THAT SIGNATURES ARE WHAT WE EXPECT!!!!!!
+            pass
 
         if isGzipped:
             replaceFile(tmpname, self.fnameBase+".gz")
@@ -886,24 +890,27 @@ class ClientDirectory:
         self.__scanAsNeeded()
 
     def getAllServers(self):
-        """DOCDOC"""
+        """Return a list of all known ServerInfo."""
         return self.allServers
 
     def getAllNicknames(self):
-        """DOCDOC"""
+        """Return a sorted list of all known nicknames."""
         lst = self.byNickname.keys()
         lst.sort()
         return lst
 
     def getRecommendedNicknames(self):
-        """DOCDOC"""
+        """Return a list of sorted nicknames for all recommended servers."""
         lst = self.goodNicknames.keys()
         lst.sort()
         return lst
 
-    def getServersByNickname(self):
-        """DOCDOC"""
-        return self.__find(self.allServers, 0, sys.maxint)
+    def getServersByNickname(self, name):
+        """Return a list of all ServerInfo for servers named 'name'"""
+        try:
+            return self.byNickname[name][:]
+        except KeyError:
+            return []
 
     def _installAsKeyIDResolver(self):
         """Use this ClientDirectory to identify servers in calls to
