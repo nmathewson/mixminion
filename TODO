@@ -39,6 +39,7 @@ For 0.0.8:
                 o Too many constants in Pinger.py; fix them.
                 o Document code.
                 - More easy-to-parse output format.
+                - Feedback output format to directory implementation?
                 - Document config
                 - Describe how to replace sqlite with pg or mysql.
         . Distributed directories
@@ -59,6 +60,9 @@ For 0.0.8:
                        - Implement download-multiple-signed-dirs
                        - Implement add-one-more-sig
                        - Document how to run a directory
+                       - Interface for scripting
+                - Mix
+                       - Implement upload-to-multiple-directories
                 . Client
                        - Choose random URL
                        o Validate multiple signatures
