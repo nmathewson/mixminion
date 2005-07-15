@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.82 2005/07/15 20:42:27 nickm Exp $
+# $Id: Packet.py,v 1.83 2005/07/15 20:47:54 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -957,7 +957,7 @@ def uncompressData(payload, maxLength=None):
        maxLength, we raise 'CompressedDataTooLong'."""
 
     if len(payload) < 6 or payload[0:2] != '\x78\xDA':
-        raise ParseError("Invalid zlib header");
+        raise ParseError("Invalid zlib header")
 
     # This code is necessary because versions of Python before 2.2 didn't
     # support limited-size versions of zlib.decompress.  We use a helper
