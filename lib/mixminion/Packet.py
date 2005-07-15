@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.81 2005/06/04 13:53:11 nickm Exp $
+# $Id: Packet.py,v 1.82 2005/07/15 20:42:27 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -778,7 +778,7 @@ def parseTextEncodedMessages(msg,force=0):
             msgType = "ENC"
 
         if msgType == 'LONG' and force:
-            msg = uncompressData(msg)
+            val = uncompressData(val)
 
         if msgType in ('TXT','BIN','LONG','FRAG'):
             res.append(TextEncodedMessage(val, msgType))
@@ -957,7 +957,7 @@ def uncompressData(payload, maxLength=None):
        maxLength, we raise 'CompressedDataTooLong'."""
 
     if len(payload) < 6 or payload[0:2] != '\x78\xDA':
-        raise ParseError("Invalid zlib header")
+        raise ParseError("Invalid zlib header");
 
     # This code is necessary because versions of Python before 2.2 didn't
     # support limited-size versions of zlib.decompress.  We use a helper

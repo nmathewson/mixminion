@@ -1702,7 +1702,8 @@ EXAMPLES:
 
 def clientDecode(cmd, args):
     """[Entry point] Decode a message."""
-    options, args = getOptions(args, input=1, output=1, passphrase=1)
+    options, args = getOptions(args, "F", ["--force"], input=1, output=1,
+                               passphrase=1)
 
     outputFile = '-'
     inputFile = '-'
