@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.147 2005/08/09 15:51:32 nickm Exp $
+# $Id: ServerMain.py,v 1.148 2005/08/09 16:38:31 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -554,7 +554,7 @@ class MixminionServer(Scheduler):
     #    when to generate probe traffic.
     def __init__(self, config):
         """Create a new server from a ServerConfig."""
-        _Scheduler.__init__(self)
+        Scheduler.__init__(self)
         LOG.debug("Initializing server")
 
         self.config = config
