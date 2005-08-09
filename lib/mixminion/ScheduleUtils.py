@@ -6,6 +6,7 @@
    Simple implementation of a block-until-it's-time-to-do-something scheduler.
    """
 
+import time
 import threading
 
 __all__ = [ 'ScheduledEvent', 'OneTimeEvent', 'RecurringEvent',
