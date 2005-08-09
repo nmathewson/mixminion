@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.83 2005/07/15 20:47:54 nickm Exp $
+# $Id: Packet.py,v 1.84 2005/08/09 16:12:42 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -1013,11 +1013,12 @@ def _validateZlib():
     _ZLIB_LIBRARY_OK = 0.5
     if ver in ("1.1.2", "1.1.3", "1.1.4", "1.2.0", "1.2.0.1", "1.2.0.2",
                "1.2.0.3", "1.2.0.4", "1.2.0.5", "1.2.0.6", "1.2.0.7",
-               "1.2.0.8", "1.2.1", "1.2.1.1", "1.2.1.2", "1.2.2"):
+               "1.2.0.8", "1.2.1", "1.2.1.1", "1.2.1.2", "1.2.2", "1.2.2.2",
+               "1.2.3"):
         _ZLIB_LIBRARY_OK = 1
         return
 
-    LOG.warn("Unrecognized zlib version: %r. Spot-checking output", ver)
+    LOG.info("Unrecognized zlib version: %r. Spot-checking output", ver)
     # This test is inadequate, but it _might_ catch future incompatible
     # changes.
     _ZLIB_LIBRARY_OK = 0.5
