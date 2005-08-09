@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.218 2005/08/09 15:51:32 nickm Exp $
+# $Id: test.py,v 1.219 2005/08/09 16:22:26 nickm Exp $
 
 """mixminion.tests
 
@@ -3908,15 +3908,24 @@ def _getTLSContext(isServer):
             pkfile = f+"_pk"
             certfile = f+"_cert"
             dh_fname = os.environ.get("MM_TEST_DHPARAMS")
+            got = 0
             if dh_fname and not USE_SLOW_MODE:
                 dhfile = dh_fname
-                if not os.path.exists(dh_fname):
-                    print "[Generating DH parameters...",
-                    sys.stdout.flush()
-                    _ml.generate_dh_parameters(dhfile, 0)
-                    print "done.]",
-                    sys.stdout.flush()
-            else:
+                try:
+                    if not os.path.exists(dh_fname):
+                        print "[Generating DH parameters...",
+                        sys.stdout.flush()
+                        _ml.generate_dh_parameters(dhfile, 0)
+                        print "done.]",
+                        sys.stdout.flush()
+                        got = 1
+                    else:
+                        readFile(dh_fname)
+                        got = 1
+                except (OSError,TLSError):
+                    print ("[Couldn't read/write %s]"%dh_fname),
+
+            if not got:
                 print "[Generating DH parameters (not caching)...",
                 sys.stdout.flush()
                 _ml.generate_dh_parameters(dhfile, 0)
