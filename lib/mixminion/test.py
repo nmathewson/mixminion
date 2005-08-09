@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.217 2005/06/04 13:55:04 nickm Exp $
+# $Id: test.py,v 1.218 2005/08/09 15:51:32 nickm Exp $
 
 """mixminion.tests
 
@@ -6545,7 +6545,8 @@ class DNSFarmTests(TestCase):
 
 class ServerMainTests(TestCase):
     def testScheduler(self):
-        _Scheduler = mixminion.server.ServerMain._Scheduler
+        #XXXX008 move this test. it isn'tr a server test any more.
+        _Scheduler = mixminion.ScheduleUtils.Scheduler
         lst=[]
         def a(lst=lst): lst.append('a')
         def b(lst=lst): lst.append('b')
@@ -7918,6 +7919,12 @@ class PingerTests(TestCase):
             print "[Skipping ping tests; old python or missing pysqlite]",
             return
 
+        id0 = "Premature optimizati" #bar
+        id1 = "on is the root of al" #barbaz
+        id2 = "l evil in programmin" #bart
+        id3 = "g. -- Prof Don Knuth" 
+        assert len(id0)==len(id1)==len(id2)==len(id3)==20
+
         d = mix_mktemp()
         os.mkdir(d,0700)
         loc = os.path.join(d, "db")
@@ -7926,20 +7933,20 @@ class PingerTests(TestCase):
         log.startup(now=t)
         log.heartbeat(now=t+1)
         log.heartbeat(now=t+20)
-        log.connected("Foobar",now=t+20)
-        log.connectFailed("Foobarbaz",now=t+20.2)
-        log.connected("Foobar",now=t+30)
-        log.connected("Foobarbaz",now=t+30.2)
-        log.connected("Foobart",now=t+31)
-        log.queuedPing("\x00Z"*10, "Foobar", now=t+31)
-        log.queuedPing("BN"*10, "Foobarbaz", now=t+31)
-        log.queuedPing("!!"*10, "Foobar,Foobarbaz", now=t+31)
-        log.queuedPing("''"*10, "Foobart", now=t+32)
-        log.queuedPing("<>"*10, "Foobar", now=t+32)
-        log.connected("Foobar",now=t+60)
-        log.connected("Foobarbaz",now=t+60.2)
-        log.connectFailed("Foobarbaz",now=t+70)
-        log.connected("Foobar",now=t+90)
+        log.connected(id0,now=t+20)
+        log.connectFailed(id1,now=t+20.2)
+        log.connected(id0,now=t+30)
+        log.connected(id1,now=t+30.2)
+        log.connected(id2,now=t+31)
+        log.queuedPing("\x00Z"*10, [id0], now=t+31)
+        log.queuedPing("BN"*10, [id1], now=t+31)
+        log.queuedPing("!!"*10, [id0,id1], now=t+31)
+        log.queuedPing("''"*10, [id2], now=t+32)
+        log.queuedPing("<>"*10, [id0], now=t+32)
+        log.connected(id0,now=t+60)
+        log.connected(id1,now=t+60.2)
+        log.connectFailed(id1,now=t+70)
+        log.connected(id0,now=t+90)
         log.gotPing("\x00Z"*10, now=t+130)
         log.gotPing("BN"*10, now=t+150)
         suspendLog()
@@ -7958,14 +7965,14 @@ class PingerTests(TestCase):
         # I've been up 200 seconds this day, of which not all has passed.
         self.assertFloatEq(ups[interval]['<self>'],
                            200./(24*60*60))
-        # Of the time I've been up, server "foobar" has never been down.
-        self.assertFloatEq(ups[interval]['foobar'], 1.0)
-        # Foobarbaz was down at 20, up at 30, up at 60, down at 70.  So we'll
+        # Of the time I've been up, server with id0 has never been down.
+        self.assertFloatEq(ups[interval][id0], 1.0)
+        # id1 was down at 20, up at 30, up at 60, down at 70.  So we'll
         # assume it was down from 20...25, up from 25..65, down from 65..70.
         # That makes 10 sec down, 40 sec up.
-        self.assertFloatEq(ups[interval]['foobarbaz'], 40/50.)
-        # Foobart was only down once in the interval; we refuse to extrapolate.
-        self.assert_(not ups[interval].has_key('foobart'))
+        self.assertFloatEq(ups[interval][id1], 40/50.)
+        # id2 was only down once in the interval; we refuse to extrapolate.
+        self.assert_(not ups[interval].has_key(id2))
 
         log.calculateChainStatus(now=t+200)
         log.calculateAll(now=t+200)
@@ -7978,7 +7985,6 @@ class PingerTests(TestCase):
         log.calculateUptimes(t-3600, t+100, now=t+100)
         log.calculateOneHopResult(t)
         log.calculateChainStatus(t)
-
 
         statusFile = os.path.join(d, "status")
         log.calculateAll(statusFile,now=t+200)
@@ -8023,7 +8029,7 @@ def testSuite():
     tc = loader.loadTestsFromTestCase
 
     if 0:
-        suite.addTest(tc(DirectoryServerTests))
+        suite.addTest(tc(PingerTests))
         return suite
     testClasses = [MiscTests,
                    MinionlibCryptoTests,

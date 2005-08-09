@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.87 2005/05/03 03:28:47 nickm Exp $
+# $Id: MMTPServer.py,v 1.88 2005/08/09 15:51:32 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -515,25 +515,26 @@ class _ClientCon(MMTPClientConnection):
     ## Fields:
     # _pingLog: The PingLog we will inform about successful or failed
     #    connections, or None if we have no PingLog.
-    # _nickname: The nickname of the server we're trying to connect to.
+    # _identity: The identity digest of the server we're trying to
+    #    connect to.
     # _wasOnceConnected: True iff we have successfully negotiated a protocol
     #    version with the other server.
-    def configurePingLog(self, pingLog, nickname):
+    def configurePingLog(self, pingLog, identity):
         """Must be called after construction: set this _ClientCon to
            report events to the pinglog 'pingLog'; tell it that we are
             connecting to the server named 'nickname'."""
         self._pingLog = pingLog
-        self._nickname = nickname
+        self._identity = identity
         self._wasOnceConnected = 0
     def onProtocolRead(self):
         MMTPClientConnection.onProtocolRead(self)
         if self._isConnected:
             if self._pingLog:
-                self._pingLog.connected(self._nickname)
+                self._pingLog.connected(self._identity)
             self._wasOnceConnected = 1
     def _failPendingPackets(self):
         if not self._wasOnceConnected and self._pingLog:
-            self._pingLog.connectFailed(self._nickname)
+            self._pingLog.connectFailed(self._identity)
         MMTPClientConnection._failPendingPackets(self)
 
 LISTEN_BACKLOG = 128
@@ -772,7 +773,7 @@ class MMTPAsyncServer(AsyncServer):
             if nickname is not None:
                 # If we recognize this server, then we'll want to tell
                 # the ping log what happens to our connection attempt.
-                con.configurePingLog(self.pingLog, nickname)
+                con.configurePingLog(self.pingLog, keyID)
             #con.allPacketsSent = finished #XXXX007 wrong!
             con.onClosed = finished
         except (socket.error, MixProtocolError), e:

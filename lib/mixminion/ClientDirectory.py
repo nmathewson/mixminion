@@ -889,6 +889,10 @@ class ClientDirectory:
             self._diskLock.release()
         self.__scanAsNeeded()
 
+    def getServerList(self):
+        """Return a list of all known ServerInfo."""
+        return self.allServers
+
     def getAllServers(self):
         """Return a list of all known ServerInfo."""
         return self.allServers

@@ -141,7 +141,7 @@ Reach goals for 0.0.8:
                 - For petmail:
                         - Working,well-designed --status-fd option
                 - For mnet:
-                        - Implement trivial client side of client API
+                        o Implement trivial client side of client API
                         - Specify pluggable modules better.
                         - Consider server APIs
                 . Use a 'sendmail'-like program instead of a SMTP server,

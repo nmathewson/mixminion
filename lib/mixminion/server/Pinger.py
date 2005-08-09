@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.26 2005/02/07 07:08:55 nickm Exp $
+# $Id: Pinger.py,v 1.27 2005/08/09 15:51:32 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -23,6 +23,7 @@
    pinger anyway.
 """
 
+import binascii
 import bisect
 import calendar
 import cPickle
@@ -250,8 +251,8 @@ class PingLog:
     # _lock: an instance of threading.RLock to control access to in-memory
     #    structures.  The databse is responsible for keeping its own structures
     #    consistent.
-    # _serverIDs: A map from lc server nickname to server ID used in the
-    #    database.
+    # _serverIDs: A map from server identity digest to server ID
+    #    used in the database.
     # _intervalIDs: A map from (start,end) to a time interval ID used in the
     #    database
     # _serverReliability: A map from lc server nickname to last computed
@@ -318,7 +319,8 @@ class PingLog:
             # Holds lowercased nicknames for all the servers we know about.
             self._db.createTable("server",
                                  [("id",   "integer",     "primary key"),
-                                  ("name", "varchar(32)", "unique not null")])
+                                  ("name", "varchar(32)", "unique not null"),
+                                  ("identity", "varchar(40)", "unique not null")])
 
             # Holds information about our attempts to launch MMTP connections
             # to other servers.  A row in connectionAttempt means: We tried to
@@ -412,6 +414,8 @@ class PingLog:
             #### Indices.
 
             self._db.createIndex("serverName", "server", ["name"], unique=1)
+            self._db.createIndex("serverIdentity", "server",
+                                 ["identity"], unique=1)
             self._db.createIndex("statsIntervalSE", "statsInterval",
                                  ["startAt", "endAt"], unique=1)
             self._db.createIndex("myLifespanStartup", "myLifespan", ["startUp"])
@@ -451,11 +455,11 @@ class PingLog:
            the database.
         """
         cur = self._db.getCursor()
-        cur.execute("SELECT id, name FROM server")
+        cur.execute("SELECT id, identity FROM server")
         res = cur.fetchall()
         serverIDs = {}
-        for id,name in res:
-            serverIDs[name] = id
+        for idnum,identity in res:
+            serverIDs[binascii.a2b_hex(identity)] = idnum
 
         serverReliability = {}
         cur.execute("SELECT name, reliability FROM "
@@ -485,36 +489,39 @@ class PingLog:
         self._brokenChains = broken
         self._interestingChains = interesting
 
-    def updateServers(self, names):
-        """Add the names in 'names' to the database, if they aren't there
-           already.
+    def updateServers(self, descriptorSource):
+        """Add the names 'descriptorSource' to the database, if they
+        aren't there already.
         """
-        for n in names:
-            self._getServerID(n)
+        for s in descriptorInfo.getServerList():
+            self._getServerID(s.getIdentityDigest(), s.getNickname())
         self._db.getConnection().commit()
 
-    def _getServerID(self, name):
-        """Helper: Return the database ID for the server named 'name'.  If the
-           database doesn't know about the server yet, add it.  Does not
-           commit the current transaction.
+    def _getServerID(self, identity, name=None):
+        """Helper: Return the database ID for the server whose hex
+           identity digest is 'identity'.  If the database doesn't
+           know about the server yet, add it.  Does not commit the
+           current transaction.
         """
-        name = name.lower()
         self._lock.acquire()
         try:
             try:
-                return self._serverIDs[name]
+                return self._serverIDs[identity]
             except KeyError:
-                self._serverIDs[name] = 1
+                self._serverIDs[identity] = 1
         finally:
             self._lock.release()
-
         cur = self._db.getCursor()
 
-        cur.execute("INSERT INTO server (name) VALUES (%s)", name)
-        cur.execute("SELECT id FROM server WHERE name = %s", name)
+        if name is None: name = binascii.b2a_hex(identity)
+
+        cur.execute("INSERT INTO server (name,identity) VALUES (%s,%s)",
+                    name.lower(), binascii.b2a_hex(identity))
+        cur.execute("SELECT id FROM server WHERE identity = %s",
+                    binascii.b2a_hex(identity))
         #XXXX catch errors!
         ident, = cur.fetchone()
-        self._serverIDs[name]=ident
+        self._serverIDs[identity]=ident
         return ident
 
     def _getIntervalID(self, start, end):
@@ -604,35 +611,33 @@ class PingLog:
 
     _CONNECTED = ("INSERT INTO connectionAttempt (at, server, success) "
                   "VALUES (%s,%s,%s)")
-    def connected(self, nickname, success=1, now=None):
+    def connected(self, identity, success=1, now=None):
         """Note that we attempted to connect to the server named 'nickname'.
            We successfully negotiated a protocol iff success is true.
         """
-        serverID = self._getServerID(nickname)
+        serverID = self._getServerID(identity)
         self._db.getCursor().execute(self._CONNECTED,
                         (self._db.time(now), serverID, self._db.bool(success)))
         self._db.getConnection().commit()
 
-    def connectFailed(self, nickname, now=None):
+    def connectFailed(self, identity, now=None):
         """Note that we attempted to connect to the server named 'nickname',
            but could not negotiate a protocol.
         """
-        self.connected(nickname, success=0, now=now)
+        self.connected(identity, success=0, now=now)
 
     _QUEUED_PING = ("INSERT INTO ping (hash, path, sentat, received)"
                     "VALUES (%s,%s,%s,%s)")
     def queuedPing(self, hash, path, now=None):
-        """Note that we send a probe message along 'path' (a comma-separated
-           sequence of server nicknames, excluding ourself as first and last
-           hop), such that the payload, when delivered, will have 'hash' as
-           its digest.
+        """Note that we send a probe message along 'path' (a list of
+           server identities, excluding ourself as first and last
+           hop), such that the payload, when delivered, will have
+           'hash' as its digest.
         """
         assert len(hash) == mixminion.Crypto.DIGEST_LEN
-        path = path.lower()
-        for s in path.split(","):
-            self._getServerID(s)
+        ids = ",".join([ str(self._getServerID(s)) for s in path ])
         self._db.getCursor().execute(self._QUEUED_PING,
-                             (formatBase64(hash), path, self._db.time(now), 0))
+                             (formatBase64(hash), ids, self._db.time(now), 0))
         self._db.getConnection().commit()
 
     _GOT_PING = "UPDATE ping SET received = %s WHERE hash = %s"
@@ -648,13 +653,13 @@ class PingLog:
         elif n > 1:
             LOG.warn("Received ping with multiple hash entries!")
 
-    def _calculateUptimes(self, serverNames, startTime, endTime, now=None):
+    def _calculateUptimes(self, serverIdentities, startTime, endTime, now=None):
         """Helper: calculate the uptime results for a set of servers, named in
-           serverNames, for all intervals between startTime and endTime
+           serverIdentities, for all intervals between startTime and endTime
            inclusive.  Does not commit the current transaction.
         """
         cur = self._db.getCursor()
-        serverNames.sort()
+        serverIdentities.sort()
 
         # First, calculate my own uptime.
         if now is None: now = time.time()
@@ -677,7 +682,7 @@ class PingLog:
             self._setUptime((i, self._getServerID("<self>")), (fracUptime,))
 
         # Okay, now everybody else.
-        for s, serverID in self._serverIDs.items():
+        for (identity, serverID) in self._serverIDs.items():
             if s in ('<self>','<unknown>'): continue
             cur.execute("SELECT at, success FROM connectionAttempt"
                         " WHERE server = %s AND at >= %s AND at <= %s"
@@ -712,7 +717,6 @@ class PingLog:
             for s,e,intervalID in calcIntervals:
                 uptime = (upIntervals*IntervalSet([(s,e)])).spanLength()
                 downtime = (downIntervals*IntervalSet([(s,e)])).spanLength()
-                if s == 'foobart': print uptime, downtime
                 if uptime < 1 and downtime < 1:
                     continue
                 fraction = float(uptime)/(uptime+downtime)
@@ -724,27 +728,27 @@ class PingLog:
         if now is None: now = time.time()
         self._lock.acquire()
         try:
-            serverNames = self._serverIDs.keys()
+            serverIdentities = self._serverIDs.keys()
         finally:
             self._lock.release()
-        serverNames.sort()
-        self._calculateUptimes(serverNames, startAt, endAt, now=now)
+        serverIdentities.sort()
+        self._calculateUptimes(serverIdentities, startAt, endAt, now=now)
         self._db.getConnection().commit()
 
     def getUptimes(self, startAt, endAt):
         """Return uptimes for all servers overlapping [startAt, endAt],
-           as mapping from (start,end) to lowercase nickname to fraction.
+           as mapping from (start,end) to identity to fraction.
         """
         result = {}
         cur = self._db.getCursor()
-        cur.execute("SELECT startat, endat, name, uptime "
+        cur.execute("SELECT startat, endat, identity, uptime "
                     "FROM uptime, statsInterval, server "
                     "WHERE statsInterval.id = uptime.interval "
                     "AND server.id = uptime.server "
                     "AND %s >= startat AND %s <= endat",
                     (self._db.time(startAt), self._db.time(endAt)))
-        for s,e,n,u in cur:
-            result.setdefault((s,e), {})[n] = u
+        for s,e,i,u in cur:
+            result.setdefault((s,e), {})[binascii.a2b_hex(i)] = u
         self._db.getConnection().commit()
         return result
 
@@ -768,7 +772,7 @@ class PingLog:
     _WEIGHT_AGE_PERIOD = 24*60*60
     _WEIGHT_AGE = [ 1, 2, 2, 3, 5, 8, 9, 10, 10, 10, 10, 5 ]
     _PING_GRANULARITY = 24*60*60
-    def _calculateOneHopResult(self, serverName, startTime, endTime,
+    def _calculateOneHopResult(self, serverIdentity, startTime, endTime,
                                 now=None, calculateOverallResults=1):
         """Calculate the latency and reliablity for a given server on
            intervals between startTime and endTime, inclusive.  If
@@ -787,7 +791,7 @@ class PingLog:
         nPeriods = len(intervals)
         startTime = intervals[0][0]
         endTime = intervals[-1][1]
-        serverID = self._getServerID(serverName)
+        serverID = self._getServerID(serverIdentity)
 
         # 1. Compute latencies and number of pings sent in each period.
         #    We need to learn these first so we can tell the percentile
@@ -797,7 +801,7 @@ class PingLog:
         nPings = 0
         cur.execute("SELECT sentat, received FROM ping WHERE path = %s"
                     " AND sentat >= %s AND sentat <= %s",
-                    (serverName, startTime, endTime))
+                    (serverID, startTime, endTime))
         for sent,received in cur:
             pIdx = floorDiv(sent-startTime, self._PING_GRANULARITY)
             nSent[pIdx] += 1
@@ -830,7 +834,7 @@ class PingLog:
         perTotalWeighted = [0]*nPeriods
         cur.execute("SELECT sentat, received FROM ping WHERE path = %s"
                     " AND sentat >= %s AND sentat <= %s",
-                    (serverName, startTime, endTime))
+                    (serverID, startTime, endTime))
         for sent,received in cur:
             pIdx = floorDiv(sent-startTime, self._PING_GRANULARITY)
             if received:
@@ -893,15 +897,15 @@ class PingLog:
         """
         self._lock.acquire()
         try:
-            serverNames = self._serverIDs.keys()
+            serverIdentities = self._serverIDs.keys()
         finally:
             self._lock.release()
 
         if now is None:
             now = time.time()
-        serverNames.sort()
+        serverIdentities.sort()
         reliability = {}
-        for s in serverNames:
+        for s in serverIdentities:
             if s in ('<self>','<unknown>'): continue
             # For now, always calculate overall results.
             r = self._calculateOneHopResult(s,now,now,now,
@@ -916,14 +920,14 @@ class PingLog:
 
     def _calculate2ChainStatus(self, since, s1, s2, now=None):
         """Helper: Calculate the status (broken/interesting/both/neither) for
-           a chain of the servers 's1' and 's2' (given as lc nicknames),
+           a chain of the servers 's1' and 's2' (given as identity digests),
            considering pings sent since 'since'.  Return a tuple of (number of
            pings sent, number of those pings received, is-broken,
            is-interesting).  Does not commit the current transaction.
         """
         # doesn't commit.
         cur = self._db.getCursor()
-        path = "%s,%s"%(s1,s2)
+        path = "%s,%s"%(self._getServerID(s1),self._getServerID(s2))
         cur.execute("SELECT count() FROM ping WHERE path = %s"
                     " AND sentat >= %s",
                     (path,self._db.time(since)))
@@ -968,7 +972,7 @@ class PingLog:
         """Calculate the status of all two-hop chains."""
         self._lock.acquire()
         try:
-            serverNames = self._serverIDs.keys()
+            serverIdentities = self._serverIDs.keys()
         finally:
             self._lock.release()
 
@@ -978,11 +982,11 @@ class PingLog:
         brokenChains = {}
         interestingChains = {}
         since = now - self._CHAIN_PING_HORIZON
-        serverNames.sort()
+        serverIdentities.sort()
 
-        for s1 in serverNames:
+        for s1 in serverIdentities:
             if s1 in ('<self>','<unknown>'): continue
-            for s2 in serverNames:
+            for s2 in serverIdentities:
                 if s2 == ('<self>','<unknown>'): continue
                 p = "%s,%s"%(s1,s2)
                 nS, nR, isBroken, isInteresting = \
@@ -1010,28 +1014,28 @@ class PingLog:
            'since', inclusive."""
         self._lock.acquire()
         try:
-            serverNames = self._serverIDs.keys()
+            serverIdentities = self._serverIDs.keys()
         finally:
             self._lock.release()
 
         if now is None: now = time.time()
         print >>f, "# List of all currently tracked servers."
-        print >>f, "KNOWN_SERVERS =",serverNames
+        print >>f, "KNOWN_SERVERS =",serverIdentities
         cur = self._db.getCursor()
 
         print >>f, "\n# Map from server to list of (period-start, period-end, fractional uptime"
         print >>f, "SERVER_UPTIMES = {"
-        cur.execute("SELECT startAt,endAt,name,uptime FROM uptime, server, statsInterval "
+        cur.execute("SELECT startAt,endAt,identity,name,uptime FROM uptime, server, statsInterval "
                     "WHERE startAt >= %s AND startAt <= %s "
                     "AND uptime.server = server.id "
                     "AND uptime.interval = statsInterval.id "
                     "ORDER BY name, startAt", (since, now))
         lastServer = "---"
-        for s,e,n,u in cur:
-            if n != lastServer:
+        for s,e,i,n,u in cur:
+            if i != lastServer:
                 if lastServer != '---': print >>f, "   ],"
-                lastServer = n
-                print >>f, "   %r : [" % n
+                lastServer = i
+                print >>f, "   (%r,%r) : [" % (i,n)
             print >>f, "      (%s,%s,%.04f),"%(s,e,u)
         if lastServer != '---': print >>f, "   ]"
         print >>f, "}"
@@ -1041,7 +1045,7 @@ class PingLog:
 #      # of those pings received, median latency on those pings (sec),
 #      weighted reliability)"""
         print >>f, "SERVER_DAILY_PING_STATUS = {"
-        cur.execute("SELECT name,startAt,endAt,nSent,nReceived,"
+        cur.execute("SELECT identity,name,startAt,endAt,nSent,nReceived,"
                    "  latency,reliability "
                    "FROM echolotOneHopResult, server, statsInterval "
                    "WHERE startat >= %s AND startat <= %s"
@@ -1049,12 +1053,12 @@ class PingLog:
                    "AND echolotOneHopResult.interval = statsInterval.id "
                    "ORDER BY name, startat", (since, now))
         lastServer = "---"
-        for n,s,e,nS,nR,lat,r in cur:
+        for i,n,s,e,nS,nR,lat,r in cur:
             if s == '<self>': continue
-            if n != lastServer:
+            if i != lastServer:
                 if lastServer != '---': print >>f, "   ],"
-                lastServer = n
-                print >>f, "   %r : [" % n
+                lastServer = i
+                print >>f, "   (%r,%r) : [" % (i,n)
             print >>f, "      (%s,%s,%s,%s,%s,%.04f),"%(s,e,nS,nR,lat,r)
         if lastServer != '---': print >>f, "   ]"
         print >>f, "}"
@@ -1182,6 +1186,7 @@ class PingGenerator:
             LOG.info("Not sending scheduled ping: %s",e)
             return 0
         verbose_path = ",".join([s.getNickname() for s in (p1+p2[:-1])])
+        identity_list = [ s.getIdentityDigest() for s in p1+p2[:-1] ]
         payload = mixminion.BuildMessage.buildRandomPayload()
         payloadHash = mixminion.Crypto.sha1(payload)
         packet = mixminion.BuildMessage.buildForwardPacket(
@@ -1191,7 +1196,7 @@ class PingGenerator:
         obj = mixminion.server.PacketHandler.RelayedPacket(addr, packet)
         LOG.debug("Pinger queueing ping along path %s [%s]",verbose_path,
                   formatBase64(payloadHash))
-        self.pingLog.queuedPing(payloadHash, verbose_path.lower())
+        self.pingLog.queuedPing(payloadHash, identity_list)
         self.outgoingQueue.queueDeliveryMessage(obj, addr)
         return 1
 

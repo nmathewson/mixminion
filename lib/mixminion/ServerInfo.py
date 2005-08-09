@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.93 2005/06/04 13:53:25 nickm Exp $
+# $Id: ServerInfo.py,v 1.94 2005/08/09 15:51:32 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -345,17 +345,19 @@ class ServerInfo(mixminion.Config._ConfigFile):
 
     def getIdentityDigest(self):
         """Return the digest of this server's public identity key.
-           (SHA-1 digest of ASN.1-encodd key).
+           (SHA-1 digest of ASN.1-encoded key).
         """
         return sha1(pk_encode_public_key(self.getIdentity()))
 
-    def getIdentityFingerprint(self):
+    def getIdentityFingerprint(self, space=1):
         """Return the digest of this server's public identity key, encoded in
            hexadecimal, with every 4 characters separated by spaces.
         """
         d = getIdentityDigest(self)
         assert (len(d) % 2) == 0
         b = binascii.b2a_hex(d)
+        if not space:
+            return b
         r = []
         for i in xrange(0, len(b), 4):
             r.append(b[i:i+4])
