@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.88 2005/08/09 15:51:32 nickm Exp $
+# $Id: MMTPServer.py,v 1.89 2005/08/10 19:38:59 arma Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -522,7 +522,7 @@ class _ClientCon(MMTPClientConnection):
     def configurePingLog(self, pingLog, identity):
         """Must be called after construction: set this _ClientCon to
            report events to the pinglog 'pingLog'; tell it that we are
-            connecting to the server named 'nickname'."""
+            connecting to the server named 'identity'."""
         self._pingLog = pingLog
         self._identity = identity
         self._wasOnceConnected = 0
