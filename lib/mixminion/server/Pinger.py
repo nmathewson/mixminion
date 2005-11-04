@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.28 2005/11/03 21:12:20 nickm Exp $
+# $Id: Pinger.py,v 1.29 2005/11/04 16:24:16 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -27,7 +27,6 @@ import binascii
 import bisect
 import calendar
 import cPickle
-import operator
 import os
 import struct
 import sys
@@ -507,7 +506,7 @@ class PingLog:
         """Add the names 'descriptorSource' to the database, if they
            aren't there already.
         """
-        for s in descriptorInfo.getServerList():
+        for s in descriptorSource.getServerList():
             self._getServerID(s.getIdentityDigest())
         self._db.getConnection().commit()
 
@@ -685,7 +684,6 @@ class PingLog:
         cur.execute("SELECT startup, stillup, shutdown FROM myLifespan WHERE "
                     "startup <= %s AND stillup >= %s",
                     self._db.time(endTime), self._db.time(startTime))
-        myUptime = 0
         myIntervals = IntervalSet([ (start, max(end,shutdown))
                                     for start,end,shutdown in cur ])
         myIntervals *= timespan
@@ -1384,7 +1382,7 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
             identities[s.getIdentityDigest()]=1
         for id1,id2 in self.nextPingTime.keys():
             if not (identities.has_key(id1) and identities.has_key(id2)):
-                LOG.trace("Unscheduling 2-hop ping for %s,%s",n1,n2)
+                LOG.trace("Unscheduling 2-hop ping for %s,%s",id1,id2)
                 del self.nextPingTime[(id1,id2)]
         for id1 in identities.keys():
             for id2 in identities.keys():
