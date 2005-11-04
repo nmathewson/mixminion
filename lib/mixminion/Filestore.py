@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Filestore.py,v 1.25 2005/06/04 13:46:01 nickm Exp $
+# $Id: Filestore.py,v 1.26 2005/11/04 02:07:16 arma Exp $
 
 """mixminion.Filestore
 
@@ -55,7 +55,7 @@ class BaseStore:
        mixin classes below.
 
        Abstractly, a BaseStore is a consistent collection of 'things'
-       with (optional) persistant metadata.  The 'things' support
+       with (optional) persistent metadata.  The 'things' support
        insert, move, and delete operations.  The metadata supports
        modification.
 
@@ -616,7 +616,7 @@ def openDB(filename, purpose):
 
 
 class DBBase:
-    """A DBBase is a persistant store that maps keys to values, using
+    """A DBBase is a persistent store that maps keys to values, using
        a Python anydbm object.
 
        It differs from the standard python 'shelve' module:
@@ -874,7 +874,7 @@ class BooleanJournaledDBBase(JournaledDBBase):
         return 1
 
 class WritethroughDict:
-    """A persistant mapping from string to pickleable object.  The entire
+    """A persistent mapping from string to pickleable object.  The entire
        mapping is cached in memory, but all modifications are written through
        to disk immediately.
     """
