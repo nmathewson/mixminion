@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.89 2005/08/10 19:38:59 arma Exp $
+# $Id: MMTPServer.py,v 1.90 2005/11/04 06:23:07 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -384,6 +384,7 @@ class MMTPServerConnection(mixminion.TLSConnection.TLSConnection):
             LOG.warn("Bad MMTP protocol string format from %s", self.address)
             #failed
             self.startShutdown()
+            return
 
         protocols = m.group(1).split(",")
         for p in self.PROTOCOL_VERSIONS:
