@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.29 2005/11/04 16:24:16 nickm Exp $
+# $Id: Pinger.py,v 1.30 2005/11/10 02:17:09 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -1382,7 +1382,8 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
             identities[s.getIdentityDigest()]=1
         for id1,id2 in self.nextPingTime.keys():
             if not (identities.has_key(id1) and identities.has_key(id2)):
-                LOG.trace("Unscheduling 2-hop ping for %s,%s",id1,id2)
+                LOG.trace("Unscheduling 2-hop ping for %s,%s",
+                          binascii.b2a_hex(id1),binascii.b2a_hex(id2))
                 del self.nextPingTime[(id1,id2)]
         for id1 in identities.keys():
             for id2 in identities.keys():
