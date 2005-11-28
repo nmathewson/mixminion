@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.146 2005/06/04 13:52:14 nickm Exp $
+# $Id: Common.py,v 1.147 2005/11/28 17:06:18 nickm Exp $
 
 """mixminion.Common
 
@@ -54,7 +54,7 @@ except ImportError:
 try:
     file.__iter__
     xreadlines = None
-except (KeyError, AttributeError), _:
+except (KeyError, AttributeError, NameError), _:
     import xreadlines
 
 from types import StringType
