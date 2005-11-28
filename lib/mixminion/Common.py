@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.147 2005/11/28 17:06:18 nickm Exp $
+# $Id: Common.py,v 1.148 2005/11/28 17:11:20 nickm Exp $
 
 """mixminion.Common
 
@@ -55,7 +55,15 @@ try:
     file.__iter__
     xreadlines = None
 except (KeyError, AttributeError, NameError), _:
-    import xreadlines
+    try:
+        import xreadlines
+    except ImportError:
+        xreadlines = None
+        
+try:
+    iter
+except NameError:
+    iter = None
 
 from types import StringType
 
@@ -573,8 +581,10 @@ def iterFileLines(f):
     """
     if xreadlines is not None:
         return xreadlines.xreadlines(f)
-    else:
+    elif iter is not None:
         return iter(f)
+    else:
+        return f.readlines()
 
 def readFile(fn, binary=0):
     """Return the contents of the file named <fn>."""
