@@ -3,8 +3,11 @@ mixminion (0XXXXXXXX) experimental; urgency=low
   * Update debian/copyright: Mixminion relicensed to MIT.  Also, it is 2005
     now.  Update copyright notices.
   * No longer start description synopsis with a capital letter.
+  * Most of the error checking in postinst before creating the
+    debian-mixminion user is actually rather counterproductive, as adduser
+    already does all of the job, only much better.  Therefore comment it out.
 
- -- Peter Palfrader <weasel@debian.org>  Mon, 10 Jan 2005 15:55:20 +0100
+ -- Peter Palfrader <weasel@debian.org>  Sat,  3 Dec 2005 00:45:56 +0100
 
 mixminion (0.0.7.1-2) experimental; urgency=low
 
