@@ -1,6 +1,6 @@
-$Id: HISTORY,v 1.15 2005/12/02 20:34:36 nickm Exp $
+$Id: HISTORY,v 1.16 2005/12/02 21:11:36 nickm Exp $
 
-New IN VERSION 0.0.8alpha2:
+NEW IN VERSION 0.0.8alpha2:
    - License changed from LGPL to the so-called "MIT" license. This has
      been planned for ages; see
        http://archives.seul.org/mixminion/dev/May-2004/msg00000.html
@@ -15,7 +15,6 @@ New IN VERSION 0.0.8alpha2:
      - Solve crash on mixminion clean-queue
      - Do not exit on a spurious protocol string from another MMTP host.
      - Do not use stdio to read /dev/urandom: This wastes entropy.
-     - Don't freak out when 
    - Security improvements
      - Regenerate SSL certificates more frequently.
      - Servers schedule and retry delivery on a per-address basis, not a
