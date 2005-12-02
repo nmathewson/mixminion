@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Common.py,v 1.148 2005/11/28 17:11:20 nickm Exp $
+# $Id: Common.py,v 1.149 2005/12/02 18:50:22 nickm Exp $
 
 """mixminion.Common
 
@@ -1634,8 +1634,13 @@ class Lockfile:
         self.rlock = threading.Lock() #DOCDOC
 
     def getContents(self):
-        """Return the contents of the lock file."""
-        return readFile(self.filename)
+        """Return the contents of the lock file, or None if it has been
+           removed from underneath us.
+        """
+        try:
+            return readFile(self.filename)
+        except (IOError, OSError), _:
+            return None
 
     def acquire(self, contents="", blocking=0, mode=0600):
         """Acquire this lock.  If we're acquiring the lock for the first time,

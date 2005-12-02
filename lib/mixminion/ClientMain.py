@@ -47,7 +47,11 @@ def clientLock():
     try:
         _CLIENT_LOCKFILE.acquire(blocking=0, contents=pidStr)
     except LockfileLocked:
-        LOG.info("Waiting for pid %s", _CLIENT_LOCKFILE.getContents())
+        c = _CLIENT_LOCKFILE.getContents()
+        if c:
+            LOG.info("Waiting for pid %s", c)
+        else:
+            LOG.info("Waiting for another process")
         _CLIENT_LOCKFILE.acquire(blocking=1, contents=pidStr)
 
 def clientUnlock():
