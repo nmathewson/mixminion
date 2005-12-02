@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.219 2005/08/09 16:22:26 nickm Exp $
+# $Id: test.py,v 1.220 2005/12/02 19:56:35 nickm Exp $
 
 """mixminion.tests
 
@@ -7925,13 +7925,16 @@ class PingerTests(TestCase):
         #all the new log functions.
         P = mixminion.server.Pinger
         if not P.canRunPinger():
-            print "[Skipping ping tests; old python or missing pysqlite]",
+            print """
+[Skipping ping tests; your Python is too old to support the pinger code, or
+you haven't installed pysqlite.  This is nothing to worry about, unless you
+wanted to play with the new experimental built-in pinger code.]"""
             return
 
-        id0 = "Premature optimizati" #bar
-        id1 = "on is the root of al" #barbaz
-        id2 = "l evil in programmin" #bart
-        id3 = "g. -- Prof Don Knuth" 
+        id0 = "Premature optimizati"
+        id1 = "on is the root of al"
+        id2 = "l evil in programmin"
+        id3 = "g. -- Prof Don Knuth"
         assert len(id0)==len(id1)==len(id2)==len(id3)==20
 
         d = mix_mktemp()
