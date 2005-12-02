@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Makefile,v 1.70 2004/08/07 14:08:23 nickm Exp $
+# $Id: Makefile,v 1.71 2005/12/02 18:22:48 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the
 # make variable '$(FINDPYTHON)' as a chunk of shell script that sets
@@ -13,6 +13,7 @@
 # XXXX This fails when PYTHON is set to a version of Python earlier than 1.3
 
 PYTHON_CANDIDATES = python \
+        python2p4 python2.4 python2.4x \
         python2p3 python2.3 python2.3x \
         python2p2 python2.2 python2.2x \
         python2p1 python2.1 python2.1x \
@@ -110,7 +111,7 @@ install: do_build
 	  PREFIXARG=--prefix="$(PREFIX)";                                    \
 	fi;                                                                  \
 	if [ 'x' != "x$(DESTDIR)" ] ; then                                   \
-	  ROOTARG=--root="$(ROOTARG)";                                       \
+	  ROOTARG=--root="$(DESTDIR)";                                       \
         fi;                                                                  \
 	echo $$PYTHON -tt setup.py $$ARGS $$PREFIXARG $$ROOTARG;             \
 	$$PYTHON -tt setup.py $$ARGS $$PREFIXARG $$ROOTARG
@@ -218,10 +219,10 @@ bdist_py2exe:
 #======================================================================
 # OpenSSL-related targets
 
-OPENSSL_URL = ftp://ftp.openssl.org/source/openssl-0.9.7d.tar.gz
-OPENSSL_FILE = openssl-0.9.7d.tar.gz
+OPENSSL_URL = http://www.openssl.org/source/openssl-0.9.8a.tar.gz
+OPENSSL_FILE = openssl-0.9.8a.tar.gz
 OPENSSL_SRC = ./contrib/openssl
-OPENSSL_SHA = 697d7f3b7ab3bf980373f7f41899362a0b507c2f
+OPENSSL_SHA = 2aaba0f728179370fb3e86b43209205bc6c06a3a
 # I have verified that the above digest matches the tarball signed by the
 # openssl maintainer.  If you are paranoid, you should doublecheck. -Nick.
 
