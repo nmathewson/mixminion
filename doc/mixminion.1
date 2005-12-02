@@ -1,4 +1,4 @@
-.\" $Id: mixminion.1,v 1.6 2004/12/02 06:48:15 nickm Exp $
+.\" $Id: mixminion.1,v 1.7 2005/12/02 18:24:35 nickm Exp $
 .\" Copyright (c) 2004 Nick Mathewson -- see LICENCE for licensing information
 .\" "man mdoc.samples" for information on how to tag the document.
 .\" Type nroff -mdoc mixminion.1 | less
@@ -29,7 +29,7 @@ Sending Messages:
 .Op Fl f Ar file | Fl \-config= Ns Ar file
 .Op Fl P Ar path | Fl \-path= Ns Ar path
 .Op Fl i Ar file | Fl \-input= Ns Ar file
-.Op Fl \-queue | Fl \-noqueue
+.Op Fl \-queue | Fl \-no-queue
 .Op Fl \-subject= Ns Ar str
 .Op Fl \-from= Ns Ar str
 .Op Fl \-references= Ns Ar str
@@ -601,7 +601,7 @@ SURBs.  The default is 1.
 Flush no more than
 .Ar n
 packets.  By default, all packets are flushed.
-.It Fl \-noqueue
+.It Fl \-no-queue
 .Brq send
 If the packets can't be sent immediately, do not queue any failing packets.
 .Op Fl \-no-collapse
