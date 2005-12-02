@@ -6,8 +6,9 @@ mixminion (0XXXXXXXX) experimental; urgency=low
   * Most of the error checking in postinst before creating the
     debian-mixminion user is actually rather counterproductive, as adduser
     already does all of the job, only much better.  Therefore comment it out.
+  * Increase Standards-Version to 3.6.2 without any other changes.
 
- -- Peter Palfrader <weasel@debian.org>  Sat,  3 Dec 2005 00:45:56 +0100
+ -- Peter Palfrader <weasel@debian.org>  Sat,  3 Dec 2005 00:46:44 +0100
 
 mixminion (0.0.7.1-2) experimental; urgency=low
 

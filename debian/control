@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Peter Palfrader <weasel@debian.org>
 Build-Depends: debhelper (>= 4.1.65), libssl-dev (>=0.9.7), python, python2.3, python2.3-dev, dpatch
-Standards-Version: 3.6.1
+Standards-Version: 3.6.2
 
 Package: mixminion
 Architecture: any
