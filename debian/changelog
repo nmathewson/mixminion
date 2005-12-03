@@ -1,4 +1,4 @@
-mixminion (0XXXXXXXX) experimental; urgency=low
+mixminion (0.0.8~alpha2-1) experimental; urgency=low
 
   * Update debian/copyright: Mixminion relicensed to MIT.  Also, it is 2005
     now.  Update copyright notices.
@@ -8,7 +8,7 @@ mixminion (0XXXXXXXX) experimental; urgency=low
     already does all of the job, only much better.  Therefore comment it out.
   * Increase Standards-Version to 3.6.2 without any other changes.
 
- -- Peter Palfrader <weasel@debian.org>  Sat,  3 Dec 2005 00:46:44 +0100
+ -- Peter Palfrader <weasel@debian.org>  Sat,  3 Dec 2005 00:49:45 +0100
 
 mixminion (0.0.7.1-2) experimental; urgency=low
 
