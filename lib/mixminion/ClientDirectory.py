@@ -1992,7 +1992,7 @@ class RandomServersPathElement(PathElement):
         else:
             prng = mixminion.Crypto.getCommonPRNG()
             n = int(prng.getNormal(self.approx,1.5)+0.5)
-            if n < 1: n = 1
+            if n < 0: n = 0
         return [ None ] * n
     def getMinLength(self):
         if self.n is not None:
