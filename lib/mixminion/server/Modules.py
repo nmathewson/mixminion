@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.76 2005/12/08 06:56:46 nickm Exp $
+# $Id: Modules.py,v 1.77 2005/12/08 07:01:16 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -1342,6 +1342,7 @@ class MixmasterSMTPModule(SMTPModule):
                           "7 hours for 6 days"),
                 'MixCommand' : ('REQUIRE', "command", None),
                 'Server' : ('REQUIRE', None, None),
+                'Advertise' : ('ALLOW', "boolean", "yes"),
                 }
         cfg.update(MailBase.COMMON_OPTIONS)
         return { "Delivery/SMTP-Via-Mixmaster" : cfg }
