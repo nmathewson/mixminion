@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.71 2004/12/20 04:16:21 nickm Exp $
+# $Id: ServerKeys.py,v 1.72 2005/12/08 16:11:36 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -926,9 +926,11 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
 
     for section in ('Outgoing/MMTP', 'Delivery/MBOX', 'Delivery/SMTP'):
         info_out = info[section].get('Version')
-        config_out = config[section].get('Enabled')
+        config_out = (config[section].get('Enabled') and
+                      config[section].get('Advertise',1))
         if not config_out and section == 'Delivery/SMTP':
-            config_out = config['Delivery/SMTP-Via-Mixmaster'].get("Enabled")
+            config_out = (config['Delivery/SMTP-Via-Mixmaster'].get("Enabled")
+                 and config['Delivery/SMTP-Via-Mixmaster'].get("Advertise", 1))
         if info_out and not config_out:
             warn("%s published, but not enabled.", section)
         if config_out and not info_out:
