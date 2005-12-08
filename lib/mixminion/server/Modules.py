@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.75 2004/05/31 15:09:02 nickm Exp $
+# $Id: Modules.py,v 1.76 2005/12/08 06:56:46 nickm Exp $
 
 """mixminion.server.Modules
 
@@ -1050,7 +1050,7 @@ class MBoxModule(DeliveryModule, MailBase):
            ...
 
        When we receive a message send to 'addr', we deliver it to smtpaddr.
-       """
+    """
     ##
     # Fields:
     #   addresses: a map from address to SMTP address
@@ -1078,7 +1078,8 @@ class MBoxModule(DeliveryModule, MailBase):
                 'RemoveContact' : ('ALLOW', None, None),
                 'SMTPServer' : ('ALLOW', None, None),
                 'SendmailCommand' : ('ALLOW', "command", None),
-                }
+                'Advertise' : ('ALLOW', "boolean", "yes")
+              }
         cfg.update(MailBase.COMMON_OPTIONS)
         return { "Delivery/MBOX" : cfg }
 
@@ -1108,6 +1109,7 @@ class MBoxModule(DeliveryModule, MailBase):
             return
 
         sec = config['Delivery/MBOX']
+        self.advertise = sec.get('Advertise') #DOCDOC
         self.cfgSection = sec.copy() #DOCDOC
         self.addressFile = sec['AddressFile']
         self.returnAddress = sec['ReturnAddress']
@@ -1155,6 +1157,9 @@ class MBoxModule(DeliveryModule, MailBase):
         moduleManager.enableModule(self)
 
     def getServerInfoBlock(self):
+        if not self.advertise:
+            return ""
+
         if self.allowFromAddr:
             allowFrom = "yes"
         else:
@@ -1197,6 +1202,8 @@ class SMTPModule(DeliveryModule, MailBase):
     def __init__(self):
         DeliveryModule.__init__(self)
     def getServerInfoBlock(self):
+        if not self.advertise:
+            return ""
         if self.allowFromAddr:
             allowFrom = "yes"
         else:
@@ -1229,6 +1236,7 @@ class DirectSMTPModule(SMTPModule):
 
     def getConfigSyntax(self):
         cfg = { 'Enabled' : ('REQUIRE', "boolean", "no"),
+                'Advertise' : ('ALLOW', "boolean", "yes"),
                 'Retry': ('ALLOW', "intervalList",
                           "7 hours for 6 days"),
                 'BlacklistFile' : ('ALLOW', "filename", None),
@@ -1263,6 +1271,7 @@ class DirectSMTPModule(SMTPModule):
             manager.disableModule(self)
             return
 
+        self.advertise = sec.get('Advertise') #DOCDOC
         self.cfgSection = sec.copy() #DOCDOC
         self.retrySchedule = sec['Retry']
         if sec['BlacklistFile']:
