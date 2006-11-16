@@ -1,9 +1,10 @@
-$Id: HISTORY,v 1.17 2006/11/16 22:47:00 nickm Exp $
+$Id: HISTORY,v 1.18 2006/11/16 23:31:36 nickm Exp $
 
 NEW IN VERSION 0.0.8alpha3:
    - Create .mixminion directory even when we try to lock before accessing
      it: This prevents "update-servers" from crashing when run without
      a .mixminion directory.
+   - Don't die when gzip compression on a downloaded directory is corrupt.
 
 NEW IN VERSION 0.0.8alpha2:
    - License changed from LGPL to the so-called "MIT" license. This has

@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInfo.py,v 1.94 2005/08/09 15:51:32 nickm Exp $
+# $Id: ServerInfo.py,v 1.95 2006/11/16 23:31:36 nickm Exp $
 
 """mixminion.ServerInfo
 
@@ -552,7 +552,10 @@ class ServerDirectory:
         if string:
             contents = string
         else:
-            contents = readPossiblyGzippedFile(fname)
+            try:
+                contents = readPossiblyGzippedFile(fname)
+            except (IOError, zlib.error), e:
+                raise ConfigError("Couldn't decompress %s: %s"%(fname,e))
 
         contents = _cleanForDigest(contents)
 
@@ -611,7 +614,10 @@ class SignedDirectory:
         if string:
             contents = string
         else:
-            contents = readPossiblyGzippedFile(fname)
+            try:
+                contents = readPossiblyGzippedFile(fname)
+            except (IOError, zlib.error), e:
+                raise ConfigError("Couldn't decompress %s: %s"%(fname,e))
 
         contents = _cleanForDigest(contents)
 
@@ -692,7 +698,11 @@ class SignedDirectory:
 
 def parseDirectory(fname, validatedDigests=None):
     """DOCDOC"""
-    s = readPossiblyGzippedFile(fname)
+    try:
+        s = readPossiblyGzippedFile(fname)
+    except (IOError, zlib.error), e:
+        raise ConfigError("Couldn't decompress %s: %s"%(fname,e))
+
     if s.startswith("[Directory]\n"):
         tp = ServerDirectory
     else:
