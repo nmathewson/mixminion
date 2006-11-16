@@ -61,6 +61,8 @@ def clientUnlock():
 def configureClientLock(filename):
     """Prepare the client lock for use."""
     global _CLIENT_LOCKFILE
+    parent, fname = os.path.split(filename)
+    createPrivateDir(parent)
     _CLIENT_LOCKFILE = Lockfile(filename)
 
 class ClientDiskLock:

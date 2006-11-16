@@ -1,4 +1,9 @@
-$Id: HISTORY,v 1.16 2005/12/02 21:11:36 nickm Exp $
+$Id: HISTORY,v 1.17 2006/11/16 22:47:00 nickm Exp $
+
+NEW IN VERSION 0.0.8alpha3:
+   - Create .mixminion directory even when we try to lock before accessing
+     it: This prevents "update-servers" from crashing when run without
+     a .mixminion directory.
 
 NEW IN VERSION 0.0.8alpha2:
    - License changed from LGPL to the so-called "MIT" license. This has
@@ -38,6 +43,9 @@ NEW IN VERSION 0.0.8alpha2:
    - Suppress prompt when reading messages from non-TTY fds.
    - Implement --status-fd option to dump info to would-be integrators.
    - Better errors on expired certs
+
+NEW IN VERSION 0.0.8alpha1:
+   - Make it work with Python 2.4, and more versions of zlib.
 
 NEW IN VERSION 0.0.7.1:
    - Install man pages in PREFIX/share/man, not PREFIX/man.
