@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.44 2004/12/12 22:28:40 nickm Exp $
+# $Id: ServerQueue.py,v 1.45 2007/06/20 16:03:02 nickm Exp $
 
 """mixminion.server.ServerQueue
 
@@ -7,6 +7,7 @@
    """
 
 import cPickle
+import math
 import os
 import operator
 import time
@@ -876,6 +877,57 @@ class _BinomialMixin:
         return rng.shuffle([ h for h in self.getAllMessages()
                              if rng.getFloat() < msgProbability ])
 
+
+class _BinomialMixin:
+    """Mixin class.  Given a MixPool that defines a _getBatchSize function,
+       replaces the getBatch function with one that -- instead of sending N
+       messages from a pool of size P, sends each message with probability
+       N/P.  (Alternatively, the MixPool can define a _getFraction function,
+       in which case we'll send messages with probabilty _getFraction().)"""
+    def _getFraction(self):
+        n = self._getBatchSize()
+        count = self.count()
+        if n == 0 or count == 0:
+            return 0.0
+        return  n / float(count)
+
+    def getBatch(self):
+        msgProbability = self._getFraction()
+        rng = getCommonPRNG()
+        return rng.shuffle([ h for h in self.getAllMessages()
+                             if rng.getFloat() < msgProbability ])
+
+
 class BinomialCottrellMixPool(_BinomialMixin,CottrellMixPool):
     """Same algorithm as CottrellMixPool, but instead of sending N messages
        from the pool of size P, sends each message with probability N/P."""
+
+if 0:
+    class BinomialPlusMixPool(_BinomialMixin,CottrellMixPool):
+        """As presented in Serjantov, PET 2007, 'A Fresh Look at the
+        Generalized Mix Framework.'  (Testing only.)"""
+        constant_K = 0.01
+        def _getFraction(self):
+            """ g(M) = 1 - \frac{(M-n)e^{-kM}+n}{M} """
+            M = self.count()
+            n = self.minPool
+
+            return 1 - ( (M - n)*math.exp(-self.constant_K * M) + n )/float(M)
+
+    class LogGeneralMixPool(_BinomialMixin, TimedMixPool):
+        """As presented in Serjantov, PET 2007, 'A Fresh Look at the
+           Generalized Mix Framework.'  (Testing only.  Not necessarily
+           optimal.)"""
+        def _getFraction(self):
+            M = self.count()
+            return 1 - math.log(M)/float(M)
+
+    class SqrtGeneralMixPool(_BinomialMixin, TimedMixPool):
+        """As presented in Serjantov, PET 2007, 'A Fresh Look at the
+           Generalized Mix Framework.'  (Testing only.  Not necessarily
+           optimal.)"""
+        def _getFraction(self):
+            M = self.count()
+            return 1 - math.sqrt(M)/float(M)
+
+
