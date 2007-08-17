@@ -3,7 +3,7 @@
 
 #export DH_VERBOSE=1
 export DH_COMPAT=4
-export PYTHON=python2.3
+export PYTHON=python2.4
 export PACKAGE=mixminion
 
 include /usr/share/dpatch/dpatch.make
@@ -85,7 +85,7 @@ binary-arch: build install
 	dh_strip
 	dh_compress
 	dh_fixperms
-	dh_python -V 2.3
+	dh_python -V 2.4
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol

@@ -6,7 +6,7 @@ NAME=mixminion
 DESC="mixminion daemon"
 PIDFILE=/var/run/$NAME/mixminion.pid
 WAITFORDAEMON=15
-PYTHON=/usr/bin/python2.3
+PYTHON=/usr/bin/python2.4
 PYTHON_BASE=`basename $PYTHON`
 
 test -x $DAEMON || exit 0
