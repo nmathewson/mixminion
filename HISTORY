@@ -1,4 +1,4 @@
-$Id: HISTORY,v 1.19 2007/09/12 19:49:40 nickm Exp $
+$Id: HISTORY,v 1.20 2007/09/12 20:49:09 nickm Exp $
 
 NEW IN VERSION 0.0.8alpha3:
    - Create .mixminion directory even when we try to lock before accessing
@@ -7,6 +7,9 @@ NEW IN VERSION 0.0.8alpha3:
    - Don't die when gzip compression on a downloaded directory is corrupt.
    - Don't die when an incoming connection closes before we can get its
      address.
+   - Do not believe any path specifier that results in an impossibly short
+     path.
+   - Bump preferred openssl version to 0.9.8e.
 
 NEW IN VERSION 0.0.8alpha2:
    - License changed from LGPL to the so-called "MIT" license. This has

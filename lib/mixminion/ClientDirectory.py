@@ -1267,6 +1267,14 @@ class ClientDirectory:
             else:
                 n1 = len(p1)
 
+            # Make sure that we always have at least one server in each
+            # subpath that we use.  (Duh.)
+            if n1 == 0 and not pathSpec.isSURB:
+                n1 = 1
+                p.insert(0, None)
+            if n1 >= len(p) and not pathSpec.isReply:
+                p.insert(n1, None)
+
             result = self._getPath(p, startAt=startAt, endAt=endAt)
             r1,r2 = result[:n1], result[n1:]
             paths.append( (r1,r2) )
