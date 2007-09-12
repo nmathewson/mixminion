@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPServer.py,v 1.91 2005/11/10 02:17:08 nickm Exp $
+# $Id: MMTPServer.py,v 1.92 2007/09/12 19:49:41 nickm Exp $
 """mixminion.MMTPServer
 
    This package implements the Mixminion Transfer Protocol as described
@@ -320,9 +320,12 @@ class ListenConnection(Connection):
 
     def process(self, r, w, x, cap):
         #XXXX007 do something with x
-        con, addr = self.sock.accept()
-        LOG.debug("Accepted connection from %s", addr)
-        self.connectionFactory(con)
+        try:
+            con, addr = self.sock.accept()
+            LOG.debug("Accepted connection from %s", addr)
+            self.connectionFactory(con)
+        except socket.error, e:
+            LOG.warn("Socket error while accepting connection: %s", e)
         return self.isOpen,0,self.isOpen,0
 
     def getStatus(self):
