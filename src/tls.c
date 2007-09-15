@@ -1,5 +1,5 @@
 /* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information*/
-/* $Id: tls.c,v 1.36 2004/04/13 04:01:00 nickm Exp $ */
+/* $Id: tls.c,v 1.37 2007/09/15 19:06:09 nickm Exp $ */
 #include "_minionlib.h"
 
 #include <time.h>
@@ -649,7 +649,7 @@ mm_TLSSock_get_cert_lifetime(PyObject *self, PyObject *args, PyObject *kwargs)
         BIO_get_mem_ptr(bio, &buf);
         s1 = PyString_FromStringAndSize(buf->data, buf->length);
 
-        BIO_reset(bio);
+        (void) BIO_reset(bio);
         if (!ASN1_TIME_print(bio, X509_get_notAfter(cert))) {
                 mm_SSL_ERR(0); goto error;
         }
