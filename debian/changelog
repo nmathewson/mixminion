@@ -1,3 +1,9 @@
+mixminion (0.0.8~alpha3-1) experimental; urgency=low
+
+  * New upstream version.
+
+ -- Peter Palfrader <weasel@debian.org>  Mon, 17 Sep 2007 12:42:38 +0200
+
 mixminion (0.0.8~alpha2-1) experimental; urgency=low
 
   * Update debian/copyright: Mixminion relicensed to MIT.  Also, it is 2005
