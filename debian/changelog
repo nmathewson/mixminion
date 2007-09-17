@@ -2,8 +2,9 @@ mixminion (0.0.8~alpha3-1) experimental; urgency=low
 
   * New upstream version.
   * Update copyright years.
+  * Build against python 2.4.
 
- -- Peter Palfrader <weasel@debian.org>  Mon, 17 Sep 2007 12:42:38 +0200
+ -- Peter Palfrader <weasel@debian.org>  Mon, 17 Sep 2007 12:46:16 +0200
 
 mixminion (0.0.8~alpha2-1) experimental; urgency=low
 
