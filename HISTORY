@@ -1,4 +1,9 @@
-$Id: HISTORY,v 1.20 2007/09/12 20:49:09 nickm Exp $
+$Id: HISTORY,v 1.21 2007/10/08 19:03:21 nickm Exp $
+
+NEW IN VERSION 0.0.8alpha4:
+   - Avoid crashes on servers when name resolution fails for our own name
+     (Patch from Tobias).
+
 
 NEW IN VERSION 0.0.8alpha3:
    - Create .mixminion directory even when we try to lock before accessing

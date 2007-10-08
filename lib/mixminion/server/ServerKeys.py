@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.72 2005/12/08 16:11:36 nickm Exp $
+# $Id: ServerKeys.py,v 1.73 2007/10/08 19:03:21 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -1058,8 +1058,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     if fields['Hostname'] is None:
         fields['Hostname'] = socket.getfqdn()
         LOG.warn("No Hostname configured; guessing %s",fields['Hostname'])
-    _checkHostnameIsLocal(fields['Hostname'])
     try:
+        _checkHostnameIsLocal(fields['Hostname'])
         dnsResults = mixminion.NetUtils.getIPs(fields['Hostname'])
     except socket.error, e:
         LOG.warn("Can't resolve configured hostname %r: %s",
@@ -1246,21 +1246,16 @@ _KNOWN_LOCAL_HOSTNAMES = {}
 def _checkHostnameIsLocal(name):
     if _KNOWN_LOCAL_HOSTNAMES.has_key(name):
         return
-    try:
-        r = mixminion.NetUtils.getIPs(name)
-        for family, addr, _ in r:
-            if family == mixminion.NetUtils.AF_INET:
-                if addr.startswith("127.") or addr.startswith("0."):
-                    LOG.warn("Hostname %r resolves to reserved address %s",
-                             name, addr)
-            else:
-                if addr in ("::", "::1"):
-                    LOG.warn("Hostname %r resolves to reserved address %s",
-                             name,addr)
-    except socket.error, e:
-        # ???? Turn this into a warning, if people have a real reason to
-        # ???? use a hostname that they themselves cannot resolve.
-        raise UIError("Cannot resolve hostname %r: %s"%(name,e))
+    r = mixminion.NetUtils.getIPs(name)
+    for family, addr, _ in r:
+        if family == mixminion.NetUtils.AF_INET:
+            if addr.startswith("127.") or addr.startswith("0."):
+                LOG.warn("Hostname %r resolves to reserved address %s",
+                         name, addr)
+        else:
+            if addr in ("::", "::1"):
+                LOG.warn("Hostname %r resolves to reserved address %s",
+                         name,addr)
     _KNOWN_LOCAL_HOSTNAMES[name] = 1
 
 def generateCertChain(filename, mmtpKey, identityKey, nickname,
