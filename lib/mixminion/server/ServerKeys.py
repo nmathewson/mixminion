@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerKeys.py,v 1.73 2007/10/08 19:03:21 nickm Exp $
+# $Id: ServerKeys.py,v 1.74 2007/11/02 03:46:27 nickm Exp $
 
 """mixminion.ServerKeys
 
@@ -864,6 +864,8 @@ def checkDescriptorConsistency(info, config, log=1, isPublished=1):
     if config_s['Contact-Email'] != info_s['Contact']:
         warn("Mismatched contacts: %s in configuration; %s published.",
              config_s['Contact-Email'], info_s['Contact'])
+    if config_s['Contact-Fingerprint'] != info_s['Contact-Fingerprint']:
+        warn("Mismatched contact fingerprints.")
 
     if info_s['Software'] and info_s['Software'] != (
         "Mixminion %s" % mixminion.__version__):
@@ -990,6 +992,7 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
     # Now, we pull all the information we need from our configuration.
     nickname = config['Server']['Nickname']
     contact = config['Server']['Contact-Email']
+    fingerprint = config['Server']['Contact-Fingerprint']
     comments = config['Server']['Comments']
     if not now:
         now = time.time()
@@ -1090,6 +1093,8 @@ def generateServerDescriptorAndKeys(config, identityKey, keydir, keyname,
         """ % fields
     if insecurities:
         info += "Why-Insecure: %s\n"%(", ".join(insecurities))
+    if fingerprint:
+        info += "Contact-Fingerprint: %s\n"%fingerprint
     if comments:
         info += "Comments: %s\n"%comments
 

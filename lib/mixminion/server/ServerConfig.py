@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerConfig.py,v 1.59 2004/12/20 04:16:21 nickm Exp $
+# $Id: ServerConfig.py,v 1.60 2007/11/02 03:46:27 nickm Exp $
 
 """Configuration format for server configuration files.
 
@@ -346,6 +346,7 @@ SERVER_SYNTAX =  {
                      'Mode' : ('REQUIRE', "serverMode", "local"),
                      'Nickname': ('REQUIRE', "nickname", None),
                      'Contact-Email': ('REQUIRE', "email", None),
+                     'Contact-Fingerprint': ('ALLOW', None, None),
                      'Comments': ('ALLOW', None, None),
                      'ModulePath': ('ALLOW', None, None),
                      'Module': ('ALLOW*', None, None),
