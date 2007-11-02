@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.30 2005/11/10 02:17:09 nickm Exp $
+# $Id: Pinger.py,v 1.31 2007/11/02 03:41:09 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -1193,6 +1193,7 @@ class PingGenerator:
         assert (path2[-1].getIdentityDigest() ==
                 self.keyring.getIdentityKeyDigest())
         try:
+            LOG.debug("Pinger checking path %s",",".join([s.getNickname() for s in (path1+path2[:-1])]))
             p1 = self.directory.getPath(path1)
             p2 = self.directory.getPath(path2)
         except UIError, e:
@@ -1259,7 +1260,6 @@ class _PingScheduler:
         if now is None: now = int(time.time())
         periodStart = self._getPeriodStart(now)
         periodEnd = periodStart + self._period_length
-        path = tuple([ p.lower() for p in path ])
 
         interval = self._getPingInterval(path)
         perturbation = self._getPerturbation(path, periodStart, interval)
@@ -1410,6 +1410,7 @@ class TwoHopPingGenerator(_PingScheduler, PingGenerator):
                 when = self.nextPingTime.get((id1,id2))
                 if when is None:
                     # No ping scheduled; server must be new to directory.
+                    LOG.debug("No ping scheduled; server must be new to directory.")
                     self._schedulePing((id1,id2),now)
                     continue
                 elif when > now: # Not yet.

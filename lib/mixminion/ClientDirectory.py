@@ -1159,8 +1159,8 @@ class ClientDirectory:
             if name.isValidFrom(startAt, endAt):
                 return name
             else:
-                LOG.error("Server is not currently valid")
-                return None
+                LOG.debug("Time-invalid descriptor for %s, looking for another one.", name.getNickname())
+                name=name.getNickname()
 
         self.__scanAsNeeded()
         # If it's a nickname, return a serverinfo with that name.
