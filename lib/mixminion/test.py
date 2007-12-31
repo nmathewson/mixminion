@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.220 2005/12/02 19:56:35 nickm Exp $
+# $Id: test.py,v 1.221 2007/12/31 20:11:54 nickm Exp $
 
 """mixminion.tests
 
@@ -7046,12 +7046,12 @@ class ClientDirectoryTests(TestCase):
         si = ServerInfo(string=edesc['Lisa'][1],assumeValid=1)
         self.assert_(ks.getServerInfo(si) is si)
         try:
-            suspendLog()
+            suspendLog("DEBUG")
             si = ServerInfo(string=edesc['Lisa'][0],assumeValid=1)
             self.assert_(ks.getServerInfo(si) is None)
         finally:
             s = resumeLog()
-        self.assert_(stringContains(s, "Server is not currently"))
+        self.assert_(stringContains(s, "Time-invalid"))
 
         ##
         # Now try out the directory.  This is tricky; we add the other

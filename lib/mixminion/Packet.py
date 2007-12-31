@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.84 2005/08/09 16:12:42 nickm Exp $
+# $Id: Packet.py,v 1.85 2007/12/31 20:11:54 nickm Exp $
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion
@@ -549,7 +549,8 @@ First server is: %s""" % (digest, expiry, server)
     def pack(self):
         """Returns the external representation of this reply block"""
         return struct.pack(RB_UNPACK_PATTERN,
-                           "SURB", 0x00, 0x01, self.timestamp, self.header,
+                           "SURB", 0x00, 0x01, long(self.timestamp),
+                           self.header,
                            len(self.routingInfo), self.routingType,
                            self.encryptionKey) + self.routingInfo
 
