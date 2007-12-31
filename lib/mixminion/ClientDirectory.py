@@ -24,6 +24,8 @@ import types
 import rfc822
 import urllib2
 
+from httplib import HTTPException
+
 import mixminion.Config
 import mixminion.Crypto
 import mixminion.NetUtils
@@ -481,6 +483,9 @@ class DirectoryBackedDescriptorSource(DescriptorSource):
                 else:
                     raise DirectoryDownloadError(
                         "Error connecting to directory server: %s"%e)
+            except HTTPException, e:
+                raise DirectoryDownloadError(
+                    "HTTP exception downloading directory: %s"%e)
         finally:
             if self.timeout:
                 mixminion.NetUtils.unsetGlobalTimeout()

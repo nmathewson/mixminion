@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.148 2005/08/09 16:38:31 nickm Exp $
+# $Id: ServerMain.py,v 1.149 2007/12/31 19:38:08 nickm Exp $
 
 """mixminion.server.ServerMain
 
@@ -758,7 +758,7 @@ class MixminionServer(Scheduler):
             # Randomly retrieve the directory within an hour after
             # midnight, to avoid hosing the server.
             nextUpdate += prng.getInt(60)*60
-        except mixminion.ClientDirectory.GotInvalidDirectoryError, e:
+        except mixminion.ClientDirectory.DirectoryDownloadError, e:
             LOG.warn(str(e))
             LOG.warn("    I'll try again in an hour.")
             nextUpdate = min(succeedingMidnight(time.time()+30),
