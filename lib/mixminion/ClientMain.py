@@ -1940,7 +1940,7 @@ EXAMPLES:
 """.strip()
 
 def flushQueue(cmd, args):
-    options, args = getOptions(args, "", ["count="], argsOK=1)
+    options, args = getOptions(args, "n:", ["count="], argsOK=1)
     count=None
     for o,v in options:
         if o in ('-n','--count'):
