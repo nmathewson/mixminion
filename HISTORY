@@ -1,4 +1,4 @@
-$Id: HISTORY,v 1.23 2007/12/31 21:00:16 nickm Exp $
+$Id: HISTORY,v 1.24 2007/12/31 21:02:56 nickm Exp $
 
 NEW IN VERSION 0.0.8alpha4:
    - Avoid crashes on servers when name resolution fails for our own name
@@ -6,6 +6,7 @@ NEW IN VERSION 0.0.8alpha4:
    - Avoid crashes on servers when directory download fails (Patch from
      Tobias).
    - Fix support for -n option to flushqueue command (Patch from Tobias).
+   - Fix SQL syntax error spotted by Uwe Danz.
 
 NEW IN VERSION 0.0.8alpha3:
    - Create .mixminion directory even when we try to lock before accessing

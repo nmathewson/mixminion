@@ -1,5 +1,5 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.31 2007/11/02 03:41:09 nickm Exp $
+# $Id: Pinger.py,v 1.32 2007/12/31 21:02:56 nickm Exp $
 
 """mixminion.server.Pinger
 
@@ -1060,7 +1060,7 @@ class PingLog:
         cur.execute("SELECT identity,startAt,endAt,nSent,nReceived,"
                    "  latency,reliability "
                    "FROM echolotOneHopResult, statsInterval, server "
-                   "WHERE startat >= %s AND startat <= %s"
+                   "WHERE startat >= %s AND startat <= %s "
                    "AND echolotOneHopResult.server = server.id "
                    "AND echolotOneHopResult.interval = statsInterval.id "
                    "ORDER BY identity, startat", (since, now))
