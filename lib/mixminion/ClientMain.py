@@ -1784,6 +1784,9 @@ Options:
   --identity=<name>          Specify a pseudonymous identity.
   --passphrase-fd=<N>        Read passphrase from file descriptor N instead
                                of asking on the console.
+  --lifetime=<N>             A number of days that the generated SURBs
+                               need to remain valid.  Don't make this too
+                               long, or very few routers will be used.
 
 EXAMPLES:
   Generate a reply block to deliver messages to the address given in
@@ -1810,7 +1813,8 @@ EXAMPLES:
 
 def generateSURB(cmd, args):
     options, args = getOptions(args,
-                               "bn:", ["binary", "count=", "identity="],
+                               "bn:", ["binary", "count=", "identity=",
+                                       "lifetime="],
                                dir=1, dest=1, path=1, passphrase=1, output=1)
 
     outputFile = '-'
