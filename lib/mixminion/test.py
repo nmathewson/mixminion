@@ -1,5 +1,5 @@
 # Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: test.py,v 1.221 2007/12/31 20:11:54 nickm Exp $
+# $Id: test.py,v 1.222 2009/02/17 19:49:24 nickm Exp $
 
 """mixminion.tests
 
@@ -3444,15 +3444,15 @@ class QueueTests(FStoreTestBase):
         h3 = q.queueDeliveryMessage("Message number three", A1, start)
         q._repOK()
 
-        m, ds, as = q._inspect(h1)
+        m, ds, as_ = q._inspect(h1)
         self.assertEquals(m, "Message number one")
         self.assertEquals(ds.address, A1)
-        self.assertEquals(as.address, A1)
+        self.assertEquals(as_.address, A1)
         self.assert_(not ds.isPending())
         self.assertEquals(ds.lastAttempt, None)
-        self.assertEquals(as.lastSuccess, None)
-        self.assertEquals(as.lastFailure, None)
-        self.assertEquals(as.firstFailure, None)
+        self.assertEquals(as_.lastSuccess, None)
+        self.assertEquals(as_.lastFailure, None)
+        self.assertEquals(as_.firstFailure, None)
         q.removeExpiredMessages(start)
         self.assertEquals(q.store.count(), 3)
 
