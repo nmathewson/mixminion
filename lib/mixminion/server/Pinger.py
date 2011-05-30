@@ -47,7 +47,7 @@ from mixminion.Common import MixError, AtomicFile, ceilDiv, createPrivateDir, \
      succeedingMidnight, UIError, writePickled
 
 try:
-    import sqlite
+    import sqlite3
 except ImportError:
     sqlite = None
 
@@ -111,7 +111,7 @@ class SQLiteDatabase:
         """Create a SQLite database storing its data in the file 'location'."""
         parent = os.path.split(location)[0]
         createPrivateDir(parent)
-        self._theConnection = sqlite.connect(location, autocommit=0)
+        self._theConnection = sqlite3.connect(location, isolation_level=None)
         self._theCursor = self._theConnection.cursor()
 
     def close(self):
@@ -1506,7 +1506,7 @@ def getPingGenerator(config):
 def canRunPinger():
     """Return true iff we have the required libraries installed to run a pinger.
     """
-    return sys.version_info[:2] >= (2,2) and sqlite is not None
+    return sys.version_info[:2] >= (2,2) and sqlite3 is not None
 
 # Map from database type name to databae implementation class.
 DATABASE_CLASSES = { 'sqlite' : SQLiteDatabase }

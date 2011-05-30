@@ -617,16 +617,16 @@ class PerAddressDeliveryQueue(DeliveryQueue):
         try:
             for ds in self.store._metadata_cache.values():
                 if not self.addressStateDB.has_key(str(ds.address)):
-                    as = _AddressState(ds.address)
-                    self.addressStateDB[str(ds.address)] = as
+                    as_ = _AddressState(ds.address)
+                    self.addressStateDB[str(ds.address)] = as_
             if not self.retrySchedule:
                 rs = [3600]
                 self.totalLifetime = 3600
             else:
                 rs = self.retrySchedule
                 self.totalLifetime = reduce(operator.add,self.retrySchedule,0)
-            for as in self.addressStateDB.values():
-                as.setNextAttempt(rs, now)
+            for addr_state in self.addressStateDB.values():
+                addr_state.setNextAttempt(rs, now)
             self._repOK()
         finally:
             self._lock.release()
@@ -643,10 +643,10 @@ class PerAddressDeliveryQueue(DeliveryQueue):
                 else:
                     have[ds.address]=1
 
-            for k, as in self.addressStateDB.items():
-                if have.has_key(as.address):
+            for k, addr_state in self.addressStateDB.items():
+                if have.has_key(addr_state.address):
                     continue
-                lastActivity = as.getLastActivity()
+                lastActivity = addr_state.getLastActivity()
                 if lastActivity and (
                     lastActivity + self.totalLifetime < now):
                     del self.addressStateDB[k]
@@ -655,11 +655,11 @@ class PerAddressDeliveryQueue(DeliveryQueue):
 
     def _getAddressState(self, address, now=None):
         try:
-            as = self.addressStateDB[str(address)]
+            addr_state = self.addressStateDB[str(address)]
         except KeyError:
-            as = self.addressStateDB[str(address)] = _AddressState(address)
-            as.setNextAttempt(self.retrySchedule, now)
-        return as
+            addr_state = self.addressStateDB[str(address)] = _AddressState(address)
+            addr_state.setNextAttempt(self.retrySchedule, now)
+        return addr_state
 
     def queueDeliveryMessage(self, msg, address, now=None):
         self._getAddressState(address, now=now)
@@ -767,8 +767,8 @@ class PerAddressDeliveryQueue(DeliveryQueue):
         self._repOK()
         o = self.store.getObject(handle)
         ds = self.store.getMetadata(handle)
-        as = self._getAddressState(ds.address)
-        return (o, ds, as)
+        addr_state = self._getAddressState(ds.address)
+        return (o, ds, addr_state)
 
     def _repOK(self):
         """Raise an assertion error if the internal state of this object is
@@ -780,8 +780,8 @@ class PerAddressDeliveryQueue(DeliveryQueue):
             DeliveryQueue._repOK(self)
             for h in self.store._metadata_cache.keys():
                 ds = self.store._metadata_cache[h]
-                as = self._getAddressState(ds.address)
-                assert as.address == ds.address
+                addr_state = self._getAddressState(ds.address)
+                assert addr_state.address == ds.address
         finally:
             self._lock.release()
 
