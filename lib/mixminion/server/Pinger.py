@@ -137,7 +137,7 @@ class SQLiteDatabase:
            'view', 'table', or 'index'.
         """
         self._theCursor.execute(
-            "SELECT * FROM SQLITE_MASTER WHERE type = %s AND name = %s",
+            "SELECT * FROM SQLITE_MASTER WHERE type = ? AND name = ?",
             (objType,name))
         rs = self._theCursor.fetchall()
         return len(rs) > 0
@@ -232,7 +232,7 @@ class SQLiteDatabase:
             table,
             ", ".join(keyCols),
             ", ".join(valCols),
-            ", ".join(["%s"]*(len(valCols)+len(keyCols))))
+            ", ".join(["?"]*(len(valCols)+len(keyCols))))
         def fn(keyVals, valVals):
             assert len(keyVals) == len(keyCols)
             assert len(valVals) == len(valCols)
@@ -528,9 +528,9 @@ class PingLog:
         cur = self._db.getCursor()
 
         hexid = self._db.encodeIdentity(identity)
-
-        cur.execute("INSERT INTO server (identity) VALUES (%s)", hexid)
-        cur.execute("SELECT id FROM server WHERE identity = %s", hexid)
+		
+        cur.execute("INSERT INTO server (identity) VALUES (?)", [hexid])
+        cur.execute("SELECT id FROM server WHERE identity = ?", [hexid])
         #XXXX catch errors!
         ident, = cur.fetchone()
         self._serverIDs[identity]=ident
@@ -545,16 +545,16 @@ class PingLog:
         start = self._db.time(start)
         end = self._db.time(end)
         cur = self._db.getCursor()
-        cur.execute("SELECT id FROM statsInterval WHERE "
-                    "startAt = %s AND endAt = %s", start, end)
+        cur.execute("SELECT id FROM statsInterval WHERE startAt = ? AND endAt = ?", 
+				(start, end))
         r = cur.fetchall()
         if len(r) == 1:
             return r[0][0]
 
-        cur.execute("INSERT INTO statsInterval (startAt, endAt) "
-                    "VALUES (%s, %s)", start, end)
-        cur.execute("SELECT id FROM statsInterval WHERE "
-                    "startAt = %s AND endAt = %s", start, end)
+        cur.execute("INSERT INTO statsInterval (startAt, endAt) VALUES (?, ?)", 
+				(start, end))
+        cur.execute("SELECT id FROM statsInterval WHERE startAt = ? AND endAt = ?", 
+				(start, end))
         r = cur.fetchall()
         assert len(r) == 1
         return r[0][0]
@@ -570,17 +570,17 @@ class PingLog:
         #resultsCutoff = self._db.time(now - sec['RetainPingResults'])
 
         cur = self._db.getCursor()
-        cur.execute("DELETE FROM myLifespan WHERE stillup < %s", dataCutoff)
-        cur.execute("DELETE FROM ping WHERE sentat < %s", dataCutoff)
-        cur.execute("DELETE FROM connectionAttempt WHERE at < %s", dataCutoff)
+        cur.execute("DELETE FROM myLifespan WHERE stillup < ?", [dataCutoff])
+        cur.execute("DELETE FROM ping WHERE sentat < ?", [dataCutoff])
+        cur.execute("DELETE FROM connectionAttempt WHERE at < ?", [dataCutoff])
 
         cur.execute("DELETE FROM uptime WHERE interval IN "
-                    "( SELECT id FROM statsInterval WHERE endAt < %s )",
-                    resultsCutoff)
+                    "( SELECT id FROM statsInterval WHERE endAt < ? )",
+                    [resultsCutoff])
         cur.execute("DELETE FROM echolotOneHopResult WHERE interval IN "
-                    "( SELECT id FROM statsInterval WHERE endAt < %s )",
-                    resultsCutoff)
-        cur.execute("DELETE FROM statsInterval WHERE endAt < %s", resultsCutoff)
+                    "( SELECT id FROM statsInterval WHERE endAt < ? )",
+                    [resultsCutoff])
+        cur.execute("DELETE FROM statsInterval WHERE endAt < ?", [resultsCutoff])
 
         self._db.getConnection().commit()
 
@@ -593,7 +593,7 @@ class PingLog:
            database."""
         self._db.close()
 
-    _STARTUP = "INSERT INTO myLifespan (startup, stillup, shutdown) VALUES (%s,%s, 0)"
+    _STARTUP = "INSERT INTO myLifespan (startup, stillup, shutdown) VALUES (?,?, 0)"
     def startup(self,now=None):
         """Called when the server has just started.  Starts tracking a new
            interval of this server's lifetime."""
@@ -603,7 +603,7 @@ class PingLog:
         self._db.getCursor().execute(self._STARTUP, (now,now))
         self._db.getConnection().commit()
 
-    _SHUTDOWN = "UPDATE myLifespan SET stillup = %s, shutdown = %s WHERE startup = %s"
+    _SHUTDOWN = "UPDATE myLifespan SET stillup = ?, shutdown = ? WHERE startup = ?"
     def shutdown(self, now=None):
         """Called when the server is shutting down. Stops tracking the current
            interval of this server's lifetime."""
@@ -612,7 +612,7 @@ class PingLog:
         self._db.getCursor().execute(self._SHUTDOWN, (now, now, self._startTime))
         self._db.getConnection().commit()
 
-    _HEARTBEAT = "UPDATE myLifespan SET stillup = %s WHERE startup = %s AND stillup < %s"
+    _HEARTBEAT = "UPDATE myLifespan SET stillup = ? WHERE startup = ? AND stillup < ?"
     def heartbeat(self, now=None):
         """Called periodically.  Notes that the server is still running as of
            the time 'now'."""
@@ -622,7 +622,7 @@ class PingLog:
         self._db.getConnection().commit()
 
     _CONNECTED = ("INSERT INTO connectionAttempt (at, server, success) "
-                  "VALUES (%s,%s,%s)")
+                  "VALUES (?,?,?)")
     def connected(self, identity, success=1, now=None):
         """Note that we attempted to connect to the server with 'identity'.
            We successfully negotiated a protocol iff success is true.
@@ -639,7 +639,7 @@ class PingLog:
         self.connected(identity, success=0, now=now)
 
     _QUEUED_PING = ("INSERT INTO ping (hash, path, sentat, received)"
-                    "VALUES (%s,%s,%s,%s)")
+                    "VALUES (?,?,?,?)")
     def queuedPing(self, hash, path, now=None):
         """Note that we send a probe message along 'path' (a list of
            server identities, excluding ourself as first and last
@@ -652,7 +652,7 @@ class PingLog:
                              (formatBase64(hash), ids, self._db.time(now), 0))
         self._db.getConnection().commit()
 
-    _GOT_PING = "UPDATE ping SET received = %s WHERE hash = %s"
+    _GOT_PING = "UPDATE ping SET received = ? WHERE hash = ?"
     def gotPing(self, hash, now=None):
         """Note that we have received a probe message whose payload had 'hash'
            as its digest.
@@ -682,8 +682,8 @@ class PingLog:
                           self._intervals.getIntervals(startTime,endTime)]
 
         cur.execute("SELECT startup, stillup, shutdown FROM myLifespan WHERE "
-                    "startup <= %s AND stillup >= %s",
-                    self._db.time(endTime), self._db.time(startTime))
+                    "startup <= ? AND stillup >= ?",
+                    (self._db.time(endTime), self._db.time(startTime)))
         myIntervals = IntervalSet([ (start, max(end,shutdown))
                                     for start,end,shutdown in cur ])
         myIntervals *= timespan
@@ -696,9 +696,9 @@ class PingLog:
         for (identity, serverID) in self._serverIDs.items():
             if s in ('<self>','<unknown>'): continue
             cur.execute("SELECT at, success FROM connectionAttempt"
-                        " WHERE server = %s AND at >= %s AND at <= %s"
+                        " WHERE server = ? AND at >= ? AND at <= ?"
                         " ORDER BY at",
-                        serverID, startTime, endTime)
+                        (serverID, startTime, endTime))
 
             intervals = [[], []] #uptimes, downtimes
             lastStatus = None
@@ -756,7 +756,7 @@ class PingLog:
                     "FROM uptime, statsInterval, server "
                     "WHERE statsInterval.id = uptime.interval "
                     "AND server.id = uptime.server "
-                    "AND %s >= startat AND %s <= endat",
+                    "AND ? >= startat AND ? <= endat",
                     (self._db.time(startAt), self._db.time(endAt)))
         for s,e,i,u in cur:
             result.setdefault((s,e), {})[self._db.decodeIdentity(i)] = u
@@ -810,8 +810,8 @@ class PingLog:
         dailyLatencies = [[] for _ in xrange(nPeriods)]
         nSent = [0]*nPeriods
         nPings = 0
-        cur.execute("SELECT sentat, received FROM ping WHERE path = %s"
-                    " AND sentat >= %s AND sentat <= %s",
+        cur.execute("SELECT sentat, received FROM ping WHERE path = ?"
+                    " AND sentat >= ? AND sentat <= ?",
                     (serverID, startTime, endTime))
         for sent,received in cur:
             pIdx = floorDiv(sent-startTime, self._PING_GRANULARITY)
@@ -843,8 +843,8 @@ class PingLog:
         nReceived = [0]*nPeriods
         perTotalWeights = [0]*nPeriods
         perTotalWeighted = [0]*nPeriods
-        cur.execute("SELECT sentat, received FROM ping WHERE path = %s"
-                    " AND sentat >= %s AND sentat <= %s",
+        cur.execute("SELECT sentat, received FROM ping WHERE path = ?"
+                    " AND sentat >= ? AND sentat <= ?",
                     (serverID, startTime, endTime))
         for sent,received in cur:
             pIdx = floorDiv(sent-startTime, self._PING_GRANULARITY)
@@ -939,23 +939,23 @@ class PingLog:
         # doesn't commit.
         cur = self._db.getCursor()
         path = "%s,%s"%(self._getServerID(s1),self._getServerID(s2))
-        cur.execute("SELECT count() FROM ping WHERE path = %s"
-                    " AND sentat >= %s",
+        cur.execute("SELECT count() FROM ping WHERE path = ?"
+                    " AND sentat >= ?",
                     (path,self._db.time(since)))
         nSent, = cur.fetchone()
-        cur.execute("SELECT count() FROM ping WHERE path = %s"
-                    " AND sentat >= %s AND received > 0",
+        cur.execute("SELECT count() FROM ping WHERE path = ?"
+                    " AND sentat >= ? AND received > 0",
                     (path,since))
         nReceived, = cur.fetchone()
         cur.execute("SELECT SUM(r1.reliability * r2.reliability) "
                    "FROM ping, echolotOneHopResult as r1, "
                    "   echolotOneHopResult as r2, statsInterval "
-                   "WHERE ping.path = %s AND ping.sentAt >= %s "
+                   "WHERE ping.path = ? AND ping.sentAt >= ? "
                    "AND statsInterval.startAt <= ping.sentAt "
                    "AND statsInterval.endAt >= ping.sentAt "
-                   "AND r1.server = %s "
+                   "AND r1.server = ? "
                    "AND r1.interval = statsInterval.id "
-                   "AND r2.server = %s "
+                   "AND r2.server = ? "
                    "AND r2.interval = statsInterval.id ",
                     (path, self._db.time(since),
                      self._getServerID(s1), self._getServerID(s2)))
@@ -1038,7 +1038,7 @@ class PingLog:
         print >>f, "\n# Map from server to list of (period-start, period-end, fractional uptime"
         print >>f, "SERVER_UPTIMES = {"
         cur.execute("SELECT startAt,endAt,identity,uptime FROM uptime, server, statsInterval "
-                    "WHERE startAt >= %s AND startAt <= %s "
+                    "WHERE startAt >= ? AND startAt <= ? "
                     "AND uptime.server = server.id "
                     "AND uptime.interval = statsInterval.id "
                     "ORDER BY identity, startAt", (since, now))
@@ -1060,7 +1060,7 @@ class PingLog:
         cur.execute("SELECT identity,startAt,endAt,nSent,nReceived,"
                    "  latency,reliability "
                    "FROM echolotOneHopResult, statsInterval, server "
-                   "WHERE startat >= %s AND startat <= %s "
+                   "WHERE startat >= ? AND startat <= ? "
                    "AND echolotOneHopResult.server = server.id "
                    "AND echolotOneHopResult.interval = statsInterval.id "
                    "ORDER BY identity, startat", (since, now))

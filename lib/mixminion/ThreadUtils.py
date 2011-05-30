@@ -48,7 +48,11 @@ if BUILTIN_QUEUE_USES_CONDITIONS:
             # If the queue is empty, return.
             self.not_empty.acquire()
             try:
-                if self._empty(): return
+				# Temporary comment out of empty
+				# self._empty() is depreciated and is now self.empty()
+				# self.empty() currently hangs during make test
+				#
+                #if self._empty(): return
                 self._clear()
                 self.not_full.notify()
             finally:
