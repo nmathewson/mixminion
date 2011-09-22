@@ -14,6 +14,7 @@
 
 PYTHON_CANDIDATES = python \
         python3.0 python3 \
+        python2p7 python2.7 python2.7x \
         python2p6 python2.6 python2.6x \
         python2p5 python2.5 python2.5x \
         python2p4 python2.4 python2.4x \
@@ -328,9 +329,9 @@ eolspace:
 update-copyright:
 	touch -t 200401010000 jan1
 	find . -type f -newer jan1 | xargs perl -i.bak -pe \
-          's/Copyrigh[t] 2002.* Nick Mathewson/Copyright 2002-2007 Nick Mathewson/;'
+          's/Copyrigh[t] 2002.* Nick Mathewson/Copyright 2002-2011 Nick Mathewson/;'
 	find . -type f -newer jan1 | xargs perl -i.bak -pe \
-          's/Copyrigh[t] 2003.* Nick Mathewson/Copyright 2003-2007 Nick Mathewson/;'
+          's/Copyrigh[t] 2003.* Nick Mathewson/Copyright 2003-2011 Nick Mathewson/;'
 
 longlines:
 	find lib src \( -name '*.py' -or -name '*.[ch]' \) -print0 \
