@@ -14,6 +14,7 @@
 
 PYTHON_CANDIDATES = python \
         python3.0 python3 \
+        python2p7 python2.7 python2.7x \
         python2p6 python2.6 python2.6x \
         python2p5 python2.5 python2.5x \
         python2p4 python2.4 python2.4x \
