@@ -7,7 +7,6 @@
 # Copyright (C) 2002, 2003 Python Software Foundation.
 # Written by Greg Ward <gward@python.net>
 
-__revision__ = "$Id: textwrap.py,v 1.2 2003/06/21 21:44:01 nickm Exp $"
 
 import string, re
 

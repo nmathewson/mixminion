@@ -1,6 +1,5 @@
 #!/usr/bin/python2
 # Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.73 2004/05/14 23:44:09 nickm Exp $
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.

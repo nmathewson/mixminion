@@ -1,5 +1,4 @@
 /* Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information*/
-/* $Id: _minionlib.h,v 1.21 2004/03/06 00:04:38 nickm Exp $ */
 #ifndef _MINIONLIB_H
 #define _MINIONLIB_H
 

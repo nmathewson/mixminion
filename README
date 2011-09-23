@@ -1,4 +1,3 @@
-$Id: README,v 1.83 2007/09/15 19:06:37 nickm Exp $
 ======================================================================
 This is Mixminion version 0.0.8alpha3.
 
@@ -352,11 +351,3 @@ diffs against the latest version of the code in CVS.
 Make sure to run 'make test' before you send in any patches, so you can see
 whether your patch broke existing code.  (It's okay if you're not sure how to
 fix the test, but please let me know when you send your patch.)
-
-------------------
-(for emacs)
-  Local Variables:
-  mode:text
-  indent-tabs-mode:nil
-  fill-column:77
-  End:

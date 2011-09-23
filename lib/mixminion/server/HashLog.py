@@ -1,5 +1,4 @@
 # Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: HashLog.py,v 1.25 2003/09/19 04:32:46 nickm Exp $
 
 """mixminion.server.HashLog
 

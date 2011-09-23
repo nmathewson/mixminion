@@ -1,4 +1,3 @@
-$Id: HISTORY,v 1.24 2007/12/31 21:02:56 nickm Exp $
 
 NEW IN VERSION 0.0.8alpha4:
    - Avoid crashes on servers when name resolution fails for our own name
@@ -518,11 +517,3 @@ NEW IN VERSION 0.0.1:
      servers, that can use Mixmaster to deliver to any external address,
      or that sends SMTP directly to a preconfigured set of addresses.
    - You can send anonymous email via these servers.
-
-------------------
-(for emacs)
-  Local Variables:
-  mode:text
-  indent-tabs-mode:nil
-  fill-column:77
-  End:

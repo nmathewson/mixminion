@@ -1,5 +1,4 @@
 /* Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information*/
-/* $Id: main.c,v 1.25 2004/03/06 00:04:38 nickm Exp $ */
 
 /*
   If you're not familiar with writing Python extensions, you should

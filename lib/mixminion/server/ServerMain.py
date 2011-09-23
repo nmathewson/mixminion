@@ -1,5 +1,4 @@
 # Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerMain.py,v 1.149 2007/12/31 19:38:08 nickm Exp $
 
 """mixminion.server.ServerMain
 

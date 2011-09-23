@@ -1,5 +1,4 @@
 # Copyright 2003-2011 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Directory.py,v 1.20 2005/06/04 13:55:04 nickm Exp $
 
 """mixminion.directory.Directory
 

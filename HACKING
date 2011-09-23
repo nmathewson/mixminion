@@ -1,4 +1,3 @@
-$Id: HACKING,v 1.26 2004/05/10 16:46:21 nickm Exp $
 Hacking Mixminion
 
 HOW TO CONTRIBUTE PATCHES:
@@ -231,10 +230,3 @@ FINDING YOUR WAY AROUND THE CODE.
                  implemented and selected by ModuleManager.
 
 --Nick
-
-(for emacs)
-  Local Variables:
-  mode:text
-  indent-tabs-mode:nil
-  fill-column:77
-  End:

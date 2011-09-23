@@ -1,5 +1,4 @@
 # Copyright 2003-2011 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirFormats.py,v 1.5 2005/05/03 03:26:50 nickm Exp $
 
 """mixminion.directory.Directory
 

@@ -1,5 +1,4 @@
 # Copyright 2005 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: SExpression.py,v 1.1 2005/12/04 00:05:33 nickm Exp $
 
 """mixminion.SExpression
 

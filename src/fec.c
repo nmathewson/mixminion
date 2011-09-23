@@ -1,6 +1,5 @@
 /* Portions Copyright 2003-2011 Nick Mathewson.  See LICENCE for licensing
  * information. */
-/* $Id: fec.c,v 1.13 2004/03/06 00:04:38 nickm Exp $ */
 
 #include <Python.h>
 #include "_minionlib.h"

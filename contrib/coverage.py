@@ -593,4 +593,3 @@ if __name__ == '__main__':
 #
 #
 #
-# $Id: coverage.py,v 1.1 2003/11/07 05:44:40 nickm Exp $

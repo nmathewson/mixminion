@@ -1,5 +1,4 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ClientAPI.py,v 1.7 2005/05/27 18:17:38 nickm Exp $
 
 """mixminion.ClientAPI
 

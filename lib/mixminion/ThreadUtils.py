@@ -1,5 +1,4 @@
 # Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ThreadUtils.py,v 1.11 2005/06/04 13:54:14 nickm Exp $
 
 """mixminion.ThreadUtils
 
