@@ -223,10 +223,10 @@ bdist_py2exe:
 #======================================================================
 # OpenSSL-related targets
 
-OPENSSL_URL = http://www.openssl.org/source/openssl-0.9.8e.tar.gz
-OPENSSL_FILE = openssl-0.9.8e.tar.gz
+OPENSSL_URL = http://www.openssl.org/source/openssl-1.0.0e.tar.gz
+OPENSSL_FILE = openssl-1.0.0e.tar.gz
 OPENSSL_SRC = ./contrib/openssl
-OPENSSL_SHA = b429872d2a287714ab37e42296e6a5fbe23d32ff
+OPENSSL_SHA = 235eb68e5a31b0f7a23bc05f52d7a39c596e2e69
 # I have verified that the above digest matches the tarball signed by the
 # openssl maintainer.  If you are paranoid, you should doublecheck. -Nick.
 
