@@ -1,4 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: TLSConnection.py,v 1.17 2004/04/01 15:36:27 nickm Exp $
 """mixminion.TLSConnection
 

@@ -1,4 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: ServerInfo.py,v 1.95 2006/11/16 23:31:36 nickm Exp $
 
 """mixminion.ServerInfo

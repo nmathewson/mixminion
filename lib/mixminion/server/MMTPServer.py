@@ -1,4 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: MMTPServer.py,v 1.92 2007/09/12 19:49:41 nickm Exp $
 """mixminion.MMTPServer
 

@@ -1,4 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: testSupport.py,v 1.26 2004/12/13 06:01:58 nickm Exp $
 
 """mixminion.testSupport

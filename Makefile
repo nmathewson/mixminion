@@ -1,4 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: Makefile,v 1.72 2007/09/12 20:49:09 nickm Exp $
 
 # Okay, we'll start with a little make magic.   The goal is to define the

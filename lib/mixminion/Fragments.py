@@ -1,4 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: Fragments.py,v 1.16 2004/05/14 23:44:09 nickm Exp $
 
 """mixminion.BuildMessage

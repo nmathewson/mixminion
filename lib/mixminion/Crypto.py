@@ -1,4 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: Crypto.py,v 1.62 2004/04/21 20:49:41 nickm Exp $
 """mixminion.Crypto
 

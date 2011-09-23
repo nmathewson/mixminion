@@ -1,4 +1,4 @@
-/* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information*/
+/* Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information*/
 /* $Id: aes_ctr.c,v 1.17 2004/03/06 00:04:38 nickm Exp $ */
 
 /* This file reimplements counter mode.  The OpenSSL implementation is

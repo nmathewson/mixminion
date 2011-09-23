@@ -1,4 +1,4 @@
-# Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
+# Copyright 2003-2011 Nick Mathewson.  See LICENSE for licensing information.
 # $Id: DirCGI.py,v 1.9 2005/06/04 13:55:04 nickm Exp $
 
 """mixminion.directory.DirCGI
