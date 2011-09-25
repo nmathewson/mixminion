@@ -1,5 +1,4 @@
-# Copyright 2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerInbox.py,v 1.14 2005/06/04 13:55:04 nickm Exp $
+# Copyright 2003-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 """mixminion.directory.ServerInbox
 

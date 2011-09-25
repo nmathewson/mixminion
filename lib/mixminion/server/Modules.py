@@ -1,5 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Modules.py,v 1.77 2005/12/08 07:01:16 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 """mixminion.server.Modules
 

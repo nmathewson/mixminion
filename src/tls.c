@@ -1,5 +1,4 @@
-/* Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information*/
-/* $Id: tls.c,v 1.37 2007/09/15 19:06:09 nickm Exp $ */
+/* Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information*/
 #include "_minionlib.h"
 
 #include <time.h>

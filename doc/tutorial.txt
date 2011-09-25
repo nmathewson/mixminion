@@ -84,7 +84,7 @@ The Mixminion program is called "mixminion".  It has many subcommands.
 For example, this is how to check the version:
 > $ mixminion version
 > Mixminion version 0.0.7
-> Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
+> Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 > NOTE: This software is for testing only.  The user set is too small
 >       to be anonymous, and the code is too alpha to be reliable.
 

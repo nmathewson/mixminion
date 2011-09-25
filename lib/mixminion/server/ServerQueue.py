@@ -1,5 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: ServerQueue.py,v 1.45 2007/06/20 16:03:02 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 """mixminion.server.ServerQueue
 

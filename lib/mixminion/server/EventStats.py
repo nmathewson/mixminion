@@ -1,5 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: EventStats.py,v 1.14 2004/01/03 07:35:24 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 """mixminion.server.EventStats
 

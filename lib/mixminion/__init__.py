@@ -1,5 +1,4 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: __init__.py,v 1.60 2007/09/15 19:06:37 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 """mixminion
 

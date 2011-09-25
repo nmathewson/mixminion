@@ -1,6 +1,5 @@
 #!/usr/bin/python2
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Main.py,v 1.73 2004/05/14 23:44:09 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 #"""Code to correct the python path, and multiplex between the various
 #   Mixminion CLIs.
@@ -199,7 +198,7 @@ _SERVER_USAGE = (
 def printVersion(cmd,args):
     import mixminion
     print "Mixminion version %s" % mixminion.__version__
-    print ("Copyright 2002-2004 Nick Mathewson.  "+
+    print ("Copyright 2002-2011 Nick Mathewson.  "+
            "See LICENSE for licensing information.")
     print "NOTE: This software is for testing only.  The user set is too small"
     print "      to be anonymous, and the code is too alpha to be reliable."

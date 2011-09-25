@@ -1,5 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Packet.py,v 1.85 2007/12/31 20:11:54 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 """mixminion.Packet
 
    Functions, classes, and constants to parse and unparse Mixminion

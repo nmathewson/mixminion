@@ -1,5 +1,4 @@
-# Copyright 2002-2003 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: DirMain.py,v 1.21 2005/06/04 13:55:04 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 """mixminion.directory.DirMain
 

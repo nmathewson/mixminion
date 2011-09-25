@@ -1,5 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Config.py,v 1.89 2005/06/04 13:52:42 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 
 """Configuration file parsers for Mixminion client and server
    configuration.

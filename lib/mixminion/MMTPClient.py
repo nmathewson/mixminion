@@ -1,5 +1,4 @@
-# Copyright 2002-2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: MMTPClient.py,v 1.60 2004/07/27 04:39:28 nickm Exp $
+# Copyright 2002-2011 Nick Mathewson.  See LICENSE for licensing information.
 """mixminion.MMTPClient
 
    This module contains a single, synchronous implementation of the client

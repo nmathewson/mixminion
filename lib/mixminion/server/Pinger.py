@@ -1,5 +1,4 @@
 # Copyright 2004 Nick Mathewson.  See LICENSE for licensing information.
-# $Id: Pinger.py,v 1.32 2007/12/31 21:02:56 nickm Exp $
 
 """mixminion.server.Pinger
 
