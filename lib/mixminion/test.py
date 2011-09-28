@@ -3469,16 +3469,16 @@ class QueueTests(FStoreTestBase):
         msgs[h3].failed(now=start+40, retriable=1)
         self.assert_(not q._inspect(h3)[1].isPending())
 
-        as = q.addressStateDB[str(A1)]
-        self.assertIEquals(as.lastSuccess-start, 30)
-        self.assertIEquals(as.firstFailure-start, 10)
-        self.assertIEquals(as.lastFailure-start, 10)
-        self.assertIEquals(as.nextAttempt-start, 10+HOUR)
-        as = q.addressStateDB[str(A2)]
-        self.assertIEquals(as.lastSuccess-start, 20)
-        self.assertEquals(as.firstFailure, None)
-        self.assertEquals(as.lastFailure, None)
-        self.assertIEquals(as.nextAttempt-start, 20)
+        addr_state = q.addressStateDB[str(A1)]
+        self.assertIEquals(addr_state.lastSuccess-start, 30)
+        self.assertIEquals(addr_state.firstFailure-start, 10)
+        self.assertIEquals(addr_state.lastFailure-start, 10)
+        self.assertIEquals(addr_state.nextAttempt-start, 10+HOUR)
+        addr_state = q.addressStateDB[str(A2)]
+        self.assertIEquals(addr_state.lastSuccess-start, 20)
+        self.assertEquals(addr_state.firstFailure, None)
+        self.assertEquals(addr_state.lastFailure, None)
+        self.assertIEquals(addr_state.nextAttempt-start, 20)
 
         # Queue two more messages; the one on A2 gets tried; the ones on
         # A1 doesn't get tried for a while.
@@ -3494,13 +3494,13 @@ class QueueTests(FStoreTestBase):
         q.sendReadyMessages(start+HOUR+MIN)
         msgs = self._pendingMsgDict(q._msgs)
         self.assertUnorderedEq(msgs.keys(), [h3, h4])
-        as = q.addressStateDB[str(A1)]
+        addr_state = q.addressStateDB[str(A1)]
         msgs[h3].failed(now=start+HOUR+MIN+5, retriable=1)
         msgs[h4].failed(now=start+HOUR+MIN+5, retriable=1)
 
-        self.assertIEquals(as.firstFailure-start, 10)
-        self.assertIEquals(as.lastFailure-start, HOUR+MIN)
-        self.assertIEquals(as.nextAttempt-start, 10+2*HOUR)
+        self.assertIEquals(addr_state.firstFailure-start, 10)
+        self.assertIEquals(addr_state.lastFailure-start, HOUR+MIN)
+        self.assertIEquals(addr_state.nextAttempt-start, 10+2*HOUR)
 
         h6 = q.queueDeliveryMessage("The sixth message", A1,
                                     now=start+HOUR*17-MIN)
@@ -3524,13 +3524,13 @@ class QueueTests(FStoreTestBase):
         self.assertUnorderedEq(q.addressStateDB.keys(), [str(A1)])
 
         # Make sure that messages keep getting retried...
-        as = q.addressStateDB[str(A1)]
+        addr_state = q.addressStateDB[str(A1)]
         # (Reset nextDelivery on A1, since not all the delivery attempts
         # have really happened.)
         q.sendReadyMessages(now=start+HOUR*17+MIN*15)
         msgs = self._pendingMsgDict(q._msgs)
         msgs[h6].failed(now=start+HOUR*17+MIN*16, retriable=0)
-        self.assertEquals(as.nextAttempt - start, 25*HOUR+10)
+        self.assertEquals(addr_state.nextAttempt - start, 25*HOUR+10)
         self.assertEquals([], q.store.getAllMessages())
 
         # Test reloading.
