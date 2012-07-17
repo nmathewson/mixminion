@@ -1,3 +1,55 @@
+Notes on 16 July 2012
+
+Here are some things that Mixminion (the software) would need to have before
+I would consider it safe to use:
+
+  * Increase the DH key size on TLS from 768 bytes to something reasonable;
+    enable ECC in TLS.
+
+  * Implement a conservative distributed-trust directory system, possibly
+    based on Tor's.
+
+  * Replace SHA1 with SHA256 or SHA512.
+
+  * Do all crypto in C, using mlock and friends to avoid attacks.
+
+Here are some things that I think Mixminion (the software) ought to have for
+security:
+
+  * Switch to the "Sphinx" packet format.
+    http://crysp.uwaterloo.ca/software/Sphinx-0.8.tar.gz
+
+  * Reconsider dummies and link padding based on research in the last 10
+    years.
+
+And here are some things I think it needs to be usable:
+
+  * Implement a pinger that feeds into the authority votes.  (There's one
+    started.  It should be decoupled from the rest of the code, and not run
+    in the same process as a server.)  See echolot and leuchtfeur.
+
+  * Investigate why, as of 2012, mixminion mails don't arrive.  I suspect
+    that it's that "lack of a pinger" thing, possibly combined with one or 2
+    unknown bugs.
+
+  * Drop the E2E-spec envelope format; use something less nutty and
+    restrictive.
+
+  * Support IPv6
+
+  * Needs a working nymserver.
+
+And here is the most important problem for anybody who wants to build
+a useful remailer to think about:
+
+  * What is stopping you, today, from using these tools for _all_ your
+    email?  For me, I would need <60 min latency, very high reliability,
+    a reply channel anybody could use, and reasonable confidence that my
+    address wouldn't get blackholed.
+
+
+======================================================================
+
 Legend:
 SPEC!!  - Not specified
 SPEC    - Spec not finalized
